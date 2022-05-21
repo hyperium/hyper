@@ -80,6 +80,8 @@ struct Extra {
     delayed_eof: Option<DelayEof>,
     #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
     read_chunk_timeout: Option<Timeout>,
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    read_body_timeout: Option<Timeout>,
 }
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
@@ -229,6 +231,17 @@ impl Body {
 
     /// Defines the inactivity timeout while reading a client request body
     #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    pub fn read_body_timeout(&mut self, timeout: Option<Duration>) {
+        self.extra_mut().read_body_timeout = timeout.map(Timeout::new);
+    }
+
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+    fn read_body_timeout_mut(&mut self) -> Option<&mut Timeout> {
+        self.extra.as_mut()?.read_body_timeout.as_mut()
+    }
+
+    /// Defines the inactivity timeout while reading a client request chunk
+    #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
     pub fn read_chunk_timeout(&mut self, timeout: Option<Duration>) {
         self.extra_mut().read_chunk_timeout = timeout.map(Timeout::new);
     }
@@ -257,6 +270,8 @@ impl Body {
                 delayed_eof: None,
                 #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
                 read_chunk_timeout: None,
+                #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+                read_body_timeout: None,
             })
         })
     }
@@ -392,6 +407,12 @@ impl HttpBody for Body {
                 return Poll::Ready(Some(Err(Self::Error::new_body_timeout())));
             }
         }
+        #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+        if let Some(timeout_mut) = self.read_body_timeout_mut() {
+            if timeout_mut.poll_elapsed(cx) {
+                return Poll::Ready(Some(Err(Self::Error::new_body_timeout())));
+            }
+        }
 
         match self.poll_eof(cx) {
             Poll::Ready(Some(data)) => {
@@ -405,6 +426,10 @@ impl HttpBody for Body {
                 #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
                 if let Some(timeout_mut) = self.read_chunk_timeout_mut() {
                     // far future to invoke
+                    timeout_mut.reset(Duration::from_secs(86400 * 365 * 30));
+                }
+                #[cfg(all(feature = "runtime", any(feature = "http1", feature = "http2")))]
+                if let Some(timeout_mut) = self.read_body_timeout_mut() {
                     timeout_mut.reset(Duration::from_secs(86400 * 365 * 30));
                 }
                 Poll::Ready(None)
