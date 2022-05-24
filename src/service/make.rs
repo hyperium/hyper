@@ -108,13 +108,13 @@ where
 /// # async fn run() {
 /// use std::convert::Infallible;
 /// use hyper::{Body, Request, Response, Server};
-/// use hyper::server::conn::AddrStream;
+/// use tokio::net::TcpStream;
 /// use hyper::service::{make_service_fn, service_fn};
 ///
 /// let addr = ([127, 0, 0, 1], 3000).into();
 ///
-/// let make_svc = make_service_fn(|socket: &AddrStream| {
-///     let remote_addr = socket.remote_addr();
+/// let make_svc = make_service_fn(|socket: &TcpStream| {
+///     let remote_addr = socket.peer_addr().unwrap();
 ///     async move {
 ///         Ok::<_, Infallible>(service_fn(move |_: Request<Body>| async move {
 ///             Ok::<_, Infallible>(

@@ -81,9 +81,6 @@ cfg_feature! {
     pub(super) use self::upgrades::UpgradeableConnection;
 }
 
-#[cfg(feature = "tcp")]
-pub use super::tcp::{AddrIncoming, AddrStream};
-
 /// A lower-level configuration of the HTTP protocol.
 ///
 /// This structure is used to configure options for an HTTP server connection.
