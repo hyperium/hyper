@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1653506138044,
+  "lastUpdate": 1653506175378,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11701,6 +11701,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47795,
             "range": "± 3071",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "4678be9e8100d18bde26d319d8de36dee373bd2f",
+          "message": "docs(contrib): add guide for Triaging Issues",
+          "timestamp": "2022-05-25T14:13:09-05:00",
+          "tree_id": "2d44870fb37e1f91ee6212007f213c7bebffd9b9",
+          "url": "https://github.com/hyperium/hyper/commit/4678be9e8100d18bde26d319d8de36dee373bd2f"
+        },
+        "date": 1653506171049,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56557,
+            "range": "± 14501",
             "unit": "ns/iter"
           }
         ]
