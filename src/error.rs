@@ -48,7 +48,7 @@ pub(super) enum Kind {
     #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
     HeaderTimeout,
     /// Error while reading a body from connection.
-    #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
     /// Error while writing a body to connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -294,7 +294,7 @@ impl Error {
         Error::new(Kind::ChannelClosed)
     }
 
-    #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
+    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(super) fn new_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::Body).with(cause)
     }
@@ -440,7 +440,7 @@ impl Error {
             Kind::Accept => "error accepting connection",
             #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
             Kind::HeaderTimeout => "read header from client timeout",
-            #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
+            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Body => "error reading a body from connection",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",

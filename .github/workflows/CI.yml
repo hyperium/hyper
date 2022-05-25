@@ -144,7 +144,7 @@ jobs:
 
       - name: Test
         # Can't enable tcp feature since Miri does not support the tokio runtime
-        run: MIRIFLAGS="-Zmiri-disable-isolation" cargo miri test --features http1,http2,client,server,stream,nightly
+        run: MIRIFLAGS="-Zmiri-disable-isolation" cargo miri test --features http1,http2,client,server,nightly
 
   features:
     name: features

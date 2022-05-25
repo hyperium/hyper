@@ -9,10 +9,11 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use futures_util::{stream, StreamExt};
+use http_body_util::StreamBody;
 use tokio::sync::oneshot;
 
 use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Response, Server};
+use hyper::{Response, Server};
 
 macro_rules! bench_server {
     ($b:ident, $header:expr, $body:expr) => {{
@@ -101,7 +102,7 @@ fn throughput_fixedsize_large_payload(b: &mut test::Bencher) {
 fn throughput_fixedsize_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("content-length", "1000000"), || {
         static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
-        Body::wrap_stream(stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)))
+        StreamBody::new(stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)))
     })
 }
 
@@ -123,7 +124,7 @@ fn throughput_chunked_large_payload(b: &mut test::Bencher) {
 fn throughput_chunked_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("transfer-encoding", "chunked"), || {
         static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
-        Body::wrap_stream(stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)))
+        StreamBody::new(stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)))
     })
 }
 
