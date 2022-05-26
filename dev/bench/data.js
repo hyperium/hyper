@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1653506274272,
+  "lastUpdate": 1653607733414,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5879,6 +5879,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 45036,
             "range": "± 1375",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "50183564+nylonicious@users.noreply.github.com",
+            "name": "Nylonicious",
+            "username": "nylonicious"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3a755a632df194338de3e98061dd18e0bc62aad1",
+          "message": "chore(lib): update `tokio-util` to `0.7` (#2762)",
+          "timestamp": "2022-05-26T16:26:31-07:00",
+          "tree_id": "ef9a0f769863b21fa583604a3b493a8affe2422f",
+          "url": "https://github.com/hyperium/hyper/commit/3a755a632df194338de3e98061dd18e0bc62aad1"
+        },
+        "date": 1653607731361,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 50188,
+            "range": "± 1192",
             "unit": "ns/iter"
           }
         ]
