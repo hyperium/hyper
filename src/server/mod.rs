@@ -150,8 +150,6 @@
 
 pub mod accept;
 pub mod conn;
-#[cfg(feature = "tcp")]
-mod tcp;
 
 pub use self::server::Server;
 
