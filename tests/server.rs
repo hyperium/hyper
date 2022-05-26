@@ -2421,6 +2421,26 @@ fn skips_content_length_and_body_for_304_responses() {
     assert_eq!(lines.next(), None);
 }
 
+#[test]
+fn no_implicit_zero_content_length_for_head_responses() {
+    let server = serve();
+    server.reply().status(hyper::StatusCode::OK).body([]);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        HEAD / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+    assert!(!response.contains("content-length:"));
+}
+
 #[tokio::test]
 async fn http2_keep_alive_detects_unresponsive_client() {
     let _ = pretty_env_logger::try_init();

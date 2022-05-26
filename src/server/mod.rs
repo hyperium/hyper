@@ -91,6 +91,7 @@
 //! use std::net::SocketAddr;
 //! use hyper::{Body, Request, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
+//! # #[cfg(feature = "runtime")]
 //! use hyper::server::conn::AddrStream;
 //!
 //! #[derive(Clone)]
@@ -149,7 +150,6 @@
 
 pub mod accept;
 pub mod conn;
-mod server;
 #[cfg(feature = "tcp")]
 mod tcp;
 
@@ -158,7 +158,15 @@ pub use self::server::Server;
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]
 
+    pub(crate) mod server;
     pub use self::server::Builder;
 
     mod shutdown;
+}
+
+cfg_feature! {
+    #![not(any(feature = "http1", feature = "http2"))]
+
+    mod server_stub;
+    use server_stub as server;
 }

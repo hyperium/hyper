@@ -156,6 +156,8 @@ pub struct Builder {
     h1_writev: Option<bool>,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    #[cfg(feature = "ffi")]
+    h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
     #[cfg(feature = "ffi")]
@@ -492,7 +494,7 @@ where
     ///
     /// This setting is configured by the server peer by sending the
     /// [`SETTINGS_ENABLE_CONNECT_PROTOCOL` parameter][2] in a `SETTINGS` frame.
-    /// This method returns the currently acknowledged value recieved from the
+    /// This method returns the currently acknowledged value received from the
     /// remote.
     ///
     /// [1]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
@@ -558,6 +560,8 @@ impl Builder {
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            h1_preserve_header_order: false,
             h1_max_buf_size: None,
             #[cfg(feature = "ffi")]
             h1_headers_raw: false,
@@ -701,6 +705,21 @@ impl Builder {
     /// Default is false.
     pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Builder {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Set whether to support preserving original header order.
+    ///
+    /// Currently, this will record the order in which headers are received, and store this
+    /// ordering in a private extension on the `Response`. It will also look for and use
+    /// such an extension in any provided `Request`.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    #[cfg(feature = "ffi")]
+    pub fn http1_preserve_header_order(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_preserve_header_order = enabled;
         self
     }
 
@@ -950,6 +969,10 @@ impl Builder {
                     }
                     if opts.h1_preserve_header_case {
                         conn.set_preserve_header_case();
+                    }
+                    #[cfg(feature = "ffi")]
+                    if opts.h1_preserve_header_order {
+                        conn.set_preserve_header_order();
                     }
                     if opts.h09_responses {
                         conn.set_h09_responses();

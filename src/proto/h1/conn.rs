@@ -58,6 +58,8 @@ where
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_running: false,
                 preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
                 title_case_headers: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
@@ -111,6 +113,11 @@ where
         self.state.preserve_header_case = true;
     }
 
+    #[cfg(feature = "ffi")]
+    pub(crate) fn set_preserve_header_order(&mut self) {
+        self.state.preserve_header_order = true;
+    }
+
     #[cfg(feature = "client")]
     pub(crate) fn set_h09_responses(&mut self) {
         self.state.h09_responses = true;
@@ -148,19 +155,15 @@ where
     }
 
     pub(crate) fn can_read_head(&self) -> bool {
-        match self.state.reading {
-            Reading::Init => {
-                if T::should_read_first() {
-                    true
-                } else {
-                    match self.state.writing {
-                        Writing::Init => false,
-                        _ => true,
-                    }
-                }
-            }
-            _ => false,
+        if !matches!(self.state.reading, Reading::Init) {
+            return false;
         }
+
+        if T::should_read_first() {
+            return true;
+        }
+
+        !matches!(self.state.writing, Writing::Init)
     }
 
     pub(crate) fn can_read_body(&self) -> bool {
@@ -200,6 +203,8 @@ where
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
                 preserve_header_case: self.state.preserve_header_case,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
@@ -358,10 +363,10 @@ where
     }
 
     fn is_mid_message(&self) -> bool {
-        match (&self.state.reading, &self.state.writing) {
-            (&Reading::Init, &Writing::Init) => false,
-            _ => true,
-        }
+        !matches!(
+            (&self.state.reading, &self.state.writing),
+            (&Reading::Init, &Writing::Init)
+        )
     }
 
     // This will check to make sure the io object read is empty.
@@ -484,11 +489,10 @@ where
     }
 
     pub(crate) fn can_write_head(&self) -> bool {
-        if !T::should_read_first() {
-            if let Reading::Closed = self.state.reading {
-                return false;
-            }
+        if !T::should_read_first() && matches!(self.state.reading, Reading::Closed) {
+            return false;
         }
+
         match self.state.writing {
             Writing::Init => self.io.can_headers_buf(),
             _ => false,
@@ -632,14 +636,14 @@ where
             Writing::Body(ref mut encoder) => {
                 self.io.buffer(encoder.encode(chunk));
 
-                if encoder.is_eof() {
-                    if encoder.is_last() {
-                        Writing::Closed
-                    } else {
-                        Writing::KeepAlive
-                    }
-                } else {
+                if !encoder.is_eof() {
                     return;
+                }
+
+                if encoder.is_last() {
+                    Writing::Closed
+                } else {
+                    Writing::KeepAlive
                 }
             }
             _ => unreachable!("write_body invalid state: {:?}", self.state.writing),
@@ -671,32 +675,31 @@ where
     pub(crate) fn end_body(&mut self) -> crate::Result<()> {
         debug_assert!(self.can_write_body());
 
-        let mut res = Ok(());
-        let state = match self.state.writing {
-            Writing::Body(ref mut encoder) => {
-                // end of stream, that means we should try to eof
-                match encoder.end() {
-                    Ok(end) => {
-                        if let Some(end) = end {
-                            self.io.buffer(end);
-                        }
-                        if encoder.is_last() || encoder.is_close_delimited() {
-                            Writing::Closed
-                        } else {
-                            Writing::KeepAlive
-                        }
-                    }
-                    Err(not_eof) => {
-                        res = Err(crate::Error::new_body_write_aborted().with(not_eof));
-                        Writing::Closed
-                    }
-                }
-            }
+        let encoder = match self.state.writing {
+            Writing::Body(ref mut enc) => enc,
             _ => return Ok(()),
         };
 
-        self.state.writing = state;
-        res
+        // end of stream, that means we should try to eof
+        match encoder.end() {
+            Ok(end) => {
+                if let Some(end) = end {
+                    self.io.buffer(end);
+                }
+
+                self.state.writing = if encoder.is_last() || encoder.is_close_delimited() {
+                    Writing::Closed
+                } else {
+                    Writing::KeepAlive
+                };
+
+                Ok(())
+            }
+            Err(not_eof) => {
+                self.state.writing = Writing::Closed;
+                Err(crate::Error::new_body_write_aborted().with(not_eof))
+            }
+        }
     }
 
     // When we get a parse error, depending on what side we are, we might be able
@@ -749,10 +752,7 @@ where
 
         // If still in Reading::Body, just give up
         match self.state.reading {
-            Reading::Init | Reading::KeepAlive => {
-                trace!("body drained");
-                return;
-            }
+            Reading::Init | Reading::KeepAlive => trace!("body drained"),
             _ => self.close_read(),
         }
     }
@@ -824,6 +824,8 @@ struct State {
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_running: bool,
     preserve_header_case: bool,
+    #[cfg(feature = "ffi")]
+    preserve_header_order: bool,
     title_case_headers: bool,
     h09_responses: bool,
     /// If set, called with each 1xx informational response received for
@@ -1001,43 +1003,35 @@ impl State {
 
         self.method = None;
         self.keep_alive.idle();
-        if self.is_idle() {
-            self.reading = Reading::Init;
-            self.writing = Writing::Init;
 
-            // !T::should_read_first() means Client.
-            //
-            // If Client connection has just gone idle, the Dispatcher
-            // should try the poll loop one more time, so as to poll the
-            // pending requests stream.
-            if !T::should_read_first() {
-                self.notify_read = true;
-            }
-        } else {
+        if !self.is_idle() {
             self.close();
+            return;
+        }
+
+        self.reading = Reading::Init;
+        self.writing = Writing::Init;
+
+        // !T::should_read_first() means Client.
+        //
+        // If Client connection has just gone idle, the Dispatcher
+        // should try the poll loop one more time, so as to poll the
+        // pending requests stream.
+        if !T::should_read_first() {
+            self.notify_read = true;
         }
     }
 
     fn is_idle(&self) -> bool {
-        if let KA::Idle = self.keep_alive.status() {
-            true
-        } else {
-            false
-        }
+        matches!(self.keep_alive.status(), KA::Idle)
     }
 
     fn is_read_closed(&self) -> bool {
-        match self.reading {
-            Reading::Closed => true,
-            _ => false,
-        }
+        matches!(self.reading, Reading::Closed)
     }
 
     fn is_write_closed(&self) -> bool {
-        match self.writing {
-            Writing::Closed => true,
-            _ => false,
-        }
+        matches!(self.writing, Writing::Closed)
     }
 
     fn prepare_upgrade(&mut self) -> crate::upgrade::OnUpgrade {

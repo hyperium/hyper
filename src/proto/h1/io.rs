@@ -1,17 +1,17 @@
 use std::cmp;
 use std::fmt;
+#[cfg(all(feature = "server", feature = "runtime"))]
+use std::future::Future;
 use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
 #[cfg(all(feature = "server", feature = "runtime"))]
-use std::future::Future;
-#[cfg(all(feature = "server", feature = "runtime"))]
 use std::time::Duration;
 
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Instant;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+#[cfg(all(feature = "server", feature = "runtime"))]
+use tokio::time::Instant;
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
@@ -194,6 +194,8 @@ where
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
                     preserve_header_case: parse_ctx.preserve_header_case,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: parse_ctx.preserve_header_order,
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
                     on_informational: parse_ctx.on_informational,
@@ -208,9 +210,13 @@ where
                     {
                         *parse_ctx.h1_header_read_timeout_running = false;
 
-                        if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
+                        if let Some(h1_header_read_timeout_fut) =
+                            parse_ctx.h1_header_read_timeout_fut
+                        {
                             // Reset the timer in order to avoid woken up when the timeout finishes
-                            h1_header_read_timeout_fut.as_mut().reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
+                            h1_header_read_timeout_fut
+                                .as_mut()
+                                .reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
                         }
                     }
                     return Poll::Ready(Ok(msg));
@@ -224,12 +230,14 @@ where
 
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     if *parse_ctx.h1_header_read_timeout_running {
-                        if let Some(h1_header_read_timeout_fut) = parse_ctx.h1_header_read_timeout_fut {
-                            if Pin::new( h1_header_read_timeout_fut).poll(cx).is_ready() {
+                        if let Some(h1_header_read_timeout_fut) =
+                            parse_ctx.h1_header_read_timeout_fut
+                        {
+                            if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
                                 *parse_ctx.h1_header_read_timeout_running = false;
 
                                 tracing::warn!("read header from client timeout");
-                                return Poll::Ready(Err(crate::Error::new_header_timeout()))
+                                return Poll::Ready(Err(crate::Error::new_header_timeout()));
                             }
                         }
                     }
@@ -727,10 +735,15 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
+                #[cfg(feature = "runtime")]
                 h1_header_read_timeout: None,
+                #[cfg(feature = "runtime")]
                 h1_header_read_timeout_fut: &mut None,
+                #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
                 preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
@@ -894,9 +907,7 @@ mod tests {
     async fn write_buf_flatten() {
         let _ = pretty_env_logger::try_init();
 
-        let mock = Mock::new()
-            .write(b"hello world, it's hyper!")
-            .build();
+        let mock = Mock::new().write(b"hello world, it's hyper!").build();
 
         let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(mock);
         buffered.write_buf.set_strategy(WriteStrategy::Flatten);

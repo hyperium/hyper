@@ -11,7 +11,7 @@ use crate::body::HttpBody;
 use crate::proto::h2::server::H2Stream;
 use crate::rt::Executor;
 #[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
-use crate::server::conn::spawn_all::{NewSvcTask, Watcher};
+use crate::server::server::{new_svc::NewSvcTask, Watcher};
 #[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
 use crate::service::HttpService;
 

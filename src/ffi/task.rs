@@ -32,7 +32,7 @@ pub struct hyper_executor {
     /// The executor of all task futures.
     ///
     /// There should never be contention on the mutex, as it is only locked
-    /// to drive the futures. However, we cannot gaurantee proper usage from
+    /// to drive the futures. However, we cannot guarantee proper usage from
     /// `hyper_executor_poll()`, which in C could potentially be called inside
     /// one of the stored futures. The mutex isn't re-entrant, so doing so
     /// would result in a deadlock, but that's better than data corruption.
