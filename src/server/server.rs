@@ -70,39 +70,6 @@ where
 {
     /// Prepares a server to handle graceful shutdown when the provided future
     /// completes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # fn main() {}
-    /// # async fn run() {
-    /// # use hyper::{Body, Response, Server, Error};
-    /// # use hyper::service::{make_service_fn, service_fn};
-    /// # let make_service = make_service_fn(|_| async {
-    /// #     Ok::<_, Error>(service_fn(|_req| async {
-    /// #         Ok::<_, Error>(Response::new(Body::from("Hello World")))
-    /// #     }))
-    /// # });
-    /// // Make a server from the previous examples...
-    /// let server = Server::bind(&([127, 0, 0, 1], 3000).into())
-    ///     .serve(make_service);
-    ///
-    /// // Prepare some signal for when the server should start shutting down...
-    /// let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-    /// let graceful = server
-    ///     .with_graceful_shutdown(async {
-    ///         rx.await.ok();
-    ///     });
-    ///
-    /// // Await the `server` receiving the signal...
-    /// if let Err(e) = graceful.await {
-    ///     eprintln!("server error: {}", e);
-    /// }
-    ///
-    /// // And later, trigger the signal by calling `tx.send(())`.
-    /// let _ = tx.send(());
-    /// # }
-    /// ```
     pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
     where
         F: Future<Output = ()>,
@@ -457,34 +424,6 @@ impl<I, E> Builder<I, E> {
     }
 
     /// Consume this `Builder`, creating a [`Server`](Server).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # async fn run() {
-    /// use hyper::{Body, Error, Response, Server};
-    /// use hyper::service::{make_service_fn, service_fn};
-    ///
-    /// // Construct our SocketAddr to listen on...
-    /// let addr = ([127, 0, 0, 1], 3000).into();
-    ///
-    /// // And a MakeService to handle each connection...
-    /// let make_svc = make_service_fn(|_| async {
-    ///     Ok::<_, Error>(service_fn(|_req| async {
-    ///         Ok::<_, Error>(Response::new(Body::from("Hello World")))
-    ///     }))
-    /// });
-    ///
-    /// // Then bind and serve...
-    /// let server = Server::bind(&addr)
-    ///     .serve(make_svc);
-    ///
-    /// // Run forever-ish...
-    /// if let Err(err) = server.await {
-    ///     eprintln!("server error: {}", err);
-    /// }
-    /// # }
-    /// ```
     pub fn serve<S, B>(self, make_service: S) -> Server<I, S, E>
     where
         I: Accept,
