@@ -34,7 +34,7 @@ to include them all.
 
 ### Categorize
 
-Once enough information has been gathererd, the issue should be categorized
+Once enough information has been gathered, the issue should be categorized
 with [labels][#labels]. Ideally, most issues should be labelled with an area,
 effort, and severity. An issue _can_ have multiple areas, pick what fits. There
 should be only one severity, and the descriptions of each should help to pick
@@ -47,8 +47,8 @@ maintainer to pick one.
 An optional step when triaging is to adjust the title once more information is
 known. Sometimes an issue starts as a question, and through discussion, it
 turns out to be a feature request, or a bug report. In those cases, the title
-should be changed from a question, and the title should be a succict action to
-be taken. For example, a question about an non-existant configuration option
+should be changed from a question, and the title should be a succinct action to
+be taken. For example, a question about an non-existent configuration option
 may be reworded to "Add option to Client to do Zed".
 
 ### Mentoring
