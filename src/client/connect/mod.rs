@@ -83,14 +83,10 @@ use std::fmt;
 
 use ::http::Extensions;
 
-cfg_feature! {
-    #![feature = "tcp"]
+pub use self::http::{HttpConnector, HttpInfo};
 
-    pub use self::http::{HttpConnector, HttpInfo};
-
-    pub mod dns;
-    mod http;
-}
+pub mod dns;
+mod http;
 
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]

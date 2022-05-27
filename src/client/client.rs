@@ -15,10 +15,11 @@ use super::connect::{self, sealed::Connect, Alpn, Connected, Connection};
 use super::pool::{
     self, CheckoutIsClosedError, Key as PoolKey, Pool, Poolable, Pooled, Reservation,
 };
-#[cfg(feature = "tcp")]
-use super::HttpConnector;
 use crate::body::{Body, HttpBody};
-use crate::common::{exec::BoxSendFuture, sync_wrapper::SyncWrapper, lazy as hyper_lazy, task, Future, Lazy, Pin, Poll};
+use crate::common::{
+    exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, task, Future, Lazy, Pin,
+    Poll,
+};
 use crate::rt::Executor;
 
 /// A Client to make outgoing HTTP requests.
@@ -49,29 +50,6 @@ pub struct ResponseFuture {
 }
 
 // ===== impl Client =====
-
-#[cfg(feature = "tcp")]
-impl Client<HttpConnector, Body> {
-    /// Create a new Client with the default [config](Builder).
-    ///
-    /// # Note
-    ///
-    /// The default connector does **not** handle TLS. Speaking to `https`
-    /// destinations will require [configuring a connector that implements
-    /// TLS](https://hyper.rs/guides/client/configuration).
-    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
-    #[inline]
-    pub fn new() -> Client<HttpConnector, Body> {
-        Builder::default().build_http()
-    }
-}
-
-#[cfg(feature = "tcp")]
-impl Default for Client<HttpConnector, Body> {
-    fn default() -> Client<HttpConnector, Body> {
-        Client::new()
-    }
-}
 
 impl Client<(), Body> {
     /// Create a builder to configure a new `Client`.
@@ -586,7 +564,7 @@ impl ResponseFuture {
         F: Future<Output = crate::Result<Response<Body>>> + Send + 'static,
     {
         Self {
-            inner: SyncWrapper::new(Box::pin(value))
+            inner: SyncWrapper::new(Box::pin(value)),
         }
     }
 
@@ -1314,20 +1292,6 @@ impl Builder {
     {
         self.conn_builder.executor(exec);
         self
-    }
-
-    /// Builder a client with this configuration and the default `HttpConnector`.
-    #[cfg(feature = "tcp")]
-    pub fn build_http<B>(&self) -> Client<HttpConnector, B>
-    where
-        B: HttpBody + Send,
-        B::Data: Send,
-    {
-        let mut connector = HttpConnector::new();
-        if self.pool_config.is_enabled() {
-            connector.set_keepalive(self.pool_config.idle_timeout);
-        }
-        self.build(connector)
     }
 
     /// Combine the configuration of this builder with a connector to create a `Client`.

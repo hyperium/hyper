@@ -17,17 +17,11 @@ use super::HttpBody;
 /// # Example
 ///
 /// ```
-/// # #[cfg(all(feature = "client", feature = "tcp", any(feature = "http1", feature = "http2")))]
 /// # async fn doc() -> hyper::Result<()> {
-/// use hyper::{body::HttpBody};
-///
-/// # let request = hyper::Request::builder()
-/// #        .method(hyper::Method::POST)
-/// #        .uri("http://httpbin.org/post")
-/// #        .header("content-type", "application/json")
-/// #        .body(hyper::Body::from(r#"{"library":"hyper"}"#)).unwrap();
-/// # let client = hyper::Client::new();
-/// let response = client.request(request).await?;
+/// # use hyper::{Body, Response};
+/// # use hyper::body::HttpBody;
+/// #
+/// let response = Response::new(Body::from("response body"));
 ///
 /// const MAX_ALLOWED_RESPONSE_SIZE: u64 = 1024;
 ///
