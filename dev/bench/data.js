@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1653659653579,
+  "lastUpdate": 1653659658426,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -11821,6 +11821,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 57748,
             "range": "± 3004",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ryanrussell@users.noreply.github.com",
+            "name": "Ryan Russell",
+            "username": "ryanrussell"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a929df843ed61b18218ab0976dd8968bae43275c",
+          "message": "docs(various): fix typos in VISION and ROADMAP (#2875)\n\nSigned-off-by: r <ryanrussell@users.noreply.github.com>",
+          "timestamp": "2022-05-27T13:51:32Z",
+          "tree_id": "bd5885c9905aac5cde20b99a29bdf3485b3a83e0",
+          "url": "https://github.com/hyperium/hyper/commit/a929df843ed61b18218ab0976dd8968bae43275c"
+        },
+        "date": 1653659655653,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54294,
+            "range": "± 9935",
             "unit": "ns/iter"
           }
         ]
