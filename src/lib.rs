@@ -96,6 +96,9 @@ cfg_proto! {
 cfg_feature! {
     #![feature = "client"]
 
+    #[cfg(target_os = "wasi")]
+    compile_error!("Wasi does not support http client");
+
     pub mod client;
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[doc(no_inline)]

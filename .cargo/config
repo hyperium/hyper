@@ -1,0 +1,4 @@
+[target.wasm32-wasi]
+rustflags = ["--cfg", "tokio_unstable"]
+runner = ["wasmtime", "run", "--"]
+
