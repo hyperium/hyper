@@ -23,7 +23,7 @@
 //! ```
 use std::error::Error;
 use std::future::Future;
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs};
 use std::pin::Pin;
 use std::str::FromStr;
 use std::task::{self, Poll};
@@ -32,8 +32,6 @@ use std::{fmt, io, vec};
 use tokio::task::JoinHandle;
 use tower_service::Service;
 use tracing::debug;
-
-pub(super) use self::sealed::Resolve;
 
 /// A domain name to resolve into IP addresses.
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -190,22 +188,6 @@ impl SocketAddrs {
         }
     }
 
-    pub(super) fn try_parse(host: &str, port: u16) -> Option<SocketAddrs> {
-        if let Ok(addr) = host.parse::<Ipv4Addr>() {
-            let addr = SocketAddrV4::new(addr, port);
-            return Some(SocketAddrs {
-                iter: vec![SocketAddr::V4(addr)].into_iter(),
-            });
-        }
-        if let Ok(addr) = host.parse::<Ipv6Addr>() {
-            let addr = SocketAddrV6::new(addr, port, 0, 0);
-            return Some(SocketAddrs {
-                iter: vec![SocketAddr::V6(addr)].into_iter(),
-            });
-        }
-        None
-    }
-
     #[inline]
     fn filter(self, predicate: impl FnMut(&SocketAddr) -> bool) -> SocketAddrs {
         SocketAddrs::new(self.iter.filter(predicate).collect())
@@ -238,10 +220,6 @@ impl SocketAddrs {
 
     pub(super) fn is_empty(&self) -> bool {
         self.iter.as_slice().is_empty()
-    }
-
-    pub(super) fn len(&self) -> usize {
-        self.iter.as_slice().len()
     }
 }
 
@@ -318,12 +296,12 @@ impl Future for TokioThreadpoolGaiFuture {
 */
 
 mod sealed {
-    use super::{SocketAddr, Name};
+    use super::{Name, SocketAddr};
     use crate::common::{task, Future, Poll};
     use tower_service::Service;
 
     // "Trait alias" for `Service<Name, Response = Addrs>`
-    pub trait Resolve {
+    pub(crate) trait Resolve {
         type Addrs: Iterator<Item = SocketAddr>;
         type Error: Into<Box<dyn std::error::Error + Send + Sync>>;
         type Future: Future<Output = Result<Self::Addrs, Self::Error>>;
@@ -350,14 +328,6 @@ mod sealed {
             Service::call(self, name)
         }
     }
-}
-
-pub(super) async fn resolve<R>(resolver: &mut R, name: Name) -> Result<R::Addrs, R::Error>
-where
-    R: Resolve,
-{
-    futures_util::future::poll_fn(|cx| resolver.poll_ready(cx)).await?;
-    resolver.resolve(name).await
 }
 
 #[cfg(test)]

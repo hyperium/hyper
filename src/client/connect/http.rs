@@ -4,10 +4,6 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 
-use http::uri::{Scheme, Uri};
-use tracing::trace;
-
-use super::dns::GaiResolver;
 //#[cfg(feature = "runtime")] use super::dns::TokioThreadpoolGaiResolver;
 
 /// A connector for the `http` scheme.
@@ -18,11 +14,9 @@ use super::dns::GaiResolver;
 ///
 /// Sets the [`HttpInfo`](HttpInfo) value on responses, which includes
 /// transport information such as the remote socket address used.
-#[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
 #[derive(Clone)]
-pub struct HttpConnector<R = GaiResolver> {
+pub struct HttpConnector {
     config: Arc<Config>,
-    resolver: R,
 }
 
 /// Extra information about the transport when an HttpConnector is used.
@@ -57,7 +51,20 @@ struct Config {
 impl HttpConnector {
     /// Construct a new HttpConnector.
     pub fn new() -> HttpConnector {
-        HttpConnector::new_with_resolver(GaiResolver::new())
+        HttpConnector {
+            config: Arc::new(Config {
+                connect_timeout: None,
+                enforce_http: true,
+                happy_eyeballs_timeout: Some(Duration::from_millis(300)),
+                keep_alive_timeout: None,
+                local_address_ipv4: None,
+                local_address_ipv6: None,
+                nodelay: false,
+                reuse_address: false,
+                send_buffer_size: None,
+                recv_buffer_size: None,
+            }),
+        }
     }
 }
 
@@ -73,28 +80,7 @@ impl HttpConnector<TokioThreadpoolGaiResolver> {
 }
 */
 
-impl<R> HttpConnector<R> {
-    /// Construct a new HttpConnector.
-    ///
-    /// Takes a [`Resolver`](crate::client::connect::dns#resolvers-are-services) to handle DNS lookups.
-    pub fn new_with_resolver(resolver: R) -> HttpConnector<R> {
-        HttpConnector {
-            config: Arc::new(Config {
-                connect_timeout: None,
-                enforce_http: true,
-                happy_eyeballs_timeout: Some(Duration::from_millis(300)),
-                keep_alive_timeout: None,
-                local_address_ipv4: None,
-                local_address_ipv6: None,
-                nodelay: false,
-                reuse_address: false,
-                send_buffer_size: None,
-                recv_buffer_size: None,
-            }),
-            resolver,
-        }
-    }
-
+impl HttpConnector {
     /// Option to enforce all `Uri`s have the `http` scheme.
     ///
     /// Enabled by default.
@@ -209,60 +195,11 @@ impl<R> HttpConnector<R> {
     }
 }
 
-static INVALID_NOT_HTTP: &str = "invalid URL, scheme is not http";
-static INVALID_MISSING_SCHEME: &str = "invalid URL, scheme is missing";
-static INVALID_MISSING_HOST: &str = "invalid URL, host is missing";
-
 // R: Debug required for now to allow adding it to debug output later...
-impl<R: fmt::Debug> fmt::Debug for HttpConnector<R> {
+impl fmt::Debug for HttpConnector {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("HttpConnector").finish()
     }
-}
-
-fn get_host_port<'u>(config: &Config, dst: &'u Uri) -> Result<(&'u str, u16), ConnectError> {
-    trace!(
-        "Http::connect; scheme={:?}, host={:?}, port={:?}",
-        dst.scheme(),
-        dst.host(),
-        dst.port(),
-    );
-
-    if config.enforce_http {
-        if dst.scheme() != Some(&Scheme::HTTP) {
-            return Err(ConnectError {
-                msg: INVALID_NOT_HTTP.into(),
-                cause: None,
-            });
-        }
-    } else if dst.scheme().is_none() {
-        return Err(ConnectError {
-            msg: INVALID_MISSING_SCHEME.into(),
-            cause: None,
-        });
-    }
-
-    let host = match dst.host() {
-        Some(s) => s,
-        None => {
-            return Err(ConnectError {
-                msg: INVALID_MISSING_HOST.into(),
-                cause: None,
-            })
-        }
-    };
-    let port = match dst.port() {
-        Some(port) => port.as_u16(),
-        None => {
-            if dst.scheme() == Some(&Scheme::HTTPS) {
-                443
-            } else {
-                80
-            }
-        }
-    };
-
-    Ok((host, port))
 }
 
 impl HttpInfo {
@@ -278,37 +215,9 @@ impl HttpInfo {
 }
 
 // Not publicly exported (so missing_docs doesn't trigger).
-pub struct ConnectError {
+pub(crate) struct ConnectError {
     msg: Box<str>,
     cause: Option<Box<dyn StdError + Send + Sync>>,
-}
-
-impl ConnectError {
-    fn new<S, E>(msg: S, cause: E) -> ConnectError
-    where
-        S: Into<Box<str>>,
-        E: Into<Box<dyn StdError + Send + Sync>>,
-    {
-        ConnectError {
-            msg: msg.into(),
-            cause: Some(cause.into()),
-        }
-    }
-
-    fn dns<E>(cause: E) -> ConnectError
-    where
-        E: Into<Box<dyn StdError + Send + Sync>>,
-    {
-        ConnectError::new("dns error", cause)
-    }
-
-    fn m<S, E>(msg: S) -> impl FnOnce(E) -> ConnectError
-    where
-        S: Into<Box<str>>,
-        E: Into<Box<dyn StdError + Send + Sync>>,
-    {
-        move |cause| ConnectError::new(msg, cause)
-    }
 }
 
 impl fmt::Debug for ConnectError {
@@ -339,48 +248,5 @@ impl fmt::Display for ConnectError {
 impl StdError for ConnectError {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
         self.cause.as_ref().map(|e| &**e as _)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use ::http::Uri;
-
-    use super::super::sealed::{Connect, ConnectSvc};
-
-    async fn connect<C>(
-        connector: C,
-        dst: Uri,
-    ) -> Result<<C::_Svc as ConnectSvc>::Connection, <C::_Svc as ConnectSvc>::Error>
-    where
-        C: Connect,
-    {
-        connector.connect(super::super::sealed::Internal, dst).await
-    }
-
-    #[cfg(any(target_os = "linux", target_os = "macos"))]
-    fn get_local_ips() -> (Option<std::net::Ipv4Addr>, Option<std::net::Ipv6Addr>) {
-        use std::net::{IpAddr, TcpListener};
-
-        let mut ip_v4 = None;
-        let mut ip_v6 = None;
-
-        let ips = pnet_datalink::interfaces()
-            .into_iter()
-            .flat_map(|i| i.ips.into_iter().map(|n| n.ip()));
-
-        for ip in ips {
-            match ip {
-                IpAddr::V4(ip) if TcpListener::bind((ip, 0)).is_ok() => ip_v4 = Some(ip),
-                IpAddr::V6(ip) if TcpListener::bind((ip, 0)).is_ok() => ip_v6 = Some(ip),
-                _ => (),
-            }
-
-            if ip_v4.is_some() && ip_v6.is_some() {
-                break;
-            }
-        }
-
-        (ip_v4, ip_v6)
     }
 }
