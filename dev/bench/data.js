@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1653678748268,
+  "lastUpdate": 1653921974140,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5969,6 +5969,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 50051,
             "range": "± 5042",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kianmeng.ang@gmail.com",
+            "name": "Kian-Meng Ang",
+            "username": "kianmeng"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4545c3ef191ce9b5f5d250ee27c4c96f9b71d2c6",
+          "message": "docs(proto): fix typos (#2876)",
+          "timestamp": "2022-05-30T07:43:39-07:00",
+          "tree_id": "ad7877f9782d0c8618cc6519f156e0c7f5b0a525",
+          "url": "https://github.com/hyperium/hyper/commit/4545c3ef191ce9b5f5d250ee27c4c96f9b71d2c6"
+        },
+        "date": 1653921971147,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 48293,
+            "range": "± 3601",
             "unit": "ns/iter"
           }
         ]
