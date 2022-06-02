@@ -1,3 +1,26 @@
+### v0.14.19 (2022-05-27)
+
+
+#### Bug Fixes
+
+* **http1:** fix preserving header case without enabling ffi (#2820) ([6a35c175](https://github.com/hyperium/hyper/commit/6a35c175f2b416851518b5831c2c7827d6dbd822))
+* **server:** don't add implicit content-length to HEAD responses (#2836) ([67b73138](https://github.com/hyperium/hyper/commit/67b73138f110979f3c77ef7b56588f018837e592))
+
+
+#### Features
+
+* **server:**
+  * add `Connection::http2_max_header_list_size` option (#2828) ([a32658c1](https://github.com/hyperium/hyper/commit/a32658c1ae7f1261fa234a767df963be4fc63521), closes [#2826](https://github.com/hyperium/hyper/issues/2826))
+  * add `AddrStream::local_addr()` (#2816) ([ffbf610b](https://github.com/hyperium/hyper/commit/ffbf610b1631cabfacb20886270e3c137fa93800), closes [#2773](https://github.com/hyperium/hyper/issues/2773))
+
+
+#### Breaking Changes
+
+* **ffi (unstable):**
+  * `hyper_clientconn_options_new` no longer sets the `http1_preserve_header_case` connection option by default.
+    Users should now call `hyper_clientconn_options_set_preserve_header_case` if they desire that functionality. ([78de8914](https://github.com/hyperium/hyper/commit/78de8914eadeab4b9a2c71a82c77b2ce33fe6c74))
+
+
 ### v0.14.18 (2022-03-22)
 
 

@@ -949,7 +949,7 @@ impl Http1Transaction for Client {
                         #[cfg(feature = "ffi")]
                         let reason = {
                             let reason = res.reason.unwrap();
-                            // Only save the reason phrase if it isnt the canonical reason
+                            // Only save the reason phrase if it isn't the canonical reason
                             if Some(reason) != status.canonical_reason() {
                                 Some(Bytes::copy_from_slice(reason.as_bytes()))
                             } else {

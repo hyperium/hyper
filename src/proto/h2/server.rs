@@ -143,7 +143,7 @@ where
             #[cfg(feature = "runtime")]
             keep_alive_timeout: config.keep_alive_timeout,
             // If keep-alive is enabled for servers, always enabled while
-            // idle, so it can more aggresively close dead connections.
+            // idle, so it can more aggressively close dead connections.
             #[cfg(feature = "runtime")]
             keep_alive_while_idle: true,
         };
@@ -264,7 +264,7 @@ where
                         let reason = err.h2_reason();
                         if reason == Reason::NO_ERROR {
                             // NO_ERROR is only used for graceful shutdowns...
-                            trace!("interpretting NO_ERROR user error as graceful_shutdown");
+                            trace!("interpreting NO_ERROR user error as graceful_shutdown");
                             self.conn.graceful_shutdown();
                         } else {
                             trace!("abruptly shutting down with {:?}", reason);

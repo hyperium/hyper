@@ -586,7 +586,7 @@ where
         }
     }
 
-    // Fix keep-alives when Connection: keep-alive header is not present
+    // Fix keep-alive when Connection: keep-alive header is not present
     fn fix_keep_alive(&mut self, head: &mut MessageHead<T::Outgoing>) {
         let outgoing_is_keep_alive = head
             .headers

@@ -60,7 +60,7 @@ where
                 // TODO: There should be a way to do following two lines cleaner...
                 buf.put_slice(&prefix[..copy_len]);
                 prefix.advance(copy_len);
-                // Put back whats left
+                // Put back what's left
                 if !prefix.is_empty() {
                     self.pre = Some(prefix);
                 }
