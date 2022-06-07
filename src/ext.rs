@@ -1,6 +1,7 @@
 //! HTTP extensions.
 
 use bytes::Bytes;
+#[cfg(any(feature = "http1", feature = "ffi"))]
 use http::header::HeaderName;
 #[cfg(feature = "http1")]
 use http::header::{IntoHeaderName, ValueIter};
