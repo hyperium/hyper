@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1653922167187,
+  "lastUpdate": 1654614788739,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -5999,6 +5999,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 48293,
             "range": "± 3601",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stuffhello@icloud.com",
+            "name": "evenbetter",
+            "username": "Ticsmtc"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f12d4d4aa8b057cb0397f7942bedb402a3e9e755",
+          "message": "refactor(lib): resolve unused import (#2889)",
+          "timestamp": "2022-06-07T08:10:29-07:00",
+          "tree_id": "450d0eb94a01e9a2b38ea5c22b6246b220ed60f4",
+          "url": "https://github.com/hyperium/hyper/commit/f12d4d4aa8b057cb0397f7942bedb402a3e9e755"
+        },
+        "date": 1654614786658,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 49478,
+            "range": "± 2744",
             "unit": "ns/iter"
           }
         ]
