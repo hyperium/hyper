@@ -1,6 +1,7 @@
 //! HTTP extensions.
 
 use bytes::Bytes;
+#[cfg(any(feature = "http1", feature = "ffi"))]
 use http::header::HeaderName;
 #[cfg(feature = "http1")]
 use http::header::{IntoHeaderName, ValueIter};
@@ -9,6 +10,11 @@ use http::HeaderMap;
 use std::collections::HashMap;
 #[cfg(feature = "http2")]
 use std::fmt;
+
+#[cfg(any(feature = "http1", feature = "ffi"))]
+mod h1_reason_phrase;
+#[cfg(any(feature = "http1", feature = "ffi"))]
+pub use h1_reason_phrase::ReasonPhrase;
 
 #[cfg(feature = "http2")]
 /// Represents the `:protocol` pseudo-header used by
