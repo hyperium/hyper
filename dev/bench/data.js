@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1654729246022,
+  "lastUpdate": 1654729334821,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -39693,6 +39693,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5578353,
             "range": "± 727131",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "acfoltzer@fastly.com",
+            "name": "Adam C. Foltzer",
+            "username": "acfoltzer"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b2052a433fd151d7d745ee9c5b27a2031db1dc32",
+          "message": "feat(ext): support non-canonical HTTP/1 reason phrases (#2792)\n\nAdd a new extension type `hyper::ext::ReasonPhrase` gated by either the `ffi` or `http1` Cargo\r\nfeatures. When enabled, store any non-canonical reason phrases in this extension when parsing\r\nresponses, and write this reason phrase instead of the canonical reason phrase when emitting\r\nresponses.\r\n\r\nReason phrases are a disused corner of the spec that implementations ought to treat as opaque blobs\r\nof bytes. Unfortunately, real-world traffic sometimes does depend on being able to inspect and\r\nmanipulate them.\r\n\r\nNon-canonical reason phrases are checked for validity at runtime to prevent invalid and dangerous\r\ncharacters from being emitted when writing responses. An `unsafe` escape hatch is present for hyper\r\nitself to create reason phrases that have been parsed (and therefore implicitly validated) by\r\nhttparse.",
+          "timestamp": "2022-06-08T15:57:33-07:00",
+          "tree_id": "0474c464576b6ad6c67d29101b16eb2e97c01e1e",
+          "url": "https://github.com/hyperium/hyper/commit/b2052a433fd151d7d745ee9c5b27a2031db1dc32"
+        },
+        "date": 1654729332699,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68411,
+            "range": "± 843",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 5337627,
+            "range": "± 99309",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 30253,
+            "range": "± 404",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 33135,
+            "range": "± 301",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 221414,
+            "range": "± 2782",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 51985482,
+            "range": "± 870678",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 42559213,
+            "range": "± 949228",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 46787212,
+            "range": "± 826129",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 3070277,
+            "range": "± 158793",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 50282,
+            "range": "± 697",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 117434,
+            "range": "± 1695",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 58267,
+            "range": "± 893",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 154948,
+            "range": "± 1382",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 9142009,
+            "range": "± 52613",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 17696499,
+            "range": "± 8874731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8894005,
+            "range": "± 36489",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 56360774,
+            "range": "± 3468172",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 67558231,
+            "range": "± 12267370",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5801145,
+            "range": "± 640239",
             "unit": "ns/iter"
           }
         ]
