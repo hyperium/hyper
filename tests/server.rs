@@ -1,6 +1,7 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
 
+use std::convert::TryInto;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::TcpListener as StdTcpListener;
@@ -381,6 +382,33 @@ mod response_body_lengths {
         assert_eq!(res.headers().get("content-length"), None);
         assert_eq!(res.body().size_hint().exact(), Some(0));
     }
+}
+
+#[test]
+fn get_response_custom_reason_phrase() {
+    let _ = pretty_env_logger::try_init();
+    let server = serve();
+    server.reply().reason_phrase("Cool");
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 200 Cool"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
 }
 
 #[test]
@@ -2671,6 +2699,17 @@ impl<'a> ReplyBuilder<'a> {
         self
     }
 
+    fn reason_phrase(self, reason: &str) -> Self {
+        self.tx
+            .lock()
+            .unwrap()
+            .send(Reply::ReasonPhrase(
+                reason.as_bytes().try_into().expect("reason phrase"),
+            ))
+            .unwrap();
+        self
+    }
+
     fn version(self, version: hyper::Version) -> Self {
         self.tx
             .lock()
@@ -2744,6 +2783,7 @@ struct TestService {
 #[derive(Debug)]
 enum Reply {
     Status(hyper::StatusCode),
+    ReasonPhrase(hyper::ext::ReasonPhrase),
     Version(hyper::Version),
     Header(HeaderName, HeaderValue),
     Body(hyper::Body),
@@ -2798,6 +2838,9 @@ impl TestService {
             match reply {
                 Reply::Status(s) => {
                     *res.status_mut() = s;
+                }
+                Reply::ReasonPhrase(reason) => {
+                    res.extensions_mut().insert(reason);
                 }
                 Reply::Version(v) => {
                     *res.version_mut() = v;
