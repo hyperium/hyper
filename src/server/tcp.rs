@@ -3,14 +3,12 @@ use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
 
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 use tokio::time::Sleep;
 use tracing::{debug, error, trace};
 
 use crate::common::{task, Future, Pin, Poll};
 
-#[allow(unreachable_pub)] // https://github.com/rust-lang/rust/issues/57411
-pub use self::addr_stream::AddrStream;
 use super::accept::Accept;
 
 /// A stream of connections from binding to an address.
@@ -98,7 +96,7 @@ impl AddrIncoming {
         self.sleep_on_errors = val;
     }
 
-    fn poll_next_(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<AddrStream>> {
+    fn poll_next_(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<TcpStream>> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
             ready!(Pin::new(to).poll(cx));
@@ -107,7 +105,7 @@ impl AddrIncoming {
 
         loop {
             match ready!(self.listener.poll_accept(cx)) {
-                Ok((socket, remote_addr)) => {
+                Ok((socket, _)) => {
                     if let Some(dur) = self.tcp_keepalive_timeout {
                         let socket = socket2::SockRef::from(&socket);
                         let conf = socket2::TcpKeepalive::new().with_time(dur);
@@ -118,8 +116,7 @@ impl AddrIncoming {
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
                     }
-                    let local_addr = socket.local_addr()?;
-                    return Poll::Ready(Ok(AddrStream::new(socket, remote_addr, local_addr)));
+                    return Poll::Ready(Ok(socket));
                 }
                 Err(e) => {
                     // Connection errors can be ignored directly, continue by
@@ -155,7 +152,7 @@ impl AddrIncoming {
 }
 
 impl Accept for AddrIncoming {
-    type Conn = AddrStream;
+    type Conn = TcpStream;
     type Error = io::Error;
 
     fn poll_accept(
@@ -191,128 +188,5 @@ impl fmt::Debug for AddrIncoming {
             .field("tcp_keepalive_timeout", &self.tcp_keepalive_timeout)
             .field("tcp_nodelay", &self.tcp_nodelay)
             .finish()
-    }
-}
-
-mod addr_stream {
-    use std::io;
-    use std::net::SocketAddr;
-    #[cfg(unix)]
-    use std::os::unix::io::{AsRawFd, RawFd};
-    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-    use tokio::net::TcpStream;
-
-    use crate::common::{task, Pin, Poll};
-
-    pin_project_lite::pin_project! {
-        /// A transport returned yieled by `AddrIncoming`.
-        #[derive(Debug)]
-        pub struct AddrStream {
-            #[pin]
-            inner: TcpStream,
-            pub(super) remote_addr: SocketAddr,
-            pub(super) local_addr: SocketAddr
-        }
-    }
-
-    impl AddrStream {
-        pub(super) fn new(
-            tcp: TcpStream,
-            remote_addr: SocketAddr,
-            local_addr: SocketAddr,
-        ) -> AddrStream {
-            AddrStream {
-                inner: tcp,
-                remote_addr,
-                local_addr,
-            }
-        }
-
-        /// Returns the remote (peer) address of this connection.
-        #[inline]
-        pub fn remote_addr(&self) -> SocketAddr {
-            self.remote_addr
-        }
-
-        /// Returns the local address of this connection.
-        #[inline]
-        pub fn local_addr(&self) -> SocketAddr {
-            self.local_addr
-        }
-
-        /// Consumes the AddrStream and returns the underlying IO object
-        #[inline]
-        pub fn into_inner(self) -> TcpStream {
-            self.inner
-        }
-
-        /// Attempt to receive data on the socket, without removing that data
-        /// from the queue, registering the current task for wakeup if data is
-        /// not yet available.
-        pub fn poll_peek(
-            &mut self,
-            cx: &mut task::Context<'_>,
-            buf: &mut tokio::io::ReadBuf<'_>,
-        ) -> Poll<io::Result<usize>> {
-            self.inner.poll_peek(cx, buf)
-        }
-    }
-
-    impl AsyncRead for AddrStream {
-        #[inline]
-        fn poll_read(
-            self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-            buf: &mut ReadBuf<'_>,
-        ) -> Poll<io::Result<()>> {
-            self.project().inner.poll_read(cx, buf)
-        }
-    }
-
-    impl AsyncWrite for AddrStream {
-        #[inline]
-        fn poll_write(
-            self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-            buf: &[u8],
-        ) -> Poll<io::Result<usize>> {
-            self.project().inner.poll_write(cx, buf)
-        }
-
-        #[inline]
-        fn poll_write_vectored(
-            self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-            bufs: &[io::IoSlice<'_>],
-        ) -> Poll<io::Result<usize>> {
-            self.project().inner.poll_write_vectored(cx, bufs)
-        }
-
-        #[inline]
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-            // TCP flush is a noop
-            Poll::Ready(Ok(()))
-        }
-
-        #[inline]
-        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
-            self.project().inner.poll_shutdown(cx)
-        }
-
-        #[inline]
-        fn is_write_vectored(&self) -> bool {
-            // Note that since `self.inner` is a `TcpStream`, this could
-            // *probably* be hard-coded to return `true`...but it seems more
-            // correct to ask it anyway (maybe we're on some platform without
-            // scatter-gather IO?)
-            self.inner.is_write_vectored()
-        }
-    }
-
-    #[cfg(unix)]
-    impl AsRawFd for AddrStream {
-        fn as_raw_fd(&self) -> RawFd {
-            self.inner.as_raw_fd()
-        }
     }
 }
