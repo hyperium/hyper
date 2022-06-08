@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1654614927102,
+  "lastUpdate": 1654729238557,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12031,6 +12031,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 75063,
             "range": "± 24681",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "acfoltzer@fastly.com",
+            "name": "Adam C. Foltzer",
+            "username": "acfoltzer"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b2052a433fd151d7d745ee9c5b27a2031db1dc32",
+          "message": "feat(ext): support non-canonical HTTP/1 reason phrases (#2792)\n\nAdd a new extension type `hyper::ext::ReasonPhrase` gated by either the `ffi` or `http1` Cargo\r\nfeatures. When enabled, store any non-canonical reason phrases in this extension when parsing\r\nresponses, and write this reason phrase instead of the canonical reason phrase when emitting\r\nresponses.\r\n\r\nReason phrases are a disused corner of the spec that implementations ought to treat as opaque blobs\r\nof bytes. Unfortunately, real-world traffic sometimes does depend on being able to inspect and\r\nmanipulate them.\r\n\r\nNon-canonical reason phrases are checked for validity at runtime to prevent invalid and dangerous\r\ncharacters from being emitted when writing responses. An `unsafe` escape hatch is present for hyper\r\nitself to create reason phrases that have been parsed (and therefore implicitly validated) by\r\nhttparse.",
+          "timestamp": "2022-06-08T15:57:33-07:00",
+          "tree_id": "0474c464576b6ad6c67d29101b16eb2e97c01e1e",
+          "url": "https://github.com/hyperium/hyper/commit/b2052a433fd151d7d745ee9c5b27a2031db1dc32"
+        },
+        "date": 1654729236022,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 58745,
+            "range": "± 39264",
             "unit": "ns/iter"
           }
         ]
