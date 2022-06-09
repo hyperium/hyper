@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1654732950049,
+  "lastUpdate": 1654732983279,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12181,6 +12181,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 57893,
             "range": "± 10846",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "oddgrd@gmail.com",
+            "name": "Oddbjørn Grødem",
+            "username": "oddgrd"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e9cab49e6e18f712b94137966580f6756e32fabb",
+          "message": "feat(server): remove `AddrStream` struct (#2869)\n\nremove addrstream type, it provides no benefit over tokio::net::tcpstream\r\n\r\nCloses #2850",
+          "timestamp": "2022-06-08T16:59:32-07:00",
+          "tree_id": "acfd367344be31af7af41a81a63782ea61cd6121",
+          "url": "https://github.com/hyperium/hyper/commit/e9cab49e6e18f712b94137966580f6756e32fabb"
+        },
+        "date": 1654732980111,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 75245,
+            "range": "± 29082",
             "unit": "ns/iter"
           }
         ]
