@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1654733069540,
+  "lastUpdate": 1655153228621,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6119,6 +6119,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 73024,
             "range": "± 12684",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "32766901+silence-coding@users.noreply.github.com",
+            "name": "silence-coding",
+            "username": "silence-coding"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5fa113ebffafef9fb655bc67b5d4fc0f3245fda5",
+          "message": "fix(http1): fix `http1_header_read_timeout` to use same future (#2891)\n\nCo-authored-by: silence <xxx@email.com>",
+          "timestamp": "2022-06-13T13:44:28-07:00",
+          "tree_id": "f2f9e866745c4855b9da3ca3c4b5ae985cbd1efe",
+          "url": "https://github.com/hyperium/hyper/commit/5fa113ebffafef9fb655bc67b5d4fc0f3245fda5"
+        },
+        "date": 1655153225700,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 45327,
+            "range": "± 3654",
             "unit": "ns/iter"
           }
         ]
