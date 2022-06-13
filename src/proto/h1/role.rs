@@ -79,7 +79,7 @@ where
     if !*ctx.h1_header_read_timeout_running {
         if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
             let deadline = Instant::now() + h1_header_read_timeout;
-
+            *ctx.h1_header_read_timeout_running = true;
             match ctx.h1_header_read_timeout_fut {
                 Some(h1_header_read_timeout_fut) => {
                     debug!("resetting h1 header read timeout timer");
