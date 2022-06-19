@@ -12,7 +12,8 @@ use std::thread;
 use std::time::Duration;
 
 use hyper::body::to_bytes as concat;
-use hyper::{Body, Client, Method, Request, StatusCode};
+use hyper::header::HeaderValue;
+use hyper::{Body, Method, Request, StatusCode};
 
 use futures_channel::oneshot;
 use futures_core::{Future, Stream, TryFuture};
@@ -148,22 +149,81 @@ macro_rules! test {
         let addr = server.local_addr().expect("local_addr");
         let rt = $runtime;
 
-        let connector = ::hyper::client::HttpConnector::new();
-        let client = Client::builder()
-            $($(.$c_opt_prop($c_opt_val))*)?
-            .build(connector);
-
         #[allow(unused_assignments, unused_mut)]
         let mut body = Body::empty();
         let mut req_builder = Request::builder();
         $(
             test!(@client_request; req_builder, body, addr, $c_req_prop: $c_req_val);
         )*
-        let req = req_builder
+        let mut req = req_builder
             .body(body)
             .expect("request builder");
 
-        let res = client.request(req);
+        let res = async move {
+            let host = req.uri().host().expect("no host in uri");
+            let port = req.uri().port_u16().expect("no port in uri");
+
+            let stream = TcpStream::connect(format!("{}:{}", host, port)).await.unwrap();
+
+            // Wrapper around hyper::client::conn::Builder with set_host field to mimic
+            // hyper::client::Builder.
+            struct Builder {
+                inner: hyper::client::conn::Builder,
+                set_host: bool,
+            }
+
+            impl Builder {
+                fn new() -> Self {
+                    Self {
+                        inner: hyper::client::conn::Builder::new(),
+                        set_host: true,
+                    }
+                }
+
+                #[allow(unused)]
+                fn set_host(&mut self, val: bool) -> &mut Self {
+                    self.set_host = val;
+                    self
+                }
+            }
+
+            impl std::ops::Deref for Builder {
+                type Target = hyper::client::conn::Builder;
+
+                fn deref(&self) -> &Self::Target {
+                    &self.inner
+                }
+            }
+
+            impl std::ops::DerefMut for Builder {
+                fn deref_mut(&mut self) -> &mut Self::Target {
+                    &mut self.inner
+                }
+            }
+
+            #[allow(unused_mut)]
+            let mut builder = Builder::new();
+            $(builder$(.$c_opt_prop($c_opt_val))*;)?
+
+            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+
+            tokio::task::spawn(async move {
+                if let Err(err) = conn.await {
+                    panic!("{}", err);
+                }
+            });
+
+            if builder.set_host {
+                let host = req.uri().host().expect("no host in uri");
+                let port = req.uri().port_u16().expect("no port in uri");
+
+                let host = format!("{}:{}", host, port);
+
+                req.headers_mut().append("Host", HeaderValue::from_str(&host).unwrap());
+            }
+
+            sender.send_request(req).await
+        };
 
         let (tx, rx) = oneshot::channel();
 
@@ -1124,7 +1184,7 @@ mod dispatch_impl {
 
     use super::support;
     use hyper::body::HttpBody;
-    use hyper::client::connect::{Connected, Connection, HttpConnector};
+    use hyper::client::connect::{Connected, Connection};
     use hyper::Client;
 
     #[test]
@@ -1136,10 +1196,7 @@ mod dispatch_impl {
         let addr = server.local_addr().unwrap();
         let rt = support::runtime();
         let (closes_tx, closes) = mpsc::channel(10);
-        let client = Client::builder().build(DebugConnector::with_http_and_closes(
-            HttpConnector::new(),
-            closes_tx,
-        ));
+        let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
 
         let (tx1, rx1) = oneshot::channel();
 
@@ -1209,10 +1266,7 @@ mod dispatch_impl {
         });
 
         let res = {
-            let client = Client::builder().build(DebugConnector::with_http_and_closes(
-                HttpConnector::new(),
-                closes_tx,
-            ));
+            let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
 
             let req = Request::builder()
                 .uri(&*format!("http://{}/a", addr))
@@ -1272,10 +1326,7 @@ mod dispatch_impl {
             support::runtime().block_on(client_drop_rx.into_future())
         });
 
-        let client = Client::builder().build(DebugConnector::with_http_and_closes(
-            HttpConnector::new(),
-            closes_tx,
-        ));
+        let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -1335,10 +1386,7 @@ mod dispatch_impl {
         });
 
         let res = {
-            let client = Client::builder().build(DebugConnector::with_http_and_closes(
-                HttpConnector::new(),
-                closes_tx,
-            ));
+            let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
 
             let req = Request::builder()
                 .uri(&*format!("http://{}/a", addr))
@@ -1388,10 +1436,7 @@ mod dispatch_impl {
 
         let rx = rx1.expect("thread panicked");
         let res = {
-            let client = Client::builder().build(DebugConnector::with_http_and_closes(
-                HttpConnector::new(),
-                closes_tx,
-            ));
+            let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
 
             let req = Request::builder()
                 .uri(&*format!("http://{}/a", addr))
@@ -1440,9 +1485,9 @@ mod dispatch_impl {
             let _ = rx2.recv();
         });
 
-        let client = Client::builder().pool_max_idle_per_host(0).build(
-            DebugConnector::with_http_and_closes(HttpConnector::new(), closes_tx),
-        );
+        let client = Client::builder()
+            .pool_max_idle_per_host(0)
+            .build(DebugConnector::with_closes(closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -1486,10 +1531,7 @@ mod dispatch_impl {
             let _ = tx1.send(());
         });
 
-        let client = Client::builder().build(DebugConnector::with_http_and_closes(
-            HttpConnector::new(),
-            closes_tx,
-        ));
+        let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -2035,7 +2077,6 @@ mod dispatch_impl {
 
     #[derive(Clone)]
     struct DebugConnector {
-        http: HttpConnector,
         closes: mpsc::Sender<()>,
         connects: Arc<AtomicUsize>,
         is_proxy: bool,
@@ -2044,14 +2085,12 @@ mod dispatch_impl {
 
     impl DebugConnector {
         fn new() -> DebugConnector {
-            let http = HttpConnector::new();
             let (tx, _) = mpsc::channel(10);
-            DebugConnector::with_http_and_closes(http, tx)
+            DebugConnector::with_closes(tx)
         }
 
-        fn with_http_and_closes(http: HttpConnector, closes: mpsc::Sender<()>) -> DebugConnector {
+        fn with_closes(closes: mpsc::Sender<()>) -> DebugConnector {
             DebugConnector {
-                http,
                 closes,
                 connects: Arc::new(AtomicUsize::new(0)),
                 is_proxy: false,
@@ -2067,12 +2106,11 @@ mod dispatch_impl {
 
     impl hyper::service::Service<Uri> for DebugConnector {
         type Response = DebugStream;
-        type Error = <HttpConnector as hyper::service::Service<Uri>>::Error;
+        type Error = std::io::Error;
         type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-            // don't forget to check inner service is ready :)
-            hyper::service::Service::<Uri>::poll_ready(&mut self.http, cx)
+        fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+            Poll::Ready(Ok(()))
         }
 
         fn call(&mut self, dst: Uri) -> Self::Future {
@@ -2080,12 +2118,20 @@ mod dispatch_impl {
             let closes = self.closes.clone();
             let is_proxy = self.is_proxy;
             let is_alpn_h2 = self.alpn_h2;
-            Box::pin(self.http.call(dst).map_ok(move |tcp| DebugStream {
-                tcp,
-                on_drop: closes,
-                is_alpn_h2,
-                is_proxy,
-            }))
+
+            Box::pin(async move {
+                let host = dst.host().expect("no host in uri");
+                let port = dst.port_u16().expect("no port in uri");
+
+                let stream = TcpStream::connect(format!("{}:{}", host, port)).await?;
+
+                Ok(DebugStream {
+                    tcp: stream,
+                    on_drop: closes,
+                    is_alpn_h2,
+                    is_proxy,
+                })
+            })
         }
     }
 
@@ -2138,7 +2184,7 @@ mod dispatch_impl {
 
     impl Connection for DebugStream {
         fn connected(&self) -> Connected {
-            let connected = self.tcp.connected().proxy(self.is_proxy);
+            let connected = Connected::new().proxy(self.is_proxy);
 
             if self.is_alpn_h2 {
                 connected.negotiated_h2()
@@ -2695,27 +2741,31 @@ mod conn {
     #[tokio::test]
     async fn http2_detect_conn_eof() {
         use futures_util::future;
-        use hyper::service::{make_service_fn, service_fn};
-        use hyper::{Response, Server};
 
         let _ = pretty_env_logger::try_init();
 
-        let server = Server::bind(&([127, 0, 0, 1], 0).into())
-            .http2_only(true)
-            .serve(make_service_fn(|_| async move {
-                Ok::<_, hyper::Error>(service_fn(|_req| {
-                    future::ok::<_, hyper::Error>(Response::new(Body::empty()))
-                }))
-            }));
-        let addr = server.local_addr();
-        let (shdn_tx, shdn_rx) = oneshot::channel();
+        let addr = SocketAddr::from(([127, 0, 0, 1], 0));
+        let listener = TkTcpListener::bind(addr).await.unwrap();
+
+        let addr = listener.local_addr().unwrap();
+        let (shdn_tx, mut shdn_rx) = oneshot::channel();
         tokio::task::spawn(async move {
-            server
-                .with_graceful_shutdown(async move {
-                    let _ = shdn_rx.await;
-                })
-                .await
-                .expect("server")
+            use hyper::server::conn::Http;
+            use hyper::service::service_fn;
+
+            loop {
+                tokio::select! {
+                    res = listener.accept() => {
+                        let (stream, _) = res.unwrap();
+
+                        let service = service_fn(|_:Request<Body>| future::ok::<Response<Body>, hyper::Error>(Response::new(Body::empty())));
+                        Http::new().http2_only(true).serve_connection(stream, service).await.unwrap();
+                    }
+                    _ = &mut shdn_rx => {
+                        break;
+                    }
+                }
+            }
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");

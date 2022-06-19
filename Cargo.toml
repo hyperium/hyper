@@ -59,6 +59,7 @@ tokio = { version = "1", features = [
     "sync",
     "time",
     "test-util",
+    "net",
 ] }
 tokio-test = "0.4"
 tokio-util = { version = "0.6", features = ["codec"] }
