@@ -52,7 +52,6 @@
 //! - `runtime`: Enables convenient integration with `tokio`, providing
 //!   connectors and acceptors for TCP, and a default executor.
 //! - `tcp`: Enables convenient implementations over TCP (using tokio).
-//! - `stream`: Provides `futures::Stream` capabilities.
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 

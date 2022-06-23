@@ -1,9 +1,5 @@
 #![deny(warnings)]
 
-use tokio::fs::File;
-
-use tokio_util::codec::{BytesCodec, FramedRead};
-
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
 
@@ -48,11 +44,8 @@ fn not_found() -> Response<Body> {
 }
 
 async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
-    // Serve a file by asynchronously reading it by chunks using tokio-util crate.
-
-    if let Ok(file) = File::open(filename).await {
-        let stream = FramedRead::new(file, BytesCodec::new());
-        let body = Body::wrap_stream(stream);
+    if let Ok(contents) = tokio::fs::read(filename).await {
+        let body = contents.into();
         return Ok(Response::new(body));
     }
 

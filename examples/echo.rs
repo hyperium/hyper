@@ -1,6 +1,5 @@
 #![deny(warnings)]
 
-use futures_util::TryStreamExt;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Method, Request, Response, Server, StatusCode};
 
@@ -16,16 +15,17 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // Simply echo the body back to the client.
         (&Method::POST, "/echo") => Ok(Response::new(req.into_body())),
 
+        // TODO: Fix this, broken in PR #2896
         // Convert to uppercase before sending back to client using a stream.
-        (&Method::POST, "/echo/uppercase") => {
-            let chunk_stream = req.into_body().map_ok(|chunk| {
-                chunk
-                    .iter()
-                    .map(|byte| byte.to_ascii_uppercase())
-                    .collect::<Vec<u8>>()
-            });
-            Ok(Response::new(Body::wrap_stream(chunk_stream)))
-        }
+        // (&Method::POST, "/echo/uppercase") => {
+        // let chunk_stream = req.into_body().map_ok(|chunk| {
+        //     chunk
+        //         .iter()
+        //         .map(|byte| byte.to_ascii_uppercase())
+        //         .collect::<Vec<u8>>()
+        // });
+        // Ok(Response::new(Body::wrap_stream(chunk_stream)))
+        // }
 
         // Reverse the entire body before sending back to the client.
         //

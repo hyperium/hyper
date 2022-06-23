@@ -1,20 +1,14 @@
 use std::borrow::Cow;
-#[cfg(feature = "stream")]
-use std::error::Error as StdError;
 use std::fmt;
 
 use bytes::Bytes;
 use futures_channel::mpsc;
 use futures_channel::oneshot;
 use futures_core::Stream; // for mpsc::Receiver
-#[cfg(feature = "stream")]
-use futures_util::TryStreamExt;
 use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
 use super::DecodedLength;
-#[cfg(feature = "stream")]
-use crate::common::sync_wrapper::SyncWrapper;
 use crate::common::Future;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 use crate::common::Never;
@@ -56,12 +50,6 @@ enum Kind {
     },
     #[cfg(feature = "ffi")]
     Ffi(crate::ffi::UserBody),
-    #[cfg(feature = "stream")]
-    Wrapped(
-        SyncWrapper<
-            Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn StdError + Send + Sync>>> + Send>>,
-        >,
-    ),
 }
 
 struct Extra {
@@ -162,39 +150,6 @@ impl Body {
         });
 
         (tx, rx)
-    }
-
-    /// Wrap a futures `Stream` in a box inside `Body`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use hyper::Body;
-    /// let chunks: Vec<Result<_, std::io::Error>> = vec![
-    ///     Ok("hello"),
-    ///     Ok(" "),
-    ///     Ok("world"),
-    /// ];
-    ///
-    /// let stream = futures_util::stream::iter(chunks);
-    ///
-    /// let body = Body::wrap_stream(stream);
-    /// ```
-    ///
-    /// # Optional
-    ///
-    /// This function requires enabling the `stream` feature in your
-    /// `Cargo.toml`.
-    #[cfg(feature = "stream")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "stream")))]
-    pub fn wrap_stream<S, O, E>(stream: S) -> Body
-    where
-        S: Stream<Item = Result<O, E>> + Send + 'static,
-        O: Into<Bytes> + 'static,
-        E: Into<Box<dyn StdError + Send + Sync>> + 'static,
-    {
-        let mapped = stream.map_ok(Into::into).map_err(Into::into);
-        Body::new(Kind::Wrapped(SyncWrapper::new(Box::pin(mapped))))
     }
 
     fn new(kind: Kind) -> Body {
@@ -329,12 +284,6 @@ impl Body {
 
             #[cfg(feature = "ffi")]
             Kind::Ffi(ref mut body) => body.poll_data(cx),
-
-            #[cfg(feature = "stream")]
-            Kind::Wrapped(ref mut s) => match ready!(s.get_mut().as_mut().poll_next(cx)) {
-                Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
-                None => Poll::Ready(None),
-            },
         }
     }
 
@@ -405,8 +354,6 @@ impl HttpBody for Body {
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "ffi")]
             Kind::Ffi(..) => false,
-            #[cfg(feature = "stream")]
-            Kind::Wrapped(..) => false,
         }
     }
 
@@ -426,8 +373,6 @@ impl HttpBody for Body {
         match self.kind {
             Kind::Once(Some(ref val)) => SizeHint::with_exact(val.len() as u64),
             Kind::Once(None) => SizeHint::with_exact(0),
-            #[cfg(feature = "stream")]
-            Kind::Wrapped(..) => SizeHint::default(),
             Kind::Chan { content_length, .. } => opt_len!(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { content_length, .. } => opt_len!(content_length),
@@ -454,33 +399,6 @@ impl fmt::Debug for Body {
         };
 
         builder.finish()
-    }
-}
-
-/// # Optional
-///
-/// This function requires enabling the `stream` feature in your
-/// `Cargo.toml`.
-#[cfg(feature = "stream")]
-impl Stream for Body {
-    type Item = crate::Result<Bytes>;
-
-    fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
-        HttpBody::poll_data(self, cx)
-    }
-}
-
-/// # Optional
-///
-/// This function requires enabling the `stream` feature in your
-/// `Cargo.toml`.
-#[cfg(feature = "stream")]
-impl From<Box<dyn Stream<Item = Result<Bytes, Box<dyn StdError + Send + Sync>>> + Send>> for Body {
-    #[inline]
-    fn from(
-        stream: Box<dyn Stream<Item = Result<Bytes, Box<dyn StdError + Send + Sync>>> + Send>,
-    ) -> Body {
-        Body::new(Kind::Wrapped(SyncWrapper::new(stream.into())))
     }
 }
 
