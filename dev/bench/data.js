@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1655153426014,
+  "lastUpdate": 1656021326391,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12271,6 +12271,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 69381,
             "range": "± 23422",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a563404033b66663fe7e2b54f93cb033d4029100",
+          "message": "chore(lib): bump MSRV to 1.56 (#2902)",
+          "timestamp": "2022-06-23T14:52:36-07:00",
+          "tree_id": "48178fb0cb54841e40eae9c597103cf6f4b97964",
+          "url": "https://github.com/hyperium/hyper/commit/a563404033b66663fe7e2b54f93cb033d4029100"
+        },
+        "date": 1656021323365,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47737,
+            "range": "± 2042",
             "unit": "ns/iter"
           }
         ]
