@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1656021448379,
+  "lastUpdate": 1656022547322,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -6179,6 +6179,36 @@ window.BENCHMARK_DATA = {
             "name": "http_connector",
             "value": 55978,
             "range": "± 3904",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "oddgrd@gmail.com",
+            "name": "Oddbjørn Grødem",
+            "username": "oddgrd"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ce72f73464d96fd67b59ceff08fd424733b43ffa",
+          "message": "feat(lib): remove `stream` cargo feature (#2896)\n\nCloses #2855",
+          "timestamp": "2022-06-23T15:12:24-07:00",
+          "tree_id": "3281d9c56eb80e17d3201413247e4f13e4f0f9e4",
+          "url": "https://github.com/hyperium/hyper/commit/ce72f73464d96fd67b59ceff08fd424733b43ffa"
+        },
+        "date": 1656022543286,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http_connector",
+            "value": 76325,
+            "range": "± 18719",
             "unit": "ns/iter"
           }
         ]
