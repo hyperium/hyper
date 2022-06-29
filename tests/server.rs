@@ -20,6 +20,7 @@ use futures_util::future::{self, Either, FutureExt, TryFutureExt};
 use h2::client::SendRequest;
 use h2::{RecvStream, SendStream};
 use http::header::{HeaderName, HeaderValue};
+use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
 use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 
@@ -108,8 +109,7 @@ mod response_body_lengths {
                 b
             }
             Bd::Unknown(b) => {
-                let (mut tx, body) = hyper::Body::channel();
-                tx.try_send_data(b.into()).expect("try_send_data");
+                let body = futures_util::stream::once(async move { Ok(b.into()) });
                 reply.body_stream(body);
                 b
             }
@@ -2191,31 +2191,30 @@ async fn max_buf_size() {
         .expect_err("should TooLarge error");
 }
 
-// TODO: Broken in PR #2896. Fix this if we don't have other tests to verify that the
-// HTTP/1 server dispatcher properly handles a streaming body
-// #[test]
-// fn streaming_body() {
-//     let _ = pretty_env_logger::try_init();
+#[test]
+fn streaming_body() {
+    use futures_util::StreamExt;
+    let _ = pretty_env_logger::try_init();
 
-//     // disable keep-alive so we can use read_to_end
-//     let server = serve_opts().keep_alive(false).serve();
+    // disable keep-alive so we can use read_to_end
+    let server = serve_opts().keep_alive(false).serve();
 
-//     static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-//     let b = futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, hyper::Error>(s));
-//     let b = hyper::Body::wrap_stream(b);
-//     server.reply().body_stream(b);
+    static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 100] as _;
+    let b =
+        futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, BoxError>(Bytes::copy_from_slice(s)));
+    server.reply().body_stream(b);
 
-//     let mut tcp = connect(server.addr());
-//     tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
-//     let mut buf = Vec::new();
-//     tcp.read_to_end(&mut buf).expect("read 1");
+    let mut tcp = connect(server.addr());
+    tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
+    let mut buf = Vec::new();
+    tcp.read_to_end(&mut buf).expect("read 1");
 
-//     assert!(
-//         buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
-//         "response is 200 OK"
-//     );
-//     assert_eq!(buf.len(), 100_789, "full streamed body read");
-// }
+    assert!(
+        buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
+        "response is 200 OK"
+    );
+    assert_eq!(buf.len(), 100_789, "full streamed body read");
+}
 
 #[test]
 fn http1_response_with_http2_version() {
@@ -2300,42 +2299,39 @@ async fn http2_service_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
-// TODO: Fix this, broken in PR #2896
-// #[test]
-// fn http2_body_user_error_sends_reset_reason() {
-//     use std::error::Error;
-//     let server = serve();
-//     let addr_str = format!("http://{}", server.addr());
+#[test]
+fn http2_body_user_error_sends_reset_reason() {
+    use std::error::Error;
+    let server = serve();
+    let addr_str = format!("http://{}", server.addr());
 
-//     let b = futures_util::stream::once(future::err::<String, _>(h2::Error::from(
-//         h2::Reason::INADEQUATE_SECURITY,
-//     )));
-//     let b = hyper::Body::wrap_stream(b);
+    let b = futures_util::stream::once(future::err::<Bytes, BoxError>(Box::new(h2::Error::from(
+        h2::Reason::INADEQUATE_SECURITY,
+    ))));
+    server.reply().body_stream(b);
 
-//     server.reply().body_stream(b);
+    let rt = support::runtime();
 
-//     let rt = support::runtime();
+    let err: hyper::Error = rt
+        .block_on(async move {
+            let client = Client::builder()
+                .http2_only(true)
+                .build_http::<hyper::Body>();
+            let uri = addr_str.parse().expect("server addr should parse");
 
-//     let err: hyper::Error = rt
-//         .block_on(async move {
-//             let client = Client::builder()
-//                 .http2_only(true)
-//                 .build_http::<hyper::Body>();
-//             let uri = addr_str.parse().expect("server addr should parse");
+            let mut res = client.get(uri).await?;
 
-//             let mut res = client.get(uri).await?;
+            while let Some(chunk) = res.body_mut().data().await {
+                chunk?;
+            }
+            Ok(())
+        })
+        .unwrap_err();
 
-//             while let Some(chunk) = res.body_mut().next().await {
-//                 chunk?;
-//             }
-//             Ok(())
-//         })
-//         .unwrap_err();
+    let h2_err = err.source().unwrap().downcast_ref::<h2::Error>().unwrap();
 
-//     let h2_err = err.source().unwrap().downcast_ref::<h2::Error>().unwrap();
-
-//     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
-// }
+    assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
+}
 
 struct Http2ReadyErrorSvc;
 
@@ -2687,7 +2683,7 @@ impl Serve {
 }
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
-type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, BoxError>> + Send>>;
+type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<ReplyBody>, BoxError>> + Send>>;
 
 struct ReplyBuilder<'a> {
     tx: &'a Mutex<spmc::Sender<Reply>>,
@@ -2731,14 +2727,16 @@ impl<'a> ReplyBuilder<'a> {
     }
 
     fn body<T: AsRef<[u8]>>(self, body: T) {
-        self.tx
-            .lock()
-            .unwrap()
-            .send(Reply::Body(body.as_ref().to_vec().into()))
-            .unwrap();
+        let chunk = Bytes::copy_from_slice(body.as_ref());
+        let body = BodyExt::boxed(http_body_util::Full::new(chunk).map_err(|e| match e {}));
+        self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
-    fn body_stream(self, body: Body) {
+    fn body_stream<S>(self, stream: S)
+    where
+        S: futures_util::Stream<Item = Result<Bytes, BoxError>> + Send + Sync + 'static,
+    {
+        let body = BodyExt::boxed(StreamBody::new(stream));
         self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
@@ -2780,13 +2778,15 @@ struct TestService {
     reply: spmc::Receiver<Reply>,
 }
 
+type ReplyBody = BoxBody<Bytes, BoxError>;
+
 #[derive(Debug)]
 enum Reply {
     Status(hyper::StatusCode),
     ReasonPhrase(hyper::ext::ReasonPhrase),
     Version(hyper::Version),
     Header(HeaderName, HeaderValue),
-    Body(hyper::Body),
+    Body(ReplyBody),
     Error(BoxError),
     End,
 }
@@ -2799,7 +2799,7 @@ enum Msg {
 }
 
 impl tower_service::Service<Request<Body>> for TestService {
-    type Response = Response<Body>;
+    type Response = Response<ReplyBody>;
     type Error = BoxError;
     type Future = BoxFuture;
 
@@ -2832,8 +2832,10 @@ impl tower_service::Service<Request<Body>> for TestService {
 }
 
 impl TestService {
-    fn build_reply(replies: spmc::Receiver<Reply>) -> Result<Response<Body>, BoxError> {
-        let mut res = Response::new(Body::empty());
+    fn build_reply(replies: spmc::Receiver<Reply>) -> Result<Response<ReplyBody>, BoxError> {
+        let empty =
+            BodyExt::boxed(http_body_util::Empty::new().map_err(|e| -> BoxError { match e {} }));
+        let mut res = Response::new(empty);
         while let Ok(reply) = replies.try_recv() {
             match reply {
                 Reply::Status(s) => {
@@ -2880,7 +2882,7 @@ impl tower_service::Service<Request<Body>> for HelloWorld {
 
 fn unreachable_service() -> impl tower_service::Service<
     http::Request<hyper::Body>,
-    Response = http::Response<hyper::Body>,
+    Response = http::Response<ReplyBody>,
     Error = BoxError,
     Future = BoxFuture,
 > {
