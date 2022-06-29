@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1656510141689,
+  "lastUpdate": 1656510149491,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12421,6 +12421,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 68567,
             "range": "± 7475",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3660443108e22c063cd98906edffb3cff7e9afb6",
+          "message": "test(client,server): add back tests around streaming bodies (#2905)",
+          "timestamp": "2022-06-29T06:39:21-07:00",
+          "tree_id": "0098b2ea7a2b8ffa36a37ea617db6af103ed45d3",
+          "url": "https://github.com/hyperium/hyper/commit/3660443108e22c063cd98906edffb3cff7e9afb6"
+        },
+        "date": 1656510146319,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48515,
+            "range": "± 3576",
             "unit": "ns/iter"
           }
         ]
