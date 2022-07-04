@@ -6,7 +6,7 @@ extern crate test;
 use bytes::Buf;
 use futures_util::stream;
 use futures_util::StreamExt;
-use hyper::body::Body;
+use http_body_util::StreamBody;
 
 macro_rules! bench_stream {
     ($bencher:ident, bytes: $bytes:expr, count: $count:expr, $total_ident:ident, $body_pat:pat, $block:expr) => {{
@@ -20,9 +20,10 @@ macro_rules! bench_stream {
 
         $bencher.iter(|| {
             rt.block_on(async {
-                let $body_pat = Body::wrap_stream(
+                let $body_pat = StreamBody::new(
                     stream::iter(__s.iter()).map(|&s| Ok::<_, std::convert::Infallible>(s)),
                 );
+
                 $block;
             });
         });

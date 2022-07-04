@@ -6,7 +6,7 @@ use super::body::{hyper_body, hyper_buf};
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
-use crate::ext::{HeaderCaseMap, OriginalHeaderOrder};
+use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::header::{HeaderName, HeaderValue};
 use crate::{Body, HeaderMap, Method, Request, Response, Uri};
 
@@ -24,9 +24,6 @@ pub struct hyper_headers {
     orig_casing: HeaderCaseMap,
     orig_order: OriginalHeaderOrder,
 }
-
-#[derive(Debug)]
-pub(crate) struct ReasonPhrase(pub(crate) Bytes);
 
 pub(crate) struct RawHeaders(pub(crate) hyper_buf);
 
@@ -365,7 +362,7 @@ impl hyper_response {
 
     fn reason_phrase(&self) -> &[u8] {
         if let Some(reason) = self.0.extensions().get::<ReasonPhrase>() {
-            return &reason.0;
+            return reason.as_bytes();
         }
 
         if let Some(reason) = self.0.status().canonical_reason() {

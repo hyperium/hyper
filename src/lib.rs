@@ -51,7 +51,6 @@
 //! - `server`: Enables the HTTP `server`.
 //! - `runtime`: Enables convenient integration with `tokio`, providing
 //!   connectors and acceptors for TCP, and a default executor.
-//! - `stream`: Provides `futures::Stream` capabilities.
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 

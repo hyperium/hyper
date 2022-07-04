@@ -8,6 +8,10 @@
 
 A **fast** and **correct** HTTP implementation for Rust.
 
+> **Note**: hyper's [master](https://github.com/hyperium/hyper) branch is
+> currently preparing breaking changes. For the most recently *released* code,
+> look to the [0.14.x branch](https://github.com/hyperium/hyper/tree/0.14.x).
+
 - HTTP/1 and HTTP/2
 - Asynchronous design
 - Leading in performance

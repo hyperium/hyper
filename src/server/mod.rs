@@ -92,7 +92,7 @@
 //! use hyper::{Body, Request, Response, Server};
 //! use hyper::service::{make_service_fn, service_fn};
 //! # #[cfg(feature = "runtime")]
-//! use hyper::server::conn::AddrStream;
+//! use tokio::net::TcpStream;
 //!
 //! #[derive(Clone)]
 //! struct AppContext {
@@ -115,14 +115,14 @@
 //!     };
 //!
 //!     // A `MakeService` that produces a `Service` to handle each connection.
-//!     let make_service = make_service_fn(move |conn: &AddrStream| {
+//!     let make_service = make_service_fn(move |conn: &TcpStream| {
 //!         // We have to clone the context to share it with each invocation of
 //!         // `make_service`. If your data doesn't implement `Clone` consider using
 //!         // an `std::sync::Arc`.
 //!         let context = context.clone();
 //!
 //!         // You can grab the address of the incoming connection like so.
-//!         let addr = conn.remote_addr();
+//!         let addr = conn.peer_addr().unwrap();
 //!
 //!         // Create a `Service` for responding to the request.
 //!         let service = service_fn(move |req| {

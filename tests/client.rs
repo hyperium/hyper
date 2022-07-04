@@ -4,6 +4,7 @@
 #[macro_use]
 extern crate matches;
 
+use std::convert::Infallible;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
@@ -11,10 +12,12 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
+use http_body_util::{BodyExt, StreamBody};
 use hyper::body::to_bytes as concat;
 use hyper::header::HeaderValue;
 use hyper::{Body, Method, Request, StatusCode};
 
+use bytes::Bytes;
 use futures_channel::oneshot;
 use futures_core::{Future, Stream, TryFuture};
 use futures_util::future::{self, FutureExt, TryFutureExt};
@@ -150,7 +153,7 @@ macro_rules! test {
         let rt = $runtime;
 
         #[allow(unused_assignments, unused_mut)]
-        let mut body = Body::empty();
+        let mut body = BodyExt::boxed(http_body_util::Empty::<bytes::Bytes>::new());
         let mut req_builder = Request::builder();
         $(
             test!(@client_request; req_builder, body, addr, $c_req_prop: $c_req_val);
@@ -292,7 +295,11 @@ macro_rules! __client_req_prop {
     }};
 
     ($req_builder:ident, $body:ident, $addr:ident, body: $body_e:expr) => {{
-        $body = $body_e.into();
+        $body = BodyExt::boxed(http_body_util::Full::from($body_e));
+    }};
+
+    ($req_builder:ident, $body:ident, $addr:ident, body_stream: $body_e:expr) => {{
+        $body = BodyExt::boxed(StreamBody::new($body_e));
     }};
 }
 
@@ -537,7 +544,11 @@ test! {
             headers: {
                 "Content-Length" => "5",
             },
-            body: (Body::wrap_stream(Body::from("hello"))),
+            // use a "stream" (where Body doesn't know length) with a
+            // content-length header
+            body_stream: (futures_util::stream::once(async {
+                Ok::<_, Infallible>(Bytes::from("hello"))
+            })),
         },
         response:
             status: OK,
@@ -560,12 +571,14 @@ test! {
         request: {
             method: GET,
             url: "http://{addr}/",
-            // wrap_steam means we don't know the content-length,
+            // steam means we don't know the content-length,
             // but we're wrapping a non-empty stream.
             //
             // But since the headers cannot tell us, and the method typically
             // doesn't have a body, the body must be ignored.
-            body: (Body::wrap_stream(Body::from("hello"))),
+            body_stream: (futures_util::stream::once(async {
+                Ok::<_, Infallible>(Bytes::from("hello"))
+            })),
         },
         response:
             status: OK,
@@ -592,11 +605,13 @@ test! {
                 "transfer-encoding" => "chunked",
             },
             version: HTTP_10,
-            // wrap_steam means we don't know the content-length,
+            // steam means we don't know the content-length,
             // but we're wrapping a non-empty stream.
             //
             // But since the headers cannot tell us, the body must be ignored.
-            body: (Body::wrap_stream(Body::from("hello"))),
+            body_stream: (futures_util::stream::once(async {
+                Ok::<_, Infallible>(Bytes::from("hello"))
+            })),
         },
         response:
             status: OK,
@@ -681,7 +696,10 @@ test! {
         request: {
             method: POST,
             url: "http://{addr}/chunks",
-            body: (Body::wrap_stream(Body::from("foo bar baz"))),
+            // use a stream to "hide" that the full amount is known
+            body_stream: (futures_util::stream::once(async {
+                Ok::<_, Infallible>(Bytes::from("foo bar baz"))
+            })),
         },
         response:
             status: OK,
@@ -1746,15 +1764,15 @@ mod dispatch_impl {
 
         let delayed_body = rx1
             .then(|_| tokio::time::sleep(Duration::from_millis(200)))
-            .map(|_| Ok::<_, ()>("hello a"))
-            .map_err(|_| -> hyper::Error { panic!("rx1") })
+            .map(|_| Ok::<_, ()>(Bytes::from("hello a")))
+            .map_err(|_| -> std::convert::Infallible { panic!("rx1") })
             .into_stream();
 
         let rx = rx2.expect("thread panicked");
         let req = Request::builder()
             .method("POST")
             .uri(&*format!("http://{}/a", addr))
-            .body(Body::wrap_stream(delayed_body))
+            .body(BodyExt::boxed(StreamBody::new(delayed_body)))
             .unwrap();
         let client2 = client.clone();
 
@@ -1766,7 +1784,7 @@ mod dispatch_impl {
                 let rx = rx3.expect("thread panicked");
                 let req = Request::builder()
                     .uri(&*format!("http://{}/b", addr))
-                    .body(Body::empty())
+                    .body(BodyExt::boxed(http_body_util::Empty::new()))
                     .unwrap();
                 future::join(client2.request(req), rx).map(|r| r.0)
             });
@@ -2206,11 +2224,11 @@ mod conn {
     use bytes::Buf;
     use futures_channel::oneshot;
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
-    use futures_util::StreamExt;
     use hyper::upgrade::OnUpgrade;
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
+    use hyper::body::HttpBody;
     use hyper::client::conn;
     use hyper::{self, Body, Method, Request, Response, StatusCode};
 
@@ -2254,7 +2272,7 @@ mod conn {
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            assert!(res.body_mut().next().await.is_none());
+            assert!(res.body_mut().data().await.is_none());
         };
 
         future::join(server, client).await;
@@ -2311,7 +2329,63 @@ mod conn {
                 res.headers().get("line-folded-header").unwrap(),
                 "hello   world"
             );
-            assert!(res.body_mut().next().await.is_none());
+            assert!(res.body_mut().data().await.is_none());
+        };
+
+        future::join(server, client).await;
+    }
+
+    #[tokio::test]
+    async fn get_custom_reason_phrase() {
+        let _ = ::pretty_env_logger::try_init();
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let server = async move {
+            let mut sock = listener.accept().await.unwrap().0;
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).await.expect("read 1");
+
+            // Notably:
+            // - Just a path, since just a path was set
+            // - No host, since no host was set
+            let expected = "GET /a HTTP/1.1\r\n\r\n";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 Alright\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+        };
+
+        let client = async move {
+            let tcp = tcp_connect(&addr).await.expect("connect");
+            let (mut client, conn) = conn::handshake(tcp).await.expect("handshake");
+
+            tokio::task::spawn(async move {
+                conn.await.expect("http conn");
+            });
+
+            let req = Request::builder()
+                .uri("/a")
+                .body(Default::default())
+                .unwrap();
+            let mut res = client.send_request(req).await.expect("send_request");
+            assert_eq!(res.status(), hyper::StatusCode::OK);
+            assert_eq!(
+                res.extensions()
+                    .get::<hyper::ext::ReasonPhrase>()
+                    .expect("custom reason phrase is present")
+                    .as_bytes(),
+                &b"Alright"[..]
+            );
+            assert_eq!(res.headers().len(), 1);
+            assert_eq!(
+                res.headers().get(http::header::CONTENT_LENGTH).unwrap(),
+                "0"
+            );
+            assert!(res.body_mut().data().await.is_none());
         };
 
         future::join(server, client).await;

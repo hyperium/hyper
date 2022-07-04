@@ -1,6 +1,7 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
 
+use std::convert::TryInto;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::TcpListener as StdTcpListener;
@@ -16,11 +17,10 @@ use std::time::Duration;
 use bytes::Bytes;
 use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt, TryFutureExt};
-#[cfg(feature = "stream")]
-use futures_util::stream::StreamExt as _;
 use h2::client::SendRequest;
 use h2::{RecvStream, SendStream};
 use http::header::{HeaderName, HeaderValue};
+use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
@@ -108,8 +108,7 @@ mod response_body_lengths {
                 b
             }
             Bd::Unknown(b) => {
-                let (mut tx, body) = hyper::Body::channel();
-                tx.try_send_data(b.into()).expect("try_send_data");
+                let body = futures_util::stream::once(async move { Ok(b.into()) });
                 reply.body_stream(body);
                 b
             }
@@ -368,6 +367,33 @@ mod response_body_lengths {
         assert_eq!(res.headers().get("content-length"), None);
         assert_eq!(res.body().size_hint().exact(), Some(0));
     }
+}
+
+#[test]
+fn get_response_custom_reason_phrase() {
+    let _ = pretty_env_logger::try_init();
+    let server = serve();
+    server.reply().reason_phrase("Cool");
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+
+    let mut lines = response.lines();
+    assert_eq!(lines.next(), Some("HTTP/1.1 200 Cool"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
 }
 
 #[test]
@@ -1795,6 +1821,7 @@ async fn h2_connect() {
 #[tokio::test]
 async fn h2_connect_multiplex() {
     use futures_util::stream::FuturesUnordered;
+    use futures_util::StreamExt;
 
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
@@ -2138,17 +2165,17 @@ async fn max_buf_size() {
         .expect_err("should TooLarge error");
 }
 
-#[cfg(feature = "stream")]
 #[test]
 fn streaming_body() {
+    use futures_util::StreamExt;
     let _ = pretty_env_logger::try_init();
 
     // disable keep-alive so we can use read_to_end
     let server = serve_opts().keep_alive(false).serve();
 
-    static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_00] as _;
-    let b = futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, hyper::Error>(s));
-    let b = hyper::Body::wrap_stream(b);
+    static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 100] as _;
+    let b =
+        futures_util::stream::iter(S.iter()).map(|&s| Ok::<_, BoxError>(Bytes::copy_from_slice(s)));
     server.reply().body_stream(b);
 
     let mut tcp = connect(server.addr());
@@ -2241,18 +2268,15 @@ async fn http2_service_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
-#[cfg(feature = "stream")]
 #[test]
 fn http2_body_user_error_sends_reset_reason() {
     use std::error::Error;
     let server = serve();
     let addr_str = format!("http://{}", server.addr());
 
-    let b = futures_util::stream::once(future::err::<String, _>(h2::Error::from(
+    let b = futures_util::stream::once(future::err::<Bytes, BoxError>(Box::new(h2::Error::from(
         h2::Reason::INADEQUATE_SECURITY,
-    )));
-    let b = hyper::Body::wrap_stream(b);
-
+    ))));
     server.reply().body_stream(b);
 
     let rt = support::runtime();
@@ -2265,7 +2289,7 @@ fn http2_body_user_error_sends_reset_reason() {
 
             let mut res = client.get(uri).await?;
 
-            while let Some(chunk) = res.body_mut().next().await {
+            while let Some(chunk) = res.body_mut().data().await {
                 chunk?;
             }
             Ok(())
@@ -2638,7 +2662,7 @@ impl Serve {
 }
 
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
-type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<Body>, BoxError>> + Send>>;
+type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<ReplyBody>, BoxError>> + Send>>;
 
 struct ReplyBuilder<'a> {
     tx: &'a Mutex<spmc::Sender<Reply>>,
@@ -2647,6 +2671,17 @@ struct ReplyBuilder<'a> {
 impl<'a> ReplyBuilder<'a> {
     fn status(self, status: hyper::StatusCode) -> Self {
         self.tx.lock().unwrap().send(Reply::Status(status)).unwrap();
+        self
+    }
+
+    fn reason_phrase(self, reason: &str) -> Self {
+        self.tx
+            .lock()
+            .unwrap()
+            .send(Reply::ReasonPhrase(
+                reason.as_bytes().try_into().expect("reason phrase"),
+            ))
+            .unwrap();
         self
     }
 
@@ -2671,14 +2706,16 @@ impl<'a> ReplyBuilder<'a> {
     }
 
     fn body<T: AsRef<[u8]>>(self, body: T) {
-        self.tx
-            .lock()
-            .unwrap()
-            .send(Reply::Body(body.as_ref().to_vec().into()))
-            .unwrap();
+        let chunk = Bytes::copy_from_slice(body.as_ref());
+        let body = BodyExt::boxed(http_body_util::Full::new(chunk).map_err(|e| match e {}));
+        self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
-    fn body_stream(self, body: Body) {
+    fn body_stream<S>(self, stream: S)
+    where
+        S: futures_util::Stream<Item = Result<Bytes, BoxError>> + Send + Sync + 'static,
+    {
+        let body = BodyExt::boxed(StreamBody::new(stream));
         self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
@@ -2720,12 +2757,15 @@ struct TestService {
     reply: spmc::Receiver<Reply>,
 }
 
+type ReplyBody = BoxBody<Bytes, BoxError>;
+
 #[derive(Debug)]
 enum Reply {
     Status(hyper::StatusCode),
+    ReasonPhrase(hyper::ext::ReasonPhrase),
     Version(hyper::Version),
     Header(HeaderName, HeaderValue),
-    Body(hyper::Body),
+    Body(ReplyBody),
     Error(BoxError),
     End,
 }
@@ -2738,7 +2778,7 @@ enum Msg {
 }
 
 impl tower_service::Service<Request<Body>> for TestService {
-    type Response = Response<Body>;
+    type Response = Response<ReplyBody>;
     type Error = BoxError;
     type Future = BoxFuture;
 
@@ -2771,12 +2811,17 @@ impl tower_service::Service<Request<Body>> for TestService {
 }
 
 impl TestService {
-    fn build_reply(replies: spmc::Receiver<Reply>) -> Result<Response<Body>, BoxError> {
-        let mut res = Response::new(Body::empty());
+    fn build_reply(replies: spmc::Receiver<Reply>) -> Result<Response<ReplyBody>, BoxError> {
+        let empty =
+            BodyExt::boxed(http_body_util::Empty::new().map_err(|e| -> BoxError { match e {} }));
+        let mut res = Response::new(empty);
         while let Ok(reply) = replies.try_recv() {
             match reply {
                 Reply::Status(s) => {
                     *res.status_mut() = s;
+                }
+                Reply::ReasonPhrase(reason) => {
+                    res.extensions_mut().insert(reason);
                 }
                 Reply::Version(v) => {
                     *res.version_mut() = v;
@@ -2816,7 +2861,7 @@ impl tower_service::Service<Request<Body>> for HelloWorld {
 
 fn unreachable_service() -> impl tower_service::Service<
     http::Request<hyper::Body>,
-    Response = http::Response<hyper::Body>,
+    Response = http::Response<ReplyBody>,
     Error = BoxError,
     Future = BoxFuture,
 > {

@@ -82,7 +82,7 @@ of `http` and `hyper` are prepared for that, there's two potential problems.
 - New HTTP versions
   - HTTP/3 will require a new transport abstraction. It's not as simple as just using some
     `impl AsyncRead + AsyncWrite`. While HTTP/2 bundled the concept of stream creation internally,
-    and thus could be managed wholy on top of a read-write transport, HTTP/3 is different. Stream
+    and thus could be managed wholly on top of a read-write transport, HTTP/3 is different. Stream
     creation is shifted to the QUIC protocol, and HTTP/3 needs to be able to use that directly.
   - This means the existing `Connection` types for both client and server will not be able to
     accept a QUIC transport so we can add HTTP/3 support.

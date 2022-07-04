@@ -70,7 +70,7 @@ have reached for hyper to start with.
 It's likely that these users don't have strong opinions about how an HTTP
 server or client should work, just that it _should_ handle all the things they
 normally assume it would. For these users, it would be best to quickly help
-them compare their own expectations with hyper's capabitilities, and may
+them compare their own expectations with hyper's capabilities, and may
 suggest reaching for higher-level, _easier_ libraries instead.
 
 Those that stick around after that recommendation are users that wish both to

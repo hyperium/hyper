@@ -1,7 +1,6 @@
 #![deny(warnings)]
 
 use bytes::Buf;
-use futures_util::{stream, StreamExt};
 use hyper::client::HttpConnector;
 use hyper::service::{make_service_fn, service_fn};
 use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
@@ -24,18 +23,10 @@ async fn client_request_response(client: &Client<HttpConnector>) -> Result<Respo
         .unwrap();
 
     let web_res = client.request(req).await?;
-    // Compare the JSON we sent (before) with what we received (after):
-    let before = stream::once(async {
-        Ok(format!(
-            "<b>POST request body</b>: {}<br><b>Response</b>: ",
-            POST_DATA,
-        )
-        .into())
-    });
-    let after = web_res.into_body();
-    let body = Body::wrap_stream(before.chain(after));
 
-    Ok(Response::new(body))
+    let res_body = web_res.into_body();
+
+    Ok(Response::new(res_body))
 }
 
 async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {

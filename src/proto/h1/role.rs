@@ -1,7 +1,6 @@
 use std::fmt::{self, Write};
 use std::mem::MaybeUninit;
 
-#[cfg(any(test, feature = "server", feature = "ffi"))]
 use bytes::Bytes;
 use bytes::BytesMut;
 #[cfg(feature = "server")]
@@ -80,7 +79,7 @@ where
     if !*ctx.h1_header_read_timeout_running {
         if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
             let deadline = Instant::now() + h1_header_read_timeout;
-
+            *ctx.h1_header_read_timeout_running = true;
             match ctx.h1_header_read_timeout_fut {
                 Some(h1_header_read_timeout_fut) => {
                     debug!("resetting h1 header read timeout timer");
@@ -377,7 +376,13 @@ impl Http1Transaction for Server {
 
         let init_cap = 30 + msg.head.headers.len() * AVERAGE_HEADER_SIZE;
         dst.reserve(init_cap);
-        if msg.head.version == Version::HTTP_11 && msg.head.subject == StatusCode::OK {
+
+        let custom_reason_phrase = msg.head.extensions.get::<crate::ext::ReasonPhrase>();
+
+        if msg.head.version == Version::HTTP_11
+            && msg.head.subject == StatusCode::OK
+            && custom_reason_phrase.is_none()
+        {
             extend(dst, b"HTTP/1.1 200 OK\r\n");
         } else {
             match msg.head.version {
@@ -392,15 +397,21 @@ impl Http1Transaction for Server {
 
             extend(dst, msg.head.subject.as_str().as_bytes());
             extend(dst, b" ");
-            // a reason MUST be written, as many parsers will expect it.
-            extend(
-                dst,
-                msg.head
-                    .subject
-                    .canonical_reason()
-                    .unwrap_or("<none>")
-                    .as_bytes(),
-            );
+
+            if let Some(reason) = custom_reason_phrase {
+                extend(dst, reason.as_bytes());
+            } else {
+                // a reason MUST be written, as many parsers will expect it.
+                extend(
+                    dst,
+                    msg.head
+                        .subject
+                        .canonical_reason()
+                        .unwrap_or("<none>")
+                        .as_bytes(),
+                );
+            }
+
             extend(dst, b"\r\n");
         }
 
@@ -944,12 +955,9 @@ impl Http1Transaction for Client {
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
 
-                        #[cfg(not(feature = "ffi"))]
-                        let reason = ();
-                        #[cfg(feature = "ffi")]
                         let reason = {
                             let reason = res.reason.unwrap();
-                            // Only save the reason phrase if it isnt the canonical reason
+                            // Only save the reason phrase if it isn't the canonical reason
                             if Some(reason) != status.canonical_reason() {
                                 Some(Bytes::copy_from_slice(reason.as_bytes()))
                             } else {
@@ -970,12 +978,7 @@ impl Http1Transaction for Client {
                     Err(httparse::Error::Version) if ctx.h09_responses => {
                         trace!("Response.parse accepted HTTP/0.9 response");
 
-                        #[cfg(not(feature = "ffi"))]
-                        let reason = ();
-                        #[cfg(feature = "ffi")]
-                        let reason = None;
-
-                        (0, StatusCode::OK, reason, Version::HTTP_09, 0)
+                        (0, StatusCode::OK, None, Version::HTTP_09, 0)
                     }
                     Err(e) => return Err(e.into()),
                 }
@@ -1058,12 +1061,12 @@ impl Http1Transaction for Client {
                 extensions.insert(header_order);
             }
 
-            #[cfg(feature = "ffi")]
             if let Some(reason) = reason {
-                extensions.insert(crate::ffi::ReasonPhrase(reason));
+                // Safety: httparse ensures that only valid reason phrase bytes are present in this
+                // field.
+                let reason = unsafe { crate::ext::ReasonPhrase::from_bytes_unchecked(reason) };
+                extensions.insert(reason);
             }
-            #[cfg(not(feature = "ffi"))]
-            drop(reason);
 
             #[cfg(feature = "ffi")]
             if ctx.raw_headers {
