@@ -1,3 +1,16 @@
+### v0.14.20 (2022-07-07)
+
+
+#### Bug Fixes
+
+* **http1:** fix `http1_header_read_timeout` to use same future (#2891) ([c5a14e7c](https://github.com/hyperium/hyper/commit/c5a14e7c087424001223aaeb2dad532ba4ee6063))
+
+
+#### Features
+
+* **ext:** support non-canonical HTTP/1 reason phrases (#2792) ([b2052a43](https://github.com/hyperium/hyper/commit/b2052a433fd151d7d745ee9c5b27a2031db1dc32))
+
+
 ### v0.14.19 (2022-05-27)
 
 
