@@ -1267,6 +1267,41 @@ async fn http1_allow_half_close() {
 
 #[cfg(feature = "http1")]
 #[tokio::test]
+async fn http1_mid_message_eof_detection() {
+    let _ = pretty_env_logger::try_init();
+    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    let t1 = thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\n\r\n").unwrap();
+        tcp.shutdown(::std::net::Shutdown::Write).expect("SHDN_WR");
+
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).unwrap();
+        let expected = "HTTP/1.1 200 OK\r\n";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+
+    Http::new()
+        .http1_mid_message_eof_detection(false)
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                tokio::time::sleep(Duration::from_millis(500))
+                    .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
+            }),
+        )
+        .await
+        .unwrap();
+
+    t1.join().expect("client thread");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
 async fn disconnect_after_reading_request_before_responding() {
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();

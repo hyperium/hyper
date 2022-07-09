@@ -46,6 +46,7 @@ where
             io: Buffered::new(io),
             state: State {
                 allow_half_close: false,
+                mid_message_eof_detection: true,
                 cached_headers: None,
                 error: None,
                 keep_alive: KA::Busy,
@@ -131,6 +132,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn set_mid_message_eof_detection(&mut self, val: bool) {
+        self.state.mid_message_eof_detection = val;
     }
 
     #[cfg(feature = "ffi")]
@@ -410,7 +416,10 @@ where
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(self.is_mid_message());
 
-        if self.state.allow_half_close || !self.io.read_buf().is_empty() {
+        if self.state.allow_half_close
+            || !self.state.mid_message_eof_detection
+            || !self.io.read_buf().is_empty()
+        {
             return Poll::Pending;
         }
 
@@ -804,6 +813,7 @@ impl<I: Unpin, B, T> Unpin for Conn<I, B, T> {}
 
 struct State {
     allow_half_close: bool,
+    mid_message_eof_detection: bool,
     /// Re-usable HeaderMap to reduce allocating new ones.
     cached_headers: Option<HeaderMap>,
     /// If an error occurs when there wasn't a direct way to return it
@@ -879,6 +889,10 @@ impl fmt::Debug for State {
 
         if self.allow_half_close {
             builder.field("allow_half_close", &true);
+        }
+
+        if !self.mid_message_eof_detection {
+            builder.field("mid_message_eof_detection", &false);
         }
 
         // Purposefully leaving off other fields..

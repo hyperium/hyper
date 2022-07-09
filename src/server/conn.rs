@@ -86,6 +86,7 @@ cfg_feature! {
 pub struct Http<E = Exec> {
     pub(crate) exec: E,
     h1_half_close: bool,
+    h1_mid_message_eof_detection: bool,
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
@@ -225,6 +226,7 @@ impl Http {
         Http {
             exec: Exec::Default,
             h1_half_close: false,
+            h1_mid_message_eof_detection: true,
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
@@ -271,6 +273,22 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
         self.h1_half_close = val;
+        self
+    }
+
+    /// Set whether HTTP/1 connections should support mid-message
+    /// End-of-file detection.
+    ///
+    /// After reading the request headers and body, and before a response
+    /// is ready, hyper will `read` from the socket once more to make sure 
+    /// it has registered interest in case the socket ever hangs up. Set
+    /// this to `false` to avoid this extra `read`.
+    ///
+    /// Default is `true`.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http1_mid_message_eof_detection(&mut self, val: bool) -> &mut Self {
+        self.h1_mid_message_eof_detection = val;
         self
     }
 
@@ -554,6 +572,7 @@ impl<E> Http<E> {
         Http {
             exec,
             h1_half_close: self.h1_half_close,
+            h1_mid_message_eof_detection: self.h1_mid_message_eof_detection,
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
@@ -614,6 +633,9 @@ impl<E> Http<E> {
                 }
                 if self.h1_half_close {
                     conn.set_allow_half_close();
+                }
+                if !self.h1_mid_message_eof_detection {
+                    conn.set_mid_message_eof_detection(false);
                 }
                 if self.h1_title_case_headers {
                     conn.set_title_case_headers();
