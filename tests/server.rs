@@ -1658,12 +1658,16 @@ async fn upgrades_ignored() {
             future::ok::<_, hyper::Error>(Response::new(hyper::Body::empty()))
         });
 
-        let (socket, _) = listener.accept().await.unwrap();
-        Http::new()
-            .serve_connection(socket, svc)
-            .with_upgrades()
-            .await
-            .expect("server task");
+        loop {
+            let (socket, _) = listener.accept().await.unwrap();
+            tokio::task::spawn(async move {
+                Http::new()
+                    .serve_connection(socket, svc)
+                    .with_upgrades()
+                    .await
+                    .expect("server task");
+            });
+        }
     });
 
     let client = TestClient::new();
@@ -3138,11 +3142,14 @@ impl TestClient {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 
+        let mut builder = hyper::client::conn::Builder::new();
+        builder.http2_only(self.http2_only);
+
         let stream = TkTcpStream::connect(format!("{}:{}", host, port))
             .await
             .unwrap();
 
-        let (mut sender, conn) = hyper::client::conn::handshake(stream).await.unwrap();
+        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
 
         tokio::task::spawn(async move {
             conn.await.unwrap();
