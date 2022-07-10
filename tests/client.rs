@@ -5,6 +5,7 @@
 extern crate matches;
 
 use std::convert::Infallible;
+use std::fmt;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
@@ -12,10 +13,11 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
+use http::uri::PathAndQuery;
 use http_body_util::{BodyExt, StreamBody};
 use hyper::body::to_bytes as concat;
 use hyper::header::HeaderValue;
-use hyper::{Body, Method, Request, StatusCode};
+use hyper::{Body, Method, Request, StatusCode, Uri, Version};
 
 use bytes::Bytes;
 use futures_channel::oneshot;
@@ -30,6 +32,71 @@ fn s(buf: &[u8]) -> &str {
 
 fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
     TcpStream::connect(*addr)
+}
+
+struct HttpInfo {
+    remote_addr: SocketAddr,
+}
+
+#[derive(Debug)]
+enum Error {
+    Io(std::io::Error),
+    Hyper(hyper::Error),
+    AbsoluteUriRequired,
+    UnsupportedVersion,
+}
+
+impl Error {
+    fn is_incomplete_message(&self) -> bool {
+        match self {
+            Self::Hyper(err) => err.is_incomplete_message(),
+            _ => false,
+        }
+    }
+
+    fn is_parse(&self) -> bool {
+        match self {
+            Self::Hyper(err) => err.is_parse(),
+            _ => false,
+        }
+    }
+
+    fn is_parse_too_large(&self) -> bool {
+        match self {
+            Self::Hyper(err) => err.is_parse_too_large(),
+            _ => false,
+        }
+    }
+
+    fn is_parse_status(&self) -> bool {
+        match self {
+            Self::Hyper(err) => err.is_parse_status(),
+            _ => false,
+        }
+    }
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, fmt: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Io(err) => err.fmt(fmt),
+            Self::Hyper(err) => err.fmt(fmt),
+            Self::AbsoluteUriRequired => write!(fmt, "client requires absolute-form URIs"),
+            Self::UnsupportedVersion => write!(fmt, "request has unsupported HTTP version"),
+        }
+    }
+}
+
+impl From<std::io::Error> for Error {
+    fn from(err: std::io::Error) -> Self {
+        Self::Io(err)
+    }
+}
+
+impl From<hyper::Error> for Error {
+    fn from(err: hyper::Error) -> Self {
+        Self::Hyper(err)
+    }
 }
 
 macro_rules! test {
@@ -111,7 +178,7 @@ macro_rules! test {
             let _ = pretty_env_logger::try_init();
             let rt = support::runtime();
 
-            let err: ::hyper::Error = test! {
+            let err: Error = test! {
                 INNER;
                 name: $name,
                 runtime: &rt,
@@ -124,7 +191,7 @@ macro_rules! test {
                     )*},
             }.unwrap_err();
 
-            fn infer_closure<F: FnOnce(&::hyper::Error) -> bool>(f: F) -> F { f }
+            fn infer_closure<F: FnOnce(&Error) -> bool>(f: F) -> F { f }
 
             let closure = infer_closure($err);
             if !closure(&err) {
@@ -163,16 +230,13 @@ macro_rules! test {
             .expect("request builder");
 
         let res = async move {
-            let host = req.uri().host().expect("no host in uri");
-            let port = req.uri().port_u16().expect("no port in uri");
-
-            let stream = TcpStream::connect(format!("{}:{}", host, port)).await.unwrap();
-
             // Wrapper around hyper::client::conn::Builder with set_host field to mimic
             // hyper::client::Builder.
             struct Builder {
                 inner: hyper::client::conn::Builder,
                 set_host: bool,
+                http09_responses: bool,
+                http2_only: bool,
             }
 
             impl Builder {
@@ -180,12 +244,28 @@ macro_rules! test {
                     Self {
                         inner: hyper::client::conn::Builder::new(),
                         set_host: true,
+                        http09_responses: false,
+                        http2_only: false,
                     }
                 }
 
                 #[allow(unused)]
                 fn set_host(&mut self, val: bool) -> &mut Self {
                     self.set_host = val;
+                    self
+                }
+
+                #[allow(unused)]
+                fn http09_responses(&mut self, val: bool) -> &mut Self {
+                    self.http09_responses = val;
+                    self.inner.http09_responses(val);
+                    self
+                }
+
+                #[allow(unused)]
+                fn http2_only(&mut self, val: bool) -> &mut Self {
+                    self.http2_only = val;
+                    self.inner.http2_only(val);
                     self
                 }
             }
@@ -208,13 +288,23 @@ macro_rules! test {
             let mut builder = Builder::new();
             $(builder$(.$c_opt_prop($c_opt_val))*;)?
 
-            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
 
-            tokio::task::spawn(async move {
-                if let Err(err) = conn.await {
-                    panic!("{}", err);
-                }
-            });
+            if req.version() == Version::HTTP_09 && !builder.http09_responses {
+                return Err(Error::UnsupportedVersion);
+            }
+
+            if req.version() == Version::HTTP_2 && !builder.http2_only {
+                return Err(Error::UnsupportedVersion);
+            }
+
+            let host = req.uri().host().ok_or(Error::AbsoluteUriRequired)?;
+            let port = req.uri().port_u16().unwrap_or(80);
+
+            let stream = TcpStream::connect(format!("{}:{}", host, port)).await?;
+
+            let extra = HttpInfo {
+                remote_addr: stream.peer_addr().unwrap(),
+            };
 
             if builder.set_host {
                 let host = req.uri().host().expect("no host in uri");
@@ -225,7 +315,26 @@ macro_rules! test {
                 req.headers_mut().append("Host", HeaderValue::from_str(&host).unwrap());
             }
 
-            sender.send_request(req).await
+            let (mut sender, conn) = builder.handshake(stream).await?;
+
+            tokio::task::spawn(async move {
+                if let Err(err) = conn.await {
+                    panic!("{}", err);
+                }
+            });
+
+            let mut builder = Uri::builder();
+            if req.method() == Method::CONNECT {
+                builder = builder.path_and_query(format!("{}:{}", req.uri().host().unwrap(), req.uri().port_u16().unwrap()));
+            } else {
+                builder = builder.path_and_query(req.uri().path_and_query().cloned().unwrap_or(PathAndQuery::from_static("/")));
+            }
+            *req.uri_mut() = builder.build().unwrap();
+
+            let mut resp = sender.send_request(req).await?;
+
+            resp.extensions_mut().insert(extra);
+            Ok(resp)
         };
 
         let (tx, rx) = oneshot::channel();
@@ -248,7 +357,7 @@ macro_rules! test {
             assert_eq!(s(&buf[..n]), expected);
 
             inc.write_all($server_reply.as_ref()).expect("write_all");
-            let _ = tx.send(Ok::<_, hyper::Error>(()));
+            let _ = tx.send(Ok::<_, Error>(()));
         }).expect("thread spawn");
 
         let rx = rx.expect("thread panicked");
@@ -257,10 +366,10 @@ macro_rules! test {
             // Always check that HttpConnector has set the "extra" info...
             let extra = resp
                 .extensions_mut()
-                .remove::<::hyper::client::connect::HttpInfo>()
+                .remove::<HttpInfo>()
                 .expect("HttpConnector should set HttpInfo");
 
-            assert_eq!(extra.remote_addr(), addr, "HttpInfo should have server addr");
+            assert_eq!(extra.remote_addr, addr, "HttpInfo should have server addr");
 
             resp
         })
@@ -2822,7 +2931,7 @@ mod conn {
         let listener = TkTcpListener::bind(addr).await.unwrap();
 
         let addr = listener.local_addr().unwrap();
-        let (shdn_tx, mut shdn_rx) = oneshot::channel();
+        let (shdn_tx, mut shdn_rx) = tokio::sync::watch::channel(false);
         tokio::task::spawn(async move {
             use hyper::server::conn::Http;
             use hyper::service::service_fn;
@@ -2833,9 +2942,23 @@ mod conn {
                         let (stream, _) = res.unwrap();
 
                         let service = service_fn(|_:Request<Body>| future::ok::<Response<Body>, hyper::Error>(Response::new(Body::empty())));
-                        Http::new().http2_only(true).serve_connection(stream, service).await.unwrap();
+
+                        let mut shdn_rx = shdn_rx.clone();
+                        tokio::task::spawn(async move {
+                            let mut conn = Http::new().http2_only(true).serve_connection(stream, service);
+
+                            tokio::select! {
+                                res = &mut conn => {
+                                    res.unwrap();
+                                }
+                                _ = shdn_rx.changed() => {
+                                    Pin::new(&mut conn).graceful_shutdown();
+                                    conn.await.unwrap();
+                                }
+                            }
+                        });
                     }
-                    _ = &mut shdn_rx => {
+                    _ = shdn_rx.changed() => {
                         break;
                     }
                 }
@@ -2871,7 +2994,7 @@ mod conn {
             .expect("client poll ready after");
 
         // Trigger the server shutdown...
-        let _ = shdn_tx.send(());
+        let _ = shdn_tx.send(true);
 
         // Allow time for graceful shutdown roundtrips...
         tokio::time::sleep(Duration::from_millis(100)).await;
