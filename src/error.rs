@@ -48,7 +48,6 @@ pub(super) enum Kind {
     #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
     HeaderTimeout,
     /// Error while reading a body from connection.
-    #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
     Body,
     /// Error while writing a body to connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -92,7 +91,6 @@ pub(super) enum Header {
 #[derive(Debug)]
 pub(super) enum User {
     /// Error calling user's HttpBody::poll_data().
-    #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
     /// The user aborted writing of the outgoing body.
     BodyWriteAborted,
@@ -367,7 +365,6 @@ impl Error {
         Error::new_user(User::Service).with(cause)
     }
 
-    #[cfg(any(feature = "http1", feature = "http2"))]
     pub(super) fn new_user_body<E: Into<Cause>>(cause: E) -> Error {
         Error::new_user(User::Body).with(cause)
     }
@@ -440,7 +437,6 @@ impl Error {
             Kind::Accept => "error accepting connection",
             #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
             Kind::HeaderTimeout => "read header from client timeout",
-            #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
             Kind::Body => "error reading a body from connection",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::BodyWrite => "error writing a body to connection",
@@ -451,7 +447,6 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Io => "connection error",
 
-            #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Body) => "error from user's HttpBody stream",
             Kind::User(User::BodyWriteAborted) => "user body write aborted",
             #[cfg(any(feature = "http1", feature = "http2"))]

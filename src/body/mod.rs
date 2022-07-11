@@ -56,6 +56,19 @@ pub(crate) fn take_full_data<T: HttpBody + 'static>(body: &mut T) -> Option<T::D
     }
 }
 
+pub(crate) fn try_downcast<T, K>(k: K) -> Result<T, K>
+where
+    T: 'static,
+    K: Send + 'static,
+{
+    let mut k = Some(k);
+    if let Some(k) = <dyn std::any::Any>::downcast_mut::<Option<T>>(&mut k) {
+        Ok(k.take().unwrap())
+    } else {
+        Err(k.unwrap())
+    }
+}
+
 fn _assert_send_sync() {
     fn _assert_send<T: Send>() {}
     fn _assert_sync<T: Sync>() {}

@@ -13,7 +13,6 @@ use http::HeaderMap;
 use http_body::{Body as HttpBody, SizeHint};
 
 use super::DecodedLength;
-#[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
 use crate::common::Future;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
@@ -62,6 +61,7 @@ enum Kind {
             Pin<Box<dyn Stream<Item = Result<Bytes, Box<dyn StdError + Send + Sync>>> + Send>>,
         >,
     ),
+    WrappedBody(SyncWrapper<http_body::combinators::UnsyncBoxBody<Bytes, crate::Error>>),
 }
 
 struct Extra {
@@ -137,6 +137,23 @@ impl Body {
     #[inline]
     pub fn channel() -> (Sender, Body) {
         Self::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false)
+    }
+
+    /// Create a `Body` by wrapping another body.
+    #[inline]
+    pub fn wrap_body<B>(body: B) -> Self
+    where
+        B: HttpBody<Data = Bytes> + Send + 'static,
+        B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    {
+        // if `B` is already a `Body` just return that and avoid additional boxing
+        match super::try_downcast(body) {
+            Ok(body) => body,
+            Err(body) => {
+                let body = body.map_err(crate::Error::new_user_body).boxed_unsync();
+                Self::new(Kind::WrappedBody(SyncWrapper::new(body)))
+            }
+        }
     }
 
     pub(crate) fn new_channel(content_length: DecodedLength, wanter: bool) -> (Sender, Body) {
@@ -329,12 +346,12 @@ impl Body {
 
             #[cfg(feature = "ffi")]
             Kind::Ffi(ref mut body) => body.poll_data(cx),
-
             #[cfg(feature = "stream")]
             Kind::Wrapped(ref mut s) => match ready!(s.get_mut().as_mut().poll_next(cx)) {
                 Some(res) => Poll::Ready(Some(res.map_err(crate::Error::new_body))),
                 None => Poll::Ready(None),
             },
+            Kind::WrappedBody(ref mut body) => Pin::new(body.get_mut()).poll_data(cx),
         }
     }
 
@@ -393,6 +410,7 @@ impl HttpBody for Body {
             },
             #[cfg(feature = "ffi")]
             Kind::Ffi(ref mut body) => body.poll_trailers(cx),
+            Kind::WrappedBody(ref mut body) => Pin::new(body.get_mut()).poll_trailers(cx),
             _ => Poll::Ready(Ok(None)),
         }
     }
@@ -407,6 +425,9 @@ impl HttpBody for Body {
             Kind::Ffi(..) => false,
             #[cfg(feature = "stream")]
             Kind::Wrapped(..) => false,
+            // we cannot get a `&UnsyncBoxBody` through a `SyncWrapper<UnsyncBoxBody>`
+            // so we have no way of calling the method on the inner body
+            Kind::WrappedBody(..) => false,
         }
     }
 
@@ -433,6 +454,9 @@ impl HttpBody for Body {
             Kind::H2 { content_length, .. } => opt_len!(content_length),
             #[cfg(feature = "ffi")]
             Kind::Ffi(..) => SizeHint::default(),
+            // we cannot get a `&UnsyncBoxBody` through a `SyncWrapper<UnsyncBoxBody>`
+            // so we have no way of calling the method on the inner body
+            Kind::WrappedBody(..) => SizeHint::default(),
         }
     }
 }
