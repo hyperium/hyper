@@ -111,13 +111,9 @@ impl Http1Transaction for Server {
         let len;
         let headers_len;
 
-        // Unsafe: both headers_indices and headers are using uninitialized memory,
-        // but we *never* read any of it until after httparse has assigned
-        // values into it. By not zeroing out the stack memory, this saves
-        // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+        let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::zeroed() };
         {
-            let mut headers: [httparse::Header<'_>; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
             trace!(
                 "Request.parse([Header; {}], [u8; {}])",
                 headers.len(),
@@ -276,7 +272,7 @@ impl Http1Transaction for Server {
 
     fn encode(
         mut msg: Encode<'_, Self::Outgoing>,
-        mut dst: &mut Vec<u8>,
+        dst: &mut Vec<u8>,
     ) -> crate::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
@@ -562,7 +558,8 @@ impl Http1Transaction for Server {
                         Encoder::length(0)
                     } else {
                         extend(dst, b"content-length: ");
-                        let _ = ::itoa::write(&mut dst, len);
+                        let mut buf = itoa::Buffer::new();
+                        extend(dst, buf.format(len).as_bytes());
                         extend(dst, b"\r\n");
                         Encoder::length(len)
                     }
@@ -650,11 +647,9 @@ impl Http1Transaction for Client {
 
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            // Unsafe: see comment in Server Http1Transaction, above.
-            let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::uninitialized() };
+            let mut headers_indices: [HeaderIndices; MAX_HEADERS] = unsafe { mem::zeroed() };
             let (len, status, version, headers_len) = {
-                let mut headers: [httparse::Header<'_>; MAX_HEADERS] =
-                    unsafe { mem::uninitialized() };
+                let mut headers = [httparse::EMPTY_HEADER; MAX_HEADERS];
                 trace!(
                     "Response.parse([Header; {}], [u8; {}])",
                     headers.len(),

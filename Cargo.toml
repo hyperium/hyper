@@ -29,7 +29,7 @@ http-body = "0.3.1"
 httpdate = "0.3"
 httparse = "1.0"
 h2 = "0.2.2"
-itoa = "0.4.1"
+itoa = "1"
 tracing = { version = "0.1", default-features = false, features = ["log", "std"] }
 pin-project = "1.0"
 tower-service = "0.3"
@@ -56,7 +56,7 @@ tower-util = "0.3"
 url = "1.0"
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
-pnet = "0.25.0"
+pnet = "0.29.0"
 
 [features]
 default = [
