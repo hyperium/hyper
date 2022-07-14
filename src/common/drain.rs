@@ -35,6 +35,8 @@ pub struct Draining {
 }
 
 #[derive(Clone)]
+// drained_tx is never ready
+#[allow(dead_code)]
 pub struct Watch {
     drained_tx: mpsc::Sender<Never>,
     rx: watch::Receiver<Action>,
