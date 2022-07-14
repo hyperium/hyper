@@ -7,6 +7,7 @@ use std::sync::{
     Arc, Mutex,
 };
 
+use hyper::client::conn::Builder;
 use hyper::server::conn::Http;
 use tokio::net::{TcpListener, TcpStream};
 
@@ -343,20 +344,20 @@ async fn async_test(cfg: __TestConfig) {
     tokio::task::spawn(async move {
         let mut cnt = 0;
 
+        cnt += 1;
+        assert!(
+            cnt <= expected_connections,
+            "server expected {} connections, received {}",
+            expected_connections,
+            cnt
+        );
+
         loop {
             let (stream, _) = listener.accept().await.expect("server error");
 
-            cnt += 1;
-            assert!(
-                cnt <= expected_connections,
-                "server expected {} connections, received {}",
-                expected_connections,
-                cnt
-            );
-
             // Move a clone into the service_fn
             let serve_handles = serve_handles.clone();
-            let service = service_fn(|req: Request<Body>| {
+            let service = service_fn(move |req: Request<Body>| {
                 let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
 
                 assert_eq!(req.uri().path(), sreq.uri, "client path");
@@ -378,11 +379,13 @@ async fn async_test(cfg: __TestConfig) {
                 })
             });
 
-            Http::new()
-                .http2_only(http2_only)
-                .serve_connection(stream, service)
-                .await
-                .expect("server error");
+            tokio::task::spawn(async move {
+                Http::new()
+                    .http2_only(http2_only)
+                    .serve_connection(stream, service)
+                    .await
+                    .expect("server error");
+            });
         }
     });
 
@@ -472,15 +475,16 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
 
     let proxy_addr = listener.local_addr().unwrap();
 
+    let http2_only = cfg.version == 2;
     let fut = async move {
         let listener = TcpListener::from_std(listener).unwrap();
 
         tokio::task::spawn(async move {
+            let prev = counter.fetch_add(1, Ordering::Relaxed);
+            assert!(max_connections > prev, "proxy max connections");
+
             loop {
                 let (stream, _) = listener.accept().await.unwrap();
-
-                let prev = counter.fetch_add(1, Ordering::Relaxed);
-                assert!(max_connections > prev, "proxy max connections");
 
                 let service = service_fn(move |mut req| {
                     async move {
@@ -497,17 +501,21 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
                             .await
                             .unwrap();
 
-                        let (mut sender, conn) =
-                            hyper::client::conn::handshake(stream).await.unwrap();
+                        let mut builder = Builder::new();
+                        builder.http2_only(http2_only);
+                        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+
                         tokio::task::spawn(async move {
                             if let Err(err) = conn.await {
                                 panic!("{:?}", err);
                             }
                         });
 
-                        sender.send_request(req).await
+                        let res = sender.send_request(req).await;
+                        res
                     }
                 });
+
                 Http::new().serve_connection(stream, service).await.unwrap();
             }
         });
