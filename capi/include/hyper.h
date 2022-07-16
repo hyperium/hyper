@@ -403,6 +403,16 @@ enum hyper_code hyper_clientconn_options_headers_raw(struct hyper_clientconn_opt
                                                      int enabled);
 
 /*
+ Set whether HTTP/1 connections will accept obsolete line folding for header values.
+ Newline codepoints (\r and \n) will be transformed to spaces when parsing.
+
+ Pass `0` to disable, `1` to enable.
+
+ */
+enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hyper_clientconn_options *opts,
+                                                                       int enabled);
+
+/*
  Frees a `hyper_error`.
  */
 void hyper_error_free(struct hyper_error *err);
