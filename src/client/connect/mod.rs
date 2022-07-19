@@ -55,26 +55,6 @@
 //! # }
 //! ```
 //!
-//! It's worth noting that for `TcpStream`s, the [`HttpConnector`][] is a
-//! better starting place to extend from.
-//!
-//! Using either of the above connector examples, it can be used with the
-//! `Client` like this:
-//!
-//! ```
-//! # #[cfg(feature = "runtime")]
-//! # fn rt () {
-//! # let connector = hyper::client::HttpConnector::new();
-//! // let connector = ...
-//!
-//! let client = hyper::Client::builder()
-//!     .build::<_, hyper::Body>(connector);
-//! # }
-//! ```
-//!
-//!
-//! [`HttpConnector`]: HttpConnector
-//! [`Service`]: crate::service::Service
 //! [`Uri`]: ::http::Uri
 //! [`AsyncRead`]: tokio::io::AsyncRead
 //! [`AsyncWrite`]: tokio::io::AsyncWrite

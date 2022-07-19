@@ -53,24 +53,6 @@ pub struct ResponseFuture {
 
 impl Client<(), Body> {
     /// Create a builder to configure a new `Client`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature  = "runtime")]
-    /// # fn run () {
-    /// use std::time::Duration;
-    /// use hyper::Client;
-    ///
-    /// let client = Client::builder()
-    ///     .pool_idle_timeout(Duration::from_secs(30))
-    ///     .http2_only(true)
-    ///     .build_http();
-    /// # let infer: Client<_, hyper::Body> = client;
-    /// # drop(infer);
-    /// # }
-    /// # fn main() {}
-    /// ```
     #[inline]
     pub fn builder() -> Builder {
         Builder::default()
@@ -91,20 +73,6 @@ where
     /// This requires that the `HttpBody` type have a `Default` implementation.
     /// It *should* return an "empty" version of itself, such that
     /// `HttpBody::is_end_stream` is `true`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature  = "runtime")]
-    /// # fn run () {
-    /// use hyper::{Client, Uri};
-    ///
-    /// let client = Client::new();
-    ///
-    /// let future = client.get(Uri::from_static("http://httpbin.org/ip"));
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn get(&self, uri: Uri) -> ResponseFuture
     where
         B: Default,
@@ -120,26 +88,6 @@ where
     }
 
     /// Send a constructed `Request` using this `Client`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature  = "runtime")]
-    /// # fn run () {
-    /// use hyper::{Body, Method, Client, Request};
-    ///
-    /// let client = Client::new();
-    ///
-    /// let req = Request::builder()
-    ///     .method(Method::POST)
-    ///     .uri("http://httpbin.org/post")
-    ///     .body(Body::from("Hallo!"))
-    ///     .expect("request builder");
-    ///
-    /// let future = client.request(req);
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn request(&self, mut req: Request<B>) -> ResponseFuture {
         let is_http_connect = req.method() == Method::CONNECT;
         match req.version() {
@@ -850,24 +798,6 @@ fn is_schema_secure(uri: &Uri) -> bool {
 }
 
 /// A builder to configure a new [`Client`](Client).
-///
-/// # Example
-///
-/// ```
-/// # #[cfg(feature  = "runtime")]
-/// # fn run () {
-/// use std::time::Duration;
-/// use hyper::Client;
-///
-/// let client = Client::builder()
-///     .pool_idle_timeout(Duration::from_secs(30))
-///     .http2_only(true)
-///     .build_http();
-/// # let infer: Client<_, hyper::Body> = client;
-/// # drop(infer);
-/// # }
-/// # fn main() {}
-/// ```
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 #[derive(Clone)]
 pub struct Builder {
