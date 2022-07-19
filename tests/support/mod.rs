@@ -470,12 +470,12 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     let dst_addr = cfg.dst;
     let max_connections = cfg.connections;
     let counter = AtomicUsize::new(0);
+    let http2_only = cfg.version == 2;
 
     let listener = StdTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
 
     let proxy_addr = listener.local_addr().unwrap();
 
-    let http2_only = cfg.version == 2;
     let fut = async move {
         let listener = TcpListener::from_std(listener).unwrap();
 
@@ -511,12 +511,27 @@ fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
                             }
                         });
 
-                        let res = sender.send_request(req).await;
-                        res
+                        let resp = sender.send_request(req).await?;
+
+                        let (mut parts, body) = resp.into_parts();
+
+                        // Remove the Connection header for HTTP/1.1 proxy connections.
+                        if !http2_only {
+                            parts.headers.remove("Connection");
+                        }
+
+                        let mut builder = Response::builder().status(parts.status);
+                        *builder.headers_mut().unwrap() = parts.headers;
+
+                        Result::<Response<Body>, hyper::Error>::Ok(builder.body(body).unwrap())
                     }
                 });
 
-                Http::new().serve_connection(stream, service).await.unwrap();
+                Http::new()
+                    .http2_only(http2_only)
+                    .serve_connection(stream, service)
+                    .await
+                    .unwrap();
             }
         });
     };
