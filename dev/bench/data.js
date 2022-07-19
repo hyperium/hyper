@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658258399862,
+  "lastUpdate": 1658258412248,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12481,6 +12481,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48515,
             "range": "± 3576",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "deantvv@gmail.com",
+            "name": "deantvv",
+            "username": "deantvv"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "09e35668e5b094d679efb4b98ecde9cb6f9f2f93",
+          "message": "feat(ffi): add http1_allow_multiline_headers (#2918)",
+          "timestamp": "2022-07-19T12:18:09-07:00",
+          "tree_id": "4d5443cc16f04de13004edfcbe37b4e29327aaa4",
+          "url": "https://github.com/hyperium/hyper/commit/09e35668e5b094d679efb4b98ecde9cb6f9f2f93"
+        },
+        "date": 1658258409031,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51709,
+            "range": "± 4954",
             "unit": "ns/iter"
           }
         ]
