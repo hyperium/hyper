@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658351700964,
+  "lastUpdate": 1658351848046,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -41277,6 +41277,144 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 6121648,
             "range": "± 449907",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "509672aada0af68a91d963e69828c6e31c44cb7b",
+          "message": "feat(client): introduce version-specific client modules (#2906)\n\nThis creates `client::conn::http1` and `client::conn::http2` modules,\r\nboth with specific `SendRequest`, `Connection`, and `Builder` types.",
+          "timestamp": "2022-07-20T14:12:29-07:00",
+          "tree_id": "5ebe704de932bde24dea1e0a5e31f3caa59efbc0",
+          "url": "https://github.com/hyperium/hyper/commit/509672aada0af68a91d963e69828c6e31c44cb7b"
+        },
+        "date": 1658351844984,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 75979,
+            "range": "± 15796",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 5971824,
+            "range": "± 932553",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 34629,
+            "range": "± 5705",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 42400,
+            "range": "± 6381",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_empty",
+            "value": 277251,
+            "range": "± 52632",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10kb_100_chunks",
+            "value": 54470730,
+            "range": "± 3231098",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_req_10mb",
+            "value": 50318935,
+            "range": "± 4677685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_10mb",
+            "value": 51956656,
+            "range": "± 3302726",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_parallel_x10_res_1mb",
+            "value": 4262940,
+            "range": "± 686350",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 63546,
+            "range": "± 7044",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 152373,
+            "range": "± 9798",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 76097,
+            "range": "± 7515",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 195679,
+            "range": "± 1210",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 11998019,
+            "range": "± 894216",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 12259067,
+            "range": "± 862910",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 11796849,
+            "range": "± 837616",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 69888545,
+            "range": "± 10416459",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 88657518,
+            "range": "± 15498783",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 8259349,
+            "range": "± 1939381",
             "unit": "ns/iter"
           }
         ]
