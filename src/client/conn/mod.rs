@@ -85,6 +85,11 @@ use crate::upgrade::Upgraded;
 use crate::{Body, Request, Response};
 
 #[cfg(feature = "http1")]
+pub mod http1;
+#[cfg(feature = "http2")]
+pub mod http2;
+
+#[cfg(feature = "http1")]
 type Http1Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
 

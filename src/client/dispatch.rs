@@ -1,7 +1,6 @@
 #[cfg(feature = "http2")]
 use std::future::Future;
 
-use futures_util::FutureExt;
 use tokio::sync::{mpsc, oneshot};
 
 #[cfg(feature = "http2")]
@@ -169,6 +168,7 @@ impl<T, U> Receiver<T, U> {
 
     #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
+        use futures_util::FutureExt;
         match self.inner.recv().now_or_never() {
             Some(Some(mut env)) => env.0.take(),
             _ => None,
