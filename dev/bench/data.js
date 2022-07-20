@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658258540773,
+  "lastUpdate": 1658351690153,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12511,6 +12511,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51709,
             "range": "± 4954",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "509672aada0af68a91d963e69828c6e31c44cb7b",
+          "message": "feat(client): introduce version-specific client modules (#2906)\n\nThis creates `client::conn::http1` and `client::conn::http2` modules,\r\nboth with specific `SendRequest`, `Connection`, and `Builder` types.",
+          "timestamp": "2022-07-20T14:12:29-07:00",
+          "tree_id": "5ebe704de932bde24dea1e0a5e31f3caa59efbc0",
+          "url": "https://github.com/hyperium/hyper/commit/509672aada0af68a91d963e69828c6e31c44cb7b"
+        },
+        "date": 1658351687129,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 61289,
+            "range": "± 7167",
             "unit": "ns/iter"
           }
         ]
