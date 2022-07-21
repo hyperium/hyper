@@ -22,16 +22,9 @@
 //! });
 //! ```
 use std::error::Error;
-use std::future::Future;
-use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, ToSocketAddrs};
-use std::pin::Pin;
+use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::str::FromStr;
-use std::task::{self, Poll};
-use std::{fmt, io, vec};
-
-use tokio::task::JoinHandle;
-use tower_service::Service;
-use tracing::debug;
+use std::{fmt, vec};
 
 /// A domain name to resolve into IP addresses.
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -48,11 +41,6 @@ pub struct GaiResolver {
 /// An iterator of IP addresses returned from `getaddrinfo`.
 pub struct GaiAddrs {
     inner: SocketAddrs,
-}
-
-/// A future to resolve a name returned by `GaiResolver`.
-pub struct GaiFuture {
-    inner: JoinHandle<Result<SocketAddrs, io::Error>>,
 }
 
 impl Name {
@@ -106,60 +94,9 @@ impl GaiResolver {
     }
 }
 
-impl Service<Name> for GaiResolver {
-    type Response = GaiAddrs;
-    type Error = io::Error;
-    type Future = GaiFuture;
-
-    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), io::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, name: Name) -> Self::Future {
-        let blocking = tokio::task::spawn_blocking(move || {
-            debug!("resolving host={:?}", name.host);
-            (&*name.host, 0)
-                .to_socket_addrs()
-                .map(|i| SocketAddrs { iter: i })
-        });
-
-        GaiFuture { inner: blocking }
-    }
-}
-
 impl fmt::Debug for GaiResolver {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.pad("GaiResolver")
-    }
-}
-
-impl Future for GaiFuture {
-    type Output = Result<GaiAddrs, io::Error>;
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        Pin::new(&mut self.inner).poll(cx).map(|res| match res {
-            Ok(Ok(addrs)) => Ok(GaiAddrs { inner: addrs }),
-            Ok(Err(err)) => Err(err),
-            Err(join_err) => {
-                if join_err.is_cancelled() {
-                    Err(io::Error::new(io::ErrorKind::Interrupted, join_err))
-                } else {
-                    panic!("gai background task failed: {:?}", join_err)
-                }
-            }
-        })
-    }
-}
-
-impl fmt::Debug for GaiFuture {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.pad("GaiFuture")
-    }
-}
-
-impl Drop for GaiFuture {
-    fn drop(&mut self) {
-        self.inner.abort();
     }
 }
 
