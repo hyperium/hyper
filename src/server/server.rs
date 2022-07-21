@@ -157,8 +157,6 @@ impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, E> Builder<I, E> {
     /// Start a new builder, wrapping an incoming stream and low-level options.
-    ///
-    /// For a more convenient constructor, see [`Server::bind`](Server::bind).
     pub fn new(incoming: I, protocol: Http_<E>) -> Self {
         Builder { incoming, protocol }
     }

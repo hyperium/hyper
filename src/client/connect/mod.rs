@@ -59,6 +59,7 @@
 //! [`AsyncRead`]: tokio::io::AsyncRead
 //! [`AsyncWrite`]: tokio::io::AsyncWrite
 //! [`Connection`]: Connection
+//! [`Service`]: crate::service::Service
 use std::fmt;
 
 use ::http::Extensions;
