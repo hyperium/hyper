@@ -1,9 +1,9 @@
 use std::io;
 
 use futures_util::future;
-use tokio::net::TcpStream;
 
 use super::Client;
+use super::connect::HttpConnection;
 
 #[tokio::test]
 async fn client_connect_uri_argument() {
@@ -13,7 +13,7 @@ async fn client_connect_uri_argument() {
         assert_eq!(dst.port(), None);
         assert_eq!(dst.path(), "/", "path should be removed");
 
-        future::err::<TcpStream, _>(io::Error::new(io::ErrorKind::Other, "expect me"))
+        future::err::<HttpConnection, _>(io::Error::new(io::ErrorKind::Other, "expect me"))
     });
 
     let client = Client::builder().build::<_, crate::Body>(connector);

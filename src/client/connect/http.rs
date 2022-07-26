@@ -6,14 +6,16 @@ use std::marker::PhantomData;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::pin::Pin;
 use std::sync::Arc;
-use std::task::{self, Poll};
+use std::task::{self, Poll, Context};
 use std::time::Duration;
+use std::ops::{Deref, DerefMut};
 
 use futures_util::future::Either;
 use http::uri::{Scheme, Uri};
 use pin_project_lite::pin_project;
 use tokio::net::{TcpSocket, TcpStream};
 use tokio::time::Sleep;
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, trace, warn};
 
 use super::dns::{self, resolve, GaiResolver, Resolve};
@@ -33,6 +35,12 @@ use super::{Connected, Connection};
 pub struct HttpConnector<R = GaiResolver> {
     config: Arc<Config>,
     resolver: R,
+}
+
+/// Connection returned by `HttpConnector`. 
+pub struct HttpConnection {
+    inner: TcpStream,
+    config: Arc<Config>,
 }
 
 /// Extra information about the transport when an HttpConnector is used.
@@ -81,6 +89,7 @@ struct Config {
     reuse_address: bool,
     send_buffer_size: Option<usize>,
     recv_buffer_size: Option<usize>,
+    http_info: bool,
 }
 
 // ===== impl HttpConnector =====
@@ -121,6 +130,7 @@ impl<R> HttpConnector<R> {
                 reuse_address: false,
                 send_buffer_size: None,
                 recv_buffer_size: None,
+                http_info: true,
             }),
             resolver,
         }
@@ -162,6 +172,14 @@ impl<R> HttpConnector<R> {
     #[inline]
     pub fn set_recv_buffer_size(&mut self, size: Option<usize>) {
         self.config_mut().recv_buffer_size = size;
+    }
+
+    /// Set if `HttpInfo` is enabled or disabled in connection metadata.
+    /// 
+    /// Default is `true`.
+    #[inline]
+    pub fn set_httpinfo(&mut self, httpinfo: bool) {
+        self.config_mut().http_info = httpinfo;
     }
 
     /// Set that all sockets are bound to the configured address before connection.
@@ -256,7 +274,7 @@ where
     R: Resolve + Clone + Send + Sync + 'static,
     R::Future: Send,
 {
-    type Response = TcpStream;
+    type Response = HttpConnection;
     type Error = ConnectError;
     type Future = HttpConnecting<R>;
 
@@ -323,7 +341,7 @@ impl<R> HttpConnector<R>
 where
     R: Resolve,
 {
-    async fn call_async(&mut self, dst: Uri) -> Result<TcpStream, ConnectError> {
+    async fn call_async(&mut self, dst: Uri) -> Result<HttpConnection, ConnectError> {
         let config = &self.config;
 
         let (host, port) = get_host_port(config, &dst)?;
@@ -340,7 +358,7 @@ where
             let addrs = addrs
                 .map(|mut addr| {
                     addr.set_port(port);
-                    addr
+                    addr 
                 })
                 .collect();
             dns::SocketAddrs::new(addrs)
@@ -354,18 +372,74 @@ where
             warn!("tcp set_nodelay error: {}", e);
         }
 
-        Ok(sock)
+        Ok(HttpConnection{inner:sock, config: config.clone()})
     }
 }
 
-impl Connection for TcpStream {
+impl AsyncWrite for HttpConnection {
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        Pin::new(&mut self.inner).poll_shutdown(cx)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), io::Error>> {
+        Pin::new(&mut self.inner).poll_flush(cx)
+    }
+
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, io::Error>> {
+        Pin::new(&mut self.inner).poll_write(cx, buf)
+    }
+}
+
+impl AsyncRead for HttpConnection {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut ReadBuf<'_>,
+    ) -> Poll<io::Result<()>> {
+        Pin::new(&mut self.inner).poll_read(cx, buf)
+    }
+}
+
+impl fmt::Debug for HttpConnection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("HttpConnection").finish()
+    }
+}
+
+impl Deref for HttpConnection {
+    type Target = TcpStream;
+    fn deref(&self) -> &TcpStream {
+        &self.inner
+    }
+}
+
+impl DerefMut for HttpConnection {
+    fn deref_mut(&mut self) -> &mut TcpStream {
+        &mut self.inner
+    }
+}
+
+impl Connection for HttpConnection {
     fn connected(&self) -> Connected {
-        let connected = Connected::new();
-        if let (Ok(remote_addr), Ok(local_addr)) = (self.peer_addr(), self.local_addr()) {
-            connected.extra(HttpInfo { remote_addr, local_addr })
-        } else {
-            connected
+        let mut connected = Connected::new();
+
+        if self.config.http_info {
+            if let (Ok(remote_addr), Ok(local_addr)) = (self.inner.peer_addr(), self.inner.local_addr()) {
+                connected = connected.extra(HttpInfo { remote_addr, local_addr });
+            }
         }
+
+        connected
     }
 }
 
@@ -396,7 +470,7 @@ pin_project! {
     }
 }
 
-type ConnectResult = Result<TcpStream, ConnectError>;
+type ConnectResult = Result<HttpConnection, ConnectError>;
 type BoxConnecting = Pin<Box<dyn Future<Output = ConnectResult> + Send>>;
 
 impl<R: Resolve> Future for HttpConnecting<R> {
@@ -942,6 +1016,7 @@ mod tests {
                         enforce_http: false,
                         send_buffer_size: None,
                         recv_buffer_size: None,
+                        http_info: true,
                     };
                     let connecting_tcp = ConnectingTcp::new(dns::SocketAddrs::new(addrs), &cfg);
                     let start = Instant::now();
