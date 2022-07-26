@@ -1124,6 +1124,38 @@ test! {
             body: &b"Mmmmh, baguettes."[..],
 }
 
+test! {
+    name: client_obs_fold_headers,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            Fold: just\r\n some\r\n\t folding\r\n\
+            \r\n\
+            ",
+
+    client:
+        options: {
+            http1_allow_obsolete_multiline_headers_in_responses: true,
+        },
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+        },
+        response:
+            status: OK,
+            headers: {
+                "fold" => "just some folding",
+            },
+            body: None,
+}
+
 mod dispatch_impl {
     use super::*;
     use std::io::{self, Read, Write};
@@ -2226,63 +2258,6 @@ mod conn {
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            assert!(res.body_mut().data().await.is_none());
-        };
-
-        future::join(server, client).await;
-    }
-
-    #[tokio::test]
-    async fn get_obsolete_line_folding() {
-        let _ = ::pretty_env_logger::try_init();
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
-
-        let server = async move {
-            let mut sock = listener.accept().await.unwrap().0;
-            let mut buf = [0; 4096];
-            let n = sock.read(&mut buf).await.expect("read 1");
-
-            // Notably:
-            // - Just a path, since just a path was set
-            // - No host, since no host was set
-            let expected = "GET /a HTTP/1.1\r\n\r\n";
-            assert_eq!(s(&buf[..n]), expected);
-
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: \r\n 0\r\nLine-Folded-Header: hello\r\n world \r\n \r\n\r\n")
-                .await
-                .unwrap();
-        };
-
-        let client = async move {
-            let tcp = tcp_connect(&addr).await.expect("connect");
-            let (mut client, conn) = conn::Builder::new()
-                .http1_allow_obsolete_multiline_headers_in_responses(true)
-                .handshake::<_, Body>(tcp)
-                .await
-                .expect("handshake");
-
-            tokio::task::spawn(async move {
-                conn.await.expect("http conn");
-            });
-
-            let req = Request::builder()
-                .uri("/a")
-                .body(Default::default())
-                .unwrap();
-            let mut res = client.send_request(req).await.expect("send_request");
-            assert_eq!(res.status(), hyper::StatusCode::OK);
-            assert_eq!(res.headers().len(), 2);
-            assert_eq!(
-                res.headers().get(http::header::CONTENT_LENGTH).unwrap(),
-                "0"
-            );
-            assert_eq!(
-                res.headers().get("line-folded-header").unwrap(),
-                "hello   world"
-            );
             assert!(res.body_mut().data().await.is_none());
         };
 
