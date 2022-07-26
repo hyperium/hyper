@@ -58,10 +58,10 @@ cfg_client! {
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-            PollItem = MessageHead<T::Outgoing>,
-            PollBody = Bs,
-            RecvItem = MessageHead<T::Incoming>,
-        > + Unpin,
+        PollItem = MessageHead<T::Outgoing>,
+        PollBody = Bs,
+        RecvItem = MessageHead<T::Incoming>,
+    > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
@@ -256,10 +256,7 @@ where
                 if wants.contains(Wants::UPGRADE) {
                     let upgrade = self.conn.on_upgrade();
                     debug_assert!(!upgrade.is_none(), "empty upgrade");
-                    debug_assert!(
-                        head.extensions.get::<OnUpgrade>().is_none(),
-                        "OnUpgrade already set"
-                    );
+                    debug_assert!(head.extensions.get::<OnUpgrade>().is_none(), "OnUpgrade already set");
                     head.extensions.insert(upgrade);
                 }
                 self.dispatch.recv_msg(Ok((head, body)))?;
@@ -408,10 +405,10 @@ where
 impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-            PollItem = MessageHead<T::Outgoing>,
-            PollBody = Bs,
-            RecvItem = MessageHead<T::Incoming>,
-        > + Unpin,
+        PollItem = MessageHead<T::Outgoing>,
+        PollBody = Bs,
+        RecvItem = MessageHead<T::Incoming>,
+    > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
