@@ -35,7 +35,7 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
-// 16 MB "sane default" taken from golang http2
+                                                     // 16 MB "sane default" taken from golang http2
 const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
 
 #[derive(Clone, Debug)]
@@ -309,7 +309,7 @@ where
                             debug_assert!(parts.extensions.get::<OnUpgrade>().is_none());
                             parts.extensions.insert(upgrade);
                             (
-                                Request::from_parts(parts, crate::Body::empty()),
+                                Request::from_parts(parts, crate::Body::default()),
                                 Some(ConnectParts {
                                     pending,
                                     ping,
@@ -502,7 +502,6 @@ where
                             return Poll::Ready(Ok(()));
                         }
                     }
-
 
                     if !body.is_end_stream() {
                         // automatically set Content-Length from body...

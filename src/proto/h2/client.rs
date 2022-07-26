@@ -336,7 +336,7 @@ where
                                     ));
                                 }
                                 let (parts, recv_stream) = res.into_parts();
-                                let mut res = Response::from_parts(parts, Body::empty());
+                                let mut res = Response::from_parts(parts, Body::default());
 
                                 let (pending, on_upgrade) = crate::upgrade::pending();
                                 let io = H2Upgraded {

@@ -39,7 +39,7 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 ffi_fn! {
     /// Construct a new HTTP request.
     fn hyper_request_new() -> *mut hyper_request {
-        Box::into_raw(Box::new(hyper_request(Request::new(Body::empty()))))
+        Box::into_raw(Box::new(hyper_request(Request::new(Body::ffi()))))
     } ?= std::ptr::null_mut()
 }
 

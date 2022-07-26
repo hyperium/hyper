@@ -8,9 +8,7 @@ use tracing::{debug, trace};
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::proto::{
-    BodyLength, Conn, Dispatched, MessageHead, RequestHead,
-};
+use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
@@ -60,10 +58,10 @@ cfg_client! {
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-        PollItem = MessageHead<T::Outgoing>,
-        PollBody = Bs,
-        RecvItem = MessageHead<T::Incoming>,
-    > + Unpin,
+            PollItem = MessageHead<T::Outgoing>,
+            PollBody = Bs,
+            RecvItem = MessageHead<T::Incoming>,
+        > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
@@ -248,7 +246,7 @@ where
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
                 let body = match body_len {
-                    DecodedLength::ZERO => Body::empty(),
+                    DecodedLength::ZERO => Body::default(),
                     other => {
                         let (tx, rx) = Body::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
@@ -258,7 +256,10 @@ where
                 if wants.contains(Wants::UPGRADE) {
                     let upgrade = self.conn.on_upgrade();
                     debug_assert!(!upgrade.is_none(), "empty upgrade");
-                    debug_assert!(head.extensions.get::<OnUpgrade>().is_none(), "OnUpgrade already set");
+                    debug_assert!(
+                        head.extensions.get::<OnUpgrade>().is_none(),
+                        "OnUpgrade already set"
+                    );
                     head.extensions.insert(upgrade);
                 }
                 self.dispatch.recv_msg(Ok((head, body)))?;
@@ -407,10 +408,10 @@ where
 impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-        PollItem = MessageHead<T::Outgoing>,
-        PollBody = Bs,
-        RecvItem = MessageHead<T::Incoming>,
-    > + Unpin,
+            PollItem = MessageHead<T::Outgoing>,
+            PollBody = Bs,
+            RecvItem = MessageHead<T::Incoming>,
+        > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
