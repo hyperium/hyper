@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658930573652,
+  "lastUpdate": 1658930583466,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12601,6 +12601,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61289,
             "range": "± 7167",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d4b5bd4ee6af0ae8924cf05ab799cc3e19a3c62d",
+          "message": "fix(http1): trim obs-folded headers when unfolding (#2926)",
+          "timestamp": "2022-07-27T07:00:53-07:00",
+          "tree_id": "e832b9c76a0d2bab9ea84df51530cefa181f94ec",
+          "url": "https://github.com/hyperium/hyper/commit/d4b5bd4ee6af0ae8924cf05ab799cc3e19a3c62d"
+        },
+        "date": 1658930580258,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49535,
+            "range": "± 3148",
             "unit": "ns/iter"
           }
         ]
