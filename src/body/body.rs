@@ -161,18 +161,14 @@ impl Body {
     }
 
     #[cfg(feature = "ffi")]
+    #[inline]
     pub(crate) fn ffi() -> Self {
-        Self {
-            kind: Kind::Ffi(crate::ffi::UserBody::new()),
-            extra: None,
-        }
+        Body::new(Kind::Ffi(crate::ffi::UserBody::new()))
     }
 
+    #[inline]
     pub(crate) fn empty() -> Self {
-        Self {
-            kind: Kind::Empty,
-            extra: None,
-        }
+        Body::new(Kind::Empty)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
