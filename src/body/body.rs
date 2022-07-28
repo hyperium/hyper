@@ -349,7 +349,7 @@ impl HttpBody for Body {
         }
 
         match self.kind {
-            Kind::Empty => SizeHint::default(),
+            Kind::Empty => SizeHint::with_exact(0),
             Kind::Chan { content_length, .. } => opt_len!(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { content_length, .. } => opt_len!(content_length),
@@ -363,9 +363,14 @@ impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct Streaming;
+        #[derive(Debug)]
+        struct Empty;
 
         let mut builder = f.debug_tuple("Body");
-        builder.field(&Streaming);
+        match self.kind {
+            Kind::Empty => builder.field(&Empty),
+            _ => builder.field(&Streaming),
+        };
 
         builder.finish()
     }
@@ -504,6 +509,8 @@ mod tests {
             assert_eq!(a.lower(), b.lower(), "lower for {:?}", note);
             assert_eq!(a.upper(), b.upper(), "upper for {:?}", note);
         }
+
+        eq(Body::empty(), SizeHint::with_exact(0), "empty");
 
         eq(Body::channel().1, SizeHint::new(), "channel");
 

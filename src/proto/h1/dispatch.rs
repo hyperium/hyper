@@ -293,16 +293,7 @@ where
                 && self.dispatch.should_poll()
             {
                 if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
-                    let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
-
-                    // Check if the body knows its full data immediately.
-                    //
-                    // If so, we can skip a bit of bookkeeping that streaming
-                    // bodies need to do.
-                    if let Some(full) = crate::body::take_full_data(&mut body) {
-                        self.conn.write_full_msg(head, full);
-                        return Poll::Ready(Ok(()));
-                    }
+                    let (head, body) = msg.map_err(crate::Error::new_user_service)?;
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
