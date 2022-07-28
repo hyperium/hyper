@@ -22,6 +22,7 @@
 //! in `service_struct_impl.rs`.
 
 mod http;
+mod service;
 mod util;
 
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
