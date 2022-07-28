@@ -100,41 +100,6 @@ where
 }
 
 /// Create a `MakeService` from a function.
-///
-/// # Example
-///
-/// ```
-/// # #[cfg(feature = "runtime")]
-/// # async fn run() {
-/// use std::convert::Infallible;
-/// use hyper::{Body, Request, Response, Server};
-/// use tokio::net::TcpStream;
-/// use hyper::service::{make_service_fn, service_fn};
-///
-/// let addr = ([127, 0, 0, 1], 3000).into();
-///
-/// let make_svc = make_service_fn(|socket: &TcpStream| {
-///     let remote_addr = socket.peer_addr().unwrap();
-///     async move {
-///         Ok::<_, Infallible>(service_fn(move |_: Request<Body>| async move {
-///             Ok::<_, Infallible>(
-///                 Response::new(Body::from(format!("Hello, {}!", remote_addr)))
-///             )
-///         }))
-///     }
-/// });
-///
-/// // Then bind and serve...
-/// let server = Server::bind(&addr)
-///     .serve(make_svc);
-///
-/// // Finally, spawn `server` onto an Executor...
-/// if let Err(e) = server.await {
-///     eprintln!("server error: {}", e);
-/// }
-/// # }
-/// # fn main() {}
-/// ```
 pub fn make_service_fn<F, Target, Ret>(f: F) -> MakeServiceFn<F>
 where
     F: FnMut(&Target) -> Ret,

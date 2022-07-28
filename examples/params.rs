@@ -1,10 +1,13 @@
 // #![deny(warnings)]  // FIXME: https://github.com/rust-lang/rust/issues/62411
 #![warn(rust_2018_idioms)]
 
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, Server, StatusCode};
+use hyper::server::conn::Http;
+use hyper::service::service_fn;
+use hyper::{Body, Method, Request, Response, StatusCode};
+use tokio::net::TcpListener;
 
 use std::collections::HashMap;
+use std::net::SocketAddr;
 use url::form_urlencoded;
 
 static INDEX: &[u8] = b"<html><body><form action=\"post\" method=\"post\">Name: <input type=\"text\" name=\"name\"><br>Number: <input type=\"text\" name=\"number\"><br><input type=\"submit\"></body></html>";
@@ -102,15 +105,20 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
 
-    let addr = ([127, 0, 0, 1], 1337).into();
+    let addr: SocketAddr = ([127, 0, 0, 1], 1337).into();
 
-    let server = Server::bind(&addr).serve(make_service_fn(|_| async {
-        Ok::<_, hyper::Error>(service_fn(param_example))
-    }));
-
+    let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
+    loop {
+        let (stream, _) = listener.accept().await?;
 
-    server.await?;
-
-    Ok(())
+        tokio::task::spawn(async move {
+            if let Err(err) = Http::new()
+                .serve_connection(stream, service_fn(param_example))
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
+    }
 }

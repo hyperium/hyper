@@ -1,51 +1,63 @@
 #![deny(warnings)]
 
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Client, Error, Server};
+use hyper::{server::conn::Http, service::service_fn};
 use std::net::SocketAddr;
+use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
-    let in_addr = ([127, 0, 0, 1], 3001).into();
+    let in_addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
     let out_addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
-
-    let client_main = Client::new();
 
     let out_addr_clone = out_addr.clone();
 
-    // The closure inside `make_service_fn` is run for each connection,
-    // creating a 'service' to handle requests for that specific connection.
-    let make_service = make_service_fn(move |_| {
-        let client = client_main.clone();
-
-        async move {
-            // This is the `Service` that will handle the connection.
-            // `service_fn` is a helper to convert a function that
-            // returns a Response into a `Service`.
-            Ok::<_, Error>(service_fn(move |mut req| {
-                let uri_string = format!(
-                    "http://{}{}",
-                    out_addr_clone,
-                    req.uri()
-                        .path_and_query()
-                        .map(|x| x.as_str())
-                        .unwrap_or("/")
-                );
-                let uri = uri_string.parse().unwrap();
-                *req.uri_mut() = uri;
-                client.request(req)
-            }))
-        }
-    });
-
-    let server = Server::bind(&in_addr).serve(make_service);
+    let listener = TcpListener::bind(in_addr).await?;
 
     println!("Listening on http://{}", in_addr);
     println!("Proxying on http://{}", out_addr);
 
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+    loop {
+        let (stream, _) = listener.accept().await?;
+
+        // This is the `Service` that will handle the connection.
+        // `service_fn` is a helper to convert a function that
+        // returns a Response into a `Service`.
+        let service = service_fn(move |mut req| {
+            let uri_string = format!(
+                "http://{}{}",
+                out_addr_clone,
+                req.uri()
+                    .path_and_query()
+                    .map(|x| x.as_str())
+                    .unwrap_or("/")
+            );
+            let uri = uri_string.parse().unwrap();
+            *req.uri_mut() = uri;
+
+            let host = req.uri().host().expect("uri has no host");
+            let port = req.uri().port_u16().unwrap_or(80);
+            let addr = format!("{}:{}", host, port);
+
+            async move {
+                let client_stream = TcpStream::connect(addr).await.unwrap();
+
+                let (mut sender, conn) = hyper::client::conn::handshake(client_stream).await?;
+                tokio::task::spawn(async move {
+                    if let Err(err) = conn.await {
+                        println!("Connection failed: {:?}", err);
+                    }
+                });
+
+                sender.send_request(req).await
+            }
+        });
+
+        tokio::task::spawn(async move {
+            if let Err(err) = Http::new().serve_connection(stream, service).await {
+                println!("Failed to servce connection: {:?}", err);
+            }
+        });
     }
 }

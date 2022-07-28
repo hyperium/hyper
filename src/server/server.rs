@@ -1,8 +1,6 @@
 use std::error::Error as StdError;
 use std::fmt;
-#[cfg(feature = "tcp")]
-use std::net::{SocketAddr, TcpListener as StdTcpListener};
-#[cfg(any(feature = "tcp", feature = "http1"))]
+#[cfg(feature = "http1")]
 use std::time::Duration;
 
 use pin_project_lite::pin_project;
@@ -10,8 +8,6 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::trace;
 
 use super::accept::Accept;
-#[cfg(all(feature = "tcp"))]
-use super::tcp::AddrIncoming;
 use crate::body::{Body, HttpBody};
 use crate::common::exec::Exec;
 use crate::common::exec::{ConnStreamExec, NewSvcExec};
@@ -60,48 +56,6 @@ impl<I> Server<I, ()> {
     }
 }
 
-#[cfg(feature = "tcp")]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
-)]
-impl Server<AddrIncoming, ()> {
-    /// Binds to the provided address, and returns a [`Builder`](Builder).
-    ///
-    /// # Panics
-    ///
-    /// This method will panic if binding to the address fails. For a method
-    /// to bind to an address and return a `Result`, see `Server::try_bind`.
-    pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
-        let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
-            panic!("error binding to {}: {}", addr, e);
-        });
-        Server::builder(incoming)
-    }
-
-    /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
-    pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
-        AddrIncoming::new(addr).map(Server::builder)
-    }
-
-    /// Create a new instance from a `std::net::TcpListener` instance.
-    pub fn from_tcp(listener: StdTcpListener) -> Result<Builder<AddrIncoming>, crate::Error> {
-        AddrIncoming::from_std(listener).map(Server::builder)
-    }
-}
-
-#[cfg(feature = "tcp")]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
-)]
-impl<S, E> Server<AddrIncoming, S, E> {
-    /// Returns the local address that this server is bound to.
-    pub fn local_addr(&self) -> SocketAddr {
-        self.incoming.local_addr()
-    }
-}
-
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
@@ -116,40 +70,6 @@ where
 {
     /// Prepares a server to handle graceful shutdown when the provided future
     /// completes.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # fn main() {}
-    /// # #[cfg(feature = "tcp")]
-    /// # async fn run() {
-    /// # use hyper::{Body, Response, Server, Error};
-    /// # use hyper::service::{make_service_fn, service_fn};
-    /// # let make_service = make_service_fn(|_| async {
-    /// #     Ok::<_, Error>(service_fn(|_req| async {
-    /// #         Ok::<_, Error>(Response::new(Body::from("Hello World")))
-    /// #     }))
-    /// # });
-    /// // Make a server from the previous examples...
-    /// let server = Server::bind(&([127, 0, 0, 1], 3000).into())
-    ///     .serve(make_service);
-    ///
-    /// // Prepare some signal for when the server should start shutting down...
-    /// let (tx, rx) = tokio::sync::oneshot::channel::<()>();
-    /// let graceful = server
-    ///     .with_graceful_shutdown(async {
-    ///         rx.await.ok();
-    ///     });
-    ///
-    /// // Await the `server` receiving the signal...
-    /// if let Err(e) = graceful.await {
-    ///     eprintln!("server error: {}", e);
-    /// }
-    ///
-    /// // And later, trigger the signal by calling `tx.send(())`.
-    /// let _ = tx.send(());
-    /// # }
-    /// ```
     pub fn with_graceful_shutdown<F>(self, signal: F) -> Graceful<I, S, F, E>
     where
         F: Future<Output = ()>,
@@ -237,8 +157,6 @@ impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 impl<I, E> Builder<I, E> {
     /// Start a new builder, wrapping an incoming stream and low-level options.
-    ///
-    /// For a more convenient constructor, see [`Server::bind`](Server::bind).
     pub fn new(incoming: I, protocol: Http_<E>) -> Self {
         Builder { incoming, protocol }
     }
@@ -504,35 +422,6 @@ impl<I, E> Builder<I, E> {
     }
 
     /// Consume this `Builder`, creating a [`Server`](Server).
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature = "tcp")]
-    /// # async fn run() {
-    /// use hyper::{Body, Error, Response, Server};
-    /// use hyper::service::{make_service_fn, service_fn};
-    ///
-    /// // Construct our SocketAddr to listen on...
-    /// let addr = ([127, 0, 0, 1], 3000).into();
-    ///
-    /// // And a MakeService to handle each connection...
-    /// let make_svc = make_service_fn(|_| async {
-    ///     Ok::<_, Error>(service_fn(|_req| async {
-    ///         Ok::<_, Error>(Response::new(Body::from("Hello World")))
-    ///     }))
-    /// });
-    ///
-    /// // Then bind and serve...
-    /// let server = Server::bind(&addr)
-    ///     .serve(make_svc);
-    ///
-    /// // Run forever-ish...
-    /// if let Err(err) = server.await {
-    ///     eprintln!("server error: {}", err);
-    /// }
-    /// # }
-    /// ```
     pub fn serve<S, B>(self, make_service: S) -> Server<I, S, E>
     where
         I: Accept,
@@ -550,49 +439,6 @@ impl<I, E> Builder<I, E> {
             make_service,
             protocol: self.protocol.clone(),
         }
-    }
-}
-
-#[cfg(feature = "tcp")]
-#[cfg_attr(
-    docsrs,
-    doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
-)]
-impl<E> Builder<AddrIncoming, E> {
-    /// Set whether TCP keepalive messages are enabled on accepted connections.
-    ///
-    /// If `None` is specified, keepalive is disabled, otherwise the duration
-    /// specified will be the time to remain idle before sending TCP keepalive
-    /// probes.
-    pub fn tcp_keepalive(mut self, keepalive: Option<Duration>) -> Self {
-        self.incoming.set_keepalive(keepalive);
-        self
-    }
-
-    /// Set the value of `TCP_NODELAY` option for accepted connections.
-    pub fn tcp_nodelay(mut self, enabled: bool) -> Self {
-        self.incoming.set_nodelay(enabled);
-        self
-    }
-
-    /// Set whether to sleep on accept errors.
-    ///
-    /// A possible scenario is that the process has hit the max open files
-    /// allowed, and so trying to accept a new connection will fail with
-    /// EMFILE. In some cases, it's preferable to just wait for some time, if
-    /// the application will likely close some files (or connections), and try
-    /// to accept the connection again. If this option is true, the error will
-    /// be logged at the error level, since it is still a big deal, and then
-    /// the listener will sleep for 1 second.
-    ///
-    /// In other cases, hitting the max open files should be treat similarly
-    /// to being out-of-memory, and simply error (and shutdown). Setting this
-    /// option to false will allow that.
-    ///
-    /// For more details see [`AddrIncoming::set_sleep_on_errors`]
-    pub fn tcp_sleep_on_accept_errors(mut self, val: bool) -> Self {
-        self.incoming.set_sleep_on_errors(val);
-        self
     }
 }
 

@@ -21,15 +21,14 @@ use h2::client::SendRequest;
 use h2::{RecvStream, SendStream};
 use http::header::{HeaderName, HeaderValue};
 use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
-use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
-use tokio::net::{TcpListener, TcpStream as TkTcpStream};
+use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
 
-use hyper::body::HttpBody as _;
-use hyper::client::Client;
+use hyper::body::HttpBody;
 use hyper::server::conn::Http;
-use hyper::server::Server;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Request, Response, StatusCode, Version};
+use hyper::service::service_fn;
+use hyper::{Body, Method, Request, Response, StatusCode, Uri, Version};
 
 mod support;
 
@@ -320,15 +319,11 @@ mod response_body_lengths {
 
     #[tokio::test]
     async fn http2_auto_response_with_known_length() {
-        use http_body::Body;
-
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
         server.reply().body("Hello, World!");
 
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
+        let client = TestClient::new().http2_only();
         let uri = addr_str
             .parse::<hyper::Uri>()
             .expect("server addr should parse");
@@ -340,8 +335,6 @@ mod response_body_lengths {
 
     #[tokio::test]
     async fn http2_auto_response_with_conflicting_lengths() {
-        use http_body::Body;
-
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
         server
@@ -349,9 +342,7 @@ mod response_body_lengths {
             .header("content-length", "10")
             .body("Hello, World!");
 
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
+        let client = TestClient::new().http2_only();
         let uri = addr_str
             .parse::<hyper::Uri>()
             .expect("server addr should parse");
@@ -363,15 +354,11 @@ mod response_body_lengths {
 
     #[tokio::test]
     async fn http2_implicit_empty_size_hint() {
-        use http_body::Body;
-
         let server = serve();
         let addr_str = format!("http://{}", server.addr());
         server.reply();
 
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
+        let client = TestClient::new().http2_only();
         let uri = addr_str
             .parse::<hyper::Uri>()
             .expect("server addr should parse");
@@ -1480,8 +1467,6 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
 
 #[tokio::test]
 async fn upgrades() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1539,8 +1524,6 @@ async fn upgrades() {
 
 #[tokio::test]
 async fn http_connect() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1675,15 +1658,19 @@ async fn upgrades_ignored() {
             future::ok::<_, hyper::Error>(Response::new(hyper::Body::empty()))
         });
 
-        let (socket, _) = listener.accept().await.unwrap();
-        Http::new()
-            .serve_connection(socket, svc)
-            .with_upgrades()
-            .await
-            .expect("server task");
+        loop {
+            let (socket, _) = listener.accept().await.unwrap();
+            tokio::task::spawn(async move {
+                Http::new()
+                    .serve_connection(socket, svc)
+                    .with_upgrades()
+                    .await
+                    .expect("server task");
+            });
+        }
     });
 
-    let client = hyper::Client::new();
+    let client = TestClient::new();
     let url = format!("http://{}/", addr);
 
     let make_req = || {
@@ -1705,8 +1692,6 @@ async fn upgrades_ignored() {
 
 #[tokio::test]
 async fn http_connect_new() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1771,8 +1756,6 @@ async fn http_connect_new() {
 
 #[tokio::test]
 async fn h2_connect() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -1843,7 +1826,6 @@ async fn h2_connect() {
 async fn h2_connect_multiplex() {
     use futures_util::stream::FuturesUnordered;
     use futures_util::StreamExt;
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
@@ -1954,8 +1936,6 @@ async fn h2_connect_multiplex() {
 
 #[tokio::test]
 async fn h2_connect_large_body() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -2031,8 +2011,6 @@ async fn h2_connect_large_body() {
 
 #[tokio::test]
 async fn h2_connect_empty_frames() {
-    use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
@@ -2225,8 +2203,8 @@ fn http1_response_with_http2_version() {
 
     server.reply().version(hyper::Version::HTTP_2);
 
+    let client = TestClient::new();
     rt.block_on({
-        let client = Client::new();
         let uri = addr_str.parse().expect("server addr should parse");
         client.get(uri)
     })
@@ -2240,10 +2218,8 @@ fn try_h2() {
 
     let rt = support::runtime();
 
+    let client = TestClient::new().http2_only();
     rt.block_on({
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
         let uri = addr_str.parse().expect("server addr should parse");
 
         client.get(uri).map_ok(|_| ()).map_err(|_e| ())
@@ -2260,10 +2236,8 @@ fn http1_only() {
 
     let rt = support::runtime();
 
+    let client = TestClient::new().http2_only();
     rt.block_on({
-        let client = Client::builder()
-            .http2_only(true)
-            .build_http::<hyper::Body>();
         let uri = addr_str.parse().expect("server addr should parse");
         client.get(uri)
     })
@@ -2283,9 +2257,8 @@ async fn http2_service_error_sends_reset_reason() {
 
     let uri = addr_str.parse().expect("server addr should parse");
     dbg!("start");
-    let err = dbg!(Client::builder()
-        .http2_only(true)
-        .build_http::<hyper::Body>()
+    let err = dbg!(TestClient::new()
+        .http2_only()
         .get(uri)
         .await
         .expect_err("client.get"));
@@ -2314,9 +2287,8 @@ fn http2_body_user_error_sends_reset_reason() {
 
     let err: hyper::Error = rt
         .block_on(async move {
-            let client = Client::builder()
-                .http2_only(true)
-                .build_http::<hyper::Body>();
+            let client = TestClient::new().http2_only();
+
             let uri = addr_str.parse().expect("server addr should parse");
 
             let mut res = client.get(uri).await?;
@@ -2363,22 +2335,33 @@ async fn http2_service_poll_ready_error_sends_goaway() {
 
     let _ = pretty_env_logger::try_init();
 
-    let server = hyper::Server::bind(&([127, 0, 0, 1], 0).into())
-        .http2_only(true)
-        .serve(make_service_fn(|_| async move {
-            Ok::<_, BoxError>(Http2ReadyErrorSvc)
-        }));
+    let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .unwrap();
 
-    let addr_str = format!("http://{}", server.local_addr());
+    let addr_str = format!("http://{}", listener.local_addr().unwrap());
 
     tokio::task::spawn(async move {
-        server.await.expect("server");
+        loop {
+            tokio::select! {
+                res = listener.accept() => {
+                    let (stream, _) = res.unwrap();
+
+                    tokio::task::spawn(async move {
+                        let mut http = Http::new();
+                        http.http2_only(true);
+
+                        let service = Http2ReadyErrorSvc;
+                        http.serve_connection(stream, service).await.unwrap();
+                    });
+                }
+            }
+        }
     });
 
     let uri = addr_str.parse().expect("server addr should parse");
-    let err = dbg!(Client::builder()
-        .http2_only(true)
-        .build_http::<hyper::Body>()
+    let err = dbg!(TestClient::new()
+        .http2_only()
         .get(uri)
         .await
         .expect_err("client.get should fail"));
@@ -2948,9 +2931,9 @@ impl ServeOptions {
         let (addr_tx, addr_rx) = mpsc::channel();
         let (msg_tx, msg_rx) = mpsc::channel();
         let (reply_tx, reply_rx) = spmc::channel();
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
-        let addr = ([127, 0, 0, 1], 0).into();
+        let addr: SocketAddr = ([127, 0, 0, 1], 0).into();
 
         let thread_name = format!(
             "test-server-{}",
@@ -2961,36 +2944,46 @@ impl ServeOptions {
         let thread = thread::Builder::new()
             .name(thread_name)
             .spawn(move || {
-                support::runtime()
-                    .block_on(async move {
-                        let service = make_service_fn(|_| {
-                            let msg_tx = msg_tx.clone();
-                            let reply_rx = reply_rx.clone();
-                            future::ok::<_, BoxError>(TestService {
-                                tx: msg_tx,
-                                reply: reply_rx,
-                            })
-                        });
+                support::runtime().block_on(async move {
+                    let listener = TkTcpListener::bind(addr).await.unwrap();
 
-                        let builder = Server::bind(&addr);
+                    addr_tx
+                        .send(listener.local_addr().unwrap())
+                        .expect("server addr tx");
 
-                        #[cfg(feature = "http1")]
-                        let builder = builder
-                            .http1_only(_options.http1_only)
-                            .http1_keepalive(_options.keep_alive)
-                            .http1_pipeline_flush(_options.pipeline);
+                    loop {
+                        let msg_tx = msg_tx.clone();
+                        let reply_rx = reply_rx.clone();
 
-                        let server = builder.serve(service);
+                        tokio::select! {
+                            res = listener.accept() => {
+                                let (stream, _) = res.unwrap();
 
-                        addr_tx.send(server.local_addr()).expect("server addr tx");
+                                tokio::task::spawn(async move {
+                                    let mut http = Http::new();
 
-                        server
-                            .with_graceful_shutdown(async {
-                                let _ = shutdown_rx.await;
-                            })
-                            .await
-                    })
-                    .expect("serve()");
+                                    #[cfg(feature = "http1")]
+                                    let http = http
+                                        .http1_only(_options.http1_only)
+                                        .http1_keep_alive(_options.keep_alive)
+                                        .pipeline_flush(_options.pipeline);
+
+                                    let msg_tx = msg_tx.clone();
+                                    let reply_rx = reply_rx.clone();
+                                    let service = TestService {
+                                        tx: msg_tx,
+                                        reply: reply_rx,
+                                    };
+
+                                    http.serve_connection(stream, service).await.unwrap();
+                                });
+                            }
+                            _ = &mut shutdown_rx => {
+                                break;
+                            }
+                        }
+                    }
+                })
             })
             .expect("thread spawn");
 
@@ -3117,5 +3110,51 @@ impl Dropped {
 impl Drop for Dropped {
     fn drop(&mut self) {
         self.0.store(true, Ordering::SeqCst);
+    }
+}
+
+struct TestClient {
+    http2_only: bool,
+}
+
+impl TestClient {
+    fn new() -> Self {
+        Self { http2_only: false }
+    }
+
+    fn http2_only(mut self) -> Self {
+        self.http2_only = true;
+        self
+    }
+
+    async fn get(&self, uri: Uri) -> Result<Response<Body>, hyper::Error> {
+        self.request(
+            Request::builder()
+                .uri(uri)
+                .method(Method::GET)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+    }
+
+    async fn request(&self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+        let host = req.uri().host().expect("uri has no host");
+        let port = req.uri().port_u16().expect("uri has no port");
+
+        let mut builder = hyper::client::conn::Builder::new();
+        builder.http2_only(self.http2_only);
+
+        let stream = TkTcpStream::connect(format!("{}:{}", host, port))
+            .await
+            .unwrap();
+
+        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+
+        tokio::task::spawn(async move {
+            conn.await.unwrap();
+        });
+
+        sender.send_request(req).await
     }
 }

@@ -1,28 +1,3 @@
-use std::io;
-
-use futures_util::future;
-use tokio::net::TcpStream;
-
-use super::Client;
-
-#[tokio::test]
-async fn client_connect_uri_argument() {
-    let connector = tower::service_fn(|dst: http::Uri| {
-        assert_eq!(dst.scheme(), Some(&http::uri::Scheme::HTTP));
-        assert_eq!(dst.host(), Some("example.local"));
-        assert_eq!(dst.port(), None);
-        assert_eq!(dst.path(), "/", "path should be removed");
-
-        future::err::<TcpStream, _>(io::Error::new(io::ErrorKind::Other, "expect me"))
-    });
-
-    let client = Client::builder().build::<_, crate::Body>(connector);
-    let _ = client
-        .get("http://example.local/and/a/path".parse().unwrap())
-        .await
-        .expect_err("response should fail");
-}
-
 /*
 // FIXME: re-implement tests with `async/await`
 #[test]

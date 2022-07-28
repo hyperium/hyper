@@ -6,9 +6,12 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use hyper::client::HttpConnector;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Client, Request, Response, Server, Version};
+use hyper::client::conn::Builder;
+use hyper::server::conn::Http;
+use tokio::net::{TcpListener, TcpStream};
+
+use hyper::service::service_fn;
+use hyper::{Body, Request, Response, Version};
 
 pub use futures_util::{
     future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
@@ -326,16 +329,20 @@ async fn async_test(cfg: __TestConfig) {
         Version::HTTP_11
     };
 
-    let connector = HttpConnector::new();
-    let client = Client::builder()
-        .http2_only(cfg.client_version == 2)
-        .build::<_, Body>(connector);
+    let http2_only = cfg.server_version == 2;
 
     let serve_handles = Arc::new(Mutex::new(cfg.server_msgs));
 
+    let listener = TcpListener::bind(&SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .unwrap();
+
+    let mut addr = listener.local_addr().unwrap();
+
     let expected_connections = cfg.connections;
-    let mut cnt = 0;
-    let new_service = make_service_fn(move |_| {
+    tokio::task::spawn(async move {
+        let mut cnt = 0;
+
         cnt += 1;
         assert!(
             cnt <= expected_connections,
@@ -344,98 +351,108 @@ async fn async_test(cfg: __TestConfig) {
             cnt
         );
 
-        // Move a clone into the service_fn
-        let serve_handles = serve_handles.clone();
-        future::ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-            let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
+        loop {
+            let (stream, _) = listener.accept().await.expect("server error");
 
-            assert_eq!(req.uri().path(), sreq.uri, "client path");
-            assert_eq!(req.method(), &sreq.method, "client method");
-            assert_eq!(req.version(), version, "client version");
-            for func in &sreq.headers {
-                func(&req.headers());
-            }
-            let sbody = sreq.body;
-            hyper::body::to_bytes(req).map_ok(move |body| {
-                assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
+            // Move a clone into the service_fn
+            let serve_handles = serve_handles.clone();
+            let service = service_fn(move |req: Request<Body>| {
+                let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
 
-                let mut res = Response::builder()
-                    .status(sres.status)
-                    .body(Body::from(sres.body))
-                    .expect("Response::build");
-                *res.headers_mut() = sres.headers;
-                res
-            })
-        }))
+                assert_eq!(req.uri().path(), sreq.uri, "client path");
+                assert_eq!(req.method(), &sreq.method, "client method");
+                assert_eq!(req.version(), version, "client version");
+                for func in &sreq.headers {
+                    func(&req.headers());
+                }
+                let sbody = sreq.body;
+                hyper::body::to_bytes(req).map_ok(move |body| {
+                    assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
+
+                    let mut res = Response::builder()
+                        .status(sres.status)
+                        .body(Body::from(sres.body))
+                        .expect("Response::build");
+                    *res.headers_mut() = sres.headers;
+                    res
+                })
+            });
+
+            tokio::task::spawn(async move {
+                Http::new()
+                    .http2_only(http2_only)
+                    .serve_connection(stream, service)
+                    .await
+                    .expect("server error");
+            });
+        }
     });
-
-    let server = hyper::Server::bind(&SocketAddr::from(([127, 0, 0, 1], 0)))
-        .http2_only(cfg.server_version == 2)
-        .serve(new_service);
-
-    let mut addr = server.local_addr();
-
-    tokio::task::spawn(server.map(|result| {
-        result.expect("server error");
-    }));
 
     if cfg.proxy {
         let (proxy_addr, proxy) = naive_proxy(ProxyConfig {
             connections: cfg.connections,
             dst: addr,
             version: cfg.server_version,
-        });
+        })
+        .await;
         tokio::task::spawn(proxy);
         addr = proxy_addr;
     }
 
-    let make_request = Arc::new(
-        move |client: &Client<HttpConnector>, creq: __CReq, cres: __CRes| {
-            let uri = format!("http://{}{}", addr, creq.uri);
-            let mut req = Request::builder()
-                .method(creq.method)
-                .uri(uri)
-                //.headers(creq.headers)
-                .body(creq.body.into())
-                .expect("Request::build");
-            *req.headers_mut() = creq.headers;
-            let cstatus = cres.status;
-            let cheaders = cres.headers;
-            let cbody = cres.body;
+    let make_request = Arc::new(move |creq: __CReq, cres: __CRes| {
+        let uri = format!("http://{}{}", addr, creq.uri);
+        let mut req = Request::builder()
+            .method(creq.method)
+            .uri(uri)
+            //.headers(creq.headers)
+            .body(creq.body.into())
+            .expect("Request::build");
+        *req.headers_mut() = creq.headers;
+        let cstatus = cres.status;
+        let cheaders = cres.headers;
+        let cbody = cres.body;
 
-            client
-                .request(req)
-                .and_then(move |res| {
-                    assert_eq!(res.status(), cstatus, "server status");
-                    assert_eq!(res.version(), version, "server version");
-                    for func in &cheaders {
-                        func(&res.headers());
-                    }
-                    hyper::body::to_bytes(res)
-                })
-                .map_ok(move |body| {
-                    assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
-                })
-                .map(|res| res.expect("client error"))
-        },
-    );
+        async move {
+            let stream = TcpStream::connect(addr).await.unwrap();
+
+            let (mut sender, conn) = hyper::client::conn::Builder::new()
+                .http2_only(http2_only)
+                .handshake::<TcpStream, Body>(stream)
+                .await
+                .unwrap();
+
+            tokio::task::spawn(async move {
+                if let Err(err) = conn.await {
+                    panic!("{:?}", err);
+                }
+            });
+
+            let res = sender.send_request(req).await.unwrap();
+
+            assert_eq!(res.status(), cstatus, "server status");
+            assert_eq!(res.version(), version, "server version");
+            for func in &cheaders {
+                func(&res.headers());
+            }
+
+            let body = hyper::body::to_bytes(res).await.unwrap();
+
+            assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
+        }
+    });
 
     let client_futures: Pin<Box<dyn Future<Output = ()> + Send>> = if cfg.parallel {
         let mut client_futures = vec![];
         for (creq, cres) in cfg.client_msgs {
-            client_futures.push(make_request(&client, creq, cres));
+            client_futures.push(make_request(creq, cres));
         }
-        drop(client);
         Box::pin(future::join_all(client_futures).map(|_| ()))
     } else {
-        let mut client_futures: Pin<Box<dyn Future<Output = Client<HttpConnector>> + Send>> =
-            Box::pin(future::ready(client));
+        let mut client_futures: Pin<Box<dyn Future<Output = ()> + Send>> =
+            Box::pin(future::ready(()));
         for (creq, cres) in cfg.client_msgs {
             let mk_request = make_request.clone();
-            client_futures = Box::pin(client_futures.then(move |client| {
-                let fut = mk_request(&client, creq, cres);
-                fut.map(move |()| client)
-            }));
+            client_futures = Box::pin(client_futures.then(move |_| mk_request(creq, cres)));
         }
         Box::pin(client_futures.map(|_| ()))
     };
@@ -449,27 +466,75 @@ struct ProxyConfig {
     version: usize,
 }
 
-fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
-    let client = Client::builder()
-        .http2_only(cfg.version == 2)
-        .build_http::<Body>();
-
+async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>) {
     let dst_addr = cfg.dst;
     let max_connections = cfg.connections;
     let counter = AtomicUsize::new(0);
+    let http2_only = cfg.version == 2;
 
-    let srv = Server::bind(&([127, 0, 0, 1], 0).into()).serve(make_service_fn(move |_| {
-        let prev = counter.fetch_add(1, Ordering::Relaxed);
-        assert!(max_connections > prev, "proxy max connections");
-        let client = client.clone();
-        future::ok::<_, hyper::Error>(service_fn(move |mut req| {
-            let uri = format!("http://{}{}", dst_addr, req.uri().path())
-                .parse()
-                .expect("proxy new uri parse");
-            *req.uri_mut() = uri;
-            client.request(req)
-        }))
-    }));
-    let proxy_addr = srv.local_addr();
-    (proxy_addr, srv.map(|res| res.expect("proxy error")))
+    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .unwrap();
+
+    let proxy_addr = listener.local_addr().unwrap();
+
+    let fut = async move {
+        tokio::task::spawn(async move {
+            let prev = counter.fetch_add(1, Ordering::Relaxed);
+            assert!(max_connections > prev, "proxy max connections");
+
+            loop {
+                let (stream, _) = listener.accept().await.unwrap();
+
+                let service = service_fn(move |mut req| {
+                    async move {
+                        let uri = format!("http://{}{}", dst_addr, req.uri().path())
+                            .parse()
+                            .expect("proxy new uri parse");
+                        *req.uri_mut() = uri;
+
+                        // Make the client request
+                        let uri = req.uri().host().expect("uri has no host");
+                        let port = req.uri().port_u16().expect("uri has no port");
+
+                        let stream = TcpStream::connect(format!("{}:{}", uri, port))
+                            .await
+                            .unwrap();
+
+                        let mut builder = Builder::new();
+                        builder.http2_only(http2_only);
+                        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+
+                        tokio::task::spawn(async move {
+                            if let Err(err) = conn.await {
+                                panic!("{:?}", err);
+                            }
+                        });
+
+                        let resp = sender.send_request(req).await?;
+
+                        let (mut parts, body) = resp.into_parts();
+
+                        // Remove the Connection header for HTTP/1.1 proxy connections.
+                        if !http2_only {
+                            parts.headers.remove("Connection");
+                        }
+
+                        let mut builder = Response::builder().status(parts.status);
+                        *builder.headers_mut().unwrap() = parts.headers;
+
+                        Result::<Response<Body>, hyper::Error>::Ok(builder.body(body).unwrap())
+                    }
+                });
+
+                Http::new()
+                    .http2_only(http2_only)
+                    .serve_connection(stream, service)
+                    .await
+                    .unwrap();
+            }
+        });
+    };
+
+    (proxy_addr, fut)
 }
