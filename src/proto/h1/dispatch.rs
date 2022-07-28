@@ -34,9 +34,9 @@ pub(crate) trait Dispatch {
 }
 
 cfg_server! {
-    use crate::service::HttpService;
+    use crate::service::TowerHttpService;
 
-    pub(crate) struct Server<S: HttpService<B>, B> {
+    pub(crate) struct Server<S: TowerHttpService<B>, B> {
         in_flight: Pin<Box<Option<S::Future>>>,
         pub(crate) service: S,
     }
@@ -446,7 +446,7 @@ impl<'a, T> Drop for OptGuard<'a, T> {
 cfg_server! {
     impl<S, B> Server<S, B>
     where
-        S: HttpService<B>,
+        S: TowerHttpService<B>,
     {
         pub(crate) fn new(service: S) -> Server<S, B> {
             Server {
@@ -461,11 +461,11 @@ cfg_server! {
     }
 
     // Service is never pinned
-    impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
+    impl<S: TowerHttpService<B>, B> Unpin for Server<S, B> {}
 
     impl<S, Bs> Dispatch for Server<S, Recv>
     where
-        S: HttpService<Recv, ResBody = Bs>,
+        S: TowerHttpService<Recv, ResBody = Bs>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bs: Body,
     {

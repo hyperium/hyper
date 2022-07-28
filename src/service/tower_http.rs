@@ -5,7 +5,7 @@ use crate::common::{task, Future, Poll};
 use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
-pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
+pub trait TowerHttpService<ReqBody>: sealed::Sealed<ReqBody> {
     /// The `Body` body of the `http::Response`.
     type ResBody: Body;
 
@@ -26,7 +26,7 @@ pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
     fn call(&mut self, req: Request<ReqBody>) -> Self::Future;
 }
 
-impl<T, B1, B2> HttpService<B1> for T
+impl<T, B1, B2> TowerHttpService<B1> for T
 where
     T: tower_service::Service<Request<B1>, Response = Response<B2>>,
     B2: Body,

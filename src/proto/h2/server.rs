@@ -21,7 +21,7 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
-use crate::service::HttpService;
+use crate::service::TowerHttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
 use crate::{Recv, Response};
@@ -77,7 +77,7 @@ impl Default for Config {
 pin_project! {
     pub(crate) struct Server<T, S, B, E>
     where
-        S: HttpService<Recv>,
+        S: TowerHttpService<Recv>,
         B: Body,
     {
         exec: E,
@@ -111,7 +111,7 @@ where
 impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Recv, ResBody = B>,
+    S: TowerHttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -190,7 +190,7 @@ where
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Recv, ResBody = B>,
+    S: TowerHttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -249,7 +249,7 @@ where
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
     where
-        S: HttpService<Recv, ResBody = B>,
+        S: TowerHttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: ConnStreamExec<S::Future, B>,
     {

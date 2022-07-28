@@ -75,7 +75,7 @@ cfg_feature! {
     use crate::common::Never;
     use crate::common::exec::{ConnStreamExec, Exec};
     use crate::proto;
-    use crate::service::HttpService;
+    use crate::service::TowerHttpService;
 
     pub(super) use self::upgrades::UpgradeableConnection;
 }
@@ -127,7 +127,7 @@ pin_project! {
     #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
     pub struct Connection<T, S, E = Exec>
     where
-        S: HttpService<Recv>,
+        S: TowerHttpService<Recv>,
     {
         pub(super) conn: Option<ProtoServer<T, S::ResBody, S, E>>,
         fallback: Fallback<E>,
@@ -155,7 +155,7 @@ pin_project! {
     #[project = ProtoServerProj]
     pub(super) enum ProtoServer<T, B, S, E = Exec>
     where
-        S: HttpService<Recv>,
+        S: TowerHttpService<Recv>,
         B: Body,
     {
         H1 {
@@ -605,7 +605,7 @@ impl<E> Http<E> {
     /// # Example
     ///
     /// ```
-    /// # use hyper::{Body, Recv, Request, Response};
+    /// # use hyper::{Recv, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
     /// # use tokio::io::{AsyncRead, AsyncWrite};
@@ -627,7 +627,7 @@ impl<E> Http<E> {
     /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
-        S: HttpService<Recv, ResBody = Bd>,
+        S: TowerHttpService<Recv, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -720,7 +720,7 @@ impl<E> Http<E> {
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, B, S, E> Connection<I, S, E>
 where
-    S: HttpService<Recv, ResBody = B>,
+    S: TowerHttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Body + 'static,
@@ -901,7 +901,7 @@ where
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
-    S: HttpService<Recv, ResBody = B>,
+    S: TowerHttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
@@ -948,7 +948,7 @@ where
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, S> fmt::Debug for Connection<I, S>
 where
-    S: HttpService<Recv>,
+    S: TowerHttpService<Recv>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -981,7 +981,7 @@ impl Default for ConnectionMode {
 impl<T, B, S, E> Future for ProtoServer<T, B, S, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Recv, ResBody = B>,
+    S: TowerHttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -1016,14 +1016,14 @@ mod upgrades {
     #[allow(missing_debug_implementations)]
     pub struct UpgradeableConnection<T, S, E>
     where
-        S: HttpService<Recv>,
+        S: TowerHttpService<Recv>,
     {
         pub(super) inner: Connection<T, S, E>,
     }
 
     impl<I, B, S, E> UpgradeableConnection<I, S, E>
     where
-        S: HttpService<Recv, ResBody = B>,
+        S: TowerHttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Body + 'static,
@@ -1041,7 +1041,7 @@ mod upgrades {
 
     impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
     where
-        S: HttpService<Recv, ResBody = B>,
+        S: TowerHttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Body + 'static,
