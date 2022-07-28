@@ -309,7 +309,7 @@ where
                             debug_assert!(parts.extensions.get::<OnUpgrade>().is_none());
                             parts.extensions.insert(upgrade);
                             (
-                                Request::from_parts(parts, crate::Body::default()),
+                                Request::from_parts(parts, crate::Body::empty()),
                                 Some(ConnectParts {
                                     pending,
                                     ping,

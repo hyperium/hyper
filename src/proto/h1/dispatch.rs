@@ -246,7 +246,7 @@ where
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
                 let body = match body_len {
-                    DecodedLength::ZERO => Body::default(),
+                    DecodedLength::ZERO => Body::empty(),
                     other => {
                         let (tx, rx) = Body::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);

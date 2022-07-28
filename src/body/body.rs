@@ -34,6 +34,7 @@ pub struct Body {
 }
 
 enum Kind {
+    Empty,
     Chan {
         content_length: DecodedLength,
         want_tx: watch::Sender,
@@ -167,6 +168,13 @@ impl Body {
         }
     }
 
+    pub(crate) fn empty() -> Self {
+        Self {
+            kind: Kind::Empty,
+            extra: None,
+        }
+    }
+
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
     pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
@@ -240,6 +248,7 @@ impl Body {
 
     fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.kind {
+            Kind::Empty => Poll::Ready(None),
             Kind::Chan {
                 content_length: ref mut len,
                 ref mut data_rx,
@@ -276,20 +285,6 @@ impl Body {
             Kind::Ffi(ref mut body) => body.poll_data(cx),
         }
     }
-
-    #[cfg(feature = "http1")]
-    pub(super) fn take_full_data(&mut self) -> Option<Bytes> {
-        None
-    }
-}
-
-#[cfg(feature = "ffi")]
-impl Default for Body {
-    /// Returns `Body::ffi()`.
-    #[inline]
-    fn default() -> Body {
-        Body::ffi()
-    }
 }
 
 impl HttpBody for Body {
@@ -308,6 +303,7 @@ impl HttpBody for Body {
         #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
+            Kind::Empty => Poll::Ready(Ok(None)),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 recv: ref mut h2,
@@ -334,6 +330,7 @@ impl HttpBody for Body {
 
     fn is_end_stream(&self) -> bool {
         match self.kind {
+            Kind::Empty => true,
             Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
@@ -356,6 +353,7 @@ impl HttpBody for Body {
         }
 
         match self.kind {
+            Kind::Empty => SizeHint::default(),
             Kind::Chan { content_length, .. } => opt_len!(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { content_length, .. } => opt_len!(content_length),
@@ -369,10 +367,6 @@ impl fmt::Debug for Body {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct Streaming;
-        #[derive(Debug)]
-        struct Empty;
-        #[derive(Debug)]
-        struct Full<'a>(&'a Bytes);
 
         let mut builder = f.debug_tuple("Body");
         builder.field(&Streaming);

@@ -335,7 +335,7 @@ ffi_fn! {
     ///
     /// It is safe to free the response even after taking ownership of its body.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
-        let body = std::mem::take(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut());
+        let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), crate::Body::empty());
         Box::into_raw(Box::new(hyper_body(body)))
     } ?= std::ptr::null_mut()
 }
