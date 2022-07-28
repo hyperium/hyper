@@ -21,8 +21,9 @@
 //! if you need to implement `Service` for a type manually, you can follow the example
 //! in `service_struct_impl.rs`.
 
-mod tower_http;
+mod http;
 mod service;
+mod tower_http;
 mod util;
 
 pub(super) use self::tower_http::TowerHttpService;
