@@ -990,14 +990,11 @@ impl Http1Transaction for Client {
                 .h1_parser_config
                 .obsolete_multiline_headers_in_responses_are_allowed()
             {
-                for header in &headers_indices[..headers_len] {
+                for header in &mut headers_indices[..headers_len] {
                     // SAFETY: array is valid up to `headers_len`
-                    let header = unsafe { &*header.as_ptr() };
-                    for b in &mut slice[header.value.0..header.value.1] {
-                        if *b == b'\r' || *b == b'\n' {
-                            *b = b' ';
-                        }
-                    }
+                    let header = unsafe { &mut *header.as_mut_ptr() };
+                    Client::obs_fold_line(&mut slice, header);
+
                 }
             }
 
@@ -1343,6 +1340,65 @@ impl Client {
         };
 
         set_content_length(headers, len)
+    }
+
+    fn obs_fold_line(all: &mut [u8], idx: &mut HeaderIndices) {
+        // If the value has obs-folded text, then in-place shift the bytes out
+        // of here.
+        //
+        // https://httpwg.org/specs/rfc9112.html#line.folding
+        //
+        // > A user agent that receives an obs-fold MUST replace each received
+        // > obs-fold with one or more SP octets prior to interpreting the
+        // > field value.
+        //
+        // This means strings like "\r\n\t foo" must replace the "\r\n\t " with
+        // a single space.
+
+        let buf = &mut all[idx.value.0..idx.value.1];
+
+        // look for a newline, otherwise bail out
+        let first_nl = match buf.iter().position(|b| *b == b'\n') {
+            Some(i) => i,
+            None => return,
+        };
+
+        // not on standard slices because whatever, sigh
+        fn trim_start(mut s: &[u8]) -> &[u8] {
+            while let [first, rest @ ..] = s {
+                if first.is_ascii_whitespace() {
+                    s = rest;
+                } else {
+                    break;
+                }
+            }
+            s
+        }
+
+        fn trim_end(mut s: &[u8]) -> &[u8] {
+            while let [rest @ .., last] = s {
+                if last.is_ascii_whitespace() {
+                    s = rest;
+                } else {
+                    break;
+                }
+            }
+            s
+        }
+
+        fn trim(s: &[u8]) -> &[u8] {
+            trim_start(trim_end(s))
+        }
+
+        // TODO(perf): we could do the moves in-place, but this is so uncommon
+        // that it shouldn't matter.
+        let mut unfolded = trim_end(&buf[..first_nl]).to_vec();
+        for line in buf[first_nl + 1..].split(|b| *b == b'\n') {
+            unfolded.push(b' ');
+            unfolded.extend_from_slice(trim(line));
+        }
+        buf[..unfolded.len()].copy_from_slice(&unfolded);
+        idx.value.1 = idx.value.0 + unfolded.len();
     }
 }
 
@@ -2381,6 +2437,30 @@ mod tests {
             )
             .keep_alive,
             "connection keep-alive is always keep-alive"
+        );
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn test_client_obs_fold_line() {
+        fn unfold(src: &str) -> String {
+            let mut buf = src.as_bytes().to_vec();
+            let mut idx = HeaderIndices {
+                name: (0, 0),
+                value: (0, buf.len()),
+            };
+            Client::obs_fold_line(&mut buf, &mut idx);
+            String::from_utf8(buf[idx.value.0 .. idx.value.1].to_vec()).unwrap()
+        }
+
+        assert_eq!(
+            unfold("a normal line"),
+            "a normal line",
+        );
+
+        assert_eq!(
+            unfold("obs\r\n fold\r\n\t line"),
+            "obs fold line",
         );
     }
 
