@@ -605,7 +605,7 @@ impl<E> Http<E> {
     /// # Example
     ///
     /// ```
-    /// # use hyper::{Recv, Request, Response};
+    /// # use hyper::{Body, Recv, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
     /// # use tokio::io::{AsyncRead, AsyncWrite};

@@ -4,6 +4,7 @@ use hyper::server::conn::Http;
 use hyper::service::Service;
 use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
+use tower::Service;
 
 use std::future::Future;
 use std::net::SocketAddr;
