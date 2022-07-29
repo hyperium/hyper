@@ -15,10 +15,11 @@ use super::connect::{self, sealed::Connect, Alpn, Connected, Connection};
 use super::pool::{
     self, CheckoutIsClosedError, Key as PoolKey, Pool, Poolable, Pooled, Reservation,
 };
-#[cfg(feature = "tcp")]
-use super::HttpConnector;
 use crate::body::{Body, HttpBody};
-use crate::common::{exec::BoxSendFuture, sync_wrapper::SyncWrapper, lazy as hyper_lazy, task, Future, Lazy, Pin, Poll};
+use crate::common::{
+    exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, task, Future, Lazy, Pin,
+    Poll,
+};
 use crate::rt::Executor;
 
 /// A Client to make outgoing HTTP requests.
@@ -50,49 +51,8 @@ pub struct ResponseFuture {
 
 // ===== impl Client =====
 
-#[cfg(feature = "tcp")]
-impl Client<HttpConnector, Body> {
-    /// Create a new Client with the default [config](Builder).
-    ///
-    /// # Note
-    ///
-    /// The default connector does **not** handle TLS. Speaking to `https`
-    /// destinations will require [configuring a connector that implements
-    /// TLS](https://hyper.rs/guides/client/configuration).
-    #[cfg_attr(docsrs, doc(cfg(feature = "tcp")))]
-    #[inline]
-    pub fn new() -> Client<HttpConnector, Body> {
-        Builder::default().build_http()
-    }
-}
-
-#[cfg(feature = "tcp")]
-impl Default for Client<HttpConnector, Body> {
-    fn default() -> Client<HttpConnector, Body> {
-        Client::new()
-    }
-}
-
 impl Client<(), Body> {
     /// Create a builder to configure a new `Client`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature  = "runtime")]
-    /// # fn run () {
-    /// use std::time::Duration;
-    /// use hyper::Client;
-    ///
-    /// let client = Client::builder()
-    ///     .pool_idle_timeout(Duration::from_secs(30))
-    ///     .http2_only(true)
-    ///     .build_http();
-    /// # let infer: Client<_, hyper::Body> = client;
-    /// # drop(infer);
-    /// # }
-    /// # fn main() {}
-    /// ```
     #[inline]
     pub fn builder() -> Builder {
         Builder::default()
@@ -113,20 +73,6 @@ where
     /// This requires that the `HttpBody` type have a `Default` implementation.
     /// It *should* return an "empty" version of itself, such that
     /// `HttpBody::is_end_stream` is `true`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature  = "runtime")]
-    /// # fn run () {
-    /// use hyper::{Client, Uri};
-    ///
-    /// let client = Client::new();
-    ///
-    /// let future = client.get(Uri::from_static("http://httpbin.org/ip"));
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn get(&self, uri: Uri) -> ResponseFuture
     where
         B: Default,
@@ -142,26 +88,6 @@ where
     }
 
     /// Send a constructed `Request` using this `Client`.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # #[cfg(feature  = "runtime")]
-    /// # fn run () {
-    /// use hyper::{Body, Method, Client, Request};
-    ///
-    /// let client = Client::new();
-    ///
-    /// let req = Request::builder()
-    ///     .method(Method::POST)
-    ///     .uri("http://httpbin.org/post")
-    ///     .body(Body::from("Hallo!"))
-    ///     .expect("request builder");
-    ///
-    /// let future = client.request(req);
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn request(&self, mut req: Request<B>) -> ResponseFuture {
         let is_http_connect = req.method() == Method::CONNECT;
         match req.version() {
@@ -586,7 +512,7 @@ impl ResponseFuture {
         F: Future<Output = crate::Result<Response<Body>>> + Send + 'static,
     {
         Self {
-            inner: SyncWrapper::new(Box::pin(value))
+            inner: SyncWrapper::new(Box::pin(value)),
         }
     }
 
@@ -872,24 +798,6 @@ fn is_schema_secure(uri: &Uri) -> bool {
 }
 
 /// A builder to configure a new [`Client`](Client).
-///
-/// # Example
-///
-/// ```
-/// # #[cfg(feature  = "runtime")]
-/// # fn run () {
-/// use std::time::Duration;
-/// use hyper::Client;
-///
-/// let client = Client::builder()
-///     .pool_idle_timeout(Duration::from_secs(30))
-///     .http2_only(true)
-///     .build_http();
-/// # let infer: Client<_, hyper::Body> = client;
-/// # drop(infer);
-/// # }
-/// # fn main() {}
-/// ```
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 #[derive(Clone)]
 pub struct Builder {
@@ -1314,20 +1222,6 @@ impl Builder {
     {
         self.conn_builder.executor(exec);
         self
-    }
-
-    /// Builder a client with this configuration and the default `HttpConnector`.
-    #[cfg(feature = "tcp")]
-    pub fn build_http<B>(&self) -> Client<HttpConnector, B>
-    where
-        B: HttpBody + Send,
-        B::Data: Send,
-    {
-        let mut connector = HttpConnector::new();
-        if self.pool_config.is_enabled() {
-            connector.set_keepalive(self.pool_config.idle_timeout);
-        }
-        self.build(connector)
     }
 
     /// Combine the configuration of this builder with a connector to create a `Client`.

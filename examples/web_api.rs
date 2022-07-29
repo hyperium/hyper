@@ -1,9 +1,12 @@
 #![deny(warnings)]
 
+use std::net::SocketAddr;
+
 use bytes::Buf;
-use hyper::client::HttpConnector;
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{header, Body, Client, Method, Request, Response, Server, StatusCode};
+use hyper::server::conn::Http;
+use hyper::service::service_fn;
+use hyper::{header, Body, Method, Request, Response, StatusCode};
+use tokio::net::{TcpListener, TcpStream};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
 type Result<T> = std::result::Result<T, GenericError>;
@@ -14,7 +17,7 @@ static NOTFOUND: &[u8] = b"Not Found";
 static POST_DATA: &str = r#"{"original": "data"}"#;
 static URL: &str = "http://127.0.0.1:1337/json_api";
 
-async fn client_request_response(client: &Client<HttpConnector>) -> Result<Response<Body>> {
+async fn client_request_response() -> Result<Response<Body>> {
     let req = Request::builder()
         .method(Method::POST)
         .uri(URL)
@@ -22,7 +25,19 @@ async fn client_request_response(client: &Client<HttpConnector>) -> Result<Respo
         .body(POST_DATA.into())
         .unwrap();
 
-    let web_res = client.request(req).await?;
+    let host = req.uri().host().expect("uri has no host");
+    let port = req.uri().port_u16().expect("uri has no port");
+    let stream = TcpStream::connect(format!("{}:{}", host, port)).await?;
+
+    let (mut sender, conn) = hyper::client::conn::handshake(stream).await?;
+
+    tokio::task::spawn(async move {
+        if let Err(err) = conn.await {
+            println!("Connection error: {:?}", err);
+        }
+    });
+
+    let web_res = sender.send_request(req).await?;
 
     let res_body = web_res.into_body();
 
@@ -60,13 +75,10 @@ async fn api_get_response() -> Result<Response<Body>> {
     Ok(res)
 }
 
-async fn response_examples(
-    req: Request<Body>,
-    client: Client<HttpConnector>,
-) -> Result<Response<Body>> {
+async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => Ok(Response::new(INDEX.into())),
-        (&Method::GET, "/test.html") => client_request_response(&client).await,
+        (&Method::GET, "/test.html") => client_request_response().await,
         (&Method::POST, "/json_api") => api_post_response(req).await,
         (&Method::GET, "/json_api") => api_get_response().await,
         _ => {
@@ -83,27 +95,19 @@ async fn response_examples(
 async fn main() -> Result<()> {
     pretty_env_logger::init();
 
-    let addr = "127.0.0.1:1337".parse().unwrap();
+    let addr: SocketAddr = "127.0.0.1:1337".parse().unwrap();
 
-    // Share a `Client` with all `Service`s
-    let client = Client::new();
-
-    let new_service = make_service_fn(move |_| {
-        // Move a clone of `client` into the `service_fn`.
-        let client = client.clone();
-        async {
-            Ok::<_, GenericError>(service_fn(move |req| {
-                // Clone again to ensure that client outlives this closure.
-                response_examples(req, client.to_owned())
-            }))
-        }
-    });
-
-    let server = Server::bind(&addr).serve(new_service);
-
+    let listener = TcpListener::bind(&addr).await?;
     println!("Listening on http://{}", addr);
+    loop {
+        let (stream, _) = listener.accept().await?;
 
-    server.await?;
+        tokio::task::spawn(async move {
+            let service = service_fn(move |req| response_examples(req));
 
-    Ok(())
+            if let Err(err) = Http::new().serve_connection(stream, service).await {
+                println!("Failed to serve connection: {:?}", err);
+            }
+        });
+    }
 }

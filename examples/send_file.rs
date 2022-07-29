@@ -1,26 +1,36 @@
 #![deny(warnings)]
 
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Body, Method, Request, Response, Result, Server, StatusCode};
+use std::net::SocketAddr;
+
+use hyper::server::conn::Http;
+use tokio::net::TcpListener;
+
+use hyper::service::service_fn;
+use hyper::{Body, Method, Request, Response, Result, StatusCode};
 
 static INDEX: &str = "examples/send_file_index.html";
 static NOTFOUND: &[u8] = b"Not Found";
 
 #[tokio::main]
-async fn main() {
+async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
-    let addr = "127.0.0.1:1337".parse().unwrap();
+    let addr: SocketAddr = "127.0.0.1:1337".parse().unwrap();
 
-    let make_service =
-        make_service_fn(|_| async { Ok::<_, hyper::Error>(service_fn(response_examples)) });
-
-    let server = Server::bind(&addr).serve(make_service);
-
+    let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
 
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+    loop {
+        let (stream, _) = listener.accept().await?;
+
+        tokio::task::spawn(async move {
+            if let Err(err) = Http::new()
+                .serve_connection(stream, service_fn(response_examples))
+                .await
+            {
+                println!("Failed to serve connection: {:?}", err);
+            }
+        });
     }
 }
 

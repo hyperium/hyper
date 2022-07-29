@@ -608,6 +608,7 @@ mod tests {
         );
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_abort() {
         let (tx, mut rx) = Body::channel();
@@ -618,6 +619,7 @@ mod tests {
         assert!(err.is_body_write_aborted(), "{:?}", err);
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_abort_when_buffer_is_full() {
         let (mut tx, mut rx) = Body::channel();
@@ -644,6 +646,7 @@ mod tests {
         assert_eq!(chunk2, "chunk 2");
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_empty() {
         let (_, mut rx) = Body::channel();
