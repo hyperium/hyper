@@ -10,8 +10,6 @@
 //!
 //! - `HttpService`: This is blanketly implemented for all types that
 //!   implement `Service<http::Request<B1>, Response = http::Response<B2>>`.
-//! - `MakeService`: When a `Service` returns a new `Service` as its "response",
-//!   we consider it a `MakeService`. Again, blanketly implemented in those cases.
 //! - `MakeConnection`: A `Service` that returns a "connection", a type that
 //!   implements `AsyncRead` and `AsyncWrite`.
 //!
@@ -24,16 +22,6 @@
 //! The helper [`service_fn`](service_fn) should be sufficient for most cases, but
 //! if you need to implement `Service` for a type manually, you can follow the example
 //! in `service_struct_impl.rs`.
-//!
-//! # MakeService
-//!
-//! Since a `Service` is bound to a single connection, a [`Server`](crate::Server)
-//! needs a way to make them as it accepts connections. This is what a
-//! `MakeService` does.
-//!
-//! Resources that need to be shared by all `Service`s can be put into a
-//! `MakeService`, and then passed to individual `Service`s when `call`
-//! is called.
 
 pub use tower_service::Service;
 
@@ -43,13 +31,11 @@ mod make;
 mod oneshot;
 mod util;
 
+#[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
 pub(super) use self::http::HttpService;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 pub(super) use self::make::MakeConnection;
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
-pub(super) use self::make::MakeServiceRef;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 pub(super) use self::oneshot::{oneshot, Oneshot};
 
-pub use self::make::make_service_fn;
 pub use self::util::service_fn;
