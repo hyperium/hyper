@@ -1,13 +1,15 @@
 #![deny(warnings)]
 
+use hyper::server::conn::Http;
 use std::cell::Cell;
+use std::net::SocketAddr;
 use std::rc::Rc;
-use tokio::sync::oneshot;
+use tokio::net::TcpListener;
 
 use hyper::body::{Bytes, HttpBody};
 use hyper::header::{HeaderMap, HeaderValue};
-use hyper::service::{make_service_fn, service_fn};
-use hyper::{Error, Response, Server};
+use hyper::service::service_fn;
+use hyper::{Error, Response};
 use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -46,7 +48,7 @@ impl HttpBody for Body {
     }
 }
 
-fn main() {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
 
     // Configure a runtime that runs everything on the current thread
@@ -57,43 +59,39 @@ fn main() {
 
     // Combine it with a `LocalSet,  which means it can spawn !Send futures...
     let local = tokio::task::LocalSet::new();
-    local.block_on(&rt, run());
+    local.block_on(&rt, run())
 }
 
-async fn run() {
-    let addr = ([127, 0, 0, 1], 3000).into();
+async fn run() -> Result<(), Box<dyn std::error::Error>> {
+    let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
 
     // Using a !Send request counter is fine on 1 thread...
     let counter = Rc::new(Cell::new(0));
 
-    let make_service = make_service_fn(move |_| {
+    let listener = TcpListener::bind(addr).await?;
+    println!("Listening on http://{}", addr);
+    loop {
+        let (stream, _) = listener.accept().await?;
+
         // For each connection, clone the counter to use in our service...
         let cnt = counter.clone();
 
-        async move {
-            Ok::<_, Error>(service_fn(move |_| {
-                let prev = cnt.get();
-                cnt.set(prev + 1);
-                let value = cnt.get();
-                async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", value)))) }
-            }))
-        }
-    });
+        let service = service_fn(move |_| {
+            let prev = cnt.get();
+            cnt.set(prev + 1);
+            let value = cnt.get();
+            async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", value)))) }
+        });
 
-    let server = Server::bind(&addr).executor(LocalExec).serve(make_service);
-
-    // Just shows that with_graceful_shutdown compiles with !Send,
-    // !Sync HttpBody.
-    let (_tx, rx) = oneshot::channel::<()>();
-    let server = server.with_graceful_shutdown(async move {
-        rx.await.ok();
-    });
-
-    println!("Listening on http://{}", addr);
-
-    // The server would block on current thread to await !Send futures.
-    if let Err(e) = server.await {
-        eprintln!("server error: {}", e);
+        tokio::task::spawn_local(async move {
+            if let Err(err) = Http::new()
+                .with_executor(LocalExec)
+                .serve_connection(stream, service)
+                .await
+            {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
     }
 }
 

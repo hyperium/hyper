@@ -301,6 +301,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn drop_receiver_sends_cancel_errors() {
         let _ = pretty_env_logger::try_init();
@@ -323,6 +324,7 @@ mod tests {
         }
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn sender_checks_for_want_on_send() {
         let (mut tx, mut rx) = channel::<Custom, ()>();
@@ -363,7 +365,6 @@ mod tests {
         use crate::{Body, Request, Response};
 
         let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
             .build()
             .unwrap();
         let (mut tx, mut rx) = channel::<Request<Body>, Response<Body>>();
@@ -386,7 +387,6 @@ mod tests {
     #[bench]
     fn giver_queue_not_ready(b: &mut test::Bencher) {
         let rt = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
             .build()
             .unwrap();
         let (_tx, mut rx) = channel::<i32, ()>();
