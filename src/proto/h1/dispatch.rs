@@ -697,9 +697,15 @@ mod tests {
         let dispatcher = Dispatcher::new(Client::new(rx), conn);
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
+        let body = {
+            let (mut tx, body) = crate::Body::new_channel(DecodedLength::new(4), false);
+            tx.try_send_data("reee".into()).unwrap();
+            body
+        };
+
         let req = crate::Request::builder()
             .method("POST")
-            .body(crate::Body::from("reee"))
+            .body(body)
             .unwrap();
 
         let res = tx.try_send(req).unwrap().await.expect("response");

@@ -3010,7 +3010,7 @@ mod conn {
 
             let mut body = req.into_body();
 
-            let mut send_stream = respond.send_response(Response::default(), false).unwrap();
+            let mut send_stream = respond.send_response(Response::new(()), false).unwrap();
 
             send_stream.send_data("Bread?".into(), true).unwrap();
 

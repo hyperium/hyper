@@ -34,6 +34,7 @@ pub struct Body {
 }
 
 enum Kind {
+    #[allow(dead_code)]
     Empty,
     Chan {
         content_length: DecodedLength,
@@ -166,6 +167,7 @@ impl Body {
         Body::new(Kind::Ffi(crate::ffi::UserBody::new()))
     }
 
+    #[allow(dead_code)]
     #[inline]
     pub(crate) fn empty() -> Self {
         Body::new(Kind::Empty)

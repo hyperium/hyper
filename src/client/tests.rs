@@ -1,6 +1,8 @@
 use std::io;
 
+use crate::Body;
 use futures_util::future;
+use http::{Request, Uri};
 use tokio::net::TcpStream;
 
 use super::Client;
@@ -18,7 +20,12 @@ async fn client_connect_uri_argument() {
 
     let client = Client::builder().build::<_, crate::Body>(connector);
     let _ = client
-        .get("http://example.local/and/a/path".parse().unwrap())
+        .request(
+            Request::builder()
+                .uri(Uri::from_static("http://example.local/and/a/path"))
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .expect_err("response should fail");
 }

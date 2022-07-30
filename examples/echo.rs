@@ -42,7 +42,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
 
         // Return the 404 Not Found for other routes.
         _ => {
-            let mut not_found = Response::default();
+            let mut not_found = Response::new(());
             *not_found.status_mut() = StatusCode::NOT_FOUND;
             Ok(not_found)
         }

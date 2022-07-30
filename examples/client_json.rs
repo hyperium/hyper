@@ -1,6 +1,7 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
 
+use http::Request;
 use hyper::body::Buf;
 use hyper::Client;
 use serde::Deserialize;
