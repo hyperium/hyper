@@ -5,9 +5,6 @@
 //! are not handled at this level. This module provides the building blocks to
 //! customize those things externally.
 //!
-//! If you don't have need to manage connections yourself, consider using the
-//! higher-level [Server](super) API.
-//!
 //! ## Example
 //! A simple example that uses the `Http` struct to talk HTTP over a Tokio TCP stream
 //! ```no_run
@@ -69,7 +66,6 @@ cfg_feature! {
     use tokio::io::{AsyncRead, AsyncWrite};
     use tracing::trace;
 
-    pub use super::server::Connecting;
     use crate::body::{Body, HttpBody};
     use crate::common::{task, Future, Pin, Poll, Unpin};
     #[cfg(not(all(feature = "http1", feature = "http2")))]
@@ -84,9 +80,6 @@ cfg_feature! {
 /// A lower-level configuration of the HTTP protocol.
 ///
 /// This structure is used to configure options for an HTTP server connection.
-///
-/// If you don't have need to manage connections yourself, consider using the
-/// higher-level [Server](super) API.
 #[derive(Clone, Debug)]
 #[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]

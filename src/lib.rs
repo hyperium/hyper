@@ -102,6 +102,4 @@ cfg_feature! {
     #![feature = "server"]
 
     pub mod server;
-    #[doc(no_inline)]
-    pub use crate::server::Server;
 }
