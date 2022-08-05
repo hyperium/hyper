@@ -3,13 +3,9 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::ops::{Deref, DerefMut};
 use std::sync::{Arc, Mutex, Weak};
-
-#[cfg(not(feature = "runtime"))]
 use std::time::{Duration, Instant};
 
 use futures_channel::oneshot;
-#[cfg(feature = "runtime")]
-use tokio::time::{Duration, Instant};
 use tracing::{debug, trace};
 
 use super::client::Ver;

@@ -13,7 +13,6 @@ pub(crate) fn timeout<F>(tim: Tim, future: F, duration: Duration) -> HyperTimeou
     HyperTimeout { sleep: tim.sleep(duration), future: future }
 }
 
-
 pin_project_lite::pin_project! {
     pub(crate) struct HyperTimeout<F> {
         sleep: Box<dyn Sleep>,
@@ -69,15 +68,4 @@ impl Timer for Tim {
             Some(ref t) => t.interval(period),
         }
     }
-
-    /*
-    fn timeout(&self, duration: Duration, future: Box<dyn Future<Output = Box<dyn Any>> + Unpin>) -> Box<tokio::time::Timeout<Box<dyn Any>>> {
-        match *self {
-            None => {
-                panic!("You must supply a timer.")
-            }
-            Some(ref t) => t.timeout(duration, future),
-        }
-    }
-    */
 } 

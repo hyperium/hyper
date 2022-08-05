@@ -35,12 +35,6 @@ impl Timer for TokioTimer {
             inner: tokio::time::interval(period),
         })
     }
-
-    /*
-    fn timeout<O, T: Future<Output = O>>(duration: Duration, future: T) -> Box<dyn Timeout<O> + Unpin> {
-        tokio::time::timeout(duration, future)
-    }
-    */
 }
 
 /// An Interval object that uses the tokio runtime.
@@ -67,19 +61,6 @@ impl<T> Future for TokioTimeout<T> where T: Future {
     }
 
 }
-
-/*
-impl<T> Timeout<T> for TokioTimeout<T>
-where
-    T: Future + Send + Sync,
-{
-    //type Output = ;
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Result<T, Elapsed>> {
-        self.inner.as_mut().poll(cx)
-    }
-}
-*/
 
 // Use TokioSleep to get tokio::time::Sleep to implement Unpin.
 // see https://docs.rs/tokio/latest/tokio/time/struct.Sleep.html
