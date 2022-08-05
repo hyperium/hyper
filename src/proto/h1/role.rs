@@ -1,5 +1,6 @@
 use std::fmt::{self, Write};
 use std::mem::MaybeUninit;
+use std::time::Instant;
 
 use bytes::Bytes;
 use bytes::BytesMut;
@@ -7,8 +8,6 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Instant;
 use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
@@ -23,6 +22,7 @@ use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
 };
 use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
+use crate::rt::Timer;
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -60,6 +60,7 @@ macro_rules! maybe_panic {
     })
 }
 
+
 pub(super) fn parse_headers<T>(
     bytes: &mut BytesMut,
     ctx: ParseContext<'_>,
@@ -88,7 +89,7 @@ where
                 None => {
                     debug!("setting h1 header read timeout timer");
                     *ctx.h1_header_read_timeout_fut =
-                        Some(Box::pin(tokio::time::sleep_until(deadline)));
+                        Some(Box::into_pin(ctx.timer.sleep_until(deadline)));
                 }
             }
         }
@@ -1585,6 +1586,8 @@ mod tests {
                 h1_header_read_timeout_fut: &mut None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
+                #[cfg(feature = "runtime")]
+                timer: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -1620,6 +1623,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1650,6 +1655,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1678,6 +1685,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1708,6 +1717,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1742,6 +1753,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1773,6 +1786,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1799,6 +1814,8 @@ mod tests {
             h1_header_read_timeout_fut: &mut None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
+            #[cfg(feature = "runtime")]
+            timer: None,
             preserve_header_case: true,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1846,6 +1863,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -1874,6 +1893,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2111,6 +2132,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2139,6 +2162,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2167,6 +2192,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2696,6 +2723,8 @@ mod tests {
                 h1_header_read_timeout_fut: &mut None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
+                #[cfg(feature = "runtime")]
+                timer: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -2788,6 +2817,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2836,6 +2867,8 @@ mod tests {
                     h1_header_read_timeout_fut: &mut None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
+                    #[cfg(feature = "runtime")]
+                    timer: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,

@@ -1,5 +1,6 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
+use std::sync::Arc;
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 
@@ -20,6 +21,7 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
+use crate::rt::Timer;
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
@@ -74,12 +76,13 @@ impl Default for Config {
 }
 
 pin_project! {
-    pub(crate) struct Server<T, S, B, E>
+    pub(crate) struct Server<T, S, B, E, M>
     where
         S: HttpService<Body>,
         B: HttpBody,
     {
         exec: E,
+        timer: M,
         service: S,
         state: State<T, B>,
     }
@@ -106,7 +109,7 @@ where
     closing: Option<crate::Error>,
 }
 
-impl<T, S, B, E> Server<T, S, B, E>
+impl<T, S, B, E, M> Server<T, S, B, E, M>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: HttpService<Body, ResBody = B>,
@@ -114,7 +117,7 @@ where
     B: HttpBody + 'static,
     E: ConnStreamExec<S::Future, B>,
 {
-    pub(crate) fn new(io: T, service: S, config: &Config, exec: E) -> Server<T, S, B, E> {
+    pub(crate) fn new(io: T, service: S, config: &Config, exec: E, timer: M) -> Server<T, S, B, E, M> {
         let mut builder = h2::server::Builder::default();
         builder
             .initial_window_size(config.initial_stream_window_size)
@@ -150,6 +153,7 @@ where
 
         Server {
             exec,
+            timer,
             state: State::Handshaking {
                 ping_config,
                 hs: handshake,
@@ -178,13 +182,14 @@ where
     }
 }
 
-impl<T, S, B, E> Future for Server<T, S, B, E>
+impl<T, S, B, E, M> Future for Server<T, S, B, E, M>
 where
     T: AsyncRead + AsyncWrite + Unpin,
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
     E: ConnStreamExec<S::Future, B>,
+    M: Timer + Send + Sync + Clone + 'static,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -199,7 +204,7 @@ where
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
-                        Some(ping::channel(pp, ping_config.clone()))
+                        Some(ping::channel(pp, ping_config.clone(), Some(Arc::new(me.timer.clone()))))
                     } else {
                         None
                     };

@@ -12,12 +12,13 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::Body;
 use crate::body::HttpBody;
+use crate::common::tim::Tim;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
 use crate::proto;
-use crate::rt::Executor;
+use crate::rt::{Executor, Timer};
 use super::super::dispatch;
 
 /// The sender side of an established connection.
@@ -44,6 +45,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
+    pub(super) timer: Tim,
     h2_builder: proto::h2::client::Config,
 }
 
@@ -228,6 +230,7 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
+            timer: None,
             h2_builder: Default::default(),
         }
     }
@@ -238,6 +241,16 @@ impl Builder {
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
+        self
+
+    }
+
+    /// Provide a timer to execute background HTTP2 tasks.
+    pub fn timer<M>(&mut self, timer: M) -> &mut Builder
+    where
+        M: Timer + Send + Sync + 'static,
+    {
+        self.timer = Some(Arc::new(timer));
         self
     }
 
@@ -420,7 +433,7 @@ impl Builder {
 
             let (tx, rx) = dispatch::channel();
             let h2 =
-                proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec)
+                proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
                     .await?;
             Ok((
                 SendRequest { dispatch: tx },

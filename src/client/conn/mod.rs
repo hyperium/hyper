@@ -71,7 +71,7 @@ use tower_service::Service;
 use tracing::{debug, trace};
 
 use super::dispatch;
-use crate::body::HttpBody;
+use crate::{body::HttpBody, common::tim::Tim, rt::Timer};
 #[cfg(not(all(feature = "http1", feature = "http2")))]
 use crate::common::Never;
 use crate::common::{
@@ -156,6 +156,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
+    pub(super) timer: Tim,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
@@ -559,6 +560,7 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
+            timer: None,
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
@@ -585,6 +587,15 @@ impl Builder {
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
+        self
+    }
+
+    /// Provide a timer to execute background HTTP2 tasks.
+    pub fn timer<M>(&mut self, timer: M) -> &mut Builder
+    where
+        M: Timer + Send + Sync + 'static,
+    {
+        self.timer = Some(Arc::new(timer));
         self
     }
 
@@ -960,7 +971,7 @@ impl Builder {
             let proto = match opts.version {
                 #[cfg(feature = "http1")]
                 Proto::Http1 => {
-                    let mut conn = proto::Conn::new(io);
+                    let mut conn = proto::Conn::new(io, opts.timer);
                     conn.set_h1_parser_config(opts.h1_parser_config);
                     if let Some(writev) = opts.h1_writev {
                         if writev {
@@ -999,7 +1010,7 @@ impl Builder {
                 #[cfg(feature = "http2")]
                 Proto::Http2 => {
                     let h2 =
-                        proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec.clone())
+                        proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec.clone(), opts.timer.clone())
                             .await?;
                     ProtoClient::H2 { h2 }
                 }

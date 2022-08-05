@@ -27,14 +27,15 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
-use std::time::Duration;
-#[cfg(not(feature = "runtime"))]
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
+use crate::rt::Timer;
 
 use h2::{Ping, PingPong};
-#[cfg(feature = "runtime")]
-use tokio::time::{Instant, Sleep};
 use tracing::{debug, trace};
+
+use crate::common::tim::Tim;
+use crate::rt::Sleep;
 
 type WindowSize = u32;
 
@@ -42,7 +43,7 @@ pub(super) fn disabled() -> Recorder {
     Recorder { shared: None }
 }
 
-pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger) {
+pub(super) fn channel(ping_pong: PingPong, config: Config, timer: Tim) -> (Recorder, Ponger) {
     debug_assert!(
         config.is_enabled(),
         "ping channel requires bdp or keep-alive config",
@@ -67,7 +68,7 @@ pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger)
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        timer: Box::pin(tokio::time::sleep(interval)),
+        timer: Box::into_pin(timer.sleep(interval)),
         state: KeepAliveState::Init,
     });
 
@@ -173,7 +174,7 @@ struct KeepAlive {
     while_idle: bool,
 
     state: KeepAliveState,
-    timer: Pin<Box<Sleep>>,
+    timer: Pin<Box<dyn Sleep>>,
 }
 
 #[cfg(feature = "runtime")]

@@ -11,7 +11,7 @@ use std::time::Duration;
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 #[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Instant;
+use std::time::Instant;
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
@@ -193,6 +193,8 @@ where
                     h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    timer: parse_ctx.timer.clone(),
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
@@ -741,6 +743,7 @@ mod tests {
                 h1_header_read_timeout_fut: &mut None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
+                timer: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,

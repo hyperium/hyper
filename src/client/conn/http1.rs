@@ -10,13 +10,14 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::Body;
 use crate::body::HttpBody;
+use crate::common::tim::Tim;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
 use crate::upgrade::Upgraded;
 use crate::proto;
-use crate::rt::Executor;
+use crate::rt::{Executor, Timer};
 use super::super::dispatch;
 
 type Dispatcher<T, B> =
@@ -46,6 +47,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
+    pub(super) timer: Tim,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
@@ -247,6 +249,7 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
+            timer: None,
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
@@ -265,6 +268,15 @@ impl Builder {
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
+        self
+    }
+
+    /// Provide a timer to execute background HTTP2 tasks.
+    pub fn timer<M>(&mut self, timer: M) -> &mut Builder
+    where
+        M: Timer + Send + Sync + 'static,
+    {
+        self.timer = Some(Arc::new(timer));
         self
     }
 
@@ -462,7 +474,7 @@ impl Builder {
             tracing::trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
-            let mut conn = proto::Conn::new(io);
+            let mut conn = proto::Conn::new(io, opts.timer);
             conn.set_h1_parser_config(opts.h1_parser_config);
             if let Some(writev) = opts.h1_writev {
                 if writev {
