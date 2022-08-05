@@ -21,6 +21,7 @@ use h2::client::SendRequest;
 use h2::{RecvStream, SendStream};
 use http::header::{HeaderName, HeaderValue};
 use http_body_util::{combinators::BoxBody, BodyExt, StreamBody};
+use support::TokioTimer;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
@@ -1376,6 +1377,7 @@ async fn header_read_timeout_slow_writes() {
 
     let (socket, _) = listener.accept().await.unwrap();
     let conn = Http::new()
+        .with_timer(TokioTimer)
         .http1_header_read_timeout(Duration::from_secs(5))
         .serve_connection(
             socket,
@@ -1451,6 +1453,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
 
     let (socket, _) = listener.accept().await.unwrap();
     let conn = Http::new()
+        .with_timer(TokioTimer)
         .http1_header_read_timeout(Duration::from_secs(5))
         .serve_connection(
             socket,
@@ -2486,6 +2489,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
     let (socket, _) = listener.accept().await.expect("accept");
 
     let err = Http::new()
+        .with_timer(TokioTimer)
         .http2_only(true)
         .http2_keep_alive_interval(Duration::from_secs(1))
         .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2507,6 +2511,7 @@ async fn http2_keep_alive_with_responsive_client() {
         let (socket, _) = listener.accept().await.expect("accept");
 
         Http::new()
+            .with_timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2574,6 +2579,7 @@ async fn http2_keep_alive_count_server_pings() {
         let (socket, _) = listener.accept().await.expect("accept");
 
         Http::new()
+            .with_timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))

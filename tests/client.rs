@@ -1342,9 +1342,11 @@ mod dispatch_impl {
     use tokio::net::TcpStream;
 
     use super::support;
+    use support::TokioTimer;
     use hyper::body::HttpBody;
     use hyper::client::connect::{Connected, Connection};
     use hyper::Client;
+
 
     #[test]
     fn drop_body_before_eof_closes_connection() {
@@ -1485,7 +1487,7 @@ mod dispatch_impl {
             support::runtime().block_on(client_drop_rx.into_future())
         });
 
-        let client = Client::builder().build(DebugConnector::with_closes(closes_tx));
+        let client = Client::builder().timer(TokioTimer).build(DebugConnector::with_closes(closes_tx));
 
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
@@ -1743,7 +1745,7 @@ mod dispatch_impl {
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
 
-        let client = Client::builder().build(connector);
+        let client = Client::builder().timer(TokioTimer).build(connector);
 
         let (tx1, rx1) = oneshot::channel();
         let (tx2, rx2) = oneshot::channel();
@@ -1872,7 +1874,7 @@ mod dispatch_impl {
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
 
-        let client = Client::builder().build(connector);
+        let client = Client::builder().timer(TokioTimer).build(connector);
 
         let (tx1, rx1) = oneshot::channel();
         let (tx2, rx2) = oneshot::channel();
@@ -1948,7 +1950,7 @@ mod dispatch_impl {
         let connector = DebugConnector::new();
         let connects = connector.connects.clone();
 
-        let client = Client::builder().build(connector);
+        let client = Client::builder().timer(TokioTimer).build(connector);
 
         let (tx1, rx1) = oneshot::channel();
         let (tx2, rx2) = oneshot::channel();
@@ -2171,6 +2173,8 @@ mod dispatch_impl {
         use hyper::Response;
         use tokio::net::TcpListener;
 
+        use support::TokioTimer;
+
         let _ = pretty_env_logger::try_init();
         let rt = support::runtime();
         let listener = rt
@@ -2181,11 +2185,12 @@ mod dispatch_impl {
         connector.alpn_h2 = true;
         let connects = connector.connects.clone();
 
-        let client = Client::builder().build::<_, ::hyper::Body>(connector);
+        let client = Client::builder().timer(TokioTimer).build::<_, ::hyper::Body>(connector);
 
         rt.spawn(async move {
             let (socket, _addr) = listener.accept().await.expect("accept");
             Http::new()
+                .with_timer(TokioTimer)
                 .http2_only(true)
                 .serve_connection(
                     socket,
@@ -2374,6 +2379,8 @@ mod conn {
     use hyper::{self, Body, Method, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
+
+    use support::TokioTimer;
 
     #[tokio::test]
     async fn get() {
@@ -3004,6 +3011,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (_client, conn) = conn::Builder::new()
+        	.timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -3037,6 +3045,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+        	.timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -3073,6 +3082,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -3119,6 +3129,7 @@ mod conn {
         tokio::spawn(async move {
             let sock = listener.accept().await.unwrap().0;
             hyper::server::conn::Http::new()
+            .with_timer(TokioTimer)
                 .http2_only(true)
                 .serve_connection(
                     sock,
@@ -3137,6 +3148,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+        	.timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))

@@ -21,6 +21,7 @@ use crate::common::{
     Poll,
 };
 use crate::rt::Executor;
+use crate::rt::Timer;
 
 /// A Client to make outgoing HTTP requests.
 ///
@@ -1221,6 +1222,15 @@ impl Builder {
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.conn_builder.executor(exec);
+        self
+    }
+
+    /// Provide a timer to time background `Connection` tasks.
+    pub fn timer<M>(&mut self, timer: M) -> &mut Self
+    where
+        M: Timer + Send + Sync + 'static,
+    {
+        self.conn_builder.timer(timer);
         self
     }
 
