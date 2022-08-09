@@ -4,7 +4,7 @@ extern crate test;
 use test::Bencher;
 
 use hyper::body::HttpBody;
-use hyper::client::conn::{Builder, SendRequest};
+use hyper::client::conn::{Builder, Connection, SendRequest};
 use hyper::{server::conn::Http, service::service_fn};
 use hyper::{Body, Method, Request, Response};
 use std::convert::Infallible;
