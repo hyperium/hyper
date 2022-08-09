@@ -416,7 +416,7 @@ impl Builder {
         let opts = self.clone();
 
         async move {
-            tracing::trace!("client handshake HTTP/1");
+            tracing::trace!("client handshake HTTP/2");
 
             let (tx, rx) = dispatch::channel();
             let h2 =
