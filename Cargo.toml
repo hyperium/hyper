@@ -182,11 +182,6 @@ path = "examples/state.rs"
 required-features = ["full"]
 
 [[example]]
-name = "tower_client"
-path = "examples/tower_client.rs"
-required-features = ["full"]
-
-[[example]]
 name = "tower_server"
 path = "examples/tower_server.rs"
 required-features = ["full"]
