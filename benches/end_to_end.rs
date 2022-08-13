@@ -3,8 +3,9 @@ extern crate test;
 
 use test::Bencher;
 
+use futures_util::future::join_all;
 use hyper::body::HttpBody;
-use hyper::client::conn::{Builder, Connection, SendRequest};
+use hyper::client::conn::{Builder, SendRequest};
 use hyper::{server::conn::Http, service::service_fn};
 use hyper::{Body, Method, Request, Response};
 use std::convert::Infallible;
@@ -280,7 +281,6 @@ impl Opts {
                 .build()
                 .expect("rt build"),
         );
-        let exec = rt.clone();
 
         let req_len = self.request_body.map(|b| b.len()).unwrap_or(0) as u64
             * u64::max(1, self.request_chunks as u64);
@@ -289,38 +289,25 @@ impl Opts {
 
         let addr = spawn_server(&rt, &self);
 
-        let url: hyper::Uri = format!("http://{}/hello", addr).parse().unwrap();
-
-        let mut request_sender = prepare_client(&rt, &self, &addr);
-
-        let make_request = || {
-            let chunk_cnt = self.request_chunks;
-            let body = if chunk_cnt > 0 {
-                let (mut tx, body) = Body::channel();
-                let chunk = self
-                    .request_body
-                    .expect("request_chunks means request_body");
-                exec.spawn(async move {
-                    for _ in 0..chunk_cnt {
-                        tx.send_data(chunk.into()).await.expect("send_data");
-                    }
-                });
-                body
-            } else {
-                self.request_body
-                    .map(Body::from)
-                    .unwrap_or_else(Body::empty)
-            };
-            let mut req = Request::new(body);
-            *req.method_mut() = self.request_method.clone();
-            *req.uri_mut() = url.clone();
-            req
+        match self.http2 {
+            true => self.bench_http2(b, &rt, &addr),
+            false => self.bench_http1(b, &rt, &addr),
         };
+    }
 
-        let mut send_request = |req: Request<Body>| {
-            let fut = request_sender.send_request(req);
+    //
+    // Benches http/1 requests
+    //
+    fn bench_http1(self, b: &mut test::Bencher, rt: &tokio::runtime::Runtime, addr: &SocketAddr) {
+        //Open n connections to the server,
+        let mut request_senders: Vec<SendRequest<crate::Body>> = (0..self.parallel_cnt)
+            .map(|_| prepare_client(&rt, &self, &addr))
+            .collect();
+
+        let mut send_request = |req: Request<Body>, idx: usize| {
+            let fut = request_senders[idx].send_request(req);
             async {
-                let res = fut.await.expect("client wait");
+                let res = fut.await.expect("Client wait");
                 let mut body = res.into_body();
                 while let Some(_chunk) = body.data().await {}
             }
@@ -328,20 +315,83 @@ impl Opts {
 
         if self.parallel_cnt == 1 {
             b.iter(|| {
-                let req = make_request();
+                let req = make_request(&self, &rt, &addr);
+                rt.block_on(send_request(req, 0));
+            });
+        } else {
+            b.iter(|| {
+                //in each iter, we are going to send one request with each of the request senders
+                let futs = (0..self.parallel_cnt as usize).map(|idx| {
+                    let req = make_request(&self, &rt, &addr);
+                    send_request(req, idx)
+                });
+                rt.block_on(join_all(futs));
+            });
+        }
+    }
+
+    //
+    // Benches http/2 requests
+    //
+    fn bench_http2(&self, b: &mut test::Bencher, rt: &tokio::runtime::Runtime, addr: &SocketAddr) {
+        //open just one connection, and send all the requests via that connection
+        let mut request_sender = prepare_client(rt, &self, addr);
+        let mut send_request = |req: Request<Body>| {
+            let fut = request_sender.send_request(req);
+            async {
+                let res = fut.await.expect("Client wait");
+                let mut body = res.into_body();
+                while let Some(_chunk) = body.data().await {}
+            }
+        };
+
+        if self.parallel_cnt == 1 {
+            b.iter(|| {
+                let req = make_request(&self, &rt, &addr);
                 rt.block_on(send_request(req));
             });
         } else {
-            for _ in 0..self.parallel_cnt {
-                b.iter(|| {
-                    let req = make_request();
-                    rt.block_on(send_request(req));
-                });
-            }
+            let futs = (0..self.parallel_cnt).map(|_| {
+                let req = make_request(&self, &rt, &addr);
+                send_request(req)
+            });
+
+            rt.block_on(join_all(futs));
         }
     }
 }
 
+//
+// Creates a request, for being sent via the request_sender
+//
+fn make_request(opts: &Opts, rt: &tokio::runtime::Runtime, addr: &SocketAddr) -> Request<Body> {
+    let url: hyper::Uri = format!("http://{}/hello", addr).parse().unwrap();
+    let chunk_cnt = opts.request_chunks;
+    let body = if chunk_cnt > 0 {
+        let (mut tx, body) = Body::channel();
+        let chunk = opts
+            .request_body
+            .expect("request_chunks means request_body");
+        rt.spawn(async move {
+            for _ in 0..chunk_cnt {
+                tx.send_data(chunk.into()).await.expect("send_data");
+            }
+        });
+        body
+    } else {
+        opts.request_body
+            .map(Body::from)
+            .unwrap_or_else(Body::empty)
+    };
+    let mut req = Request::new(body);
+    *req.method_mut() = opts.request_method.clone();
+    *req.uri_mut() = url.clone();
+    req
+}
+
+//
+// Prepares a client (request_sender) for sending requests to the given addr
+//
 fn prepare_client(
     rt: &tokio::runtime::Runtime,
     opts: &Opts,
@@ -367,6 +417,9 @@ fn prepare_client(
     request_sender
 }
 
+//
+// Spawns a server in the background
+//
 fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
     let addr: SocketAddr = "127.0.0.1:0".parse().unwrap();
     let tcp_listener = rt.block_on(async move { TcpListener::bind(addr).await.unwrap() });
@@ -377,19 +430,27 @@ fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
         .http2_initial_stream_window_size(opts.http2_stream_window)
         .http2_initial_connection_window_size(opts.http2_conn_window)
         .http2_adaptive_window(opts.http2_adaptive_window);
+
+    let (http2, http2_stream_window, http2_conn_window, http2_adaptive_window) = (
+        opts.http2,
+        opts.http2_stream_window,
+        opts.http2_conn_window,
+        opts.http2_adaptive_window,
+    );
     rt.spawn(async move {
         loop {
             let (tcp_stream, addr) = tcp_listener.accept().await.unwrap();
-            println!("{:?}", addr);
-            if let Err(http_err) = http
-                .serve_connection(tcp_stream, service_fn(handle_request))
-                .await
-            {
-                panic!("Error while serving HTTP connection: {}", http_err);
-            }
+            eprintln!("New incoming connection: {:?}", addr);
+            tokio::task::spawn(
+                Http::new()
+                    .http2_only(http2)
+                    .http2_initial_stream_window_size(http2_stream_window)
+                    .http2_initial_connection_window_size(http2_conn_window)
+                    .http2_adaptive_window(http2_adaptive_window)
+                    .serve_connection(tcp_stream, service_fn(handle_request)),
+            );
         }
     });
-
     local_addr
 }
 
