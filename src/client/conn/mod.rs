@@ -63,7 +63,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures_util::future::{self, Either, FutureExt as _};
+use futures_util::future;
 use httparse::ParserConfig;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -214,16 +214,6 @@ pub struct Parts<T> {
     _inner: (),
 }
 
-// ========== internal client api
-
-// A `SendRequest` that can be cloned to send HTTP2 requests.
-// private for now, probably not a great idea of a type...
-#[must_use = "futures do nothing unless polled"]
-#[cfg(feature = "http2")]
-pub(super) struct Http2SendRequest<B> {
-    dispatch: dispatch::UnboundedSender<Request<B>, Response<Body>>,
-}
-
 // ===== impl SendRequest
 
 impl<B> SendRequest<B> {
@@ -232,30 +222,6 @@ impl<B> SendRequest<B> {
     /// If the associated connection is closed, this returns an Error.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.dispatch.poll_ready(cx)
-    }
-
-    pub(super) async fn when_ready(self) -> crate::Result<Self> {
-        let mut me = Some(self);
-        future::poll_fn(move |cx| {
-            ready!(me.as_mut().unwrap().poll_ready(cx))?;
-            Poll::Ready(Ok(me.take().unwrap()))
-        })
-        .await
-    }
-
-    pub(super) fn is_ready(&self) -> bool {
-        self.dispatch.is_ready()
-    }
-
-    pub(super) fn is_closed(&self) -> bool {
-        self.dispatch.is_closed()
-    }
-
-    #[cfg(feature = "http2")]
-    pub(super) fn into_http2(self) -> Http2SendRequest<B> {
-        Http2SendRequest {
-            dispatch: self.dispatch.unbound(),
-        }
     }
 }
 
@@ -316,32 +282,6 @@ where
 
         ResponseFuture { inner }
     }
-
-    pub(super) fn send_request_retryable(
-        &mut self,
-        req: Request<B>,
-    ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>> + Unpin
-    where
-        B: Send,
-    {
-        match self.dispatch.try_send(req) {
-            Ok(rx) => {
-                Either::Left(rx.then(move |res| {
-                    match res {
-                        Ok(Ok(res)) => future::ok(res),
-                        Ok(Err(err)) => future::err(err),
-                        // this is definite bug if it happens, but it shouldn't happen!
-                        Err(_) => panic!("dispatch dropped without returning error"),
-                    }
-                }))
-            }
-            Err(req) => {
-                debug!("connection was not ready");
-                let err = crate::Error::new_canceled().with("connection was not ready");
-                Either::Right(future::err((err, Some(req))))
-            }
-        }
-    }
 }
 
 impl<B> Service<Request<B>> for SendRequest<B>
@@ -364,67 +304,6 @@ where
 impl<B> fmt::Debug for SendRequest<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SendRequest").finish()
-    }
-}
-
-// ===== impl Http2SendRequest
-
-#[cfg(feature = "http2")]
-impl<B> Http2SendRequest<B> {
-    pub(super) fn is_ready(&self) -> bool {
-        self.dispatch.is_ready()
-    }
-
-    pub(super) fn is_closed(&self) -> bool {
-        self.dispatch.is_closed()
-    }
-}
-
-#[cfg(feature = "http2")]
-impl<B> Http2SendRequest<B>
-where
-    B: HttpBody + 'static,
-{
-    pub(super) fn send_request_retryable(
-        &mut self,
-        req: Request<B>,
-    ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>>
-    where
-        B: Send,
-    {
-        match self.dispatch.try_send(req) {
-            Ok(rx) => {
-                Either::Left(rx.then(move |res| {
-                    match res {
-                        Ok(Ok(res)) => future::ok(res),
-                        Ok(Err(err)) => future::err(err),
-                        // this is definite bug if it happens, but it shouldn't happen!
-                        Err(_) => panic!("dispatch dropped without returning error"),
-                    }
-                }))
-            }
-            Err(req) => {
-                debug!("connection was not ready");
-                let err = crate::Error::new_canceled().with("connection was not ready");
-                Either::Right(future::err((err, Some(req))))
-            }
-        }
-    }
-}
-
-#[cfg(feature = "http2")]
-impl<B> fmt::Debug for Http2SendRequest<B> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("Http2SendRequest").finish()
-    }
-}
-
-#[cfg(feature = "http2")]
-impl<B> Clone for Http2SendRequest<B> {
-    fn clone(&self) -> Self {
-        Http2SendRequest {
-            dispatch: self.dispatch.clone(),
-        }
     }
 }
 

@@ -34,9 +34,6 @@ pub(super) enum Kind {
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[cfg(any(feature = "http1", feature = "http2"))]
     Io,
-    /// Error occurred while connecting.
-    #[allow(unused)]
-    Connect,
     /// Error creating a TcpListener.
     #[cfg(all(feature = "tcp", feature = "server"))]
     Listen,
@@ -101,22 +98,10 @@ pub(super) enum User {
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     UnexpectedHeader,
-    /// User tried to create a Request with bad version.
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    UnsupportedVersion,
-    /// User tried to create a CONNECT Request with the Client.
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    UnsupportedRequestMethod,
     /// User tried to respond with a 1xx (not 101) response code.
     #[cfg(feature = "http1")]
     #[cfg(feature = "server")]
     UnsupportedStatusCode,
-    /// User tried to send a Request with Client with non-absolute URI.
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    AbsoluteUriRequired,
 
     /// User tried polling for an upgrade that doesn't exist.
     NoUpgrade,
@@ -171,11 +156,6 @@ impl Error {
     /// Returns true if a sender's channel is closed.
     pub fn is_closed(&self) -> bool {
         matches!(self.inner.kind, Kind::ChannelClosed)
-    }
-
-    /// Returns true if this was an error from `Connect`.
-    pub fn is_connect(&self) -> bool {
-        matches!(self.inner.kind, Kind::Connect)
     }
 
     /// Returns true if the connection closed before a message could complete.
@@ -270,12 +250,6 @@ impl Error {
         Error::new(Kind::Listen).with(cause)
     }
 
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    pub(super) fn new_connect<E: Into<Cause>>(cause: E) -> Error {
-        Error::new(Kind::Connect).with(cause)
-    }
-
     pub(super) fn new_closed() -> Error {
         Error::new(Kind::ChannelClosed)
     }
@@ -309,28 +283,10 @@ impl Error {
         Error::new(Kind::HeaderTimeout)
     }
 
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    pub(super) fn new_user_unsupported_version() -> Error {
-        Error::new_user(User::UnsupportedVersion)
-    }
-
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    pub(super) fn new_user_unsupported_request_method() -> Error {
-        Error::new_user(User::UnsupportedRequestMethod)
-    }
-
     #[cfg(feature = "http1")]
     #[cfg(feature = "server")]
     pub(super) fn new_user_unsupported_status_code() -> Error {
         Error::new_user(User::UnsupportedStatusCode)
-    }
-
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    pub(super) fn new_user_absolute_uri_required() -> Error {
-        Error::new_user(User::AbsoluteUriRequired)
     }
 
     pub(super) fn new_user_no_upgrade() -> Error {
@@ -411,7 +367,6 @@ impl Error {
             #[cfg(feature = "http1")]
             Kind::UnexpectedMessage => "received unexpected message from connection",
             Kind::ChannelClosed => "channel closed",
-            Kind::Connect => "error trying to connect",
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "server", feature = "tcp"))]
             Kind::Listen => "error creating server listener",
@@ -436,20 +391,11 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
-            #[cfg(any(feature = "http1", feature = "http2"))]
-            #[cfg(feature = "client")]
-            Kind::User(User::UnsupportedVersion) => "request has unsupported HTTP version",
-            #[cfg(any(feature = "http1", feature = "http2"))]
-            #[cfg(feature = "client")]
-            Kind::User(User::UnsupportedRequestMethod) => "request has unsupported HTTP method",
             #[cfg(feature = "http1")]
             #[cfg(feature = "server")]
             Kind::User(User::UnsupportedStatusCode) => {
                 "response has 1xx status code, not supported by server"
             }
-            #[cfg(any(feature = "http1", feature = "http2"))]
-            #[cfg(feature = "client")]
-            Kind::User(User::AbsoluteUriRequired) => "client requires absolute-form URIs",
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(feature = "http1")]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",

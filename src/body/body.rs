@@ -10,8 +10,6 @@ use http_body::{Body as HttpBody, SizeHint};
 
 use super::DecodedLength;
 use crate::common::Future;
-#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
-use crate::common::Never;
 use crate::common::{task, watch, Pin, Poll};
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
@@ -29,9 +27,6 @@ type TrailersSender = oneshot::Sender<HeaderMap>;
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
-    /// Keep the extra bits in an `Option<Box<Extra>>`, so that
-    /// Body stays small in the common case (no extras needed).
-    extra: Option<Box<Extra>>,
 }
 
 enum Kind {
@@ -50,34 +45,6 @@ enum Kind {
     },
     #[cfg(feature = "ffi")]
     Ffi(crate::ffi::UserBody),
-}
-
-struct Extra {
-    /// Allow the client to pass a future to delay the `Body` from returning
-    /// EOF. This allows the `Client` to try to put the idle connection
-    /// back into the pool before the body is "finished".
-    ///
-    /// The reason for this is so that creating a new request after finishing
-    /// streaming the body of a response could sometimes result in creating
-    /// a brand new connection, since the pool didn't know about the idle
-    /// connection yet.
-    delayed_eof: Option<DelayEof>,
-}
-
-#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
-type DelayEofUntil = oneshot::Receiver<Never>;
-
-enum DelayEof {
-    /// Initial state, stream hasn't seen EOF yet.
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    NotEof(DelayEofUntil),
-    /// Transitions to this state once we've seen `poll` try to
-    /// return EOF (`None`). This future is then polled, and
-    /// when it completes, the Body finally returns EOF (`None`).
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    Eof(DelayEofUntil),
 }
 
 /// A sender half created through [`Body::channel()`].
@@ -153,7 +120,7 @@ impl Body {
     }
 
     fn new(kind: Kind) -> Body {
-        Body { kind, extra: None }
+        Body { kind }
     }
 
     #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
@@ -174,62 +141,6 @@ impl Body {
         });
 
         body
-    }
-
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    #[cfg(feature = "client")]
-    pub(crate) fn delayed_eof(&mut self, fut: DelayEofUntil) {
-        self.extra_mut().delayed_eof = Some(DelayEof::NotEof(fut));
-    }
-
-    fn take_delayed_eof(&mut self) -> Option<DelayEof> {
-        self.extra
-            .as_mut()
-            .and_then(|extra| extra.delayed_eof.take())
-    }
-
-    #[cfg(any(feature = "http1", feature = "http2"))]
-    fn extra_mut(&mut self) -> &mut Extra {
-        self.extra
-            .get_or_insert_with(|| Box::new(Extra { delayed_eof: None }))
-    }
-
-    fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
-        match self.take_delayed_eof() {
-            #[cfg(any(feature = "http1", feature = "http2"))]
-            #[cfg(feature = "client")]
-            Some(DelayEof::NotEof(mut delay)) => match self.poll_inner(cx) {
-                ok @ Poll::Ready(Some(Ok(..))) | ok @ Poll::Pending => {
-                    self.extra_mut().delayed_eof = Some(DelayEof::NotEof(delay));
-                    ok
-                }
-                Poll::Ready(None) => match Pin::new(&mut delay).poll(cx) {
-                    Poll::Ready(Ok(never)) => match never {},
-                    Poll::Pending => {
-                        self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
-                        Poll::Pending
-                    }
-                    Poll::Ready(Err(_done)) => Poll::Ready(None),
-                },
-                Poll::Ready(Some(Err(e))) => Poll::Ready(Some(Err(e))),
-            },
-            #[cfg(any(feature = "http1", feature = "http2"))]
-            #[cfg(feature = "client")]
-            Some(DelayEof::Eof(mut delay)) => match Pin::new(&mut delay).poll(cx) {
-                Poll::Ready(Ok(never)) => match never {},
-                Poll::Pending => {
-                    self.extra_mut().delayed_eof = Some(DelayEof::Eof(delay));
-                    Poll::Pending
-                }
-                Poll::Ready(Err(_done)) => Poll::Ready(None),
-            },
-            #[cfg(any(
-                not(any(feature = "http1", feature = "http2")),
-                not(feature = "client")
-            ))]
-            Some(delay_eof) => match delay_eof {},
-            None => self.poll_inner(cx),
-        }
     }
 
     #[cfg(feature = "ffi")]
@@ -313,7 +224,7 @@ impl HttpBody for Body {
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        self.poll_eof(cx)
+        self.poll_inner(cx)
     }
 
     fn poll_trailers(

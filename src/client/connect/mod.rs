@@ -166,6 +166,7 @@ impl Connected {
         self.alpn == Alpn::H2
     }
 
+    /*
     // Don't public expose that `Connected` is `Clone`, unsure if we want to
     // keep that contract...
     #[cfg(feature = "http2")]
@@ -176,6 +177,7 @@ impl Connected {
             extra: self.extra.clone(),
         }
     }
+    */
 }
 
 // ===== impl Extra =====

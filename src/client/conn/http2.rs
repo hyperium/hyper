@@ -22,7 +22,7 @@ use super::super::dispatch;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::Sender<Request<B>, Response<Body>>,
+    dispatch: dispatch::UnboundedSender<Request<B>, Response<Body>>,
 }
 
 /// A future that processes all HTTP state for the IO object.
@@ -66,8 +66,12 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        self.dispatch.poll_ready(cx)
+    pub fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        if self.is_closed() {
+            Poll::Ready(Err(crate::Error::new_closed()))
+        } else {
+            Poll::Ready(Ok(()))
+        }
     }
 
     /*
@@ -83,11 +87,11 @@ impl<B> SendRequest<B> {
     pub(super) fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
+    */
 
     pub(super) fn is_closed(&self) -> bool {
         self.dispatch.is_closed()
     }
-    */
 }
 
 impl<B> SendRequest<B>
@@ -423,7 +427,7 @@ impl Builder {
                 proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec)
                     .await?;
             Ok((
-                SendRequest { dispatch: tx },
+                SendRequest { dispatch: tx.unbound() },
                 Connection { inner: (PhantomData, h2) },
             ))
         }

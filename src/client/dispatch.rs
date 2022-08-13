@@ -7,6 +7,7 @@ use tokio::sync::{mpsc, oneshot};
 use crate::common::Pin;
 use crate::common::{task, Poll};
 
+#[cfg(test)]
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
 
@@ -58,13 +59,16 @@ impl<T, U> Sender<T, U> {
             .map_err(|_| crate::Error::new_closed())
     }
 
+    #[cfg(test)]
     pub(crate) fn is_ready(&self) -> bool {
         self.giver.is_wanting()
     }
 
+    /*
     pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }
+    */
 
     fn can_send(&mut self) -> bool {
         if self.giver.give() || !self.buffered_once {
@@ -79,6 +83,7 @@ impl<T, U> Sender<T, U> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         if !self.can_send() {
             return Err(val);
@@ -112,18 +117,29 @@ impl<T, U> Sender<T, U> {
 
 #[cfg(feature = "http2")]
 impl<T, U> UnboundedSender<T, U> {
+    /*
     pub(crate) fn is_ready(&self) -> bool {
         !self.giver.is_canceled()
     }
+    */
 
     pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }
 
+    #[cfg(test)]
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::Retry(tx)))))
+            .map(move |_| rx)
+            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+    }
+
+    pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
+        let (tx, rx) = oneshot::channel();
+        self.inner
+            .send(Envelope(Some((val, Callback::NoRetry(tx)))))
             .map(move |_| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
@@ -198,6 +214,7 @@ impl<T, U> Drop for Envelope<T, U> {
 }
 
 pub(crate) enum Callback<T, U> {
+    #[allow(unused)]
     Retry(oneshot::Sender<Result<U, (crate::Error, Option<T>)>>),
     NoRetry(oneshot::Sender<Result<U, crate::Error>>),
 }
