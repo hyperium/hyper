@@ -1,4 +1,5 @@
 #![feature(test)]
+#![deny(warnings)]
 extern crate test;
 
 use test::Bencher;
