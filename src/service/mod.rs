@@ -10,8 +10,6 @@
 //!
 //! - `HttpService`: This is blanketly implemented for all types that
 //!   implement `Service<http::Request<B1>, Response = http::Response<B2>>`.
-//! - `MakeConnection`: A `Service` that returns a "connection", a type that
-//!   implements `AsyncRead` and `AsyncWrite`.
 //!
 //! # HttpService
 //!
@@ -26,15 +24,12 @@
 pub use tower_service::Service;
 
 mod http;
-mod make;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 mod oneshot;
 mod util;
 
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
 pub(super) use self::http::HttpService;
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
-pub(super) use self::make::MakeConnection;
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
 pub(super) use self::oneshot::{oneshot, Oneshot};
 

@@ -40,5 +40,4 @@ cfg_feature! {
     pub mod conn;
     pub(super) mod dispatch;
     mod pool;
-    pub mod service;
 }
