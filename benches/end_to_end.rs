@@ -11,8 +11,11 @@ use hyper::{server::conn::Http, service::service_fn};
 use hyper::{Body, Method, Request, Response};
 use std::convert::Infallible;
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
+//use tower::ServiceExt;
 
 // // HTTP1
 #[bench]
@@ -273,7 +276,6 @@ impl Opts {
     }
 
     fn bench(self, b: &mut test::Bencher) {
-        use std::sync::Arc;
         let _ = pretty_env_logger::try_init();
         // Create a runtime of current thread.
         let rt = Arc::new(
@@ -336,11 +338,17 @@ impl Opts {
     //
     fn bench_http2(&self, b: &mut test::Bencher, rt: &tokio::runtime::Runtime, addr: &SocketAddr) {
         //open just one connection, and send all the requests via that connection
-        let mut request_sender = prepare_client(rt, &self, addr);
-        let mut send_request = |req: Request<Body>| {
-            let fut = request_sender.send_request(req);
-            async {
-                let res = fut.await.expect("Client wait");
+        let request_sender = Arc::new(Mutex::new(prepare_client(rt, &self, addr)));
+        let send_request = |req: Request<Body>| {
+            let mut _sender = Arc::clone(&request_sender);
+            async move {
+                let res = _sender
+                    .lock()
+                    .await
+                    .send_request(req)
+                    .await
+                    .expect("Client wait");
+
                 let mut body = res.into_body();
                 while let Some(_chunk) = body.data().await {}
             }
@@ -352,12 +360,14 @@ impl Opts {
                 rt.block_on(send_request(req));
             });
         } else {
-            let futs = (0..self.parallel_cnt).map(|_| {
-                let req = make_request(&self, &rt, &addr);
-                send_request(req)
-            });
+            b.iter(|| {
+                let futs = (0..self.parallel_cnt).map(|_| {
+                    let req = make_request(&self, &rt, &addr);
+                    send_request(req)
+                });
 
-            rt.block_on(join_all(futs));
+                rt.block_on(join_all(futs));
+            });
         }
     }
 }
