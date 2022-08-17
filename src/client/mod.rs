@@ -7,7 +7,6 @@
 //! For a small example program simply fetching a URL, take a look at the
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 
-pub mod connect;
 #[cfg(all(test, feature = "runtime"))]
 mod tests;
 
