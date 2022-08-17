@@ -24,13 +24,9 @@
 pub use tower_service::Service;
 
 mod http;
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
-mod oneshot;
 mod util;
 
 #[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
 pub(super) use self::http::HttpService;
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "client"))]
-pub(super) use self::oneshot::{oneshot, Oneshot};
 
 pub use self::util::service_fn;
