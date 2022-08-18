@@ -29,14 +29,13 @@ pub(crate) trait Dispatch {
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Recv)>) -> crate::Result<()>;
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
 
 cfg_server! {
-    use crate::service::TowerHttpService;
+    use crate::service::HttpService;
 
-    pub(crate) struct Server<S: TowerHttpService<B>, B> {
+    pub(crate) struct Server<S: HttpService<B>, B> {
         in_flight: Pin<Box<Option<S::Future>>>,
         pub(crate) service: S,
     }
@@ -233,15 +232,6 @@ where
     }
 
     fn poll_read_head(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        // can dispatch receive, or does it still care about, an incoming message?
-        match ready!(self.dispatch.poll_ready(cx)) {
-            Ok(()) => (),
-            Err(()) => {
-                trace!("dispatch no longer receiving messages");
-                self.close();
-                return Poll::Ready(Ok(()));
-            }
-        }
         // dispatch is ready for a message, try to read one
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
@@ -446,7 +436,7 @@ impl<'a, T> Drop for OptGuard<'a, T> {
 cfg_server! {
     impl<S, B> Server<S, B>
     where
-        S: TowerHttpService<B>,
+        S: HttpService<B>,
     {
         pub(crate) fn new(service: S) -> Server<S, B> {
             Server {
@@ -461,11 +451,11 @@ cfg_server! {
     }
 
     // Service is never pinned
-    impl<S: TowerHttpService<B>, B> Unpin for Server<S, B> {}
+    impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
 
     impl<S, Bs> Dispatch for Server<S, Recv>
     where
-        S: TowerHttpService<Recv, ResBody = Bs>,
+        S: HttpService<Recv, ResBody = Bs>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bs: Body,
     {
@@ -509,17 +499,6 @@ cfg_server! {
             let fut = self.service.call(req);
             self.in_flight.set(Some(fut));
             Ok(())
-        }
-
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
-            if self.in_flight.is_some() {
-                Poll::Pending
-            } else {
-                self.service.poll_ready(cx).map_err(|_e| {
-                    // FIXME: return error value.
-                    trace!("service closed");
-                })
-            }
         }
 
         fn should_poll(&self) -> bool {
@@ -620,19 +599,6 @@ cfg_client! {
                         Err(err)
                     }
                 }
-            }
-        }
-
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
-            match self.callback {
-                Some(ref mut cb) => match cb.poll_canceled(cx) {
-                    Poll::Ready(()) => {
-                        trace!("callback receiver has dropped");
-                        Poll::Ready(Err(()))
-                    }
-                    Poll::Pending => Poll::Ready(Ok(())),
-                },
-                None => Poll::Ready(Err(())),
             }
         }
 

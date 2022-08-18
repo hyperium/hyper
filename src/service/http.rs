@@ -1,14 +1,14 @@
 use std::error::Error as StdError;
 
-use crate::body::HttpBody;
+use crate::body::Body;
 use crate::common::Future;
 use crate::service::service::Service;
 use crate::{Request, Response};
 
 /// An asynchronous function from `Request` to `Response`.
 pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
-    /// The `HttpBody` body of the `http::Response`.
-    type ResBody: HttpBody;
+    /// The `Body` body of the `http::Response`.
+    type ResBody: Body;
 
     /// The error type that can occur within this `Service`.
     ///
@@ -27,7 +27,7 @@ pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
 impl<T, B1, B2> HttpService<B1> for T
 where
     T: Service<Request<B1>, Response = Response<B2>>,
-    B2: HttpBody,
+    B2: Body,
     T::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type ResBody = B2;
@@ -43,7 +43,7 @@ where
 impl<T, B1, B2> sealed::Sealed<B1> for T
 where
     T: Service<Request<B1>, Response = Response<B2>>,
-    B2: HttpBody,
+    B2: Body,
 {
 }
 

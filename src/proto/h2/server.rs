@@ -21,7 +21,7 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
-use crate::service::TowerHttpService;
+use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
 use crate::{Recv, Response};
@@ -77,7 +77,7 @@ impl Default for Config {
 pin_project! {
     pub(crate) struct Server<T, S, B, E>
     where
-        S: TowerHttpService<Recv>,
+        S: HttpService<Recv>,
         B: Body,
     {
         exec: E,
@@ -111,7 +111,7 @@ where
 impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: TowerHttpService<Recv, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -190,7 +190,7 @@ where
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: TowerHttpService<Recv, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -249,7 +249,7 @@ where
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
     where
-        S: TowerHttpService<Recv, ResBody = B>,
+        S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: ConnStreamExec<S::Future, B>,
     {
@@ -257,38 +257,6 @@ where
             loop {
                 self.poll_ping(cx);
 
-                // Check that the service is ready to accept a new request.
-                //
-                // - If not, just drive the connection some.
-                // - If ready, try to accept a new request from the connection.
-                match service.poll_ready(cx) {
-                    Poll::Ready(Ok(())) => (),
-                    Poll::Pending => {
-                        // use `poll_closed` instead of `poll_accept`,
-                        // in order to avoid accepting a request.
-                        ready!(self.conn.poll_closed(cx).map_err(crate::Error::new_h2))?;
-                        trace!("incoming connection complete");
-                        return Poll::Ready(Ok(()));
-                    }
-                    Poll::Ready(Err(err)) => {
-                        let err = crate::Error::new_user_service(err);
-                        debug!("service closed: {}", err);
-
-                        let reason = err.h2_reason();
-                        if reason == Reason::NO_ERROR {
-                            // NO_ERROR is only used for graceful shutdowns...
-                            trace!("interpreting NO_ERROR user error as graceful_shutdown");
-                            self.conn.graceful_shutdown();
-                        } else {
-                            trace!("abruptly shutting down with {:?}", reason);
-                            self.conn.abrupt_shutdown(reason);
-                        }
-                        self.closing = Some(err);
-                        break;
-                    }
-                }
-
-                // When the service is ready, accepts an incoming request.
                 match ready!(self.conn.poll_accept(cx)) {
                     Some(Ok((req, mut respond))) => {
                         trace!("incoming request");

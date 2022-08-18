@@ -23,9 +23,9 @@
 
 mod http;
 mod service;
-mod tower_http;
 mod util;
 
-pub(super) use self::tower_http::TowerHttpService;
+#[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
+pub(super) use self::http::HttpService;
 
 pub use self::util::service_fn;
