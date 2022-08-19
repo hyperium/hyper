@@ -2,6 +2,7 @@
 
 use std::net::SocketAddr;
 
+use hyper::body::HttpBody as _;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, StatusCode};
@@ -38,6 +39,15 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // So here we do `.await` on the future, waiting on concatenating the full body,
         // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
+            // To protect our server, reject requests with bodies larger than
+            // 64kbs of data.
+            let max = req.body().size_hint().upper().unwrap_or(u64::MAX);
+            if max > 1024 * 64 {
+                let mut resp = Response::new(Body::from("Body too big"));
+                *resp.status_mut() = hyper::StatusCode::PAYLOAD_TOO_LARGE;
+                return Ok(resp);
+            }
+
             let whole_body = hyper::body::to_bytes(req.into_body()).await?;
 
             let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
