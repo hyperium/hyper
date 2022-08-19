@@ -4,12 +4,10 @@ use hyper::server::conn::Http;
 use hyper::service::Service;
 use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
-use tower::Service;
 
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::task::{Context, Poll};
 
 type Counter = i32;
 
@@ -42,10 +40,6 @@ impl Service<Request<Recv>> for Svc {
     type Response = Response<Full<Bytes>>;
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
-
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
 
     fn call(&mut self, req: Request<Recv>) -> Self::Future {
         fn mk_response(s: String) -> Result<Response<Full<Bytes>>, hyper::Error> {

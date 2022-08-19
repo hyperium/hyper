@@ -29,7 +29,7 @@ use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpSt
 
 use hyper::body::Body;
 use hyper::server::conn::Http;
-use hyper::service::service_fn;
+use hyper::service::{service_fn, Service};
 use hyper::{Method, Recv, Request, Response, StatusCode, Uri, Version};
 
 mod support;
@@ -2310,77 +2310,6 @@ fn http2_body_user_error_sends_reset_reason() {
     assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
 }
 
-struct Http2ReadyErrorSvc;
-
-impl tower_service::Service<Request<Recv>> for Http2ReadyErrorSvc {
-    type Response = Response<Recv>;
-    type Error = h2::Error;
-    type Future = Box<
-        dyn futures_core::Future<Output = Result<Self::Response, Self::Error>>
-            + Send
-            + Sync
-            + Unpin,
-    >;
-
-    fn poll_ready(&mut self, _: &mut std::task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Err::<(), _>(h2::Error::from(
-            h2::Reason::INADEQUATE_SECURITY,
-        )))
-    }
-
-    fn call(&mut self, _: hyper::Request<Recv>) -> Self::Future {
-        unreachable!("poll_ready error should have shutdown conn");
-    }
-}
-
-#[tokio::test]
-#[ignore] // sometimes ECONNRESET wins the race
-async fn http2_service_poll_ready_error_sends_goaway() {
-    use std::error::Error;
-
-    let _ = pretty_env_logger::try_init();
-
-    let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-        .await
-        .unwrap();
-
-    let addr_str = format!("http://{}", listener.local_addr().unwrap());
-
-    tokio::task::spawn(async move {
-        loop {
-            tokio::select! {
-                res = listener.accept() => {
-                    let (stream, _) = res.unwrap();
-
-                    tokio::task::spawn(async move {
-                        let mut http = Http::new();
-                        http.http2_only(true);
-
-                        let service = Http2ReadyErrorSvc;
-                        http.serve_connection(stream, service).await.unwrap();
-                    });
-                }
-            }
-        }
-    });
-
-    let uri = addr_str.parse().expect("server addr should parse");
-    let err = dbg!(TestClient::new()
-        .http2_only()
-        .get(uri)
-        .await
-        .expect_err("client.get should fail"));
-
-    // client request should have gotten the specific GOAWAY error...
-    let h2_err = err
-        .source()
-        .expect("source")
-        .downcast_ref::<h2::Error>()
-        .expect("downcast");
-
-    assert_eq!(h2_err.reason(), Some(h2::Reason::INADEQUATE_SECURITY));
-}
-
 #[test]
 fn skips_content_length_for_304_responses() {
     let server = serve();
@@ -2789,14 +2718,10 @@ enum Msg {
     End,
 }
 
-impl tower_service::Service<Request<Recv>> for TestService {
+impl Service<Request<Recv>> for TestService {
     type Response = Response<ReplyBody>;
     type Error = BoxError;
     type Future = BoxFuture;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Ok(()).into()
-    }
 
     fn call(&mut self, mut req: Request<Recv>) -> Self::Future {
         let tx = self.tx.clone();
@@ -2856,14 +2781,10 @@ const HELLO: &str = "hello";
 
 struct HelloWorld;
 
-impl tower_service::Service<Request<Recv>> for HelloWorld {
+impl Service<Request<Recv>> for HelloWorld {
     type Response = Response<Full<Bytes>>;
     type Error = hyper::Error;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
-
-    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
-        Ok(()).into()
-    }
 
     fn call(&mut self, _req: Request<Recv>) -> Self::Future {
         let response = Response::new(Full::new(HELLO.into()));
@@ -2871,7 +2792,7 @@ impl tower_service::Service<Request<Recv>> for HelloWorld {
     }
 }
 
-fn unreachable_service() -> impl tower_service::Service<
+fn unreachable_service() -> impl Service<
     http::Request<hyper::Recv>,
     Response = http::Response<ReplyBody>,
     Error = BoxError,
