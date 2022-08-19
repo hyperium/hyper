@@ -32,6 +32,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
                 .serve_connection(stream, service_fn(proxy))
+                .with_upgrades()
                 .await
             {
                 println!("Failed to serve connection: {:?}", err);
