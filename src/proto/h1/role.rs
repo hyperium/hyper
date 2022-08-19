@@ -1122,28 +1122,44 @@ impl Http1Transaction for Client {
         //TODO: add API to http::Uri to encode without std::fmt
         let _ = write!(FastWrite(dst), "{} ", msg.head.subject.1);
 
-        match msg.head.version {
-            Version::HTTP_10 => extend(dst, b"HTTP/1.0"),
-            Version::HTTP_11 => extend(dst, b"HTTP/1.1"),
+        // http/2 can sometimes split cookie headers into multiple haeder
+        // values, which is not compatible with http/1.
+        //
+        // We re-join them on behalf of the client, if the flag is true.
+        //
+        // https://tools.ietf.org/html/rfc7540#section-8.1.2.5
+        let needs_cookie_unsplit = match msg.head.version {
+            Version::HTTP_10 => {
+                extend(dst, b"HTTP/1.0");
+                false
+            }
+            Version::HTTP_11 => {
+                extend(dst, b"HTTP/1.1");
+                false
+            }
             Version::HTTP_2 => {
                 debug!("request with HTTP2 version coerced to HTTP/1.1");
+
                 extend(dst, b"HTTP/1.1");
+                true
             }
             other => panic!("unexpected request version: {:?}", other),
-        }
+        };
+
         extend(dst, b"\r\n");
 
         if let Some(orig_headers) = msg.head.extensions.get::<HeaderCaseMap>() {
             write_headers_original_case(
                 &msg.head.headers,
                 orig_headers,
+                needs_cookie_unsplit,
                 dst,
                 msg.title_case_headers,
             );
         } else if msg.title_case_headers {
-            write_headers_title_case(&msg.head.headers, dst);
+            write_headers_title_case(&msg.head.headers, needs_cookie_unsplit, dst);
         } else {
-            write_headers(&msg.head.headers, dst);
+            write_headers(&msg.head.headers, needs_cookie_unsplit, dst);
         }
 
         extend(dst, b"\r\n");
@@ -1488,21 +1504,37 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     }
 }
 
-fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
-    for (name, value) in headers {
-        title_case(dst, name.as_str().as_bytes());
-        extend(dst, b": ");
-        extend(dst, value.as_bytes());
-        extend(dst, b"\r\n");
+fn write_headers_title_case(headers: &HeaderMap, needs_cookie_unsplit: bool, dst: &mut Vec<u8>) {
+    for name in headers.keys() {
+        if needs_cookie_unsplit && name == header::COOKIE {
+            title_case(dst, name.as_str().as_bytes());
+            write_unsplit_cookie_headers(headers, dst);
+            continue;
+        }
+
+        for value in headers.get_all(name) {
+            title_case(dst, name.as_str().as_bytes());
+            extend(dst, b": ");
+            extend(dst, value.as_bytes());
+            extend(dst, b"\r\n");
+        }
     }
 }
 
-fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
-    for (name, value) in headers {
-        extend(dst, name.as_str().as_bytes());
-        extend(dst, b": ");
-        extend(dst, value.as_bytes());
-        extend(dst, b"\r\n");
+fn write_headers(headers: &HeaderMap, needs_cookie_unsplit: bool, dst: &mut Vec<u8>) {
+    for name in headers.keys() {
+        if needs_cookie_unsplit && name == header::COOKIE {
+            extend(dst, name.as_str().as_bytes());
+            write_unsplit_cookie_headers(headers, dst);
+            continue;
+        }
+
+        for value in headers.get_all(name) {
+            extend(dst, name.as_str().as_bytes());
+            extend(dst, b": ");
+            extend(dst, value.as_bytes());
+            extend(dst, b"\r\n");
+        }
     }
 }
 
@@ -1510,6 +1542,7 @@ fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
 fn write_headers_original_case(
     headers: &HeaderMap,
     orig_case: &HeaderCaseMap,
+    needs_cookie_unsplit: bool,
     dst: &mut Vec<u8>,
     title_case_headers: bool,
 ) {
@@ -1520,8 +1553,7 @@ fn write_headers_original_case(
     // TODO: consider adding http::HeaderMap::entries() iterator
     for name in headers.keys() {
         let mut names = orig_case.get_all(name);
-
-        for value in headers.get_all(name) {
+        let write_name = || {
             if let Some(orig_name) = names.next() {
                 extend(dst, orig_name.as_ref());
             } else if title_case_headers {
@@ -1529,6 +1561,16 @@ fn write_headers_original_case(
             } else {
                 extend(dst, name.as_str().as_bytes());
             }
+        };
+
+        if needs_cookie_unsplit && name == header::COOKIE {
+            write_name();
+            write_unsplit_cookie_headers(headers, dst);
+            continue;
+        }
+
+        for value in headers.get_all(name) {
+            write_name();
 
             // Wanted for curl test cases that send `X-Custom-Header:\r\n`
             if value.is_empty() {
@@ -1540,6 +1582,30 @@ fn write_headers_original_case(
             }
         }
     }
+}
+
+/// Write joined cookie header values potentially split by http/2 beforehand.
+///
+/// Expects that the header name without the colon has already been written to the
+/// buffer. Finishes the line.
+///
+/// See https://tools.ietf.org/html/rfc7540#section-8.1.2.5
+fn write_unsplit_cookie_headers(map: &HeaderMap, dst: &mut Vec<u8>) {
+    const COOKIE_SEPARATOR: &[u8] = b"; ";
+
+    extend(dst, b": ");
+
+    let cookie_count = map.get_all(header::COOKIE).iter().count();
+    for (i, value) in map.get_all(header::COOKIE).iter().enumerate() {
+        // Intersperse with separator
+        if i > 0 && i < cookie_count - 1 {
+            extend(dst, COOKIE_SEPARATOR);
+        }
+
+        extend(dst, value.as_bytes());
+    }
+
+    extend(dst, b"\r\n");
 }
 
 struct FastWrite<'a>(&'a mut Vec<u8>);
@@ -2713,6 +2779,47 @@ mod tests {
     }
 
     #[test]
+    fn test_unsplit_cookies() {
+        {
+            // Empty value
+
+            let mut map = HeaderMap::new();
+            map.append(header::COOKIE, "".parse().unwrap());
+
+            let mut dst = Vec::new();
+            super::write_headers(&map, true, &mut dst);
+
+            assert_eq!(dst, b"Cookie: \r\n");
+        }
+
+        {
+            // Single cookie
+
+            let mut map = HeaderMap::new();
+            map.append(header::COOKIE, "a=b".parse().unwrap());
+
+            let mut dst = Vec::new();
+            super::write_headers(&map, true, &mut dst);
+
+            assert_eq!(dst, b"Cookie: a=b\r\n");
+        }
+
+        {
+            // Multiple cookies
+
+            let mut map = HeaderMap::new();
+            map.append(header::COOKIE, "a=b".parse().unwrap());
+            map.append(header::COOKIE, "c=d".parse().unwrap());
+            map.append(header::COOKIE, "e=f".parse().unwrap());
+
+            let mut dst = Vec::new();
+            super::write_headers(&map, true, &mut dst);
+
+            assert_eq!(dst, b"Cookie: a=b; c=d; e=f\r\n");
+        }
+    }
+
+    #[test]
     fn test_write_headers_orig_case_empty_value() {
         let mut headers = HeaderMap::new();
         let name = http::header::HeaderName::from_static("x-empty");
@@ -2721,7 +2828,7 @@ mod tests {
         orig_cases.insert(name, Bytes::from_static(b"X-EmptY"));
 
         let mut dst = Vec::new();
-        super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
+        super::write_headers_original_case(&headers, &orig_cases, false, &mut dst, false);
 
         assert_eq!(
             dst, b"X-EmptY:\r\n",
@@ -2741,7 +2848,7 @@ mod tests {
         orig_cases.append(name, Bytes::from_static(b"X-EMPTY"));
 
         let mut dst = Vec::new();
-        super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
+        super::write_headers_original_case(&headers, &orig_cases, false, &mut dst, false);
 
         assert_eq!(dst, b"X-Empty: a\r\nX-EMPTY: b\r\n");
     }

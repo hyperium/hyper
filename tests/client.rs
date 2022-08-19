@@ -1605,7 +1605,7 @@ mod conn {
             let n = sock.read(&mut buf).expect("read 1");
 
             // Not HTTP/2, nor panicked
-            let expected = "GET /a HTTP/1.1\r\n\r\n";
+            let expected = "GET /a HTTP/1.1\r\ncookie: a=b; c=d\r\n\r\n";
             assert_eq!(s(&buf[..n]), expected);
 
             sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
@@ -1622,6 +1622,8 @@ mod conn {
         let req = Request::builder()
             .uri("/a")
             .version(hyper::Version::HTTP_2)
+            .header(header::COOKIE, "a=b")
+            .header(header::COOKIE, "c=d")
             .body(Default::default())
             .unwrap();
 
