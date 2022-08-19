@@ -28,16 +28,5 @@ pub trait Service<Request> {
     type Future: Future<Output = Result<Self::Response, Self::Error>>;
 
     /// Process the request and return the response asynchronously.
-    ///
-    /// This function is expected to be callable off task. As such,
-    /// implementations should take care to not call `poll_ready`.
-    ///
-    /// Before dispatching a request, `poll_ready` must be called and return
-    /// `Poll::Ready(Ok(()))`.
-    ///
-    /// # Panics
-    ///
-    /// Implementations are permitted to panic if `call` is invoked without
-    /// obtaining `Poll::Ready(Ok(()))` from `poll_ready`.
     fn call(&mut self, req: Request) -> Self::Future;
 }
