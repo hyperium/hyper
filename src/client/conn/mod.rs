@@ -41,9 +41,6 @@
 //!     let response = request_sender.send_request(request).await?;
 //!     assert!(response.status() == StatusCode::OK);
 //!
-//!     // To send via the same connection again, it may not work as it may not be ready,
-//!     // so we have to wait until the request_sender becomes ready.
-//!     request_sender.ready().await?;
 //!     let request = Request::builder()
 //!         .header("Host", "example.com")
 //!         .method("GET")
@@ -69,7 +66,6 @@ use futures_util::future;
 use httparse::ParserConfig;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tower_service::Service;
 use tracing::{debug, trace};
 
 use super::dispatch;
@@ -86,6 +82,7 @@ use crate::rt::Executor;
 use crate::upgrade::Upgraded;
 use crate::{Recv, Request, Response};
 use crate::{common::time::Time, rt::Timer};
+use crate::service::Service;
 
 #[cfg(feature = "http1")]
 pub mod http1;
@@ -273,10 +270,6 @@ where
     type Response = Response<Recv>;
     type Error = crate::Error;
     type Future = ResponseFuture;
-
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.poll_ready(cx)
-    }
 
     fn call(&mut self, req: Request<B>) -> Self::Future {
         self.send_request(req)
