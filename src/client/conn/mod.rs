@@ -82,7 +82,6 @@ use crate::rt::Executor;
 use crate::upgrade::Upgraded;
 use crate::{Recv, Request, Response};
 use crate::{common::time::Time, rt::Timer};
-use crate::service::Service;
 
 #[cfg(feature = "http1")]
 pub mod http1;
@@ -260,19 +259,6 @@ where
         };
 
         ResponseFuture { inner }
-    }
-}
-
-impl<B> Service<Request<B>> for SendRequest<B>
-where
-    B: Body + 'static,
-{
-    type Response = Response<Recv>;
-    type Error = crate::Error;
-    type Future = ResponseFuture;
-
-    fn call(&mut self, req: Request<B>) -> Self::Future {
-        self.send_request(req)
     }
 }
 
