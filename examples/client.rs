@@ -46,7 +46,13 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
         }
     });
 
-    let req = Request::builder().uri(url).body(Body::empty()).unwrap();
+    let authority = url.authority().unwrap().clone();
+
+    let req = Request::builder()
+        .uri(url)
+        .header(hyper::header::HOST, authority.as_str())
+        .body(Body::empty())?;
+
     let mut res = sender.send_request(req).await?;
 
     println!("Response: {}", res.status());
