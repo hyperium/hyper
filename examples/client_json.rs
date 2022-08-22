@@ -36,8 +36,14 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
         }
     });
 
+    let authority = url.authority().unwrap().clone();
+
     // Fetch the url...
-    let req = Request::builder().uri(url).body(Body::empty()).unwrap();
+    let req = Request::builder()
+        .uri(url)
+        .header(hyper::header::HOST, authority.as_str())
+        .body(Body::empty())?;
+
     let res = sender.send_request(req).await?;
 
     // asynchronously aggregate the chunks of the body
