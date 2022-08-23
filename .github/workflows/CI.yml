@@ -261,7 +261,7 @@ jobs:
           command: rustdoc
           args: --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
 
-  doc:
+  check-external-types:
     name: Check exposed types
     needs: [style, test]
     runs-on: ubuntu-latest
