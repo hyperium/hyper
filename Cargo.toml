@@ -45,6 +45,7 @@ libc = { version = "0.2", optional = true }
 socket2 = { version = "0.4", optional = true }
 
 [dev-dependencies]
+cargo-check-external-types = "0.1.2"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 matches = "0.1"
 num_cpus = "1.0"

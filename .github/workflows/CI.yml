@@ -260,3 +260,23 @@ jobs:
         with:
           command: rustdoc
           args: --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+
+  doc:
+    name: Check exposed types
+    needs: [style, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+
+      - name: cargo check-external-types
+        uses: actions-rs/cargo@v1
+        with:
+          command: check-external-types
