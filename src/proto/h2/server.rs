@@ -1,5 +1,6 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
+use std::sync::{Arc, Mutex};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 
@@ -24,7 +25,7 @@ use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
 use crate::{Body, Response};
-
+use tokio::time::Sleep;
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
 // for performance.
@@ -37,6 +38,9 @@ const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
 // 16 MB "sane default" taken from golang http2
 const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
+
+// TODO will be replace by config in the formal pull request
+const DEFAULT_CONN_IDLE_TIMEOUT: Duration = Duration::from_secs(65);
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -104,6 +108,7 @@ where
     ping: Option<(ping::Recorder, ping::Ponger)>,
     conn: Connection<T, SendBuf<B::Data>>,
     closing: Option<crate::Error>,
+    conn_idle_timeout: Arc<Mutex<Pin<Box<Sleep>>>>
 }
 
 impl<T, S, B, E> Server<T, S, B, E>
@@ -207,6 +212,7 @@ where
                         ping,
                         conn,
                         closing: None,
+                        conn_idle_timeout: Arc::new(Mutex::new(Box::pin(tokio::time::sleep(DEFAULT_CONN_IDLE_TIMEOUT))))
                     })
                 }
                 State::Serving(ref mut srv) => {
@@ -229,6 +235,17 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     B: HttpBody + 'static,
 {
+
+    fn reset_conn_idle_timeout(&self, time: Duration) {
+        let mut sleep = self.conn_idle_timeout.lock().unwrap();
+        sleep.as_mut().reset(tokio::time::Instant::now() + time);
+    }
+
+    fn poll_conn_idle_timeout(&self, cx: &mut task::Context<'_>) -> bool  {
+        let mut sleep = self.conn_idle_timeout.lock().unwrap();
+        sleep.as_mut().poll(cx).is_ready()
+    }
+
     fn poll_server<S, E>(
         &mut self,
         cx: &mut task::Context<'_>,
@@ -274,10 +291,16 @@ where
                         break;
                     }
                 }
-
+                if self.poll_conn_idle_timeout(cx) {
+                    self.conn.graceful_shutdown();
+                    trace!("conn is close with idle");
+                    return Poll::Ready(Ok(()));
+                }
                 // When the service is ready, accepts an incoming request.
                 match ready!(self.conn.poll_accept(cx)) {
                     Some(Ok((req, mut respond))) => {
+                        // Avoid request failures due to timeout.
+                        self.reset_conn_idle_timeout(Duration::from_secs(60 * 60 * 24));
                         trace!("incoming request");
                         let content_length = headers::content_length_parse_all(req.headers());
                         let ping = self
@@ -322,7 +345,7 @@ where
                             req.extensions_mut().insert(Protocol::from_inner(protocol));
                         }
 
-                        let fut = H2Stream::new(service.call(req), connect_parts, respond);
+                        let fut = H2Stream::new(service.call(req), connect_parts, respond, self.conn_idle_timeout.clone());
                         exec.execute_h2stream(fut);
                     }
                     Some(Err(e)) => {
@@ -378,6 +401,7 @@ pin_project! {
         reply: SendResponse<SendBuf<B::Data>>,
         #[pin]
         state: H2StreamState<F, B>,
+        conn_idle_timeout: Arc<Mutex<Pin<Box<Sleep>>>>,
     }
 }
 
@@ -413,10 +437,12 @@ where
         fut: F,
         connect_parts: Option<ConnectParts>,
         respond: SendResponse<SendBuf<B::Data>>,
+        conn_idle_timeout: Arc<Mutex<Pin<Box<Sleep>>>>
     ) -> H2Stream<F, B> {
         H2Stream {
             reply: respond,
             state: H2StreamState::Service { fut, connect_parts },
+            conn_idle_timeout,
         }
     }
 }
@@ -539,7 +565,11 @@ where
     type Output = ();
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        self.poll2(cx).map(|res| {
+        let conn_idle_timeout = self.conn_idle_timeout.clone();
+        let poll = self.poll2(cx);
+        poll.map(|res| {
+            let mut sleep = conn_idle_timeout.lock().unwrap();
+            sleep.as_mut().reset(tokio::time::Instant::now() + DEFAULT_CONN_IDLE_TIMEOUT);
             if let Err(e) = res {
                 debug!("stream error: {}", e);
             }

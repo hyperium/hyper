@@ -1,8 +1,10 @@
 use std::error::Error as StdError;
+use std::time::Duration;
 
 use bytes::{Buf, Bytes};
 use http::Request;
 use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::time::Sleep;
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
@@ -12,13 +14,15 @@ use crate::proto::{
     BodyLength, Conn, Dispatched, MessageHead, RequestHead,
 };
 use crate::upgrade::OnUpgrade;
-
+// TODO will be replace by config in the formal pull request
+const DEFAULT_CONN_IDLE_TIMEOUT: Duration = Duration::from_secs(65);
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
     conn: Conn<I, Bs::Data, T>,
     dispatch: D,
     body_tx: Option<crate::body::Sender>,
     body_rx: Pin<Box<Option<Bs>>>,
     is_closing: bool,
+    conn_idle_timeout: Pin<Box<Sleep>>,
 }
 
 pub(crate) trait Dispatch {
@@ -77,6 +81,7 @@ where
             body_tx: None,
             body_rx: Box::pin(None),
             is_closing: false,
+            conn_idle_timeout: Box::pin(tokio::time::sleep(DEFAULT_CONN_IDLE_TIMEOUT)),
         }
     }
 
@@ -156,11 +161,18 @@ where
         //
         // 16 was chosen arbitrarily, as that is number of pipelined requests
         // benchmarks often use. Perhaps it should be a config option instead.
+        if self.conn_idle_timeout.as_mut().poll(cx).is_ready() {
+            trace!("conn is close");
+            self.close();
+            return Poll::Ready(Ok(()));
+        }
         for _ in 0..16 {
             let _ = self.poll_read(cx)?;
             let _ = self.poll_write(cx)?;
             let _ = self.poll_flush(cx)?;
-
+            if self.conn.is_idle() {
+                self.conn_idle_timeout.as_mut().reset(tokio::time::Instant::now() + DEFAULT_CONN_IDLE_TIMEOUT);
+            }
             // This could happen if reading paused before blocking on IO,
             // such as getting to the end of a framed message, but then
             // writing/flushing set the state back to Init. In that case,
@@ -247,6 +259,9 @@ where
         // dispatch is ready for a message, try to read one
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
+                trace!("req is comming");
+                // Avoid request failures due to timeout.
+                self.conn_idle_timeout.as_mut().reset(tokio::time::Instant::now() + Duration::from_secs(60 * 60 * 24));
                 let body = match body_len {
                     DecodedLength::ZERO => Body::empty(),
                     other => {
