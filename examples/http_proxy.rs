@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 
-use hyper::client::conn::Builder;
+use hyper::client::conn::http1::Builder;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
