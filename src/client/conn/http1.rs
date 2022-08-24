@@ -68,8 +68,6 @@ where
     B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-
-
     /// Return the inner IO object, and additional information.
     ///
     /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
@@ -94,9 +92,8 @@ where
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
-    pub fn poll_without_shutdown(&mut self, _cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        todo!()
-        // self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
     }
 }
 
