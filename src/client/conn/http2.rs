@@ -119,7 +119,7 @@ where
     ///
     /// ```
     /// # use http::header::HOST;
-    /// # use hyper::client::conn::SendRequest;
+    /// # use hyper::client::conn::http2::SendRequest;
     /// # use hyper::Body;
     /// use hyper::Request;
     ///
