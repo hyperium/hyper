@@ -3141,18 +3141,30 @@ impl TestClient {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 
-        let builder = hyper::client::conn::http2::Builder::new();
-
         let stream = TkTcpStream::connect(format!("{}:{}", host, port))
             .await
             .unwrap();
 
-        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+        // TODO(mike): cleaner
+        if self.http2_only {
+            let builder = hyper::client::conn::http2::Builder::new();
 
-        tokio::task::spawn(async move {
-            conn.await.unwrap();
-        });
+            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
 
-        sender.send_request(req).await
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
+
+            sender.send_request(req).await
+        } else {
+            let builder = hyper::client::conn::http1::Builder::new();
+            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
+
+            sender.send_request(req).await
+        }
     }
 }
