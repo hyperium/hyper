@@ -2516,8 +2516,7 @@ async fn http2_keep_alive_with_responsive_client() {
     });
 
     let tcp = connect_async(addr).await;
-    let (mut client, conn) = hyper::client::conn::Builder::new()
-        .http2_only(true)
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new()
         .handshake::<_, Body>(tcp)
         .await
         .expect("http handshake");
@@ -3142,8 +3141,7 @@ impl TestClient {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 
-        let mut builder = hyper::client::conn::Builder::new();
-        builder.http2_only(self.http2_only);
+        let builder = hyper::client::conn::http2::Builder::new();
 
         let stream = TkTcpStream::connect(format!("{}:{}", host, port))
             .await

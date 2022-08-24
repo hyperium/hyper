@@ -6,7 +6,6 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use hyper::client::conn::Builder;
 use hyper::server::conn::Http;
 use tokio::net::{TcpListener, TcpStream};
 
@@ -415,19 +414,32 @@ async fn async_test(cfg: __TestConfig) {
         async move {
             let stream = TcpStream::connect(addr).await.unwrap();
 
-            let (mut sender, conn) = hyper::client::conn::Builder::new()
-                .http2_only(http2_only)
-                .handshake::<TcpStream, Body>(stream)
-                .await
-                .unwrap();
+            // TODO: cleaner way?
+            let res = if http2_only {
+                let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
+                    .handshake::<TcpStream, Body>(stream)
+                    .await
+                    .unwrap();
 
-            tokio::task::spawn(async move {
-                if let Err(err) = conn.await {
-                    panic!("{:?}", err);
-                }
-            });
+                tokio::task::spawn(async move {
+                    if let Err(err) = conn.await {
+                        panic!("{:?}", err);
+                    }
+                });
+                sender.send_request(req).await.unwrap()
+            } else {
+                let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
+                    .handshake::<TcpStream, Body>(stream)
+                    .await
+                    .unwrap();
 
-            let res = sender.send_request(req).await.unwrap();
+                tokio::task::spawn(async move {
+                    if let Err(err) = conn.await {
+                        panic!("{:?}", err);
+                    }
+                });
+                sender.send_request(req).await.unwrap()
+            };
 
             assert_eq!(res.status(), cstatus, "server status");
             assert_eq!(res.version(), version, "server version");
@@ -501,17 +513,30 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                             .await
                             .unwrap();
 
-                        let mut builder = Builder::new();
-                        builder.http2_only(http2_only);
-                        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+                        let resp = if http2_only {
+                            let builder = hyper::client::conn::http2::Builder::new();
+                            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+    
+                            tokio::task::spawn(async move {
+                                if let Err(err) = conn.await {
+                                    panic!("{:?}", err);
+                                }
+                            });
+    
+                            sender.send_request(req).await?
+                        } else {
+                            let builder = hyper::client::conn::http1::Builder::new();
+                            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+    
+                            tokio::task::spawn(async move {
+                                if let Err(err) = conn.await {
+                                    panic!("{:?}", err);
+                                }
+                            });
+    
+                            sender.send_request(req).await?
+                        };
 
-                        tokio::task::spawn(async move {
-                            if let Err(err) = conn.await {
-                                panic!("{:?}", err);
-                            }
-                        });
-
-                        let resp = sender.send_request(req).await?;
 
                         let (mut parts, body) = resp.into_parts();
 

@@ -4,6 +4,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -27,6 +28,27 @@ pub struct SendRequest<B> {
     dispatch: dispatch::Sender<Request<B>, Response<Body>>,
 }
 
+/// Deconstructed parts of a `Connection`.
+///
+/// This allows taking apart a `Connection` at a later time, in order to
+/// reclaim the IO object, and additional related pieces.
+#[derive(Debug)]
+pub struct Parts<T> {
+    /// The original IO object used in the handshake.
+    pub io: T,
+    /// A buffer of bytes that have been read but not processed as HTTP.
+    ///
+    /// For instance, if the `Connection` is used for an HTTP upgrade request,
+    /// it is possible the server sent back the first bytes of the new protocol
+    /// along with the response upgrade.
+    ///
+    /// You will want to check for any existing bytes if you plan to continue
+    /// communicating on the IO object.
+    pub read_buf: Bytes,
+    _inner: (),
+}
+
+
 /// A future that processes all HTTP state for the IO object.
 ///
 /// In most cases, this should just be spawned into an executor, so that it
@@ -38,6 +60,44 @@ where
     B: HttpBody + 'static,
 {
     inner: Option<Dispatcher<T, B>>,
+}
+
+impl<T, B> Connection<T, B>
+where
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    B: HttpBody + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+
+
+    /// Return the inner IO object, and additional information.
+    ///
+    /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
+    pub fn into_parts(self) -> Parts<T> {
+    
+        let (io, read_buf, _) = self.inner.expect("already upgraded").into_inner();
+        Parts {
+            io,
+            read_buf,
+            _inner: (),
+        }
+    }
+
+    /// Poll the connection for completion, but without calling `shutdown`
+    /// on the underlying IO.
+    ///
+    /// This is useful to allow running a connection while doing an HTTP
+    /// upgrade. Once the upgrade is completed, the connection would be "done",
+    /// but it is not desired to actually shutdown the IO object. Instead you
+    /// would take it back using `into_parts`.
+    ///
+    /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
+    /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
+    /// to work with this function; or use the `without_shutdown` wrapper.
+    pub fn poll_without_shutdown(&mut self, _cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        todo!()
+        // self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+    }
 }
 
 /// A builder to configure an HTTP connection.
