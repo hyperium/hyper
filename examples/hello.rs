@@ -3,13 +3,15 @@
 use std::convert::Infallible;
 use std::net::SocketAddr;
 
+use bytes::Bytes;
+use http_body_util::Full;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::{Body, Request, Response};
 use tokio::net::TcpListener;
 
-async fn hello(_: Request<Body>) -> Result<Response<Body>, Infallible> {
-    Ok(Response::new(Body::from("Hello World!")))
+async fn hello(_: Request<Body>) -> Result<Response<Full<Bytes>>, Infallible> {
+    Ok(Response::new(Full::new(Bytes::from("Hello World!"))))
 }
 
 #[tokio::main]

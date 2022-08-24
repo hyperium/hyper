@@ -120,31 +120,6 @@ where
     ///   before calling this method.
     /// - Since absolute-form `Uri`s are not required, if received, they will
     ///   be serialized as-is.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use http::header::HOST;
-    /// # use hyper::client::conn::SendRequest;
-    /// # use hyper::Body;
-    /// use hyper::Request;
-    ///
-    /// # async fn doc(mut tx: SendRequest<Body>) -> hyper::Result<()> {
-    /// // build a Request
-    /// let req = Request::builder()
-    ///     .uri("/foo/bar")
-    ///     .header(HOST, "hyper.rs")
-    ///     .body(Body::empty())
-    ///     .unwrap();
-    ///
-    /// // send it and await a Response
-    /// let res = tx.send_request(req).await?;
-    /// // assert the Response
-    /// assert!(res.status().is_success());
-    /// # Ok(())
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Body>>> {
         let sent = self.dispatch.send(req);
 

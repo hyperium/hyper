@@ -1,12 +1,15 @@
 // #![deny(warnings)]  // FIXME: https://github.com/rust-lang/rust/issues/62411
 #![warn(rust_2018_idioms)]
 
+use bytes::Bytes;
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
 use std::collections::HashMap;
+use std::convert::Infallible;
 use std::net::SocketAddr;
 use url::form_urlencoded;
 
@@ -15,9 +18,11 @@ static MISSING: &[u8] = b"Missing field";
 static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 
 // Using service_fn, we can turn this function into a `Service`.
-async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn param_example(
+    req: Request<Body>,
+) -> Result<Response<BoxBody<Bytes, Infallible>>, hyper::Error> {
     match (req.method(), req.uri().path()) {
-        (&Method::GET, "/") | (&Method::GET, "/post") => Ok(Response::new(INDEX.into())),
+        (&Method::GET, "/") | (&Method::GET, "/post") => Ok(Response::new(full(INDEX))),
         (&Method::POST, "/post") => {
             // Concatenate the body...
             let b = hyper::body::to_bytes(req).await?;
@@ -43,7 +48,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
             } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .body(MISSING.into())
+                    .body(full(MISSING))
                     .unwrap());
             };
             let number = if let Some(n) = params.get("number") {
@@ -52,13 +57,13 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
                 } else {
                     return Ok(Response::builder()
                         .status(StatusCode::UNPROCESSABLE_ENTITY)
-                        .body(NOTNUMERIC.into())
+                        .body(full(NOTNUMERIC))
                         .unwrap());
                 }
             } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .body(MISSING.into())
+                    .body(full(MISSING))
                     .unwrap());
             };
 
@@ -69,7 +74,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
             // responses such as InternalServiceError may be
             // needed here, too.
             let body = format!("Hello {}, your number is {}", name, number);
-            Ok(Response::new(body.into()))
+            Ok(Response::new(full(body)))
         }
         (&Method::GET, "/get") => {
             let query = if let Some(q) = req.uri().query() {
@@ -77,7 +82,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
             } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .body(MISSING.into())
+                    .body(full(MISSING))
                     .unwrap());
             };
             let params = form_urlencoded::parse(query.as_bytes())
@@ -88,17 +93,25 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
             } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
-                    .body(MISSING.into())
+                    .body(full(MISSING))
                     .unwrap());
             };
             let body = format!("You requested {}", page);
-            Ok(Response::new(body.into()))
+            Ok(Response::new(full(body)))
         }
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
+            .body(empty())
             .unwrap()),
     }
+}
+
+fn empty() -> BoxBody<Bytes, Infallible> {
+    Empty::<Bytes>::new().boxed()
+}
+
+fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, Infallible> {
+    Full::new(chunk.into()).boxed()
 }
 
 #[tokio::main]

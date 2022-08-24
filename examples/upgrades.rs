@@ -1,18 +1,20 @@
 #![deny(warnings)]
 
 // Note: `hyper::upgrade` docs link to this upgrade.
+use std::net::SocketAddr;
 use std::str;
 
-use hyper::server::conn::Http;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
 
+use bytes::Bytes;
+use http_body_util::Empty;
 use hyper::header::{HeaderValue, UPGRADE};
+use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Body, Request, Response, StatusCode};
-use std::net::SocketAddr;
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -36,8 +38,8 @@ async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<()> {
 }
 
 /// Our server HTTP handler to initiate HTTP upgrades.
-async fn server_upgrade(mut req: Request<Body>) -> Result<Response<Body>> {
-    let mut res = Response::new(Body::empty());
+async fn server_upgrade(mut req: Request<Body>) -> Result<Response<Empty<Bytes>>> {
+    let mut res = Response::new(Empty::new());
 
     // Send a 400 to any request that doesn't have
     // an `Upgrade` header.
@@ -91,7 +93,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
     let req = Request::builder()
         .uri(format!("http://{}/", addr))
         .header(UPGRADE, "foobar")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     let stream = TcpStream::connect(addr).await?;

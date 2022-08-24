@@ -522,24 +522,6 @@ where
         }
     }
 
-    pub(crate) fn write_full_msg(&mut self, head: MessageHead<T::Outgoing>, body: B) {
-        if let Some(encoder) =
-            self.encode_head(head, Some(BodyLength::Known(body.remaining() as u64)))
-        {
-            let is_last = encoder.is_last();
-            // Make sure we don't write a body if we weren't actually allowed
-            // to do so, like because its a HEAD request.
-            if !encoder.is_eof() {
-                encoder.danger_full_buf(body, self.io.write_buf());
-            }
-            self.state.writing = if is_last {
-                Writing::Closed
-            } else {
-                Writing::KeepAlive
-            }
-        }
-    }
-
     fn encode_head(
         &mut self,
         mut head: MessageHead<T::Outgoing>,

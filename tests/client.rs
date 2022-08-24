@@ -1332,9 +1332,10 @@ mod conn {
     use std::thread;
     use std::time::Duration;
 
-    use bytes::Buf;
+    use bytes::{Buf, Bytes};
     use futures_channel::oneshot;
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
+    use http_body_util::Empty;
     use hyper::upgrade::OnUpgrade;
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
@@ -1379,7 +1380,7 @@ mod conn {
 
             let req = Request::builder()
                 .uri("/a")
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
@@ -1423,7 +1424,7 @@ mod conn {
 
             let req = Request::builder()
                 .uri("/a")
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
@@ -1479,7 +1480,7 @@ mod conn {
 
         let req = Request::builder()
             .uri("/")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res = client.send_request(req).and_then(move |mut res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
@@ -1576,7 +1577,7 @@ mod conn {
 
         let req = Request::builder()
             .uri("http://hyper.local/a")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
 
         let res = client.send_request(req).and_then(move |res| {
@@ -1622,7 +1623,7 @@ mod conn {
         let req = Request::builder()
             .uri("/a")
             .version(hyper::Version::HTTP_2)
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
 
         let res = client.send_request(req).and_then(move |res| {
@@ -1663,7 +1664,7 @@ mod conn {
 
         let req = Request::builder()
             .uri("/a")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res1 = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
@@ -1673,7 +1674,7 @@ mod conn {
         // pipelined request will hit NotReady, and thus should return an Error::Cancel
         let req = Request::builder()
             .uri("/b")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res2 = client.send_request(req).map(|result| {
             let err = result.expect_err("res2");
@@ -1734,7 +1735,7 @@ mod conn {
 
             let req = Request::builder()
                 .uri("/a")
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let res = client.send_request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::SWITCHING_PROTOCOLS);
@@ -1821,7 +1822,7 @@ mod conn {
             let req = Request::builder()
                 .method("CONNECT")
                 .uri(addr.to_string())
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let res = client
                 .send_request(req)
@@ -1886,7 +1887,7 @@ mod conn {
                     res = listener.accept() => {
                         let (stream, _) = res.unwrap();
 
-                        let service = service_fn(|_:Request<Body>| future::ok::<Response<Body>, hyper::Error>(Response::new(Body::empty())));
+                        let service = service_fn(|_:Request<Body>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
@@ -1913,7 +1914,7 @@ mod conn {
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
             .http2_only(true)
-            .handshake::<_, Body>(io)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -1928,7 +1929,7 @@ mod conn {
 
         let req = Request::builder()
             .uri(format!("http://{}/", addr))
-            .body(Body::empty())
+            .body(Empty::<Bytes>::new())
             .expect("request builder");
 
         client.send_request(req).await.expect("req1 send");
@@ -2046,7 +2047,7 @@ mod conn {
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -2055,7 +2056,7 @@ mod conn {
             assert!(err.is_timeout());
         });
 
-        let req = http::Request::new(hyper::Body::empty());
+        let req = http::Request::new(Empty::<Bytes>::new());
         let err = client
             .send_request(req)
             .await
@@ -2098,7 +2099,7 @@ mod conn {
                                 .await
                                 .expect("server req body aggregate");
                         });
-                        Ok::<_, hyper::Error>(http::Response::new(hyper::Body::empty()))
+                        Ok::<_, hyper::Error>(http::Response::new(Empty::<Bytes>::new()))
                     }),
                 )
                 .await
@@ -2153,7 +2154,7 @@ mod conn {
 
             let mut body = req.into_body();
 
-            let mut send_stream = respond.send_response(Response::default(), false).unwrap();
+            let mut send_stream = respond.send_response(Response::new(()), false).unwrap();
 
             send_stream.send_data("Bread?".into(), true).unwrap();
 
@@ -2167,7 +2168,7 @@ mod conn {
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
             .http2_only(true)
-            .handshake::<_, Body>(io)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -2176,7 +2177,7 @@ mod conn {
         });
 
         let req = Request::connect("localhost")
-            .body(hyper::Body::empty())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::OK);
@@ -2223,7 +2224,7 @@ mod conn {
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
             .http2_only(true)
-            .handshake::<_, Body>(io)
+            .handshake::<_, Empty<Bytes>>(io)
             .await
             .expect("http handshake");
 
@@ -2231,9 +2232,7 @@ mod conn {
             conn.await.expect("client conn shouldn't error");
         });
 
-        let req = Request::connect("localhost")
-            .body(hyper::Body::empty())
-            .unwrap();
+        let req = Request::connect("localhost").body(Empty::new()).unwrap();
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         assert!(res.extensions().get::<OnUpgrade>().is_none());

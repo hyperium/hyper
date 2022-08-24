@@ -13,10 +13,12 @@
 //! ```no_run
 //! # #[cfg(all(feature = "client", feature = "http1", feature = "runtime"))]
 //! # mod rt {
-//! use tower::ServiceExt;
+//! use bytes::Bytes;
 //! use http::{Request, StatusCode};
+//! use http_body_util::Empty;
 //! use hyper::{client::conn, Body};
 //! use tokio::net::TcpStream;
+//! use tower::ServiceExt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,7 +37,7 @@
 //!         // We need to manually add the host header because SendRequest does not
 //!         .header("Host", "example.com")
 //!         .method("GET")
-//!         .body(Body::from(""))?;
+//!         .body(Empty::<Bytes>::new())?;
 //!     let response = request_sender.send_request(request).await?;
 //!     assert!(response.status() == StatusCode::OK);
 //!
@@ -45,7 +47,7 @@
 //!     let request = Request::builder()
 //!         .header("Host", "example.com")
 //!         .method("GET")
-//!         .body(Body::from(""))?;
+//!         .body(Empty::<Bytes>::new())?;
 //!     let response = request_sender.send_request(request).await?;
 //!     assert!(response.status() == StatusCode::OK);
 //!     Ok(())
@@ -123,11 +125,14 @@ pin_project! {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T>(
+pub async fn handshake<T, B>(
     io: T,
-) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: HttpBody + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     Builder::new().handshake(io).await
 }
@@ -245,31 +250,6 @@ where
     ///   before calling this method.
     /// - Since absolute-form `Uri`s are not required, if received, they will
     ///   be serialized as-is.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use http::header::HOST;
-    /// # use hyper::client::conn::SendRequest;
-    /// # use hyper::Body;
-    /// use hyper::Request;
-    ///
-    /// # async fn doc(mut tx: SendRequest<Body>) -> hyper::Result<()> {
-    /// // build a Request
-    /// let req = Request::builder()
-    ///     .uri("/foo/bar")
-    ///     .header(HOST, "hyper.rs")
-    ///     .body(Body::empty())
-    ///     .unwrap();
-    ///
-    /// // send it and await a Response
-    /// let res = tx.send_request(req).await?;
-    /// // assert the Response
-    /// assert!(res.status().is_success());
-    /// # Ok(())
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn send_request(&mut self, req: Request<B>) -> ResponseFuture {
         let inner = match self.dispatch.send(req) {
             Ok(rx) => ResponseFutureState::Waiting(rx),

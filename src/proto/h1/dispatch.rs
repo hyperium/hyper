@@ -8,9 +8,7 @@ use tracing::{debug, trace};
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::proto::{
-    BodyLength, Conn, Dispatched, MessageHead, RequestHead,
-};
+use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
@@ -295,16 +293,7 @@ where
                 && self.dispatch.should_poll()
             {
                 if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
-                    let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
-
-                    // Check if the body knows its full data immediately.
-                    //
-                    // If so, we can skip a bit of bookkeeping that streaming
-                    // bodies need to do.
-                    if let Some(full) = crate::body::take_full_data(&mut body) {
-                        self.conn.write_full_msg(head, full);
-                        return Poll::Ready(Ok(()));
-                    }
+                    let (head, body) = msg.map_err(crate::Error::new_user_service)?;
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
@@ -708,9 +697,15 @@ mod tests {
         let dispatcher = Dispatcher::new(Client::new(rx), conn);
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
+        let body = {
+            let (mut tx, body) = crate::Body::new_channel(DecodedLength::new(4), false);
+            tx.try_send_data("reee".into()).unwrap();
+            body
+        };
+
         let req = crate::Request::builder()
             .method("POST")
-            .body(crate::Body::from("reee"))
+            .body(body)
             .unwrap();
 
         let res = tx.try_send(req).unwrap().await.expect("response");

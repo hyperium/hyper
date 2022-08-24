@@ -33,7 +33,7 @@ ffi_fn! {
     ///
     /// If not configured, this body acts as an empty payload.
     fn hyper_body_new() -> *mut hyper_body {
-        Box::into_raw(Box::new(hyper_body(Body::empty())))
+        Box::into_raw(Box::new(hyper_body(Body::ffi())))
     } ?= ptr::null_mut()
 }
 

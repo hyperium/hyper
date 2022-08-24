@@ -2,7 +2,9 @@
 #![warn(rust_2018_idioms)]
 use std::env;
 
-use hyper::{body::HttpBody as _, Body, Request};
+use bytes::Bytes;
+use http_body_util::Empty;
+use hyper::{body::HttpBody as _, Request};
 use tokio::io::{self, AsyncWriteExt as _};
 use tokio::net::TcpStream;
 
@@ -51,7 +53,7 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
     let req = Request::builder()
         .uri(url)
         .header(hyper::header::HOST, authority.as_str())
-        .body(Body::empty())?;
+        .body(Empty::<Bytes>::new())?;
 
     let mut res = sender.send_request(req).await?;
 

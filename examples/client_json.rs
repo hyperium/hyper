@@ -1,7 +1,8 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
 
-use hyper::Body;
+use bytes::Bytes;
+use http_body_util::Empty;
 use hyper::{body::Buf, Request};
 use serde::Deserialize;
 use tokio::net::TcpStream;
@@ -42,7 +43,7 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
     let req = Request::builder()
         .uri(url)
         .header(hyper::header::HOST, authority.as_str())
-        .body(Body::empty())?;
+        .body(Empty::<Bytes>::new())?;
 
     let res = sender.send_request(req).await?;
 

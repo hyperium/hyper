@@ -6,6 +6,8 @@ use std::sync::{
     Arc, Mutex,
 };
 
+use bytes::Bytes;
+use http_body_util::Full;
 use hyper::client::conn::Builder;
 use hyper::server::conn::Http;
 use tokio::net::{TcpListener, TcpStream};
@@ -371,7 +373,7 @@ async fn async_test(cfg: __TestConfig) {
 
                     let mut res = Response::builder()
                         .status(sres.status)
-                        .body(Body::from(sres.body))
+                        .body(Full::new(Bytes::from(sres.body)))
                         .expect("Response::build");
                     *res.headers_mut() = sres.headers;
                     res
@@ -405,7 +407,7 @@ async fn async_test(cfg: __TestConfig) {
             .method(creq.method)
             .uri(uri)
             //.headers(creq.headers)
-            .body(creq.body.into())
+            .body(Full::new(Bytes::from(creq.body)))
             .expect("Request::build");
         *req.headers_mut() = creq.headers;
         let cstatus = cres.status;
@@ -417,7 +419,7 @@ async fn async_test(cfg: __TestConfig) {
 
             let (mut sender, conn) = hyper::client::conn::Builder::new()
                 .http2_only(http2_only)
-                .handshake::<TcpStream, Body>(stream)
+                .handshake(stream)
                 .await
                 .unwrap();
 
