@@ -414,10 +414,8 @@ async fn async_test(cfg: __TestConfig) {
         async move {
             let stream = TcpStream::connect(addr).await.unwrap();
 
-            // TODO: cleaner way?
             let res = if http2_only {
-                let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
-                    .handshake::<TcpStream, Body>(stream)
+                let (mut sender, conn) = hyper::client::conn::http2::handshake::<TcpStream>(stream)
                     .await
                     .unwrap();
 
@@ -428,8 +426,7 @@ async fn async_test(cfg: __TestConfig) {
                 });
                 sender.send_request(req).await.unwrap()
             } else {
-                let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
-                    .handshake::<TcpStream, Body>(stream)
+                let (mut sender, conn) = hyper::client::conn::http1::handshake::<TcpStream>(stream)
                     .await
                     .unwrap();
 
@@ -516,27 +513,26 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                         let resp = if http2_only {
                             let builder = hyper::client::conn::http2::Builder::new();
                             let (mut sender, conn) = builder.handshake(stream).await.unwrap();
-    
+
                             tokio::task::spawn(async move {
                                 if let Err(err) = conn.await {
                                     panic!("{:?}", err);
                                 }
                             });
-    
+
                             sender.send_request(req).await?
                         } else {
                             let builder = hyper::client::conn::http1::Builder::new();
                             let (mut sender, conn) = builder.handshake(stream).await.unwrap();
-    
+
                             tokio::task::spawn(async move {
                                 if let Err(err) = conn.await {
                                     panic!("{:?}", err);
                                 }
                             });
-    
+
                             sender.send_request(req).await?
                         };
-
 
                         let (mut parts, body) = resp.into_parts();
 

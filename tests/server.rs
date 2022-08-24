@@ -3145,21 +3145,15 @@ impl TestClient {
             .await
             .unwrap();
 
-        // TODO(mike): cleaner
         if self.http2_only {
-            let builder = hyper::client::conn::http2::Builder::new();
-
-            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
-
+            let (mut sender, conn) = hyper::client::conn::http2::handshake(stream).await.unwrap();
             tokio::task::spawn(async move {
                 conn.await.unwrap();
             });
 
             sender.send_request(req).await
         } else {
-            let builder = hyper::client::conn::http1::Builder::new();
-            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
-
+            let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await.unwrap();
             tokio::task::spawn(async move {
                 conn.await.unwrap();
             });
