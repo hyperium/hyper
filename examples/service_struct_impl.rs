@@ -1,3 +1,5 @@
+use bytes::Bytes;
+use http_body_util::Full;
 use hyper::server::conn::Http;
 use hyper::service::Service;
 use hyper::{Body, Request, Response};
@@ -36,7 +38,7 @@ struct Svc {
 }
 
 impl Service<Request<Body>> for Svc {
-    type Response = Response<Body>;
+    type Response = Response<Full<Bytes>>;
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -45,8 +47,8 @@ impl Service<Request<Body>> for Svc {
     }
 
     fn call(&mut self, req: Request<Body>) -> Self::Future {
-        fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
-            Ok(Response::builder().body(Body::from(s)).unwrap())
+        fn mk_response(s: String) -> Result<Response<Full<Bytes>>, hyper::Error> {
+            Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
         }
 
         let res = match req.uri().path() {

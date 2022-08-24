@@ -17,11 +17,10 @@ use super::HttpBody;
 /// # Example
 ///
 /// ```
-/// # async fn doc() -> hyper::Result<()> {
 /// # use hyper::{Body, Response};
+/// # async fn doc(response: Response<Body>) -> hyper::Result<()> {
 /// # use hyper::body::HttpBody;
-/// #
-/// let response = Response::new(Body::from("response body"));
+/// // let response: Response<Body> ...
 ///
 /// const MAX_ALLOWED_RESPONSE_SIZE: u64 = 1024;
 ///

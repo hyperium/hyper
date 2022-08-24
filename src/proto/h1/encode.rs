@@ -180,39 +180,6 @@ impl Encoder {
             }
         }
     }
-
-    /// Encodes the full body, without verifying the remaining length matches.
-    ///
-    /// This is used in conjunction with HttpBody::__hyper_full_data(), which
-    /// means we can trust that the buf has the correct size (the buf itself
-    /// was checked to make the headers).
-    pub(super) fn danger_full_buf<B>(self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>)
-    where
-        B: Buf,
-    {
-        debug_assert!(msg.remaining() > 0, "encode() called with empty buf");
-        debug_assert!(
-            match self.kind {
-                Kind::Length(len) => len == msg.remaining() as u64,
-                _ => true,
-            },
-            "danger_full_buf length mismatches"
-        );
-
-        match self.kind {
-            Kind::Chunked => {
-                let len = msg.remaining();
-                trace!("encoding chunked {}B", len);
-                let buf = ChunkSize::new(len)
-                    .chain(msg)
-                    .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
-                dst.buffer(buf);
-            }
-            _ => {
-                dst.buffer(msg);
-            }
-        }
-    }
 }
 
 impl<B> Buf for EncodedBuf<B>

@@ -2,6 +2,8 @@
 
 use std::net::SocketAddr;
 
+use bytes::Bytes;
+use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::client::conn::Builder;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
@@ -41,7 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn proxy(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn proxy(req: Request<Body>) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     println!("req: {:?}", req);
 
     if Method::CONNECT == req.method() {
@@ -70,10 +72,10 @@ async fn proxy(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
                 }
             });
 
-            Ok(Response::new(Body::empty()))
+            Ok(Response::new(empty()))
         } else {
             eprintln!("CONNECT host is not socket addr: {:?}", req.uri());
-            let mut resp = Response::new(Body::from("CONNECT must be to a socket address"));
+            let mut resp = Response::new(full("CONNECT must be to a socket address"));
             *resp.status_mut() = http::StatusCode::BAD_REQUEST;
 
             Ok(resp)
@@ -96,12 +98,25 @@ async fn proxy(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
             }
         });
 
-        sender.send_request(req).await
+        let resp = sender.send_request(req).await?;
+        Ok(resp.map(|b| b.boxed()))
     }
 }
 
 fn host_addr(uri: &http::Uri) -> Option<String> {
     uri.authority().and_then(|auth| Some(auth.to_string()))
+}
+
+fn empty() -> BoxBody<Bytes, hyper::Error> {
+    Empty::<Bytes>::new()
+        .map_err(|never| match never {})
+        .boxed()
+}
+
+fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
+    Full::new(chunk.into())
+        .map_err(|never| match never {})
+        .boxed()
 }
 
 // Create a TCP connection to host:port, build a tunnel between the connection and

@@ -5,6 +5,8 @@ use std::net::SocketAddr;
 use hyper::server::conn::Http;
 use tokio::net::TcpListener;
 
+use bytes::Bytes;
+use http_body_util::Full;
 use hyper::service::service_fn;
 use hyper::{Body, Method, Request, Response, Result, StatusCode};
 
@@ -34,7 +36,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
+async fn response_examples(req: Request<Body>) -> Result<Response<Full<Bytes>>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => simple_file_send(INDEX).await,
         (&Method::GET, "/no_file.html") => {
@@ -46,17 +48,17 @@ async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
 }
 
 /// HTTP status code 404
-fn not_found() -> Response<Body> {
+fn not_found() -> Response<Full<Bytes>> {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
-        .body(NOTFOUND.into())
+        .body(Full::new(NOTFOUND.into()))
         .unwrap()
 }
 
-async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
+async fn simple_file_send(filename: &str) -> Result<Response<Full<Bytes>>> {
     if let Ok(contents) = tokio::fs::read(filename).await {
         let body = contents.into();
-        return Ok(Response::new(body));
+        return Ok(Response::new(Full::new(body)));
     }
 
     Ok(not_found())

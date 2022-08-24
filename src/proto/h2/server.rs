@@ -503,7 +503,6 @@ where
                         }
                     }
 
-
                     if !body.is_end_stream() {
                         // automatically set Content-Length from body...
                         if let Some(len) = body.size_hint().exact() {

@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::fmt;
 
 use bytes::Bytes;
@@ -30,7 +29,8 @@ pub struct Body {
 }
 
 enum Kind {
-    Once(Option<Bytes>),
+    #[allow(dead_code)]
+    Empty,
     Chan {
         content_length: DecodedLength,
         want_tx: watch::Sender,
@@ -71,21 +71,6 @@ const WANT_PENDING: usize = 1;
 const WANT_READY: usize = 2;
 
 impl Body {
-    /// Create an empty `Body` stream.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// use hyper::{Body, Request};
-    ///
-    /// // create a `GET /` request
-    /// let get = Request::new(Body::empty());
-    /// ```
-    #[inline]
-    pub fn empty() -> Body {
-        Body::new(Kind::Once(None))
-    }
-
     /// Create a `Body` stream with an associated sender half.
     ///
     /// Useful when wanting to stream chunks from another thread.
@@ -121,6 +106,16 @@ impl Body {
 
     fn new(kind: Kind) -> Body {
         Body { kind }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn empty() -> Body {
+        Body::new(Kind::Empty)
+    }
+
+    #[cfg(feature = "ffi")]
+    pub(crate) fn ffi() -> Body {
+        Body::new(Kind::Ffi(crate::ffi::UserBody::new()))
     }
 
     #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
@@ -160,7 +155,7 @@ impl Body {
 
     fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.kind {
-            Kind::Once(ref mut val) => Poll::Ready(val.take().map(Ok)),
+            Kind::Empty => Poll::Ready(None),
             Kind::Chan {
                 content_length: ref mut len,
                 ref mut data_rx,
@@ -197,23 +192,6 @@ impl Body {
             Kind::Ffi(ref mut body) => body.poll_data(cx),
         }
     }
-
-    #[cfg(feature = "http1")]
-    pub(super) fn take_full_data(&mut self) -> Option<Bytes> {
-        if let Kind::Once(ref mut chunk) = self.kind {
-            chunk.take()
-        } else {
-            None
-        }
-    }
-}
-
-impl Default for Body {
-    /// Returns `Body::empty()`.
-    #[inline]
-    fn default() -> Body {
-        Body::empty()
-    }
 }
 
 impl HttpBody for Body {
@@ -232,6 +210,7 @@ impl HttpBody for Body {
         #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
+            Kind::Empty => Poll::Ready(Ok(None)),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 recv: ref mut h2,
@@ -253,13 +232,12 @@ impl HttpBody for Body {
             },
             #[cfg(feature = "ffi")]
             Kind::Ffi(ref mut body) => body.poll_trailers(cx),
-            _ => Poll::Ready(Ok(None)),
         }
     }
 
     fn is_end_stream(&self) -> bool {
         match self.kind {
-            Kind::Once(ref val) => val.is_none(),
+            Kind::Empty => true,
             Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
@@ -282,8 +260,7 @@ impl HttpBody for Body {
         }
 
         match self.kind {
-            Kind::Once(Some(ref val)) => SizeHint::with_exact(val.len() as u64),
-            Kind::Once(None) => SizeHint::with_exact(0),
+            Kind::Empty => SizeHint::with_exact(0),
             Kind::Chan { content_length, .. } => opt_len!(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { content_length, .. } => opt_len!(content_length),
@@ -299,76 +276,14 @@ impl fmt::Debug for Body {
         struct Streaming;
         #[derive(Debug)]
         struct Empty;
-        #[derive(Debug)]
-        struct Full<'a>(&'a Bytes);
 
         let mut builder = f.debug_tuple("Body");
         match self.kind {
-            Kind::Once(None) => builder.field(&Empty),
-            Kind::Once(Some(ref chunk)) => builder.field(&Full(chunk)),
+            Kind::Empty => builder.field(&Empty),
             _ => builder.field(&Streaming),
         };
 
         builder.finish()
-    }
-}
-
-impl From<Bytes> for Body {
-    #[inline]
-    fn from(chunk: Bytes) -> Body {
-        if chunk.is_empty() {
-            Body::empty()
-        } else {
-            Body::new(Kind::Once(Some(chunk)))
-        }
-    }
-}
-
-impl From<Vec<u8>> for Body {
-    #[inline]
-    fn from(vec: Vec<u8>) -> Body {
-        Body::from(Bytes::from(vec))
-    }
-}
-
-impl From<&'static [u8]> for Body {
-    #[inline]
-    fn from(slice: &'static [u8]) -> Body {
-        Body::from(Bytes::from(slice))
-    }
-}
-
-impl From<Cow<'static, [u8]>> for Body {
-    #[inline]
-    fn from(cow: Cow<'static, [u8]>) -> Body {
-        match cow {
-            Cow::Borrowed(b) => Body::from(b),
-            Cow::Owned(o) => Body::from(o),
-        }
-    }
-}
-
-impl From<String> for Body {
-    #[inline]
-    fn from(s: String) -> Body {
-        Body::from(Bytes::from(s.into_bytes()))
-    }
-}
-
-impl From<&'static str> for Body {
-    #[inline]
-    fn from(slice: &'static str) -> Body {
-        Body::from(Bytes::from(slice.as_bytes()))
-    }
-}
-
-impl From<Cow<'static, str>> for Body {
-    #[inline]
-    fn from(cow: Cow<'static, str>) -> Body {
-        match cow {
-            Cow::Borrowed(b) => Body::from(b),
-            Cow::Owned(o) => Body::from(o),
-        }
     }
 }
 
@@ -505,8 +420,6 @@ mod tests {
             assert_eq!(a.lower(), b.lower(), "lower for {:?}", note);
             assert_eq!(a.upper(), b.upper(), "upper for {:?}", note);
         }
-
-        eq(Body::from("Hello"), SizeHint::with_exact(5), "from str");
 
         eq(Body::empty(), SizeHint::with_exact(0), "empty");
 

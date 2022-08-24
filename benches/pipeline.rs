@@ -3,17 +3,20 @@
 
 extern crate test;
 
+use std::convert::Infallible;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use bytes::Bytes;
+use http_body_util::Full;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Response};
+use hyper::Response;
 
 const PIPELINED_REQUESTS: usize = 16;
 
@@ -43,7 +46,9 @@ fn hello_world_16(b: &mut test::Bencher) {
                         .serve_connection(
                             stream,
                             service_fn(|_| async {
-                                Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!")))
+                                Ok::<_, Infallible>(Response::new(Full::new(Bytes::from(
+                                    "Hello, World!",
+                                ))))
                             }),
                         )
                         .await

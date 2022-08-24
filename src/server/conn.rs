@@ -11,7 +11,8 @@
 //! # #[cfg(all(feature = "http1", feature = "runtime"))]
 //! # mod rt {
 //! use http::{Request, Response, StatusCode};
-//! use hyper::{server::conn::Http, service::service_fn, Body};
+//! use http_body_util::Full;
+//! use hyper::{server::conn::Http, service::service_fn, body::Bytes};
 //! use std::{net::SocketAddr, convert::Infallible};
 //! use tokio::net::TcpListener;
 //!
@@ -34,8 +35,8 @@
 //!     }
 //! }
 //!
-//! async fn hello(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
-//!    Ok(Response::new(Body::from("Hello World!")))
+//! async fn hello(_req: Request<hyper::Body>) -> Result<Response<Full<Bytes>>, Infallible> {
+//!    Ok(Response::new(Full::new(Bytes::from("Hello World!"))))
 //! }
 //! # }
 //! ```

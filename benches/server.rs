@@ -8,8 +8,9 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use bytes::Bytes;
 use futures_util::{stream, StreamExt};
-use http_body_util::{BodyExt, StreamBody};
+use http_body_util::{BodyExt, Full, StreamBody};
 use tokio::sync::oneshot;
 
 use hyper::server::conn::Http;
@@ -87,8 +88,8 @@ macro_rules! bench_server {
     }};
 }
 
-fn body(b: &'static [u8]) -> hyper::Body {
-    b.into()
+fn body(b: &'static [u8]) -> Full<Bytes> {
+    Full::new(b.into())
 }
 
 #[bench]

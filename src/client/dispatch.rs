@@ -387,7 +387,7 @@ mod tests {
         let (mut tx, mut rx) = channel::<Request<Body>, Response<Body>>();
 
         b.iter(move || {
-            let _ = tx.send(Request::default()).unwrap();
+            let _ = tx.send(Request::new(Body::empty())).unwrap();
             rt.block_on(async {
                 loop {
                     let poll_once = PollOnce(&mut rx);
