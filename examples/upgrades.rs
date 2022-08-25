@@ -95,7 +95,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
         .unwrap();
 
     let stream = TcpStream::connect(addr).await?;
-    let (mut sender, conn) = hyper::client::conn::http2::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
