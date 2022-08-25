@@ -235,7 +235,6 @@ macro_rules! test {
                 inner: hyper::client::conn::http1::Builder,
                 set_host: bool,
                 http09_responses: bool,
-                http2_only: bool,
             }
 
             impl Builder {
@@ -244,7 +243,6 @@ macro_rules! test {
                         inner: hyper::client::conn::http1::Builder::new(),
                         set_host: true,
                         http09_responses: false,
-                        http2_only: false,
                     }
                 }
 
@@ -260,13 +258,6 @@ macro_rules! test {
                     self.inner.http09_responses(val);
                     self
                 }
-
-                // #[allow(unused)]
-                // fn http2_only(&mut self, val: bool) -> &mut Self {
-                //     self.http2_only = val;
-                //     self.inner.http2_only(val);
-                //     self
-                // }
             }
 
             impl std::ops::Deref for Builder {
@@ -292,7 +283,7 @@ macro_rules! test {
                 return Err(Error::UnsupportedVersion);
             }
 
-            if req.version() == Version::HTTP_2 && !builder.http2_only {
+            if req.version() == Version::HTTP_2 {
                 return Err(Error::UnsupportedVersion);
             }
 
