@@ -2,7 +2,7 @@ use bytes::Bytes;
 use http_body_util::Full;
 use hyper::server::conn::Http;
 use hyper::service::Service;
-use hyper::{Body, Request, Response};
+use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
 
 use std::future::Future;
@@ -37,7 +37,7 @@ struct Svc {
     counter: Counter,
 }
 
-impl Service<Request<Body>> for Svc {
+impl Service<Request<Recv>> for Svc {
     type Response = Response<Full<Bytes>>;
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
@@ -46,7 +46,7 @@ impl Service<Request<Body>> for Svc {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&mut self, req: Request<Recv>) -> Self::Future {
         fn mk_response(s: String) -> Result<Response<Full<Bytes>>, hyper::Error> {
             Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
         }

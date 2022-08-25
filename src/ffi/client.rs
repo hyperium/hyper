@@ -24,7 +24,7 @@ pub struct hyper_clientconn_options {
 /// send multiple requests on a single connection, such as when HTTP/1
 /// keep-alive or HTTP/2 is used.
 pub struct hyper_clientconn {
-    tx: conn::SendRequest<crate::Body>,
+    tx: conn::SendRequest<crate::Recv>,
 }
 
 // ===== impl hyper_clientconn =====
@@ -42,7 +42,7 @@ ffi_fn! {
         let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
 
         Box::into_raw(hyper_task::boxed(async move {
-            options.builder.handshake::<_, crate::Body>(io)
+            options.builder.handshake::<_, crate::Recv>(io)
                 .await
                 .map(|(tx, conn)| {
                     options.exec.execute(Box::pin(async move {

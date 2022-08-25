@@ -65,7 +65,7 @@ pub use crate::http::{header, Method, Request, Response, StatusCode, Uri, Versio
 #[doc(no_inline)]
 pub use crate::http::HeaderMap;
 
-pub use crate::body::Body;
+pub use crate::body::Recv;
 pub use crate::error::{Error, Result};
 
 #[macro_use]

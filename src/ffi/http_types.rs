@@ -8,13 +8,13 @@ use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::header::{HeaderName, HeaderValue};
-use crate::{Body, HeaderMap, Method, Request, Response, Uri};
+use crate::{HeaderMap, Method, Recv, Request, Response, Uri};
 
 /// An HTTP request.
-pub struct hyper_request(pub(super) Request<Body>);
+pub struct hyper_request(pub(super) Request<Recv>);
 
 /// An HTTP response.
-pub struct hyper_response(pub(super) Response<Body>);
+pub struct hyper_response(pub(super) Response<Recv>);
 
 /// An HTTP header map.
 ///
@@ -39,7 +39,7 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 ffi_fn! {
     /// Construct a new HTTP request.
     fn hyper_request_new() -> *mut hyper_request {
-        Box::into_raw(Box::new(hyper_request(Request::new(Body::empty()))))
+        Box::into_raw(Box::new(hyper_request(Request::new(Recv::empty()))))
     } ?= std::ptr::null_mut()
 }
 
@@ -335,13 +335,13 @@ ffi_fn! {
     ///
     /// It is safe to free the response even after taking ownership of its body.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
-        let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), crate::Body::empty());
+        let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), crate::Recv::empty());
         Box::into_raw(Box::new(hyper_body(body)))
     } ?= std::ptr::null_mut()
 }
 
 impl hyper_response {
-    pub(super) fn wrap(mut resp: Response<Body>) -> hyper_response {
+    pub(super) fn wrap(mut resp: Response<Recv>) -> hyper_response {
         let headers = std::mem::take(resp.headers_mut());
         let orig_casing = resp
             .extensions_mut()
@@ -532,7 +532,7 @@ unsafe fn raw_name_value(
 // ===== impl OnInformational =====
 
 impl OnInformational {
-    pub(crate) fn call(&mut self, resp: Response<Body>) {
+    pub(crate) fn call(&mut self, resp: Response<Recv>) {
         let mut resp = hyper_response::wrap(resp);
         (self.func)(self.data.0, &mut resp);
     }

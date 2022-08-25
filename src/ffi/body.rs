@@ -8,10 +8,10 @@ use libc::{c_int, size_t};
 
 use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
-use crate::body::{Body, Bytes, HttpBody as _};
+use crate::body::{Bytes, HttpBody as _, Recv};
 
 /// A streaming HTTP body.
-pub struct hyper_body(pub(super) Body);
+pub struct hyper_body(pub(super) Recv);
 
 /// A buffer of bytes that is sent or received on a `hyper_body`.
 pub struct hyper_buf(pub(crate) Bytes);
@@ -33,7 +33,7 @@ ffi_fn! {
     ///
     /// If not configured, this body acts as an empty payload.
     fn hyper_body_new() -> *mut hyper_body {
-        Box::into_raw(Box::new(hyper_body(Body::ffi())))
+        Box::into_raw(Box::new(hyper_body(Recv::ffi())))
     } ?= ptr::null_mut()
 }
 
