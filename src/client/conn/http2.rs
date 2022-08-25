@@ -10,7 +10,7 @@ use std::time::Duration;
 use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::Body;
+use crate::Recv;
 use crate::body::HttpBody;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
@@ -22,7 +22,7 @@ use super::super::dispatch;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::UnboundedSender<Request<B>, Response<Body>>,
+    dispatch: dispatch::UnboundedSender<Request<B>, Response<Recv>>,
 }
 
 /// A future that processes all HTTP state for the IO object.
@@ -53,7 +53,7 @@ pub struct Builder {
 /// See [`client::conn`](crate::client::conn) for more.
 pub async fn handshake<T>(
     io: T,
-) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
+) -> crate::Result<(SendRequest<crate::Recv>, Connection<T, crate::Recv>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
@@ -127,15 +127,15 @@ where
     /// ```
     /// # use http::header::HOST;
     /// # use hyper::client::conn::http2::SendRequest;
-    /// # use hyper::Body;
+    /// # use hyper::Recv;
     /// use hyper::Request;
     ///
-    /// # async fn doc(mut tx: SendRequest<Body>) -> hyper::Result<()> {
+    /// # async fn doc(mut tx: SendRequest<Recv>) -> hyper::Result<()> {
     /// // build a Request
     /// let req = Request::builder()
     ///     .uri("/foo/bar")
     ///     .header(HOST, "hyper.rs")
-    ///     .body(Body::empty())
+    ///     .body(Recv::empty())
     ///     .unwrap();
     ///
     /// // send it and await a Response
@@ -146,7 +146,7 @@ where
     /// # }
     /// # fn main() {}
     /// ```
-    pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Body>>> {
+    pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Recv>>> {
         let sent = self.dispatch.send(req);
 
         async move {

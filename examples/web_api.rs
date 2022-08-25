@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use bytes::Buf;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{header, Body, Method, Request, Response, StatusCode};
+use hyper::{header, Method, Recv, Request, Response, StatusCode};
 use tokio::net::{TcpListener, TcpStream};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
@@ -17,7 +17,7 @@ static NOTFOUND: &[u8] = b"Not Found";
 static POST_DATA: &str = r#"{"original": "data"}"#;
 static URL: &str = "http://127.0.0.1:1337/json_api";
 
-async fn client_request_response() -> Result<Response<Body>> {
+async fn client_request_response() -> Result<Response<Recv>> {
     let req = Request::builder()
         .method(Method::POST)
         .uri(URL)
@@ -44,7 +44,7 @@ async fn client_request_response() -> Result<Response<Body>> {
     Ok(Response::new(res_body))
 }
 
-async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {
+async fn api_post_response(req: Request<Recv>) -> Result<Response<Recv>> {
     // Aggregate the body...
     let whole_body = hyper::body::aggregate(req).await?;
     // Decode as JSON...
@@ -56,16 +56,16 @@ async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {
     let response = Response::builder()
         .status(StatusCode::OK)
         .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(json))?;
+        .body(Recv::from(json))?;
     Ok(response)
 }
 
-async fn api_get_response() -> Result<Response<Body>> {
+async fn api_get_response() -> Result<Response<Recv>> {
     let data = vec!["foo", "bar"];
     let res = match serde_json::to_string(&data) {
         Ok(json) => Response::builder()
             .header(header::CONTENT_TYPE, "application/json")
-            .body(Body::from(json))
+            .body(Recv::from(json))
             .unwrap(),
         Err(_) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
@@ -75,7 +75,7 @@ async fn api_get_response() -> Result<Response<Body>> {
     Ok(res)
 }
 
-async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
+async fn response_examples(req: Request<Recv>) -> Result<Response<Recv>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => Ok(Response::new(INDEX.into())),
         (&Method::GET, "/test.html") => client_request_response().await,

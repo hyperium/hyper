@@ -11,7 +11,7 @@ use tokio::sync::watch;
 use hyper::header::{HeaderValue, UPGRADE};
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Request, Response, StatusCode};
+use hyper::{Recv, Request, Response, StatusCode};
 use std::net::SocketAddr;
 
 // A simple type alias so as to DRY.
@@ -36,8 +36,8 @@ async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<()> {
 }
 
 /// Our server HTTP handler to initiate HTTP upgrades.
-async fn server_upgrade(mut req: Request<Body>) -> Result<Response<Body>> {
-    let mut res = Response::new(Body::empty());
+async fn server_upgrade(mut req: Request<Recv>) -> Result<Response<Recv>> {
+    let mut res = Response::new(Recv::empty());
 
     // Send a 400 to any request that doesn't have
     // an `Upgrade` header.
@@ -91,7 +91,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
     let req = Request::builder()
         .uri(format!("http://{}/", addr))
         .header(UPGRADE, "foobar")
-        .body(Body::empty())
+        .body(Recv::empty())
         .unwrap();
 
     let stream = TcpStream::connect(addr).await?;

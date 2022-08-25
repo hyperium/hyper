@@ -23,7 +23,7 @@ use crate::proto::Dispatched;
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
-use crate::{Body, Response};
+use crate::{Recv, Response};
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -76,7 +76,7 @@ impl Default for Config {
 pin_project! {
     pub(crate) struct Server<T, S, B, E>
     where
-        S: HttpService<Body>,
+        S: HttpService<Recv>,
         B: HttpBody,
     {
         exec: E,
@@ -109,7 +109,7 @@ where
 impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Body, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -181,7 +181,7 @@ where
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Body, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -236,7 +236,7 @@ where
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
     where
-        S: HttpService<Body, ResBody = B>,
+        S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: ConnStreamExec<S::Future, B>,
     {
@@ -295,7 +295,7 @@ where
                             (
                                 Request::from_parts(
                                     parts,
-                                    crate::Body::h2(stream, content_length.into(), ping),
+                                    crate::Recv::h2(stream, content_length.into(), ping),
                                 ),
                                 None,
                             )
@@ -309,7 +309,7 @@ where
                             debug_assert!(parts.extensions.get::<OnUpgrade>().is_none());
                             parts.extensions.insert(upgrade);
                             (
-                                Request::from_parts(parts, crate::Body::empty()),
+                                Request::from_parts(parts, crate::Recv::empty()),
                                 Some(ConnectParts {
                                     pending,
                                     ping,

@@ -1332,7 +1332,7 @@ mod conn {
 
     use hyper::body::HttpBody;
     use hyper::client::conn;
-    use hyper::{self, Body, Method, Request, Response, StatusCode};
+    use hyper::{self, Method, Recv, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
@@ -1514,7 +1514,7 @@ mod conn {
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
-        let (mut sender, body) = Body::channel();
+        let (mut sender, body) = Recv::channel();
         let sender = thread::spawn(move || {
             sender.try_send_data("hello".into()).expect("try_send_data");
             support::runtime().block_on(rx).unwrap();
@@ -1877,7 +1877,7 @@ mod conn {
                     res = listener.accept() => {
                         let (stream, _) = res.unwrap();
 
-                        let service = service_fn(|_:Request<Body>| future::ok::<Response<Body>, hyper::Error>(Response::new(Body::empty())));
+                        let service = service_fn(|_:Request<Recv>| future::ok::<Response<Recv>, hyper::Error>(Response::new(Recv::empty())));
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
@@ -1903,7 +1903,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::http2::Builder::new()
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -1918,7 +1918,7 @@ mod conn {
 
         let req = Request::builder()
             .uri(format!("http://{}/", addr))
-            .body(Body::empty())
+            .body(Recv::empty())
             .expect("request builder");
 
         client.send_request(req).await.expect("req1 send");
@@ -1968,7 +1968,7 @@ mod conn {
             .http2_keep_alive_timeout(Duration::from_secs(1))
             // enable while idle since we aren't sending requests
             .http2_keep_alive_while_idle(true)
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -1998,7 +1998,7 @@ mod conn {
         let (mut client, conn) = conn::http2::Builder::new()
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2033,7 +2033,7 @@ mod conn {
         let (mut client, conn) = conn::http2::Builder::new()
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2042,7 +2042,7 @@ mod conn {
             assert!(err.is_timeout());
         });
 
-        let req = http::Request::new(hyper::Body::empty());
+        let req = http::Request::new(hyper::Recv::empty());
         let err = client
             .send_request(req)
             .await
@@ -2085,7 +2085,7 @@ mod conn {
                                 .await
                                 .expect("server req body aggregate");
                         });
-                        Ok::<_, hyper::Error>(http::Response::new(hyper::Body::empty()))
+                        Ok::<_, hyper::Error>(http::Response::new(hyper::Recv::empty()))
                     }),
                 )
                 .await
@@ -2096,7 +2096,7 @@ mod conn {
         let (mut client, conn) = conn::http2::Builder::new()
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2105,7 +2105,7 @@ mod conn {
         });
 
         // Use a channel to keep request stream open
-        let (_tx, body) = hyper::Body::channel();
+        let (_tx, body) = hyper::Recv::channel();
         let req1 = http::Request::new(body);
         let _resp = client.send_request(req1).await.expect("send_request");
 
@@ -2152,7 +2152,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::http2::Builder::new()
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2161,7 +2161,7 @@ mod conn {
         });
 
         let req = Request::connect("localhost")
-            .body(hyper::Body::empty())
+            .body(hyper::Recv::empty())
             .unwrap();
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::OK);
@@ -2207,7 +2207,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::http2::Builder::new()
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2216,7 +2216,7 @@ mod conn {
         });
 
         let req = Request::connect("localhost")
-            .body(hyper::Body::empty())
+            .body(hyper::Recv::empty())
             .unwrap();
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);

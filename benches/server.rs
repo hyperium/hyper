@@ -87,7 +87,7 @@ macro_rules! bench_server {
     }};
 }
 
-fn body(b: &'static [u8]) -> hyper::Body {
+fn body(b: &'static [u8]) -> hyper::Recv {
     b.into()
 }
 

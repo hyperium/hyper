@@ -11,7 +11,7 @@
 //! # #[cfg(all(feature = "http1", feature = "runtime"))]
 //! # mod rt {
 //! use http::{Request, Response, StatusCode};
-//! use hyper::{server::conn::Http, service::service_fn, Body};
+//! use hyper::{server::conn::Http, service::service_fn, Recv};
 //! use std::{net::SocketAddr, convert::Infallible};
 //! use tokio::net::TcpListener;
 //!
@@ -34,8 +34,8 @@
 //!     }
 //! }
 //!
-//! async fn hello(_req: Request<Body>) -> Result<Response<Body>, Infallible> {
-//!    Ok(Response::new(Body::from("Hello World!")))
+//! async fn hello(_req: Request<Recv>) -> Result<Response<Recv>, Infallible> {
+//!    Ok(Response::new(Recv::from("Hello World!")))
 //! }
 //! # }
 //! ```
@@ -66,7 +66,7 @@ cfg_feature! {
     use tokio::io::{AsyncRead, AsyncWrite};
     use tracing::trace;
 
-    use crate::body::{Body, HttpBody};
+    use crate::body::{Recv, HttpBody};
     use crate::common::{task, Future, Pin, Poll, Unpin};
     #[cfg(not(all(feature = "http1", feature = "http2")))]
     use crate::common::Never;
@@ -123,7 +123,7 @@ pin_project! {
     #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
     pub struct Connection<T, S, E = Exec>
     where
-        S: HttpService<Body>,
+        S: HttpService<Recv>,
     {
         pub(super) conn: Option<ProtoServer<T, S::ResBody, S, E>>,
         fallback: Fallback<E>,
@@ -132,7 +132,7 @@ pin_project! {
 
 #[cfg(feature = "http1")]
 type Http1Dispatcher<T, B, S> =
-    proto::h1::Dispatcher<proto::h1::dispatch::Server<S, Body>, B, T, proto::ServerTransaction>;
+    proto::h1::Dispatcher<proto::h1::dispatch::Server<S, Recv>, B, T, proto::ServerTransaction>;
 
 #[cfg(all(not(feature = "http1"), feature = "http2"))]
 type Http1Dispatcher<T, B, S> = (Never, PhantomData<(T, Box<Pin<B>>, Box<Pin<S>>)>);
@@ -151,7 +151,7 @@ pin_project! {
     #[project = ProtoServerProj]
     pub(super) enum ProtoServer<T, B, S, E = Exec>
     where
-        S: HttpService<Body>,
+        S: HttpService<Recv>,
         B: HttpBody,
     {
         H1 {
@@ -576,14 +576,14 @@ impl<E> Http<E> {
     /// # Example
     ///
     /// ```
-    /// # use hyper::{Body, Request, Response};
+    /// # use hyper::{Recv, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::Http;
     /// # use tokio::io::{AsyncRead, AsyncWrite};
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
     /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    /// #     S: Service<hyper::Request<Body>, Response=hyper::Response<Body>> + Send + 'static,
+    /// #     S: Service<hyper::Request<Recv>, Response=hyper::Response<Recv>> + Send + 'static,
     /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     /// #     S::Future: Send,
     /// # {
@@ -598,7 +598,7 @@ impl<E> Http<E> {
     /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
-        S: HttpService<Body, ResBody = Bd>,
+        S: HttpService<Recv, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: HttpBody + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -678,7 +678,7 @@ impl<E> Http<E> {
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, B, S, E> Connection<I, S, E>
 where
-    S: HttpService<Body, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: HttpBody + 'static,
@@ -848,7 +848,7 @@ where
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
-    S: HttpService<Body, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: HttpBody + 'static,
@@ -895,7 +895,7 @@ where
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<I, S> fmt::Debug for Connection<I, S>
 where
-    S: HttpService<Body>,
+    S: HttpService<Recv>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -928,7 +928,7 @@ impl Default for ConnectionMode {
 impl<T, B, S, E> Future for ProtoServer<T, B, S, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Body, ResBody = B>,
+    S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -963,14 +963,14 @@ mod upgrades {
     #[allow(missing_debug_implementations)]
     pub struct UpgradeableConnection<T, S, E>
     where
-        S: HttpService<Body>,
+        S: HttpService<Recv>,
     {
         pub(super) inner: Connection<T, S, E>,
     }
 
     impl<I, B, S, E> UpgradeableConnection<I, S, E>
     where
-        S: HttpService<Body, ResBody = B>,
+        S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: HttpBody + 'static,
@@ -988,7 +988,7 @@ mod upgrades {
 
     impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
     where
-        S: HttpService<Body, ResBody = B>,
+        S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: HttpBody + 'static,

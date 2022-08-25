@@ -3,7 +3,7 @@
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{Method, Recv, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
 use std::collections::HashMap;
@@ -15,7 +15,7 @@ static MISSING: &[u8] = b"Missing field";
 static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 
 // Using service_fn, we can turn this function into a `Service`.
-async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn param_example(req: Request<Recv>) -> Result<Response<Recv>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/post") => Ok(Response::new(INDEX.into())),
         (&Method::POST, "/post") => {
@@ -96,7 +96,7 @@ async fn param_example(req: Request<Body>) -> Result<Response<Body>, hyper::Erro
         }
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
-            .body(Body::empty())
+            .body(Recv::empty())
             .unwrap()),
     }
 }

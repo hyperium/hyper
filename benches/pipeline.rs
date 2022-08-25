@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Response};
+use hyper::{Recv, Response};
 
 const PIPELINED_REQUESTS: usize = 16;
 
@@ -43,7 +43,7 @@ fn hello_world_16(b: &mut test::Bencher) {
                         .serve_connection(
                             stream,
                             service_fn(|_| async {
-                                Ok::<_, hyper::Error>(Response::new(Body::from("Hello, World!")))
+                                Ok::<_, hyper::Error>(Response::new(Recv::from("Hello, World!")))
                             }),
                         )
                         .await

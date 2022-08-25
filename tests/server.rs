@@ -28,7 +28,7 @@ use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpSt
 use hyper::body::HttpBody;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Method, Request, Response, StatusCode, Uri, Version};
+use hyper::{Method, Recv, Request, Response, StatusCode, Uri, Version};
 
 mod support;
 
@@ -963,7 +963,7 @@ async fn expect_continue_waits_for_body_poll() {
                     drop(req);
                     Response::builder()
                         .status(StatusCode::BAD_REQUEST)
-                        .body(hyper::Body::empty())
+                        .body(hyper::Recv::empty())
                 })
             }),
         )
@@ -1256,7 +1256,7 @@ async fn http1_allow_half_close() {
             socket,
             service_fn(|_| {
                 tokio::time::sleep(Duration::from_millis(500))
-                    .map(|_| Ok::<_, hyper::Error>(Response::new(Body::empty())))
+                    .map(|_| Ok::<_, hyper::Error>(Response::new(Recv::empty())))
             }),
         )
         .await
@@ -1284,7 +1284,7 @@ async fn disconnect_after_reading_request_before_responding() {
             socket,
             service_fn(|_| {
                 tokio::time::sleep(Duration::from_secs(2)).map(
-                    |_| -> Result<Response<Body>, hyper::Error> {
+                    |_| -> Result<Response<Recv>, hyper::Error> {
                         panic!("response future should have been dropped");
                     },
                 )
@@ -1317,7 +1317,7 @@ async fn returning_1xx_response_is_error() {
                 Ok::<_, hyper::Error>(
                     Response::builder()
                         .status(StatusCode::CONTINUE)
-                        .body(Body::empty())
+                        .body(Recv::empty())
                         .unwrap(),
                 )
             }),
@@ -1382,7 +1382,7 @@ async fn header_read_timeout_slow_writes() {
             service_fn(|_| {
                 let res = Response::builder()
                     .status(200)
-                    .body(hyper::Body::empty())
+                    .body(hyper::Recv::empty())
                     .unwrap();
                 future::ready(Ok::<_, hyper::Error>(res))
             }),
@@ -1457,7 +1457,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
             service_fn(|_| {
                 let res = Response::builder()
                     .status(200)
-                    .body(hyper::Body::empty())
+                    .body(hyper::Recv::empty())
                     .unwrap();
                 future::ready(Ok::<_, hyper::Error>(res))
             }),
@@ -1503,7 +1503,7 @@ async fn upgrades() {
             let res = Response::builder()
                 .status(101)
                 .header("upgrade", "foobar")
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap();
             future::ready(Ok::<_, hyper::Error>(res))
         }),
@@ -1557,7 +1557,7 @@ async fn http_connect() {
         service_fn(|_| {
             let res = Response::builder()
                 .status(200)
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap();
             future::ready(Ok::<_, hyper::Error>(res))
         }),
@@ -1611,14 +1611,14 @@ async fn upgrades_new() {
     });
 
     let (upgrades_tx, upgrades_rx) = mpsc::channel();
-    let svc = service_fn(move |req: Request<Body>| {
+    let svc = service_fn(move |req: Request<Recv>| {
         let on_upgrade = hyper::upgrade::on(req);
         let _ = upgrades_tx.send(on_upgrade);
         future::ok::<_, hyper::Error>(
             Response::builder()
                 .status(101)
                 .header("upgrade", "foobar")
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap(),
         )
     });
@@ -1653,9 +1653,9 @@ async fn upgrades_ignored() {
     let addr = listener.local_addr().unwrap();
 
     tokio::spawn(async move {
-        let svc = service_fn(move |req: Request<Body>| {
+        let svc = service_fn(move |req: Request<Recv>| {
             assert_eq!(req.headers()["upgrade"], "yolo");
-            future::ok::<_, hyper::Error>(Response::new(hyper::Body::empty()))
+            future::ok::<_, hyper::Error>(Response::new(hyper::Recv::empty()))
         });
 
         loop {
@@ -1678,7 +1678,7 @@ async fn upgrades_ignored() {
             .uri(&*url)
             .header("upgrade", "yolo")
             .header("connection", "upgrade")
-            .body(hyper::Body::empty())
+            .body(hyper::Recv::empty())
             .expect("make_req")
     };
 
@@ -1720,13 +1720,13 @@ async fn http_connect_new() {
     });
 
     let (upgrades_tx, upgrades_rx) = mpsc::channel();
-    let svc = service_fn(move |req: Request<Body>| {
+    let svc = service_fn(move |req: Request<Recv>| {
         let on_upgrade = hyper::upgrade::on(req);
         let _ = upgrades_tx.send(on_upgrade);
         future::ok::<_, hyper::Error>(
             Response::builder()
                 .status(200)
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap(),
         )
     });
@@ -1791,7 +1791,7 @@ async fn h2_connect() {
         assert!(recv_stream.data().await.unwrap().unwrap().is_empty());
     });
 
-    let svc = service_fn(move |req: Request<Body>| {
+    let svc = service_fn(move |req: Request<Recv>| {
         let on_upgrade = hyper::upgrade::on(req);
 
         tokio::spawn(async move {
@@ -1808,7 +1808,7 @@ async fn h2_connect() {
         future::ok::<_, hyper::Error>(
             Response::builder()
                 .status(200)
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap(),
         )
     });
@@ -1880,7 +1880,7 @@ async fn h2_connect_multiplex() {
         futures.for_each(future::ready).await;
     });
 
-    let svc = service_fn(move |req: Request<Body>| {
+    let svc = service_fn(move |req: Request<Recv>| {
         let authority = req.uri().authority().unwrap().to_string();
         let on_upgrade = hyper::upgrade::on(req);
 
@@ -1920,7 +1920,7 @@ async fn h2_connect_multiplex() {
         future::ok::<_, hyper::Error>(
             Response::builder()
                 .status(200)
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap(),
         )
     });
@@ -1976,7 +1976,7 @@ async fn h2_connect_large_body() {
         assert!(recv_stream.data().await.unwrap().unwrap().is_empty());
     });
 
-    let svc = service_fn(move |req: Request<Body>| {
+    let svc = service_fn(move |req: Request<Recv>| {
         let on_upgrade = hyper::upgrade::on(req);
 
         tokio::spawn(async move {
@@ -1995,7 +1995,7 @@ async fn h2_connect_large_body() {
         future::ok::<_, hyper::Error>(
             Response::builder()
                 .status(200)
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap(),
         )
     });
@@ -2050,7 +2050,7 @@ async fn h2_connect_empty_frames() {
         assert!(recv_stream.data().await.unwrap().unwrap().is_empty());
     });
 
-    let svc = service_fn(move |req: Request<Body>| {
+    let svc = service_fn(move |req: Request<Recv>| {
         let on_upgrade = hyper::upgrade::on(req);
 
         tokio::spawn(async move {
@@ -2067,7 +2067,7 @@ async fn h2_connect_empty_frames() {
         future::ok::<_, hyper::Error>(
             Response::builder()
                 .status(200)
-                .body(hyper::Body::empty())
+                .body(hyper::Recv::empty())
                 .unwrap(),
         )
     });
@@ -2307,8 +2307,8 @@ fn http2_body_user_error_sends_reset_reason() {
 
 struct Http2ReadyErrorSvc;
 
-impl tower_service::Service<Request<Body>> for Http2ReadyErrorSvc {
-    type Response = Response<Body>;
+impl tower_service::Service<Request<Recv>> for Http2ReadyErrorSvc {
+    type Response = Response<Recv>;
     type Error = h2::Error;
     type Future = Box<
         dyn futures_core::Future<Output = Result<Self::Response, Self::Error>>
@@ -2323,7 +2323,7 @@ impl tower_service::Service<Request<Body>> for Http2ReadyErrorSvc {
         )))
     }
 
-    fn call(&mut self, _: hyper::Request<Body>) -> Self::Future {
+    fn call(&mut self, _: hyper::Request<Recv>) -> Self::Future {
         unreachable!("poll_ready error should have shutdown conn");
     }
 }
@@ -2517,7 +2517,7 @@ async fn http2_keep_alive_with_responsive_client() {
 
     let tcp = connect_async(addr).await;
     let (mut client, conn) = hyper::client::conn::http2::Builder::new()
-        .handshake::<_, Body>(tcp)
+        .handshake::<_, Recv>(tcp)
         .await
         .expect("http handshake");
 
@@ -2527,7 +2527,7 @@ async fn http2_keep_alive_with_responsive_client() {
 
     tokio::time::sleep(Duration::from_secs(4)).await;
 
-    let req = http::Request::new(hyper::Body::empty());
+    let req = http::Request::new(hyper::Recv::empty());
     client.send_request(req).await.expect("client.send_request");
 }
 
@@ -2780,7 +2780,7 @@ enum Msg {
     End,
 }
 
-impl tower_service::Service<Request<Body>> for TestService {
+impl tower_service::Service<Request<Recv>> for TestService {
     type Response = Response<ReplyBody>;
     type Error = BoxError;
     type Future = BoxFuture;
@@ -2789,7 +2789,7 @@ impl tower_service::Service<Request<Body>> for TestService {
         Ok(()).into()
     }
 
-    fn call(&mut self, mut req: Request<Body>) -> Self::Future {
+    fn call(&mut self, mut req: Request<Recv>) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
 
@@ -2847,23 +2847,23 @@ const HELLO: &str = "hello";
 
 struct HelloWorld;
 
-impl tower_service::Service<Request<Body>> for HelloWorld {
-    type Response = Response<Body>;
+impl tower_service::Service<Request<Recv>> for HelloWorld {
+    type Response = Response<Recv>;
     type Error = hyper::Error;
-    type Future = future::Ready<Result<Response<Body>, Self::Error>>;
+    type Future = future::Ready<Result<Response<Recv>, Self::Error>>;
 
     fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Ok(()).into()
     }
 
-    fn call(&mut self, _req: Request<Body>) -> Self::Future {
+    fn call(&mut self, _req: Request<Recv>) -> Self::Future {
         let response = Response::new(HELLO.into());
         future::ok(response)
     }
 }
 
 fn unreachable_service() -> impl tower_service::Service<
-    http::Request<hyper::Body>,
+    http::Request<hyper::Recv>,
     Response = http::Response<ReplyBody>,
     Error = BoxError,
     Future = BoxFuture,
@@ -3126,18 +3126,18 @@ impl TestClient {
         self
     }
 
-    async fn get(&self, uri: Uri) -> Result<Response<Body>, hyper::Error> {
+    async fn get(&self, uri: Uri) -> Result<Response<Recv>, hyper::Error> {
         self.request(
             Request::builder()
                 .uri(uri)
                 .method(Method::GET)
-                .body(Body::empty())
+                .body(Recv::empty())
                 .unwrap(),
         )
         .await
     }
 
-    async fn request(&self, req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+    async fn request(&self, req: Request<Recv>) -> Result<Response<Recv>, hyper::Error> {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 

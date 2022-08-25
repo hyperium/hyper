@@ -1,6 +1,6 @@
 use hyper::server::conn::Http;
 use hyper::service::Service;
-use hyper::{Body, Request, Response};
+use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
 
 use std::future::Future;
@@ -35,8 +35,8 @@ struct Svc {
     counter: Counter,
 }
 
-impl Service<Request<Body>> for Svc {
-    type Response = Response<Body>;
+impl Service<Request<Recv>> for Svc {
+    type Response = Response<Recv>;
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
@@ -44,9 +44,9 @@ impl Service<Request<Body>> for Svc {
         Poll::Ready(Ok(()))
     }
 
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
-            Ok(Response::builder().body(Body::from(s)).unwrap())
+    fn call(&mut self, req: Request<Recv>) -> Self::Future {
+        fn mk_response(s: String) -> Result<Response<Recv>, hyper::Error> {
+            Ok(Response::builder().body(Recv::from(s)).unwrap())
         }
 
         let res = match req.uri().path() {

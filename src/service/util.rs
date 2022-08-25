@@ -11,12 +11,12 @@ use crate::{Request, Response};
 /// # Example
 ///
 /// ```
-/// use hyper::{Body, Request, Response, Version};
+/// use hyper::{Recv, Request, Response, Version};
 /// use hyper::service::service_fn;
 ///
-/// let service = service_fn(|req: Request<Body>| async move {
+/// let service = service_fn(|req: Request<Recv>| async move {
 ///     if req.version() == Version::HTTP_11 {
-///         Ok(Response::new(Body::from("Hello World")))
+///         Ok(Response::new(Recv::from("Hello World")))
 ///     } else {
 ///         // Note: it's usually better to return a Response
 ///         // with an appropriate StatusCode instead of an Err.

@@ -379,7 +379,7 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_throughput(b: &mut test::Bencher) {
-        use crate::{Body, Request, Response};
+        use crate::{Recv, Request, Response};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()

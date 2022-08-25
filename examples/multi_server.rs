@@ -6,18 +6,18 @@ use std::net::SocketAddr;
 use futures_util::future::join;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response};
+use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
 
 static INDEX1: &[u8] = b"The 1st service!";
 static INDEX2: &[u8] = b"The 2nd service!";
 
-async fn index1(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    Ok(Response::new(Body::from(INDEX1)))
+async fn index1(_: Request<Recv>) -> Result<Response<Recv>, hyper::Error> {
+    Ok(Response::new(Recv::from(INDEX1)))
 }
 
-async fn index2(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    Ok(Response::new(Body::from(INDEX2)))
+async fn index2(_: Request<Recv>) -> Result<Response<Recv>, hyper::Error> {
+    Ok(Response::new(Recv::from(INDEX2)))
 }
 
 #[tokio::main]

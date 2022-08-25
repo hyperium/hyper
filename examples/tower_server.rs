@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 use futures_util::future;
 use hyper::server::conn::Http;
 use hyper::service::Service;
-use hyper::{Body, Request, Response};
+use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
 
 const ROOT: &str = "/";
@@ -14,8 +14,8 @@ const ROOT: &str = "/";
 #[derive(Debug)]
 pub struct Svc;
 
-impl Service<Request<Body>> for Svc {
-    type Response = Response<Body>;
+impl Service<Request<Recv>> for Svc {
+    type Response = Response<Recv>;
     type Error = hyper::Error;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
@@ -23,17 +23,17 @@ impl Service<Request<Body>> for Svc {
         Ok(()).into()
     }
 
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&mut self, req: Request<Recv>) -> Self::Future {
         let rsp = Response::builder();
 
         let uri = req.uri();
         if uri.path() != ROOT {
-            let body = Body::from(Vec::new());
+            let body = Recv::from(Vec::new());
             let rsp = rsp.status(404).body(body).unwrap();
             return future::ok(rsp);
         }
 
-        let body = Body::from(Vec::from(&b"heyo!"[..]));
+        let body = Recv::from(Vec::from(&b"heyo!"[..]));
         let rsp = rsp.status(200).body(body).unwrap();
         future::ok(rsp)
     }

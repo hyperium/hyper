@@ -6,7 +6,7 @@ use hyper::client::conn::http1::Builder;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Method, Request, Response};
+use hyper::{Method, Recv, Request, Response};
 
 use tokio::net::{TcpListener, TcpStream};
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn proxy(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn proxy(req: Request<Recv>) -> Result<Response<Recv>, hyper::Error> {
     println!("req: {:?}", req);
 
     if Method::CONNECT == req.method() {
@@ -70,10 +70,10 @@ async fn proxy(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
                 }
             });
 
-            Ok(Response::new(Body::empty()))
+            Ok(Response::new(Recv::empty()))
         } else {
             eprintln!("CONNECT host is not socket addr: {:?}", req.uri());
-            let mut resp = Response::new(Body::from("CONNECT must be to a socket address"));
+            let mut resp = Response::new(Recv::from("CONNECT must be to a socket address"));
             *resp.status_mut() = http::StatusCode::BAD_REQUEST;
 
             Ok(resp)

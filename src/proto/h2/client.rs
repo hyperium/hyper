@@ -19,9 +19,9 @@ use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
 use crate::upgrade::Upgraded;
-use crate::{Body, Request, Response};
+use crate::{Recv, Request, Response};
 
-type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>;
+type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Recv>>;
 
 ///// An mpsc channel is used to help notify the `Connection` task when *all*
 ///// other handles to it have been dropped, so that it can shutdown.
@@ -336,7 +336,7 @@ where
                                     ));
                                 }
                                 let (parts, recv_stream) = res.into_parts();
-                                let mut res = Response::from_parts(parts, Body::empty());
+                                let mut res = Response::from_parts(parts, Recv::empty());
 
                                 let (pending, on_upgrade) = crate::upgrade::pending();
                                 let io = H2Upgraded {
@@ -354,7 +354,7 @@ where
                             } else {
                                 let res = res.map(|stream| {
                                     let ping = ping.for_stream(&stream);
-                                    crate::Body::h2(stream, content_length.into(), ping)
+                                    crate::Recv::h2(stream, content_length.into(), ping)
                                 });
                                 Ok(res)
                             }

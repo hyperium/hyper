@@ -20,7 +20,7 @@ pub use http_body::Body as HttpBody;
 pub use http_body::SizeHint;
 
 pub use self::aggregate::aggregate;
-pub use self::body::{Body, Sender};
+pub use self::body::{Recv, Sender};
 pub(crate) use self::length::DecodedLength;
 pub use self::to_bytes::to_bytes;
 
@@ -37,9 +37,9 @@ pub(crate) fn take_full_data<T: HttpBody + 'static>(body: &mut T) -> Option<T::D
     use std::any::{Any, TypeId};
 
     // This static type check can be optimized at compile-time.
-    if TypeId::of::<T>() == TypeId::of::<Body>() {
+    if TypeId::of::<T>() == TypeId::of::<Recv>() {
         let mut full = (body as &mut dyn Any)
-            .downcast_mut::<Body>()
+            .downcast_mut::<Recv>()
             .expect("must be Body")
             .take_full_data();
         // This second cast is required to make the type system happy.
@@ -60,6 +60,6 @@ fn _assert_send_sync() {
     fn _assert_send<T: Send>() {}
     fn _assert_sync<T: Sync>() {}
 
-    _assert_send::<Body>();
-    _assert_sync::<Body>();
+    _assert_send::<Recv>();
+    _assert_sync::<Recv>();
 }

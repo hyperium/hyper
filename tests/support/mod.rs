@@ -10,7 +10,7 @@ use hyper::server::conn::Http;
 use tokio::net::{TcpListener, TcpStream};
 
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response, Version};
+use hyper::{Recv, Request, Response, Version};
 
 pub use futures_util::{
     future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
@@ -355,7 +355,7 @@ async fn async_test(cfg: __TestConfig) {
 
             // Move a clone into the service_fn
             let serve_handles = serve_handles.clone();
-            let service = service_fn(move |req: Request<Body>| {
+            let service = service_fn(move |req: Request<Recv>| {
                 let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
 
                 assert_eq!(req.uri().path(), sreq.uri, "client path");
@@ -370,7 +370,7 @@ async fn async_test(cfg: __TestConfig) {
 
                     let mut res = Response::builder()
                         .status(sres.status)
-                        .body(Body::from(sres.body))
+                        .body(Recv::from(sres.body))
                         .expect("Response::build");
                     *res.headers_mut() = sres.headers;
                     res
@@ -544,7 +544,7 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                         let mut builder = Response::builder().status(parts.status);
                         *builder.headers_mut().unwrap() = parts.headers;
 
-                        Result::<Response<Body>, hyper::Error>::Ok(builder.body(body).unwrap())
+                        Result::<Response<Recv>, hyper::Error>::Ok(builder.body(body).unwrap())
                     }
                 });
 

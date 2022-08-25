@@ -5,11 +5,11 @@ use std::net::SocketAddr;
 
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response};
+use hyper::{Recv, Request, Response};
 use tokio::net::TcpListener;
 
-async fn hello(_: Request<Body>) -> Result<Response<Body>, Infallible> {
-    Ok(Response::new(Body::from("Hello World!")))
+async fn hello(_: Request<Recv>) -> Result<Response<Recv>, Infallible> {
+    Ok(Response::new(Recv::from("Hello World!")))
 }
 
 #[tokio::main]

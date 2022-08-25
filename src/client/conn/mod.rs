@@ -15,7 +15,7 @@
 //! # mod rt {
 //! use tower::ServiceExt;
 //! use http::{Request, StatusCode};
-//! use hyper::{client::conn, Body};
+//! use hyper::{client::conn, Recv};
 //! use tokio::net::TcpStream;
 //!
 //! #[tokio::main]
@@ -35,7 +35,7 @@
 //!         // We need to manually add the host header because SendRequest does not
 //!         .header("Host", "example.com")
 //!         .method("GET")
-//!         .body(Body::from(""))?;
+//!         .body(Recv::from(""))?;
 //!     let response = request_sender.send_request(request).await?;
 //!     assert!(response.status() == StatusCode::OK);
 //!
@@ -45,7 +45,7 @@
 //!     let request = Request::builder()
 //!         .header("Host", "example.com")
 //!         .method("GET")
-//!         .body(Body::from(""))?;
+//!         .body(Recv::from(""))?;
 //!     let response = request_sender.send_request(request).await?;
 //!     assert!(response.status() == StatusCode::OK);
 //!     Ok(())

@@ -6,7 +6,7 @@ use hyper::server::conn::Http;
 use tokio::net::TcpListener;
 
 use hyper::service::service_fn;
-use hyper::{Body, Method, Request, Response, Result, StatusCode};
+use hyper::{Method, Recv, Request, Response, Result, StatusCode};
 
 static INDEX: &str = "examples/send_file_index.html";
 static NOTFOUND: &[u8] = b"Not Found";
@@ -34,7 +34,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
+async fn response_examples(req: Request<Recv>) -> Result<Response<Recv>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => simple_file_send(INDEX).await,
         (&Method::GET, "/no_file.html") => {
@@ -46,14 +46,14 @@ async fn response_examples(req: Request<Body>) -> Result<Response<Body>> {
 }
 
 /// HTTP status code 404
-fn not_found() -> Response<Body> {
+fn not_found() -> Response<Recv> {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
         .body(NOTFOUND.into())
         .unwrap()
 }
 
-async fn simple_file_send(filename: &str) -> Result<Response<Body>> {
+async fn simple_file_send(filename: &str) -> Result<Response<Recv>> {
     if let Ok(contents) = tokio::fs::read(filename).await {
         let body = contents.into();
         return Ok(Response::new(body));

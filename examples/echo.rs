@@ -5,15 +5,15 @@ use std::net::SocketAddr;
 use hyper::body::HttpBody as _;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{Method, Recv, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.
-async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
+async fn echo(req: Request<Recv>) -> Result<Response<Recv>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
-        (&Method::GET, "/") => Ok(Response::new(Body::from(
+        (&Method::GET, "/") => Ok(Response::new(Recv::from(
             "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d 'hello world'`",
         ))),
 
@@ -43,7 +43,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
             // 64kbs of data.
             let max = req.body().size_hint().upper().unwrap_or(u64::MAX);
             if max > 1024 * 64 {
-                let mut resp = Response::new(Body::from("Body too big"));
+                let mut resp = Response::new(Recv::from("Body too big"));
                 *resp.status_mut() = hyper::StatusCode::PAYLOAD_TOO_LARGE;
                 return Ok(resp);
             }
@@ -51,7 +51,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
             let whole_body = hyper::body::to_bytes(req.into_body()).await?;
 
             let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
-            Ok(Response::new(Body::from(reversed_body)))
+            Ok(Response::new(Recv::from(reversed_body)))
         }
 
         // Return the 404 Not Found for other routes.
