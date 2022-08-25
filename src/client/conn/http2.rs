@@ -74,6 +74,13 @@ impl<B> SendRequest<B> {
         }
     }
 
+    /// Waits until the dispatcher is ready
+    ///
+    /// If the associated connection is closed, this returns an Error.
+    pub async fn ready(&mut self) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
+    }
+
     /*
     pub(super) async fn when_ready(self) -> crate::Result<Self> {
         let mut me = Some(self);

@@ -41,8 +41,7 @@
 //!
 //!     // To send via the same connection again, it may not work as it may not be ready,
 //!     // so we have to wait until the request_sender becomes ready.
-//!     // TODO:(mike) how to handle readiness
-//!     // request_sender.ready().await?;
+//!     request_sender.ready().await?;
 //!     let request = Request::builder()
 //!         .header("Host", "example.com")
 //!         .method("GET")
