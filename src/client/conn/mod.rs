@@ -16,7 +16,7 @@
 //! use bytes::Bytes;
 //! use http::{Request, StatusCode};
 //! use http_body_util::Empty;
-//! use hyper::{client::conn, Body};
+//! use hyper::client::conn;
 //! use tokio::net::TcpStream;
 //! use tower::ServiceExt;
 //!
@@ -84,7 +84,7 @@ use crate::proto;
 use crate::rt::Executor;
 #[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
-use crate::{Body, Request, Response};
+use crate::{Recv, Request, Response};
 
 #[cfg(feature = "http1")]
 pub mod http1;
@@ -139,7 +139,7 @@ where
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::Sender<Request<B>, Response<Body>>,
+    dispatch: dispatch::Sender<Request<B>, Response<Recv>>,
 }
 
 /// A future that processes all HTTP state for the IO object.
@@ -194,7 +194,7 @@ pub struct ResponseFuture {
 }
 
 enum ResponseFutureState {
-    Waiting(dispatch::Promise<Response<Body>>),
+    Waiting(dispatch::Promise<Response<Recv>>),
     // Option is to be able to `take()` it in `poll`
     Error(Option<crate::Error>),
 }
@@ -268,7 +268,7 @@ impl<B> Service<Request<B>> for SendRequest<B>
 where
     B: HttpBody + 'static,
 {
-    type Response = Response<Body>;
+    type Response = Response<Recv>;
     type Error = crate::Error;
     type Future = ResponseFuture;
 
@@ -875,7 +875,7 @@ impl Builder {
 // ===== impl ResponseFuture
 
 impl Future for ResponseFuture {
-    type Output = crate::Result<Response<Body>>;
+    type Output = crate::Result<Response<Recv>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match self.inner {

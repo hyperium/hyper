@@ -1342,7 +1342,7 @@ mod conn {
 
     use hyper::body::HttpBody;
     use hyper::client::conn;
-    use hyper::{self, Body, Method, Request, Response, StatusCode};
+    use hyper::{self, Method, Recv, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
@@ -1524,7 +1524,7 @@ mod conn {
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
-        let (mut sender, body) = Body::channel();
+        let (mut sender, body) = Recv::channel();
         let sender = thread::spawn(move || {
             sender.try_send_data("hello".into()).expect("try_send_data");
             support::runtime().block_on(rx).unwrap();
@@ -1887,7 +1887,7 @@ mod conn {
                     res = listener.accept() => {
                         let (stream, _) = res.unwrap();
 
-                        let service = service_fn(|_:Request<Body>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
+                        let service = service_fn(|_:Request<Recv>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
@@ -1980,7 +1980,7 @@ mod conn {
             .http2_keep_alive_timeout(Duration::from_secs(1))
             // enable while idle since we aren't sending requests
             .http2_keep_alive_while_idle(true)
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2011,7 +2011,7 @@ mod conn {
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2111,7 +2111,7 @@ mod conn {
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake::<_, Recv>(io)
             .await
             .expect("http handshake");
 
@@ -2120,7 +2120,7 @@ mod conn {
         });
 
         // Use a channel to keep request stream open
-        let (_tx, body) = hyper::Body::channel();
+        let (_tx, body) = hyper::Recv::channel();
         let req1 = http::Request::new(body);
         let _resp = client.send_request(req1).await.expect("send_request");
 

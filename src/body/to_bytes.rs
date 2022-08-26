@@ -17,8 +17,8 @@ use super::HttpBody;
 /// # Example
 ///
 /// ```
-/// # use hyper::{Body, Response};
-/// # async fn doc(response: Response<Body>) -> hyper::Result<()> {
+/// # use hyper::{Recv, Response};
+/// # async fn doc(response: Response<Recv>) -> hyper::Result<()> {
 /// # use hyper::body::HttpBody;
 /// // let response: Response<Body> ...
 ///

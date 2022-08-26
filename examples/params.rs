@@ -5,7 +5,7 @@ use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
-use hyper::{Body, Method, Request, Response, StatusCode};
+use hyper::{Method, Recv, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
 use std::collections::HashMap;
@@ -19,7 +19,7 @@ static NOTNUMERIC: &[u8] = b"Number field is not numeric";
 
 // Using service_fn, we can turn this function into a `Service`.
 async fn param_example(
-    req: Request<Body>,
+    req: Request<Recv>,
 ) -> Result<Response<BoxBody<Bytes, Infallible>>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/post") => Ok(Response::new(full(INDEX))),
