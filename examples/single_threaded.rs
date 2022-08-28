@@ -6,7 +6,7 @@ use std::net::SocketAddr;
 use std::rc::Rc;
 use tokio::net::TcpListener;
 
-use hyper::body::{Bytes, HttpBody};
+use hyper::body::{Body as HttpBody, Bytes};
 use hyper::header::{HeaderMap, HeaderValue};
 use hyper::service::service_fn;
 use hyper::{Error, Response};

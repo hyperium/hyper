@@ -73,7 +73,7 @@ use tower_service::Service;
 use tracing::{debug, trace};
 
 use super::dispatch;
-use crate::body::HttpBody;
+use crate::body::Body;
 #[cfg(not(all(feature = "http1", feature = "http2")))]
 use crate::common::Never;
 use crate::common::{
@@ -108,7 +108,7 @@ pin_project! {
     #[project = ProtoClientProj]
     enum ProtoClient<T, B>
     where
-        B: HttpBody,
+        B: Body,
     {
         H1 {
             #[pin]
@@ -130,7 +130,7 @@ pub async fn handshake<T, B>(
 ) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -150,7 +150,7 @@ pub struct SendRequest<B> {
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     inner: Option<ProtoClient<T, B>>,
 }
@@ -232,7 +232,7 @@ impl<B> SendRequest<B> {
 
 impl<B> SendRequest<B>
 where
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -266,7 +266,7 @@ where
 
 impl<B> Service<Request<B>> for SendRequest<B>
 where
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     type Response = Response<Recv>;
     type Error = crate::Error;
@@ -292,7 +292,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: HttpBody + Unpin + Send + 'static,
+    B: Body + Unpin + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -375,7 +375,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: HttpBody + Send + 'static,
+    B: Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -403,7 +403,7 @@ where
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -806,7 +806,7 @@ impl Builder {
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        B: HttpBody + 'static,
+        B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {
@@ -905,7 +905,7 @@ impl fmt::Debug for ResponseFuture {
 impl<T, B> Future for ProtoClient<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    B: HttpBody + Send + 'static,
+    B: Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -938,7 +938,7 @@ impl<B: Send> AssertSendSync for SendRequest<B> {}
 impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     B::Data: Send,
 {
 }
@@ -947,7 +947,7 @@ where
 impl<T: Send + Sync, B: Send + Sync> AssertSendSync for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     B::Data: Send + Sync + 'static,
 {
 }

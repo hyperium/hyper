@@ -84,7 +84,7 @@ pub(super) enum Header {
 
 #[derive(Debug)]
 pub(super) enum User {
-    /// Error calling user's HttpBody::poll_data().
+    /// Error calling user's Body::poll_data().
     #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
     /// The user aborted writing of the outgoing body.
@@ -384,7 +384,7 @@ impl Error {
             Kind::Io => "connection error",
 
             #[cfg(any(feature = "http1", feature = "http2"))]
-            Kind::User(User::Body) => "error from user's HttpBody stream",
+            Kind::User(User::Body) => "error from user's Body stream",
             Kind::User(User::BodyWriteAborted) => "user body write aborted",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Service) => "error from user's Service",

@@ -25,7 +25,7 @@ use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
 
-use hyper::body::HttpBody;
+use hyper::body::Body;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::{Method, Recv, Request, Response, StatusCode, Uri, Version};
@@ -260,7 +260,7 @@ mod response_body_lengths {
     fn auto_response_with_unknown_length() {
         run_test(TestCase {
             version: 1,
-            // no headers means trying to guess from HttpBody
+            // no headers means trying to guess from Body
             headers: &[],
             body: Bd::Unknown("foo bar baz"),
             expects_chunked: true,
@@ -272,7 +272,7 @@ mod response_body_lengths {
     fn auto_response_with_known_length() {
         run_test(TestCase {
             version: 1,
-            // no headers means trying to guess from HttpBody
+            // no headers means trying to guess from Body
             headers: &[],
             body: Bd::Known("foo bar baz"),
             expects_chunked: false,
@@ -284,7 +284,7 @@ mod response_body_lengths {
     fn auto_response_known_empty() {
         run_test(TestCase {
             version: 1,
-            // no headers means trying to guess from HttpBody
+            // no headers means trying to guess from Body
             headers: &[],
             body: Bd::Known(""),
             expects_chunked: false,
@@ -296,7 +296,7 @@ mod response_body_lengths {
     fn http10_auto_response_with_unknown_length() {
         run_test(TestCase {
             version: 0,
-            // no headers means trying to guess from HttpBody
+            // no headers means trying to guess from Body
             headers: &[],
             body: Bd::Unknown("foo bar baz"),
             expects_chunked: false,

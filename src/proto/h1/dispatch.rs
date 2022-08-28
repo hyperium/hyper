@@ -6,12 +6,12 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
-use crate::body::{Recv, DecodedLength, HttpBody};
+use crate::body::{Recv, DecodedLength, Body};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
-pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
+pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
     conn: Conn<I, Bs::Data, T>,
     dispatch: D,
     body_tx: Option<crate::body::Sender>,
@@ -65,7 +65,7 @@ where
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: HttpBody + 'static,
+    Bs: Body + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
@@ -403,7 +403,7 @@ where
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: HttpBody + 'static,
+    Bs: Body + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<Dispatched>;
@@ -464,7 +464,7 @@ cfg_server! {
     where
         S: HttpService<Recv, ResBody = Bs>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bs: HttpBody,
+        Bs: Body,
     {
         type PollItem = MessageHead<http::StatusCode>;
         type PollBody = Bs;
@@ -540,7 +540,7 @@ cfg_client! {
 
     impl<B> Dispatch for Client<B>
     where
-        B: HttpBody,
+        B: Body,
     {
         type PollItem = RequestHead;
         type PollBody = B;

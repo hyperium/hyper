@@ -10,7 +10,7 @@ use std::task::Context;
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, trace, warn};
 
-use crate::body::HttpBody;
+use crate::body::Body;
 use crate::common::{task, Future, Pin, Poll};
 use crate::proto::h2::ping::Recorder;
 
@@ -87,7 +87,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
 pin_project! {
     struct PipeToSendStream<S>
     where
-        S: HttpBody,
+        S: Body,
     {
         body_tx: SendStream<SendBuf<S::Data>>,
         data_done: bool,
@@ -98,7 +98,7 @@ pin_project! {
 
 impl<S> PipeToSendStream<S>
 where
-    S: HttpBody,
+    S: Body,
 {
     fn new(stream: S, tx: SendStream<SendBuf<S::Data>>) -> PipeToSendStream<S> {
         PipeToSendStream {
@@ -111,7 +111,7 @@ where
 
 impl<S> Future for PipeToSendStream<S>
 where
-    S: HttpBody,
+    S: Body,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<()>;

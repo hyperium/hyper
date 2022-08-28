@@ -4,7 +4,7 @@ use std::env;
 
 use bytes::Bytes;
 use http_body_util::Empty;
-use hyper::{body::HttpBody as _, Request};
+use hyper::{body::Body as _, Request};
 use tokio::io::{self, AsyncWriteExt as _};
 use tokio::net::TcpStream;
 

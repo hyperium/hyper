@@ -1,11 +1,11 @@
 use bytes::Buf;
 
-use super::HttpBody;
+use super::Body;
 use crate::common::buf::BufList;
 
 /// Aggregate the data buffers from a body asynchronously.
 ///
-/// The returned `impl Buf` groups the `Buf`s from the `HttpBody` without
+/// The returned `impl Buf` groups the `Buf`s from the `Body` without
 /// copying them. This is ideal if you don't require a contiguous buffer.
 ///
 /// # Note
@@ -15,7 +15,7 @@ use crate::common::buf::BufList;
 /// `Content-Length` is a possibility, but it is not strictly mandated to be present.
 pub async fn aggregate<T>(body: T) -> Result<impl Buf, T::Error>
 where
-    T: HttpBody,
+    T: Body,
 {
     let mut bufs = BufList::new();
 

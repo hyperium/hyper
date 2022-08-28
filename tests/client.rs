@@ -1340,7 +1340,7 @@ mod conn {
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
-    use hyper::body::HttpBody;
+    use hyper::body::Body;
     use hyper::client::conn;
     use hyper::upgrade::OnUpgrade;
     use hyper::{self, Method, Recv, Request, Response, StatusCode};
@@ -1449,7 +1449,7 @@ mod conn {
 
     #[test]
     fn incoming_content_length() {
-        use hyper::body::HttpBody;
+        use hyper::body::Body;
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();

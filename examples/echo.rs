@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
-use hyper::body::HttpBody as _;
+use hyper::body::Body as _;
 use hyper::server::conn::Http;
 use hyper::service::service_fn;
 use hyper::{Method, Recv, Request, Response, StatusCode};

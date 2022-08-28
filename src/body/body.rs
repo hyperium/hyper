@@ -5,7 +5,7 @@ use futures_channel::mpsc;
 use futures_channel::oneshot;
 use futures_core::Stream; // for mpsc::Receiver
 use http::HeaderMap;
-use http_body::{Body as HttpBody, SizeHint};
+use http_body::{Body, SizeHint};
 
 use super::DecodedLength;
 use crate::common::Future;
@@ -18,7 +18,7 @@ type TrailersSender = oneshot::Sender<HeaderMap>;
 
 /// A stream of `Bytes`, used when receiving bodies.
 ///
-/// A good default [`HttpBody`](crate::body::HttpBody) to use in many
+/// A good default [`Body`](crate::body::Body) to use in many
 /// applications.
 ///
 /// Note: To read the full body, use [`body::to_bytes`](crate::body::to_bytes)
@@ -195,7 +195,7 @@ impl Recv {
     }
 }
 
-impl HttpBody for Recv {
+impl Body for Recv {
     type Data = Bytes;
     type Error = crate::Error;
 
@@ -386,7 +386,7 @@ mod tests {
     use std::mem;
     use std::task::Poll;
 
-    use super::{DecodedLength, HttpBody, Recv, Sender, SizeHint};
+    use super::{Body, DecodedLength, Recv, Sender, SizeHint};
 
     #[test]
     fn test_size_of() {
@@ -402,7 +402,7 @@ mod tests {
             body_expected_size,
         );
 
-        assert_eq!(body_size, mem::size_of::<Option<Recv>>(), "Option<Body>");
+        assert_eq!(body_size, mem::size_of::<Option<Recv>>(), "Option<Recv>");
 
         assert_eq!(
             mem::size_of::<Sender>(),
