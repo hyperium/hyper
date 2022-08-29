@@ -8,7 +8,7 @@
 use std::{
     pin::Pin,
     task::{Context, Poll},
-    time::{Duration, Instant}
+    time::{Duration, Instant},
 };
 
 use futures_core::Future;
@@ -20,20 +20,16 @@ pub trait Executor<Fut> {
 }
 
 /// A timer which provides timer-like functions, similar to tokio::time::*.
-pub trait Timer : std::fmt::Debug {
+pub trait Timer {
     /// An analogue of tokio::time::sleep.
     fn sleep(&self, duration: Duration) -> Box<dyn Sleep + Unpin>;
 
     /// An analogue of tokio::time::sleep_until.
     fn sleep_until(&self, deadline: Instant) -> Box<dyn Sleep + Unpin>;
-
-    /// An analogue of tokio::time::interval.
-    fn interval(&self, period: Duration) -> Box<dyn Interval>;
 }
 
 /// The generic version of tokio::time::Sleep, which itself is the output of tokio::time::sleep
 pub trait Sleep: Send + Sync + Unpin + Future<Output = ()> {
-
     /// An analogue of tokio::time::Sleep::deadline.
     fn deadline(&self) -> Instant;
 
@@ -46,7 +42,6 @@ pub trait Sleep: Send + Sync + Unpin + Future<Output = ()> {
 
 /// The generic version of tokio::time::Interval, which itself is the output of tokio::time::sleep
 pub trait Interval: Send + Sync {
-
     /// An analogue of tokio::time::Interval::is_elapsed.
     fn poll_tick(&mut self, cx: &mut Context<'_>) -> Poll<Instant>;
 }

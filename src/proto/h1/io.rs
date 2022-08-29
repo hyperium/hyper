@@ -676,6 +676,8 @@ enum WriteStrategy {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::time::Time;
+
     use super::*;
     use std::time::Duration;
 
@@ -743,7 +745,7 @@ mod tests {
                 h1_header_read_timeout_fut: &mut None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
-                timer: None,
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,

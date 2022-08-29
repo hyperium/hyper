@@ -9,7 +9,7 @@ use futures_channel::oneshot;
 use tracing::{debug, trace};
 
 use super::client::Ver;
-use crate::common::tim::Tim;
+use crate::common::time::Time;
 use crate::common::{exec::Exec, task, Future, Pin, Poll, Unpin};
 use crate::rt::Interval;
 
@@ -81,7 +81,7 @@ struct PoolInner<T> {
     #[cfg(feature = "runtime")]
     exec: Exec,
     #[cfg(feature = "runtime")]
-    timer: Tim,
+    timer: Time,
     timeout: Option<Duration>,
 }
 
@@ -102,7 +102,7 @@ impl Config {
 }
 
 impl<T> Pool<T> {
-    pub(super) fn new(config: Config, __exec: &Exec, __tim: &Tim) -> Pool<T> {
+    pub(super) fn new(config: Config, __exec: &Exec, __tim: &Time) -> Pool<T> {
         let inner = if config.is_enabled() {
             Some(Arc::new(Mutex::new(PoolInner {
                 connecting: HashSet::new(),
@@ -404,8 +404,6 @@ impl<T: Poolable> PoolInner<T> {
 
     #[cfg(feature = "runtime")]
     fn spawn_idle_interval(&mut self, pool_ref: &Arc<Mutex<PoolInner<T>>>) {
-        use crate::rt::Timer;
-
         let (dur, rx) = {
             if self.idle_interval_ref.is_some() {
                 return;
@@ -798,7 +796,7 @@ mod tests {
     use std::time::Duration;
 
     use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
-    use crate::common::{exec::Exec, task, Future, Pin};
+    use crate::common::{exec::Exec, task, time::Time, Future, Pin};
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
@@ -840,7 +838,7 @@ mod tests {
                 max_idle_per_host: max_idle,
             },
             &Exec::Default,
-            &None
+            &Time::Empty,
         );
         pool.no_timer();
         pool
@@ -878,7 +876,8 @@ mod tests {
         }
     }
 
-    #[tokio::test] #[ignore] // requires a timer. pool is being moved to hyper-util, re-enable there.
+    #[tokio::test]
+    #[ignore] // requires a timer. pool is being moved to hyper-util, re-enable there.
     async fn test_pool_checkout_returns_none_if_expired() {
         let pool = pool_no_timer();
         let key = host_key("foo");
@@ -893,7 +892,8 @@ mod tests {
     }
 
     #[cfg(feature = "runtime")]
-    #[tokio::test] #[ignore] // requires a timer. pool is being moved to hyper-util, re-enable there.
+    #[tokio::test]
+    #[ignore] // requires a timer. pool is being moved to hyper-util, re-enable there.
     async fn test_pool_checkout_removes_expired() {
         let pool = pool_no_timer();
         let key = host_key("foo");
@@ -932,7 +932,8 @@ mod tests {
     }
 
     #[cfg(feature = "runtime")]
-    #[tokio::test] #[ignore] //pool is moving to hyper-util; re-enable there.
+    #[tokio::test]
+    #[ignore] //pool is moving to hyper-util; re-enable there.
     async fn test_pool_timer_removes_expired() {
         let _ = pretty_env_logger::try_init();
         tokio::time::pause();
@@ -943,7 +944,7 @@ mod tests {
                 max_idle_per_host: std::usize::MAX,
             },
             &Exec::Default,
-            &None,
+            &Time::Empty,
         );
 
         let key = host_key("foo");

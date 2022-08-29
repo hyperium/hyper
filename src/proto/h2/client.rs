@@ -13,7 +13,7 @@ use tracing::{debug, trace, warn};
 
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
-use crate::common::tim::Tim;
+use crate::common::time::Time;
 use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
@@ -110,7 +110,7 @@ pub(crate) async fn handshake<T, B>(
     req_rx: ClientRx<B>,
     config: &Config,
     exec: Exec,
-    timer: Tim,
+    timer: Time,
 ) -> crate::Result<ClientTask<B>>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,

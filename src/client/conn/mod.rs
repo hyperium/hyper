@@ -71,7 +71,6 @@ use tower_service::Service;
 use tracing::{debug, trace};
 
 use super::dispatch;
-use crate::{body::HttpBody, common::tim::Tim, rt::Timer};
 #[cfg(not(all(feature = "http1", feature = "http2")))]
 use crate::common::Never;
 use crate::common::{
@@ -82,6 +81,7 @@ use crate::proto;
 use crate::rt::Executor;
 #[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
+use crate::{body::HttpBody, common::time::Time, rt::Timer};
 use crate::{Body, Request, Response};
 
 #[cfg(feature = "http1")]
@@ -156,7 +156,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
-    pub(super) timer: Tim,
+    pub(super) timer: Time,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
@@ -560,7 +560,7 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
-            timer: None,
+            timer: Time::Empty,
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
@@ -595,7 +595,7 @@ impl Builder {
     where
         M: Timer + Send + Sync + 'static,
     {
-        self.timer = Some(Arc::new(timer));
+        self.timer = Time::Timer(Arc::new(timer));
         self
     }
 
@@ -971,7 +971,8 @@ impl Builder {
             let proto = match opts.version {
                 #[cfg(feature = "http1")]
                 Proto::Http1 => {
-                    let mut conn = proto::Conn::new(io, opts.timer);
+                    let mut conn = proto::Conn::new(io);
+                    conn.set_timer(opts.timer);
                     conn.set_h1_parser_config(opts.h1_parser_config);
                     if let Some(writev) = opts.h1_writev {
                         if writev {
@@ -1009,9 +1010,14 @@ impl Builder {
                 }
                 #[cfg(feature = "http2")]
                 Proto::Http2 => {
-                    let h2 =
-                        proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec.clone(), opts.timer.clone())
-                            .await?;
+                    let h2 = proto::h2::client::handshake(
+                        io,
+                        rx,
+                        &opts.h2_builder,
+                        opts.exec.clone(),
+                        opts.timer.clone(),
+                    )
+                    .await?;
                     ProtoClient::H2 { h2 }
                 }
             };

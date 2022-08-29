@@ -12,8 +12,6 @@ pub(crate) mod buf;
 pub(crate) mod date;
 #[cfg(any(feature = "http1", feature = "http2", feature = "server"))]
 pub(crate) mod exec;
-#[cfg(any(feature = "http1", feature = "http2", feature = "server"))]
-pub(crate) mod tim;
 pub(crate) mod io;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 mod lazy;
@@ -21,6 +19,8 @@ mod never;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 pub(crate) mod sync_wrapper;
 pub(crate) mod task;
+#[cfg(any(feature = "http1", feature = "http2", feature = "server"))]
+pub(crate) mod time;
 pub(crate) mod watch;
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]

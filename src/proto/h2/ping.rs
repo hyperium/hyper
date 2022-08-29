@@ -34,7 +34,7 @@ use crate::rt::Timer;
 use h2::{Ping, PingPong};
 use tracing::{debug, trace};
 
-use crate::common::tim::Tim;
+use crate::common::time::Time;
 use crate::rt::Sleep;
 
 type WindowSize = u32;
@@ -43,7 +43,7 @@ pub(super) fn disabled() -> Recorder {
     Recorder { shared: None }
 }
 
-pub(super) fn channel(ping_pong: PingPong, config: Config, timer: Tim) -> (Recorder, Ponger) {
+pub(super) fn channel(ping_pong: PingPong, config: Config, timer: Time) -> (Recorder, Ponger) {
     debug_assert!(
         config.is_enabled(),
         "ping channel requires bdp or keep-alive config",
@@ -329,7 +329,7 @@ impl Ponger {
                     }
                 }
 
-                if let Some(ref mut bdp) =  self.bdp {
+                if let Some(ref mut bdp) = self.bdp {
                     let bytes = locked.bytes.expect("bdp enabled implies bytes");
                     locked.bytes = Some(0); // reset
                     trace!("received BDP ack; bytes = {}, rtt = {:?}", bytes, rtt);
@@ -337,7 +337,7 @@ impl Ponger {
                     let update = bdp.calculate(bytes, rtt);
                     locked.next_bdp_at = Some(now + bdp.ping_delay);
                     if let Some(update) = update {
-                        return Poll::Ready(Ponged::SizeUpdate(update))
+                        return Poll::Ready(Ponged::SizeUpdate(update));
                     }
                 }
             }

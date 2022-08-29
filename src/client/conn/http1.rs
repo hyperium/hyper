@@ -8,17 +8,17 @@ use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::Body;
+use super::super::dispatch;
 use crate::body::HttpBody;
-use crate::common::tim::Tim;
+use crate::common::time::Time;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
-use crate::upgrade::Upgraded;
 use crate::proto;
 use crate::rt::{Executor, Timer};
-use super::super::dispatch;
+use crate::upgrade::Upgraded;
+use crate::Body;
 
 type Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
@@ -47,7 +47,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
-    pub(super) timer: Tim,
+    pub(super) timer: Time,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
@@ -147,7 +147,10 @@ where
     /// # }
     /// # fn main() {}
     /// ```
-    pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Body>>> {
+    pub fn send_request(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = crate::Result<Response<Body>>> {
         let sent = self.dispatch.send(req);
 
         async move {
@@ -157,7 +160,7 @@ where
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
-                }
+                },
                 Err(_req) => {
                     tracing::debug!("connection was not ready");
 
@@ -249,7 +252,7 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
-            timer: None,
+            timer: Time::Empty,
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
@@ -276,7 +279,7 @@ impl Builder {
     where
         M: Timer + Send + Sync + 'static,
     {
-        self.timer = Some(Arc::new(timer));
+        self.timer = Time::Timer(Arc::new(timer));
         self
     }
 
@@ -474,7 +477,8 @@ impl Builder {
             tracing::trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
-            let mut conn = proto::Conn::new(io, opts.timer);
+            let mut conn = proto::Conn::new(io);
+            conn.set_timer(opts.timer);
             conn.set_h1_parser_config(opts.h1_parser_config);
             if let Some(writev) = opts.h1_writev {
                 if writev {
@@ -513,4 +517,3 @@ impl Builder {
         }
     }
 }
-

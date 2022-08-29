@@ -60,7 +60,6 @@ macro_rules! maybe_panic {
     })
 }
 
-
 pub(super) fn parse_headers<T>(
     bytes: &mut BytesMut,
     ctx: ParseContext<'_>,
@@ -995,7 +994,6 @@ impl Http1Transaction for Client {
                     // SAFETY: array is valid up to `headers_len`
                     let header = unsafe { &mut *header.as_mut_ptr() };
                     Client::obs_fold_line(&mut slice, header);
-
                 }
             }
 
@@ -1567,6 +1565,8 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 mod tests {
     use bytes::BytesMut;
 
+    use crate::common::time::Time;
+
     use super::*;
 
     #[test]
@@ -1587,7 +1587,7 @@ mod tests {
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
                 #[cfg(feature = "runtime")]
-                timer: None,
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -1624,7 +1624,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1656,7 +1656,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1686,7 +1686,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1718,7 +1718,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1754,7 +1754,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1787,7 +1787,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1815,7 +1815,7 @@ mod tests {
             #[cfg(feature = "runtime")]
             h1_header_read_timeout_running: &mut false,
             #[cfg(feature = "runtime")]
-            timer: None,
+            timer: Time::Empty,
             preserve_header_case: true,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1864,7 +1864,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -1894,7 +1894,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2133,7 +2133,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2163,7 +2163,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2193,7 +2193,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2477,18 +2477,12 @@ mod tests {
                 value: (0, buf.len()),
             };
             Client::obs_fold_line(&mut buf, &mut idx);
-            String::from_utf8(buf[idx.value.0 .. idx.value.1].to_vec()).unwrap()
+            String::from_utf8(buf[idx.value.0..idx.value.1].to_vec()).unwrap()
         }
 
-        assert_eq!(
-            unfold("a normal line"),
-            "a normal line",
-        );
+        assert_eq!(unfold("a normal line"), "a normal line",);
 
-        assert_eq!(
-            unfold("obs\r\n fold\r\n\t line"),
-            "obs fold line",
-        );
+        assert_eq!(unfold("obs\r\n fold\r\n\t line"), "obs fold line",);
     }
 
     #[test]
@@ -2724,7 +2718,7 @@ mod tests {
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
                 #[cfg(feature = "runtime")]
-                timer: None,
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -2818,7 +2812,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2868,7 +2862,7 @@ mod tests {
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout_running: &mut false,
                     #[cfg(feature = "runtime")]
-                    timer: None,
+                    timer: Time::Empty,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,

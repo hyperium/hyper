@@ -51,11 +51,11 @@ use std::time::Duration;
 
 #[cfg(feature = "http2")]
 use crate::common::io::Rewind;
-use crate::{common::tim::Tim, rt::Timer};
 #[cfg(all(feature = "http1", feature = "http2"))]
 use crate::error::{Kind, Parse};
 #[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
+use crate::{common::time::Time, rt::Timer};
 
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]
@@ -87,7 +87,7 @@ cfg_feature! {
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Http<E = Exec> {
     pub(crate) exec: E,
-    pub(crate) timer: Tim,
+    pub(crate) timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
@@ -152,7 +152,7 @@ type Http2Server<T, B, S, E> = (
 #[cfg(any(feature = "http1", feature = "http2"))]
 pin_project! {
     #[project = ProtoServerProj]
-    pub(super) enum ProtoServer<T, B, S, E = Exec, M = Tim>
+    pub(super) enum ProtoServer<T, B, S, E = Exec, M = Time>
     where
         S: HttpService<Body>,
         B: HttpBody,
@@ -171,7 +171,7 @@ pin_project! {
 #[cfg(all(feature = "http1", feature = "http2"))]
 #[derive(Clone, Debug)]
 enum Fallback<E> {
-    ToHttp2(proto::h2::server::Config, E, Tim),
+    ToHttp2(proto::h2::server::Config, E, Time),
     Http1Only,
 }
 
@@ -227,7 +227,7 @@ impl Http {
     pub fn new() -> Http {
         Http {
             exec: Exec::Default,
-            timer: None,
+            timer: Time::Empty,
             h1_half_close: false,
             h1_keep_alive: true,
             h1_title_case_headers: false,
@@ -580,7 +580,7 @@ impl<E> Http<E> {
     {
         Http {
             exec: self.exec,
-            timer: Some(Arc::new(timer)),
+            timer: Time::Timer(Arc::new(timer)),
             h1_half_close: self.h1_half_close,
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
@@ -636,7 +636,8 @@ impl<E> Http<E> {
         #[cfg(feature = "http1")]
         macro_rules! h1 {
             () => {{
-                let mut conn = proto::Conn::new(io, self.timer.clone());
+                let mut conn = proto::Conn::new(io);
+                conn.set_timer(self.timer.clone());
                 if !self.h1_keep_alive {
                     conn.disable_keep_alive();
                 }
@@ -681,8 +682,13 @@ impl<E> Http<E> {
             #[cfg(feature = "http2")]
             ConnectionMode::H2Only => {
                 let rewind_io = Rewind::new(io);
-                let h2 =
-                    proto::h2::Server::new(rewind_io, service, &self.h2_builder, self.exec.clone(), self.timer.clone());
+                let h2 = proto::h2::Server::new(
+                    rewind_io,
+                    service,
+                    &self.h2_builder,
+                    self.exec.clone(),
+                    self.timer.clone(),
+                );
                 ProtoServer::H2 { h2 }
             }
         };
@@ -691,7 +697,11 @@ impl<E> Http<E> {
             conn: Some(proto),
             #[cfg(all(feature = "http1", feature = "http2"))]
             fallback: if self.mode == ConnectionMode::Fallback {
-                Fallback::ToHttp2(self.h2_builder.clone(), self.exec.clone(), self.timer.clone())
+                Fallback::ToHttp2(
+                    self.h2_builder.clone(),
+                    self.exec.clone(),
+                    self.timer.clone(),
+                )
             } else {
                 Fallback::Http1Only
             },
@@ -835,7 +845,12 @@ where
         let mut conn = Some(self);
         futures_util::future::poll_fn(move |cx| {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
-            Poll::Ready(conn.take().unwrap().try_into_parts().ok_or_else(crate::Error::new_without_shutdown_not_h1))
+            Poll::Ready(
+                conn.take()
+                    .unwrap()
+                    .try_into_parts()
+                    .ok_or_else(crate::Error::new_without_shutdown_not_h1),
+            )
         })
     }
 
@@ -856,7 +871,13 @@ where
             Fallback::ToHttp2(ref builder, ref exec, ref timer) => (builder, exec, timer),
             Fallback::Http1Only => unreachable!("upgrade_h2 with Fallback::Http1Only"),
         };
-        let h2 = proto::h2::Server::new(rewind_io, dispatch.into_service(), builder, exec.clone(), timer.clone());
+        let h2 = proto::h2::Server::new(
+            rewind_io,
+            dispatch.into_service(),
+            builder,
+            exec.clone(),
+            timer.clone(),
+        );
 
         debug_assert!(self.conn.is_none());
         self.conn = Some(ProtoServer::H2 { h2 });

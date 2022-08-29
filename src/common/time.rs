@@ -1,12 +1,25 @@
 use std::{
+    fmt,
     sync::Arc,
-    time::{Duration, Instant}
+    time::{Duration, Instant},
 };
 
-use crate::rt::{Interval, Sleep, Timer};
+use crate::rt::{Sleep, Timer};
 
 /// A user-provided timer to time background tasks.
-pub(crate) type Tim = Option<Arc<dyn Timer + Send + Sync>>;
+//pub(crate) type Time = Option<Arc<dyn Timer + Send + Sync>>;
+
+#[derive(Clone)]
+pub(crate) enum Time {
+    Timer(Arc<dyn Timer + Send + Sync>),
+    Empty,
+}
+
+impl fmt::Debug for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Time").finish()
+    }
+}
 
 /*
 pub(crate) fn timeout<F>(tim: Tim, future: F, duration: Duration) -> HyperTimeout<F> {
@@ -42,30 +55,23 @@ impl<F> Future for HyperTimeout<F> where F: Future {
 }
 */
 
-impl Timer for Tim {
+use crate::common::time::Time::Timer as SomeTimer;
+
+impl Timer for Time {
     fn sleep(&self, duration: Duration) -> Box<dyn Sleep + Unpin> {
         match *self {
-            None => {
+            Empty => {
                 panic!("You must supply a timer.")
             }
-            Some(ref t) => t.sleep(duration),
+            SomeTimer(ref t) => t.sleep(duration),
         }
     }
     fn sleep_until(&self, deadline: Instant) -> Box<dyn Sleep + Unpin> {
         match *self {
-            None => {
+            Empty => {
                 panic!("You must supply a timer.")
             }
-            Some(ref t) => t.sleep_until(deadline),
+            SomeTimer(ref t) => t.sleep_until(deadline),
         }
     }
-
-    fn interval(&self, period: Duration) -> Box<dyn Interval> {
-        match *self {
-            None => {
-                panic!("You must supply a timer.")
-            }
-            Some(ref t) => t.interval(period),
-        }
-    }
-} 
+}
