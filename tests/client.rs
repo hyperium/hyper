@@ -1325,6 +1325,7 @@ test! {
 }
 
 mod conn {
+    use std::error::Error;
     use std::io::{self, Read, Write};
     use std::net::{SocketAddr, TcpListener};
     use std::pin::Pin;
@@ -1333,15 +1334,15 @@ mod conn {
     use std::time::Duration;
 
     use bytes::{Buf, Bytes};
-    use futures_channel::oneshot;
+    use futures_channel::{mpsc, oneshot};
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
-    use http_body_util::Empty;
-    use hyper::upgrade::OnUpgrade;
+    use http_body_util::{Empty, StreamBody};
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
     use hyper::body::HttpBody;
     use hyper::client::conn;
+    use hyper::upgrade::OnUpgrade;
     use hyper::{self, Method, Recv, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
@@ -1524,17 +1525,23 @@ mod conn {
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
-        let (mut sender, body) = Recv::channel();
+        let (mut sender, recv) = mpsc::channel::<Result<Bytes, Box<dyn Error + Send + Sync>>>(0);
+
         let sender = thread::spawn(move || {
-            sender.try_send_data("hello".into()).expect("try_send_data");
+            sender.try_send(Ok("hello".into())).expect("try_send_data");
             support::runtime().block_on(rx).unwrap();
-            sender.abort();
+
+            // Aborts the body in an abnormal fashion.
+            let _ = sender.try_send(Err(Box::new(std::io::Error::new(
+                io::ErrorKind::Other,
+                "body write aborted",
+            ))));
         });
 
         let req = Request::builder()
             .method(Method::POST)
             .uri("/")
-            .body(body)
+            .body(StreamBody::new(recv))
             .unwrap();
         let res = client.send_request(req);
         rt.block_on(res).unwrap_err();
@@ -2111,7 +2118,7 @@ mod conn {
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Recv>(io)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -2120,9 +2127,10 @@ mod conn {
         });
 
         // Use a channel to keep request stream open
-        let (_tx, body) = hyper::Recv::channel();
-        let req1 = http::Request::new(body);
-        let _resp = client.send_request(req1).await.expect("send_request");
+        let (_tx, recv) = mpsc::channel::<Result<Bytes, Box<dyn Error + Send + Sync>>>(0);
+        let req = http::Request::new(StreamBody::new(recv));
+
+        let _resp = client.send_request(req).await.expect("send_request");
 
         // sleep longer than keepalive would trigger
         tokio::time::sleep(Duration::from_secs(4)).await;
