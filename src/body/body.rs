@@ -61,7 +61,7 @@ enum Kind {
 /// [`Body::channel()`]: struct.Body.html#method.channel
 /// [`Sender::abort()`]: struct.Sender.html#method.abort
 #[must_use = "Sender does nothing unless sent on"]
-pub struct Sender {
+pub(crate) struct Sender {
     want_rx: watch::Receiver,
     data_tx: BodySender,
     trailers_tx: Option<TrailersSender>,
@@ -75,7 +75,8 @@ impl Recv {
     ///
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
-    pub fn channel() -> (Sender, Recv) {
+    #[allow(unused)]
+    pub(crate) fn channel() -> (Sender, Recv) {
         Self::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false)
     }
 
@@ -289,7 +290,7 @@ impl fmt::Debug for Recv {
 
 impl Sender {
     /// Check to see if this `Sender` can send more data.
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         // Check if the receiver end has tried polling for the body yet
         ready!(self.poll_want(cx)?);
         self.data_tx
@@ -311,7 +312,8 @@ impl Sender {
     }
 
     /// Send data on data channel when it is ready.
-    pub async fn send_data(&mut self, chunk: Bytes) -> crate::Result<()> {
+    #[allow(unused)]
+    pub(crate) async fn send_data(&mut self, chunk: Bytes) -> crate::Result<()> {
         self.ready().await?;
         self.data_tx
             .try_send(Ok(chunk))
@@ -319,7 +321,8 @@ impl Sender {
     }
 
     /// Send trailers on trailers channel.
-    pub async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
+    #[allow(unused)]
+    pub(crate) async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
         let tx = match self.trailers_tx.take() {
             Some(tx) => tx,
             None => return Err(crate::Error::new_closed()),
@@ -339,14 +342,15 @@ impl Sender {
     /// This is mostly useful for when trying to send from some other thread
     /// that doesn't have an async context. If in an async context, prefer
     /// `send_data()` instead.
-    pub fn try_send_data(&mut self, chunk: Bytes) -> Result<(), Bytes> {
+    pub(crate) fn try_send_data(&mut self, chunk: Bytes) -> Result<(), Bytes> {
         self.data_tx
             .try_send(Ok(chunk))
             .map_err(|err| err.into_inner().expect("just sent Ok"))
     }
 
     /// Aborts the body in an abnormal fashion.
-    pub fn abort(self) {
+    #[allow(unused)]
+    pub(crate) fn abort(self) {
         let _ = self
             .data_tx
             // clone so the send works even if buffer is full
