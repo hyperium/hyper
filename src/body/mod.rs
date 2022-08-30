@@ -7,16 +7,16 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - **The [`HttpBody`](HttpBody) trait** describes all possible bodies.
-//!   hyper allows any body type that implements `HttpBody`, allowing
+//! - **The [`Body`](Body) trait** describes all possible bodies.
+//!   hyper allows any body type that implements `Body`, allowing
 //!   applications to have fine-grained control over their streaming.
 //! - **The [`Recv`](Recv) concrete type**, which is an implementation of
-//!   `HttpBody`, and returned by hyper as a "receive stream" (so, for server
+//!   `Body`, and returned by hyper as a "receive stream" (so, for server
 //!   requests and client responses). It is also a decent default implementation
 //!   if you don't have very custom needs of your send streams.
 
 pub use bytes::{Buf, Bytes};
-pub use http_body::Body as HttpBody;
+pub use http_body::Body;
 pub use http_body::SizeHint;
 
 pub use self::aggregate::aggregate;

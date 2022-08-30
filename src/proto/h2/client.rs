@@ -12,7 +12,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
-use crate::body::HttpBody;
+use crate::body::Body;
 use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
@@ -112,7 +112,7 @@ pub(crate) async fn handshake<T, B>(
 ) -> crate::Result<ClientTask<B>>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    B: HttpBody,
+    B: Body,
     B::Data: Send + 'static,
 {
     let (h2_tx, mut conn) = new_builder(config)
@@ -195,7 +195,7 @@ where
 
 pub(crate) struct ClientTask<B>
 where
-    B: HttpBody,
+    B: Body,
 {
     ping: ping::Recorder,
     conn_drop_ref: ConnDropRef,
@@ -207,7 +207,7 @@ where
 
 impl<B> ClientTask<B>
 where
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     pub(crate) fn is_extended_connect_protocol_enabled(&self) -> bool {
         self.h2_tx.is_extended_connect_protocol_enabled()
@@ -216,7 +216,7 @@ where
 
 impl<B> Future for ClientTask<B>
 where
-    B: HttpBody + Send + 'static,
+    B: Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {

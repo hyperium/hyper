@@ -12,7 +12,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
-use crate::body::HttpBody;
+use crate::body::Body;
 use crate::common::exec::ConnStreamExec;
 use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
@@ -77,7 +77,7 @@ pin_project! {
     pub(crate) struct Server<T, S, B, E>
     where
         S: HttpService<Recv>,
-        B: HttpBody,
+        B: Body,
     {
         exec: E,
         service: S,
@@ -87,7 +87,7 @@ pin_project! {
 
 enum State<T, B>
 where
-    B: HttpBody,
+    B: Body,
 {
     Handshaking {
         ping_config: ping::Config,
@@ -99,7 +99,7 @@ where
 
 struct Serving<T, B>
 where
-    B: HttpBody,
+    B: Body,
 {
     ping: Option<(ping::Recorder, ping::Ponger)>,
     conn: Connection<T, SendBuf<B::Data>>,
@@ -111,7 +111,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
 {
     pub(crate) fn new(io: T, service: S, config: &Config, exec: E) -> Server<T, S, B, E> {
@@ -183,7 +183,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
@@ -227,7 +227,7 @@ where
 impl<T, B> Serving<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     fn poll_server<S, E>(
         &mut self,
@@ -373,7 +373,7 @@ pin_project! {
     #[allow(missing_debug_implementations)]
     pub struct H2Stream<F, B>
     where
-        B: HttpBody,
+        B: Body,
     {
         reply: SendResponse<SendBuf<B::Data>>,
         #[pin]
@@ -385,7 +385,7 @@ pin_project! {
     #[project = H2StreamStateProj]
     enum H2StreamState<F, B>
     where
-        B: HttpBody,
+        B: Body,
     {
         Service {
             #[pin]
@@ -407,7 +407,7 @@ struct ConnectParts {
 
 impl<F, B> H2Stream<F, B>
 where
-    B: HttpBody,
+    B: Body,
 {
     fn new(
         fut: F,
@@ -437,7 +437,7 @@ macro_rules! reply {
 impl<F, B, E> H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
-    B: HttpBody,
+    B: Body,
     B::Data: 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
@@ -530,7 +530,7 @@ where
 impl<F, B, E> Future for H2Stream<F, B>
 where
     F: Future<Output = Result<Response<B>, E>>,
-    B: HttpBody,
+    B: Body,
     B::Data: 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,

@@ -4,13 +4,13 @@ use std::pin::Pin;
 use std::sync::Arc;
 
 #[cfg(feature = "server")]
-use crate::body::HttpBody;
+use crate::body::Body;
 #[cfg(all(feature = "http2", feature = "server"))]
 use crate::proto::h2::server::H2Stream;
 use crate::rt::Executor;
 
 #[cfg(feature = "server")]
-pub trait ConnStreamExec<F, B: HttpBody>: Clone {
+pub trait ConnStreamExec<F, B: Body>: Clone {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
 }
 
@@ -60,7 +60,7 @@ impl fmt::Debug for Exec {
 impl<F, B> ConnStreamExec<F, B> for Exec
 where
     H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: HttpBody,
+    B: Body,
 {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
         self.execute(fut)
@@ -74,7 +74,7 @@ impl<E, F, B> ConnStreamExec<F, B> for E
 where
     E: Executor<H2Stream<F, B>> + Clone,
     H2Stream<F, B>: Future<Output = ()>,
-    B: HttpBody,
+    B: Body,
 {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
         self.execute(fut)
@@ -94,7 +94,7 @@ pub struct H2Stream<F, B>(std::marker::PhantomData<(F, B)>);
 impl<F, B, E> Future for H2Stream<F, B>
 where
     F: Future<Output = Result<http::Response<B>, E>>,
-    B: crate::body::HttpBody,
+    B: crate::body::Body,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     E: Into<Box<dyn std::error::Error + Send + Sync>>,
 {

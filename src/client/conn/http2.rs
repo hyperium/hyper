@@ -11,7 +11,7 @@ use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::Recv;
-use crate::body::HttpBody;
+use crate::body::Body;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
@@ -33,7 +33,7 @@ pub struct SendRequest<B> {
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     inner: (PhantomData<T>, proto::h2::ClientTask<B>),
 }
@@ -96,7 +96,7 @@ impl<B> SendRequest<B> {
 
 impl<B> SendRequest<B>
 where
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -174,7 +174,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -184,7 +184,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: HttpBody + Send + 'static,
+    B: Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -388,7 +388,7 @@ impl Builder {
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        B: HttpBody + 'static,
+        B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {

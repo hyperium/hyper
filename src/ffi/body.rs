@@ -8,7 +8,7 @@ use libc::{c_int, size_t};
 
 use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
-use crate::body::{Bytes, HttpBody as _, Recv};
+use crate::body::{Body as _, Bytes, Recv};
 
 /// A streaming HTTP body.
 pub struct hyper_body(pub(super) Recv);

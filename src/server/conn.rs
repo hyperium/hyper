@@ -67,7 +67,7 @@ cfg_feature! {
     use tokio::io::{AsyncRead, AsyncWrite};
     use tracing::trace;
 
-    use crate::body::{Recv, HttpBody};
+    use crate::body::{Recv, Body};
     use crate::common::{task, Future, Pin, Poll, Unpin};
     #[cfg(not(all(feature = "http1", feature = "http2")))]
     use crate::common::Never;
@@ -153,7 +153,7 @@ pin_project! {
     pub(super) enum ProtoServer<T, B, S, E = Exec>
     where
         S: HttpService<Recv>,
-        B: HttpBody,
+        B: Body,
     {
         H1 {
             #[pin]
@@ -601,7 +601,7 @@ impl<E> Http<E> {
     where
         S: HttpService<Recv, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bd: HttpBody + 'static,
+        Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         E: ConnStreamExec<S::Future, Bd>,
@@ -682,7 +682,7 @@ where
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<S::Future, B>,
 {
@@ -852,7 +852,7 @@ where
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<S::Future, B>,
 {
@@ -931,7 +931,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin,
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: HttpBody + 'static,
+    B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<S::Future, B>,
 {
@@ -974,7 +974,7 @@ mod upgrades {
         S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
-        B: HttpBody + 'static,
+        B: Body + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: ConnStreamExec<S::Future, B>,
     {
@@ -992,7 +992,7 @@ mod upgrades {
         S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        B: HttpBody + 'static,
+        B: Body + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: ConnStreamExec<S::Future, B>,
     {

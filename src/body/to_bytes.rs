@@ -1,6 +1,6 @@
 use bytes::{Buf, BufMut, Bytes};
 
-use super::HttpBody;
+use super::Body;
 
 /// Concatenate the buffers from a body into a single `Bytes` asynchronously.
 ///
@@ -19,7 +19,7 @@ use super::HttpBody;
 /// ```
 /// # use hyper::{Recv, Response};
 /// # async fn doc(response: Response<Recv>) -> hyper::Result<()> {
-/// # use hyper::body::HttpBody;
+/// # use hyper::body::Body;
 /// // let response: Response<Body> ...
 ///
 /// const MAX_ALLOWED_RESPONSE_SIZE: u64 = 1024;
@@ -39,7 +39,7 @@ use super::HttpBody;
 /// ```
 pub async fn to_bytes<T>(body: T) -> Result<Bytes, T::Error>
 where
-    T: HttpBody,
+    T: Body,
 {
     futures_util::pin_mut!(body);
 
