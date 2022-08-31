@@ -10,14 +10,14 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::Recv;
 use crate::body::Body;
+use super::super::dispatch;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
-use crate::upgrade::Upgraded;
 use crate::proto;
-use crate::rt::Executor;
-use super::super::dispatch;
+use crate::rt::{Executor};
+use crate::upgrade::Upgraded;
 
 type Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
@@ -120,7 +120,10 @@ where
     ///   before calling this method.
     /// - Since absolute-form `Uri`s are not required, if received, they will
     ///   be serialized as-is.
-    pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Recv>>> {
+    pub fn send_request(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = crate::Result<Response<Recv>>> {
         let sent = self.dispatch.send(req);
 
         async move {
@@ -130,7 +133,7 @@ where
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
-                }
+                },
                 Err(_req) => {
                     tracing::debug!("connection was not ready");
 
@@ -476,4 +479,3 @@ impl Builder {
         }
     }
 }
-

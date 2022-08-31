@@ -9,16 +9,18 @@ use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Sleep;
 use tracing::{debug, error, trace};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
+#[cfg(all(feature = "server", feature = "runtime"))]
+use crate::common::time::Time;
 use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, MessageHead};
+#[cfg(all(feature = "server", feature = "runtime"))]
+use crate::rt::Sleep;
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -57,6 +59,8 @@ where
                 h1_header_read_timeout_fut: None,
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_running: false,
+                #[cfg(all(feature = "server", feature = "runtime"))]
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -76,6 +80,11 @@ where
             },
             _marker: PhantomData,
         }
+    }
+
+    #[cfg(all(feature = "server", feature = "runtime"))]
+    pub(crate) fn set_timer(&mut self, timer: Time) {
+        self.state.timer = timer;
     }
 
     #[cfg(feature = "server")]
@@ -202,6 +211,8 @@ where
                 h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
                 #[cfg(all(feature = "server", feature = "runtime"))]
                 h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
+                #[cfg(all(feature = "server", feature = "runtime"))]
+                timer: self.state.timer.clone(),
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
@@ -802,9 +813,11 @@ struct State {
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(all(feature = "server", feature = "runtime"))]
-    h1_header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
+    h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_running: bool,
+    #[cfg(all(feature = "server", feature = "runtime"))]
+    timer: Time,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
@@ -1035,7 +1048,8 @@ mod tests {
 
         // an empty IO, we'll be skipping and using the read buffer anyways
         let io = tokio_test::io::Builder::new().build();
-        let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
+        let mut conn =
+            Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
 

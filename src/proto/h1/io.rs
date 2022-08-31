@@ -5,13 +5,9 @@ use std::future::Future;
 use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
-#[cfg(all(feature = "server", feature = "runtime"))]
-use std::time::Duration;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Instant;
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
@@ -193,6 +189,8 @@ where
                     h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
+                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    timer: parse_ctx.timer.clone(),
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
@@ -209,15 +207,7 @@ where
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     {
                         *parse_ctx.h1_header_read_timeout_running = false;
-
-                        if let Some(h1_header_read_timeout_fut) =
-                            parse_ctx.h1_header_read_timeout_fut
-                        {
-                            // Reset the timer in order to avoid woken up when the timeout finishes
-                            h1_header_read_timeout_fut
-                                .as_mut()
-                                .reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
-                        }
+                        parse_ctx.h1_header_read_timeout_fut.take();
                     }
                     return Poll::Ready(Ok(msg));
                 }
@@ -674,6 +664,8 @@ enum WriteStrategy {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::time::Time;
+
     use super::*;
     use std::time::Duration;
 
@@ -741,6 +733,8 @@ mod tests {
                 h1_header_read_timeout_fut: &mut None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
+                #[cfg(feature = "runtime")]
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,

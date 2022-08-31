@@ -14,6 +14,7 @@ use tracing::{debug, trace, warn};
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::Body;
 use crate::common::exec::ConnStreamExec;
+use crate::common::time::Time;
 use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
@@ -35,7 +36,7 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
-// 16 MB "sane default" taken from golang http2
+                                                     // 16 MB "sane default" taken from golang http2
 const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
 
 #[derive(Clone, Debug)]
@@ -80,6 +81,7 @@ pin_project! {
         B: Body,
     {
         exec: E,
+        timer: Time,
         service: S,
         state: State<T, B>,
     }
@@ -114,7 +116,13 @@ where
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
 {
-    pub(crate) fn new(io: T, service: S, config: &Config, exec: E) -> Server<T, S, B, E> {
+    pub(crate) fn new(
+        io: T,
+        service: S,
+        config: &Config,
+        exec: E,
+        timer: Time,
+    ) -> Server<T, S, B, E> {
         let mut builder = h2::server::Builder::default();
         builder
             .initial_window_size(config.initial_stream_window_size)
@@ -150,6 +158,7 @@ where
 
         Server {
             exec,
+            timer,
             state: State::Handshaking {
                 ping_config,
                 hs: handshake,
@@ -199,7 +208,11 @@ where
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
-                        Some(ping::channel(pp, ping_config.clone()))
+                        Some(ping::channel(
+                            pp,
+                            ping_config.clone(),
+                            me.timer.clone(),
+                        ))
                     } else {
                         None
                     };

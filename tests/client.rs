@@ -1337,6 +1337,7 @@ mod conn {
     use futures_channel::{mpsc, oneshot};
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
     use http_body_util::{Empty, StreamBody};
+    use hyper::rt::Timer;
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
@@ -1346,6 +1347,8 @@ mod conn {
     use hyper::{self, Method, Recv, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
+
+    use support::TokioTimer;
 
     #[tokio::test]
     async fn get() {
@@ -1491,7 +1494,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         let chunk = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
         assert_eq!(chunk.len(), 5);
     }
@@ -1592,7 +1595,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1638,7 +1641,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1690,7 +1693,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         rt.block_on(future::join3(res1, res2, rx).map(|r| r.0))
             .unwrap();
     }
@@ -1751,7 +1754,7 @@ mod conn {
             });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+            let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_upgrade, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -1842,7 +1845,7 @@ mod conn {
                 });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+            let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_tunneled, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -1950,7 +1953,7 @@ mod conn {
         let _ = shdn_tx.send(true);
 
         // Allow time for graceful shutdown roundtrips...
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        TokioTimer.sleep(Duration::from_millis(100)).await;
 
         // After graceful shutdown roundtrips, the client should be closed...
         future::poll_fn(|ctx| client.poll_ready(ctx))
@@ -1982,6 +1985,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (_client, conn) = conn::Builder::new()
+            .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2015,6 +2019,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2027,7 +2032,7 @@ mod conn {
         });
 
         // sleep longer than keepalive would trigger
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        TokioTimer.sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2051,6 +2056,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2097,6 +2103,7 @@ mod conn {
         tokio::spawn(async move {
             let sock = listener.accept().await.unwrap().0;
             hyper::server::conn::Http::new()
+                .with_timer(TokioTimer)
                 .http2_only(true)
                 .serve_connection(
                     sock,
@@ -2115,6 +2122,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
@@ -2133,7 +2141,7 @@ mod conn {
         let _resp = client.send_request(req).await.expect("send_request");
 
         // sleep longer than keepalive would trigger
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        TokioTimer.sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await

@@ -13,6 +13,7 @@ use tracing::{debug, trace, warn};
 
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::Body;
+use crate::common::time::Time;
 use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
@@ -109,6 +110,7 @@ pub(crate) async fn handshake<T, B>(
     req_rx: ClientRx<B>,
     config: &Config,
     exec: Exec,
+    timer: Time,
 ) -> crate::Result<ClientTask<B>>
 where
     T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
@@ -137,7 +139,7 @@ where
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
-        let (recorder, mut ponger) = ping::channel(pp, ping_config);
+        let (recorder, mut ponger) = ping::channel(pp, ping_config, timer);
 
         let conn = future::poll_fn(move |cx| {
             match ponger.poll(cx) {

@@ -4,11 +4,13 @@ use std::{pin::Pin, time::Duration};
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
 use httparse::ParserConfig;
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Sleep;
 
 use crate::body::DecodedLength;
+#[cfg(all(feature = "server", feature = "runtime"))]
+use crate::common::time::Time;
 use crate::proto::{BodyLength, MessageHead};
+#[cfg(all(feature = "server", feature = "runtime"))]
+use crate::rt::Sleep;
 
 pub(crate) use self::conn::Conn;
 pub(crate) use self::decode::Decoder;
@@ -79,9 +81,11 @@ pub(crate) struct ParseContext<'a> {
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(all(feature = "server", feature = "runtime"))]
-    h1_header_read_timeout_fut: &'a mut Option<Pin<Box<Sleep>>>,
+    h1_header_read_timeout_fut: &'a mut Option<Pin<Box<dyn Sleep>>>,
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout_running: &'a mut bool,
+    #[cfg(all(feature = "server", feature = "runtime"))]
+    timer: Time,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
