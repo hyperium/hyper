@@ -12,13 +12,14 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::Recv;
 use crate::body::Body;
+use super::super::dispatch;
+use crate::common::time::Time;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
 use crate::proto;
-use crate::rt::Executor;
-use super::super::dispatch;
+use crate::rt::{Executor, Timer};
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
@@ -44,6 +45,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder {
     pub(super) exec: Exec,
+    pub(super) timer: Time,
     h2_builder: proto::h2::client::Config,
 }
 
@@ -114,7 +116,10 @@ where
     ///   before calling this method.
     /// - Since absolute-form `Uri`s are not required, if received, they will
     ///   be serialized as-is.
-    pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Recv>>> {
+    pub fn send_request(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = crate::Result<Response<Recv>>> {
         let sent = self.dispatch.send(req);
 
         async move {
@@ -124,7 +129,7 @@ where
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
-                }
+                },
                 Err(_req) => {
                     tracing::debug!("connection was not ready");
 
@@ -207,6 +212,7 @@ impl Builder {
     pub fn new() -> Builder {
         Builder {
             exec: Exec::Default,
+            timer: Time::Empty,
             h2_builder: Default::default(),
         }
     }
@@ -217,6 +223,15 @@ impl Builder {
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
         self.exec = Exec::Executor(Arc::new(exec));
+        self
+    }
+
+    /// Provide a timer to execute background HTTP2 tasks.
+    pub fn timer<M>(&mut self, timer: M) -> &mut Builder
+    where
+        M: Timer + Send + Sync + 'static,
+    {
+        self.timer = Time::Timer(Arc::new(timer));
         self
     }
 
@@ -398,14 +413,13 @@ impl Builder {
             tracing::trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
-            let h2 =
-                proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec)
-                    .await?;
+            let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
+                .await?;
             Ok((
                 SendRequest { dispatch: tx.unbound() },
+                //SendRequest { dispatch: tx },
                 Connection { inner: (PhantomData, h2) },
             ))
         }
     }
 }
-

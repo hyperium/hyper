@@ -96,7 +96,6 @@ server = []
 runtime = [
     "tokio/net",
     "tokio/rt",
-    "tokio/time",
 ]
 
 # C-API support (currently unstable (no semver))

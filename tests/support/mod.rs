@@ -21,6 +21,9 @@ pub use futures_util::{
 pub use hyper::{HeaderMap, StatusCode};
 pub use std::net::SocketAddr;
 
+mod tokiort;
+pub use tokiort::TokioTimer;
+
 #[allow(unused_macros)]
 macro_rules! t {
     (

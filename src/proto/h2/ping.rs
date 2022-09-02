@@ -27,14 +27,16 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{self, Poll};
-use std::time::Duration;
-#[cfg(not(feature = "runtime"))]
-use std::time::Instant;
+use std::time::{Duration, Instant};
+
 
 use h2::{Ping, PingPong};
-#[cfg(feature = "runtime")]
-use tokio::time::{Instant, Sleep};
 use tracing::{debug, trace};
+
+#[cfg_attr(not(feature = "runtime"), allow(unused))]
+use crate::common::time::Time;
+#[cfg_attr(not(feature = "runtime"), allow(unused))]
+use crate::rt::Sleep;
 
 type WindowSize = u32;
 
@@ -42,7 +44,7 @@ pub(super) fn disabled() -> Recorder {
     Recorder { shared: None }
 }
 
-pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger) {
+pub(super) fn channel(ping_pong: PingPong, config: Config, __timer: Time) -> (Recorder, Ponger) {
     debug_assert!(
         config.is_enabled(),
         "ping channel requires bdp or keep-alive config",
@@ -67,8 +69,9 @@ pub(super) fn channel(ping_pong: PingPong, config: Config) -> (Recorder, Ponger)
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        timer: Box::pin(tokio::time::sleep(interval)),
+        sleep: crate::common::into_pin(__timer.sleep(interval)),
         state: KeepAliveState::Init,
+        timer: __timer,
     });
 
     #[cfg(feature = "runtime")]
@@ -173,13 +176,14 @@ struct KeepAlive {
     while_idle: bool,
 
     state: KeepAliveState,
-    timer: Pin<Box<Sleep>>,
+    sleep: Pin<Box<dyn Sleep>>,
+    timer: Time,
 }
 
 #[cfg(feature = "runtime")]
 enum KeepAliveState {
     Init,
-    Scheduled,
+    Scheduled(Instant),
     PingSent,
 }
 
@@ -301,7 +305,7 @@ impl Ponger {
         #[cfg(feature = "runtime")]
         {
             if let Some(ref mut ka) = self.keep_alive {
-                ka.schedule(is_idle, &locked);
+                ka.maybe_schedule(is_idle, &locked);
                 ka.maybe_ping(cx, &mut locked);
             }
         }
@@ -324,11 +328,12 @@ impl Ponger {
                 {
                     if let Some(ref mut ka) = self.keep_alive {
                         locked.update_last_read_at();
-                        ka.schedule(is_idle, &locked);
+                        ka.maybe_schedule(is_idle, &locked);
+                        ka.maybe_ping(cx, &mut locked);
                     }
                 }
 
-                if let Some(ref mut bdp) =  self.bdp {
+                if let Some(ref mut bdp) = self.bdp {
                     let bytes = locked.bytes.expect("bdp enabled implies bytes");
                     locked.bytes = Some(0); // reset
                     trace!("received BDP ack; bytes = {}, rtt = {:?}", bytes, rtt);
@@ -336,7 +341,7 @@ impl Ponger {
                     let update = bdp.calculate(bytes, rtt);
                     locked.next_bdp_at = Some(now + bdp.ping_delay);
                     if let Some(update) = update {
-                        return Poll::Ready(Ponged::SizeUpdate(update))
+                        return Poll::Ready(Ponged::SizeUpdate(update));
                     }
                 }
             }
@@ -471,38 +476,39 @@ fn seconds(dur: Duration) -> f64 {
 
 #[cfg(feature = "runtime")]
 impl KeepAlive {
-    fn schedule(&mut self, is_idle: bool, shared: &Shared) {
+    fn maybe_schedule(&mut self, is_idle: bool, shared: &Shared) {
         match self.state {
             KeepAliveState::Init => {
                 if !self.while_idle && is_idle {
                     return;
                 }
 
-                self.state = KeepAliveState::Scheduled;
-                let interval = shared.last_read_at() + self.interval;
-                self.timer.as_mut().reset(interval);
+                self.schedule(shared);
             }
             KeepAliveState::PingSent => {
                 if shared.is_ping_sent() {
                     return;
                 }
-
-                self.state = KeepAliveState::Scheduled;
-                let interval = shared.last_read_at() + self.interval;
-                self.timer.as_mut().reset(interval);
+                self.schedule(shared);
             }
-            KeepAliveState::Scheduled => (),
+            KeepAliveState::Scheduled(..) => (),
         }
+    }
+
+    fn schedule(&mut self, shared: &Shared) {
+        let interval = shared.last_read_at() + self.interval;
+        self.state = KeepAliveState::Scheduled(interval);
+        self.timer.reset(&mut self.sleep, interval);
     }
 
     fn maybe_ping(&mut self, cx: &mut task::Context<'_>, shared: &mut Shared) {
         match self.state {
-            KeepAliveState::Scheduled => {
-                if Pin::new(&mut self.timer).poll(cx).is_pending() {
+            KeepAliveState::Scheduled(at) => {
+                if Pin::new(&mut self.sleep).poll(cx).is_pending() {
                     return;
                 }
                 // check if we've received a frame while we were scheduled
-                if shared.last_read_at() + self.interval > self.timer.deadline() {
+                if shared.last_read_at() + self.interval > at {
                     self.state = KeepAliveState::Init;
                     cx.waker().wake_by_ref(); // schedule us again
                     return;
@@ -511,7 +517,7 @@ impl KeepAlive {
                 shared.send_ping();
                 self.state = KeepAliveState::PingSent;
                 let timeout = Instant::now() + self.timeout;
-                self.timer.as_mut().reset(timeout);
+                self.timer.reset(&mut self.sleep, timeout);
             }
             KeepAliveState::Init | KeepAliveState::PingSent => (),
         }
@@ -520,13 +526,13 @@ impl KeepAlive {
     fn maybe_timeout(&mut self, cx: &mut task::Context<'_>) -> Result<(), KeepAliveTimedOut> {
         match self.state {
             KeepAliveState::PingSent => {
-                if Pin::new(&mut self.timer).poll(cx).is_pending() {
+                if Pin::new(&mut self.sleep).poll(cx).is_pending() {
                     return Ok(());
                 }
                 trace!("keep-alive timeout ({:?}) reached", self.timeout);
                 Err(KeepAliveTimedOut)
             }
-            KeepAliveState::Init | KeepAliveState::Scheduled => Ok(()),
+            KeepAliveState::Init | KeepAliveState::Scheduled(..) => Ok(()),
         }
     }
 }
