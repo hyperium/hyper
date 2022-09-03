@@ -33,15 +33,7 @@ impl Exec {
     {
         match *self {
             Exec::Default => {
-                #[cfg(feature = "runtime")]
-                {
-                    tokio::task::spawn(fut);
-                }
-
-                #[cfg(not(feature = "runtime"))]
-                {
-                    panic!("executor must be set")
-                }
+                tokio::task::spawn(fut);
             }
             Exec::Executor(ref e) => {
                 e.execute(Box::pin(fut));

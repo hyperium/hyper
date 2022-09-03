@@ -1,11 +1,11 @@
 use std::{fmt, sync::Arc};
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use std::{
     pin::Pin,
     time::{Duration, Instant},
 };
 
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use crate::rt::Sleep;
 use crate::rt::Timer;
 
@@ -56,7 +56,7 @@ impl<F> Future for HyperTimeout<F> where F: Future {
 }
 */
 
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 impl Time {
     pub(crate) fn sleep(&self, duration: Duration) -> Box<dyn Sleep + Unpin> {
         match *self {

@@ -1,5 +1,4 @@
 use std::error::Error as StdError;
-#[cfg(feature = "runtime")]
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -46,11 +45,8 @@ pub(crate) struct Config {
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
     pub(crate) max_frame_size: u32,
-    #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
-    #[cfg(feature = "runtime")]
     pub(crate) keep_alive_timeout: Duration,
-    #[cfg(feature = "runtime")]
     pub(crate) keep_alive_while_idle: bool,
     pub(crate) max_concurrent_reset_streams: Option<usize>,
     pub(crate) max_send_buffer_size: usize,
@@ -63,11 +59,8 @@ impl Default for Config {
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
-            #[cfg(feature = "runtime")]
             keep_alive_interval: None,
-            #[cfg(feature = "runtime")]
             keep_alive_timeout: Duration::from_secs(20),
-            #[cfg(feature = "runtime")]
             keep_alive_while_idle: false,
             max_concurrent_reset_streams: None,
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
@@ -96,11 +89,8 @@ fn new_ping_config(config: &Config) -> ping::Config {
         } else {
             None
         },
-        #[cfg(feature = "runtime")]
         keep_alive_interval: config.keep_alive_interval,
-        #[cfg(feature = "runtime")]
         keep_alive_timeout: config.keep_alive_timeout,
-        #[cfg(feature = "runtime")]
         keep_alive_while_idle: config.keep_alive_while_idle,
     }
 }
@@ -147,7 +137,6 @@ where
                     conn.set_target_window_size(wnd);
                     conn.set_initial_window_size(wnd)?;
                 }
-                #[cfg(feature = "runtime")]
                 Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
                     debug!("connection keep-alive timed out");
                     return Poll::Ready(Ok(()));

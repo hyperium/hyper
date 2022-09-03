@@ -19,7 +19,7 @@ pub(crate) mod task;
 pub(crate) mod time;
 pub(crate) mod watch;
 
-#[cfg(any(feature = "http1", feature = "http2", feature = "runtime"))]
+#[cfg(any(feature = "http1", feature = "http2"))]
 pub(crate) use self::never::Never;
 pub(crate) use self::task::Poll;
 

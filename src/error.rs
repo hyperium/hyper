@@ -38,7 +38,7 @@ pub(super) enum Kind {
     #[cfg(all(feature = "tcp", feature = "server"))]
     Listen,
     /// User took too long to send headers
-    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+    #[cfg(all(feature = "http1", feature = "server"))]
     HeaderTimeout,
     /// Error while reading a body from connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -278,7 +278,7 @@ impl Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
-    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+    #[cfg(all(feature = "http1", feature = "server"))]
     pub(super) fn new_header_timeout() -> Error {
         Error::new(Kind::HeaderTimeout)
     }
@@ -370,7 +370,7 @@ impl Error {
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "server", feature = "tcp"))]
             Kind::Listen => "error creating server listener",
-            #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+            #[cfg(all(feature = "http1", feature = "server"))]
             Kind::HeaderTimeout => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Body => "error reading a body from connection",
