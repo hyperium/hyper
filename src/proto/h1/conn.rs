@@ -1038,7 +1038,7 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "nightly")]
+    #[cfg(all(feature = "nightly", not(miri)))]
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
         use super::*;
