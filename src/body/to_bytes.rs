@@ -14,6 +14,23 @@ use super::Body;
 /// checks and an malicious peer might make it consume arbitrary amounts of memory. Checking the
 /// `Content-Length` is a possibility, but it is not strictly mandated to be present.
 ///
+/// Trailers are ignored by this function. If you need to handle them, you can use this function
+/// without consuming the body, and then extract trailers afterwards.
+///
+/// ```
+/// # use hyper::{Recv, Response};
+/// # async fn doc(response: Response<Recv>) -> hyper::Result<()> {
+/// # use hyper::body::Body;
+///
+/// let mut body = response.into_body();
+///
+/// let data = hyper::body::to_bytes(&mut body).await?;
+/// let trailers = body.trailers().await?;
+///
+/// # Ok(())
+/// # }
+/// ```
+///
 /// # Example
 ///
 /// ```
