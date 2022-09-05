@@ -29,6 +29,7 @@ pub(crate) trait Dispatch {
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Recv)>) -> crate::Result<()>;
+    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
 
@@ -501,6 +502,14 @@ cfg_server! {
             Ok(())
         }
 
+        fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+            if self.in_flight.is_some() {
+                Poll::Pending
+            } else {
+                Poll::Ready(Ok(()))
+            }
+        }
+
         fn should_poll(&self) -> bool {
             self.in_flight.is_some()
         }
@@ -600,6 +609,10 @@ cfg_client! {
                     }
                 }
             }
+        }
+
+        fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+            Poll::Ready(Ok(()))
         }
 
         fn should_poll(&self) -> bool {
