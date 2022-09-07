@@ -611,8 +611,17 @@ cfg_client! {
             }
         }
 
-        fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
-            Poll::Ready(Ok(()))
+        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+            match self.callback {
+                Some(ref mut cb) => match cb.poll_canceled(cx) {
+                    Poll::Ready(()) => {
+                        trace!("callback receiver has dropped");
+                        Poll::Ready(Err(()))
+                    }
+                    Poll::Pending => Poll::Ready(Ok(())),
+                },
+                None => Poll::Ready(Err(())),
+            }
         }
 
         fn should_poll(&self) -> bool {

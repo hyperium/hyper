@@ -18,7 +18,6 @@
 //! use http_body_util::Empty;
 //! use hyper::client::conn;
 //! use tokio::net::TcpStream;
-//! use tower::ServiceExt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
