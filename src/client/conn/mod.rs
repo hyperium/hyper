@@ -18,7 +18,6 @@
 //! use http_body_util::Empty;
 //! use hyper::client::conn;
 //! use tokio::net::TcpStream;
-//! use tower::ServiceExt;
 //!
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -41,9 +40,6 @@
 //!     let response = request_sender.send_request(request).await?;
 //!     assert!(response.status() == StatusCode::OK);
 //!
-//!     // To send via the same connection again, it may not work as it may not be ready,
-//!     // so we have to wait until the request_sender becomes ready.
-//!     request_sender.ready().await?;
 //!     let request = Request::builder()
 //!         .header("Host", "example.com")
 //!         .method("GET")
@@ -69,7 +65,6 @@ use futures_util::future;
 use httparse::ParserConfig;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
-use tower_service::Service;
 use tracing::{debug, trace};
 
 use super::dispatch;
@@ -263,23 +258,6 @@ where
         };
 
         ResponseFuture { inner }
-    }
-}
-
-impl<B> Service<Request<B>> for SendRequest<B>
-where
-    B: Body + 'static,
-{
-    type Response = Response<Recv>;
-    type Error = crate::Error;
-    type Future = ResponseFuture;
-
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
-        self.poll_ready(cx)
-    }
-
-    fn call(&mut self, req: Request<B>) -> Self::Future {
-        self.send_request(req)
     }
 }
 

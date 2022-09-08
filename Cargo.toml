@@ -35,7 +35,6 @@ h2 = { version = "0.3.9", optional = true }
 itoa = "1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
-tower-service = "0.3"
 tokio = { version = "1", features = ["sync"] }
 want = "0.3"
 
@@ -65,7 +64,6 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = { version = "0.7", features = ["codec"] }
-tower = { version = "0.4", features = ["make", "util"] }
 url = "2.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
