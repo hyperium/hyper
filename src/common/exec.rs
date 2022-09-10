@@ -33,7 +33,7 @@ impl Exec {
     {
         match *self {
             Exec::Default => {
-                tokio::task::spawn(fut);
+                panic!("executor must be set");
             }
             Exec::Executor(ref e) => {
                 e.execute(Box::pin(fut));

@@ -9,8 +9,19 @@ use std::{
 use futures_util::Future;
 use hyper::rt::{Sleep, Timer};
 
+#[derive(Clone)]
 /// An Executor that uses the tokio runtime.
 pub struct TokioExecutor;
+
+impl<F> hyper::rt::Executor<F> for TokioExecutor
+where
+    F: std::future::Future + Send + 'static,
+    F::Output: Send + 'static,
+{
+    fn execute(&self, fut: F) {
+        tokio::task::spawn(fut);
+    }
+}
 
 /// A Timer that uses the tokio runtime.
 
