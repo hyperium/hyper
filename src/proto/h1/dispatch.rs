@@ -233,7 +233,7 @@ where
     }
 
     fn poll_read_head(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        // can dispatch receive, or does it still care about, an incoming message?
+        // can dispatch receive, or does it still care about other incoming message?
         match ready!(self.dispatch.poll_ready(cx)) {
             Ok(()) => (),
             Err(()) => {
@@ -242,6 +242,7 @@ where
                 return Poll::Ready(Ok(()));
             }
         }
+
         // dispatch is ready for a message, try to read one
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
@@ -511,14 +512,11 @@ cfg_server! {
             Ok(())
         }
 
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+        fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
             if self.in_flight.is_some() {
                 Poll::Pending
             } else {
-                self.service.poll_ready(cx).map_err(|_e| {
-                    // FIXME: return error value.
-                    trace!("service closed");
-                })
+                Poll::Ready(Ok(()))
             }
         }
 
