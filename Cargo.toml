@@ -103,6 +103,8 @@ ffi = ["libc"]
 nightly = []
 __internal_happy_eyeballs_tests = []
 
+mptcp = ["socket2"]
+
 [package.metadata.docs.rs]
 features = ["ffi", "full"]
 rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi"]
@@ -147,6 +149,11 @@ required-features = ["full"]
 name = "http_proxy"
 path = "examples/http_proxy.rs"
 required-features = ["full"]
+
+[[example]]
+name = "mptcp"
+path = "examples/mptcp.rs"
+required-features = ["full", "mptcp"]
 
 [[example]]
 name = "multi_server"
