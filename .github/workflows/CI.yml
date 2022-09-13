@@ -45,6 +45,28 @@ jobs:
           command: fmt
           args: --all -- --check
 
+
+  analysis:
+    name: Static Code Analysis
+    needs: [ci-pass]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+          components: rustfmt
+
+      - name: cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: cargo clippy
+
   test:
     name: Test ${{ matrix.rust }} on ${{ matrix.os }}
     needs: [style]
