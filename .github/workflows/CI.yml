@@ -61,10 +61,10 @@ jobs:
           override: true
           components: clippy
 
-      - name: cargo clippy
+      - name: clippy
         uses: actions-rs/cargo@v1
         with:
-          command: cargo clippy
+          command: clippy
 
   test:
     name: Test ${{ matrix.rust }} on ${{ matrix.os }}
