@@ -46,7 +46,7 @@ jobs:
           command: fmt
           args: --all -- --check
 
-  analysis:
+  clippy:
     name: Static Code Analysis ( Clippy )
     runs-on: ubuntu-latest
     steps:
