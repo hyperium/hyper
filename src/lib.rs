@@ -1,5 +1,6 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
+#![deny(clippy::self_named_module_files)]
 #![cfg_attr(test, deny(rust_2018_idioms))]
 #![cfg_attr(all(test, feature = "full"), deny(unreachable_pub))]
 #![cfg_attr(all(test, feature = "full"), deny(warnings))]
@@ -15,7 +16,6 @@
     dead_code,
     unused_imports
 )]
-#![deny(clippy::self_named_module_files)]
 
 //! # hyper
 //!
