@@ -59,7 +59,7 @@ jobs:
           profile: minimal
           toolchain: stable
           override: true
-          components: rustfmt
+          components: clippy
 
       - name: cargo clippy
         uses: actions-rs/cargo@v1
