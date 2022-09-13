@@ -15,7 +15,7 @@
     dead_code,
     unused_imports
 )]
-
+#![deny(clippy::self_named_module_files)]
 
 //! # hyper
 //!

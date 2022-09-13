@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     needs:
       - style
+      - clippy
       - test
       - msrv
       - miri
@@ -45,10 +46,8 @@ jobs:
           command: fmt
           args: --all -- --check
 
-
   analysis:
-    name: Static Code Analysis
-    needs: [ci-pass]
+    name: Static Code Analysis ( Clippy )
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
