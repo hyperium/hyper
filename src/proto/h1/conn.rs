@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use std::time::Duration;
 
 use bytes::{Buf, Bytes};
@@ -14,12 +14,12 @@ use tracing::{debug, error, trace};
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use crate::common::time::Time;
 use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, MessageHead};
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use crate::rt::Sleep;
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
@@ -53,13 +53,13 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: None,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_running: false,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
@@ -82,7 +82,7 @@ where
         }
     }
 
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     pub(crate) fn set_timer(&mut self, timer: Time) {
         self.state.timer = timer;
     }
@@ -132,7 +132,7 @@ where
         self.state.h09_responses = true;
     }
 
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
     }
@@ -205,13 +205,13 @@ where
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout: self.state.h1_header_read_timeout,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 timer: self.state.timer.clone(),
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
@@ -810,13 +810,13 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     h1_header_read_timeout_running: bool,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     timer: Time,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
@@ -1038,7 +1038,7 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "nightly")]
+    #[cfg(all(feature = "nightly", not(miri)))]
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
         use super::*;
@@ -1048,8 +1048,7 @@ mod tests {
 
         // an empty IO, we'll be skipping and using the read buffer anyways
         let io = tokio_test::io::Builder::new().build();
-        let mut conn =
-            Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
+        let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
 

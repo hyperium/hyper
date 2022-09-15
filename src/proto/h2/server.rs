@@ -1,6 +1,6 @@
 use std::error::Error as StdError;
 use std::marker::Unpin;
-#[cfg(feature = "runtime")]
+
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -47,9 +47,7 @@ pub(crate) struct Config {
     pub(crate) max_frame_size: u32,
     pub(crate) enable_connect_protocol: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
-    #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
-    #[cfg(feature = "runtime")]
     pub(crate) keep_alive_timeout: Duration,
     pub(crate) max_send_buffer_size: usize,
     pub(crate) max_header_list_size: u32,
@@ -64,9 +62,7 @@ impl Default for Config {
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             enable_connect_protocol: false,
             max_concurrent_streams: None,
-            #[cfg(feature = "runtime")]
             keep_alive_interval: None,
-            #[cfg(feature = "runtime")]
             keep_alive_timeout: Duration::from_secs(20),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_header_list_size: DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE,
@@ -146,13 +142,10 @@ where
 
         let ping_config = ping::Config {
             bdp_initial_window: bdp,
-            #[cfg(feature = "runtime")]
             keep_alive_interval: config.keep_alive_interval,
-            #[cfg(feature = "runtime")]
             keep_alive_timeout: config.keep_alive_timeout,
             // If keep-alive is enabled for servers, always enabled while
             // idle, so it can more aggressively close dead connections.
-            #[cfg(feature = "runtime")]
             keep_alive_while_idle: true,
         };
 
@@ -208,11 +201,7 @@ where
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
-                        Some(ping::channel(
-                            pp,
-                            ping_config.clone(),
-                            me.timer.clone(),
-                        ))
+                        Some(ping::channel(pp, ping_config.clone(), me.timer.clone()))
                     } else {
                         None
                     };
@@ -339,7 +328,6 @@ where
                     self.conn.set_target_window_size(wnd);
                     let _ = self.conn.set_initial_window_size(wnd);
                 }
-                #[cfg(feature = "runtime")]
                 Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
                     debug!("keep-alive timed out, closing connection");
                     self.conn.abrupt_shutdown(h2::Reason::NO_ERROR);

@@ -54,6 +54,7 @@ serde_json = "1.0"
 tokio = { version = "1", features = [
     "fs",
     "macros",
+    "net",
     "io-std",
     "io-util",
     "rt",
@@ -79,7 +80,6 @@ full = [
     "http1",
     "http2",
     "server",
-    "runtime",
 ]
 
 # HTTP versions
@@ -89,12 +89,6 @@ http2 = ["h2"]
 # Client/Server
 client = []
 server = []
-
-# Tokio support
-runtime = [
-    "tokio/net",
-    "tokio/rt",
-]
 
 # C-API support (currently unstable (no semver))
 ffi = ["libc"]

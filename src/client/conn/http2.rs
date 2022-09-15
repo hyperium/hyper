@@ -4,15 +4,13 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
-#[cfg(feature = "runtime")]
 use std::time::Duration;
 
 use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::Recv;
-use crate::body::Body;
 use super::super::dispatch;
+use crate::body::Body;
 use crate::common::time::Time;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
@@ -20,6 +18,7 @@ use crate::common::{
 };
 use crate::proto;
 use crate::rt::{Executor, Timer};
+use crate::Recv;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
@@ -309,11 +308,6 @@ impl Builder {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(
@@ -330,11 +324,6 @@ impl Builder {
     /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
@@ -350,11 +339,6 @@ impl Builder {
     /// disabled.
     ///
     /// Default is `false`.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
@@ -416,9 +400,12 @@ impl Builder {
             let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
                 .await?;
             Ok((
-                SendRequest { dispatch: tx.unbound() },
-                //SendRequest { dispatch: tx },
-                Connection { inner: (PhantomData, h2) },
+                SendRequest {
+                    dispatch: tx.unbound(),
+                },
+                Connection {
+                    inner: (PhantomData, h2),
+                },
             ))
         }
     }

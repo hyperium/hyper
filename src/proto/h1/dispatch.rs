@@ -6,7 +6,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
-use crate::body::{Recv, DecodedLength, Body};
+use crate::body::{Body, DecodedLength, Recv};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
@@ -681,6 +681,7 @@ mod tests {
         });
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn client_flushing_is_not_ready_for_next_request() {
         let _ = pretty_env_logger::try_init();
@@ -704,10 +705,7 @@ mod tests {
             body
         };
 
-        let req = crate::Request::builder()
-            .method("POST")
-            .body(body)
-            .unwrap();
+        let req = crate::Request::builder().method("POST").body(body).unwrap();
 
         let res = tx.try_send(req).unwrap().await.expect("response");
         drop(res);
@@ -715,6 +713,7 @@ mod tests {
         assert!(!tx.is_ready());
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn body_empty_chunks_ignored() {
         let _ = pretty_env_logger::try_init();

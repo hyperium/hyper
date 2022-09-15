@@ -11,7 +11,7 @@
 //! ## Example
 //! A simple example that uses the `SendRequest` struct to talk HTTP over a Tokio TCP stream
 //! ```no_run
-//! # #[cfg(all(feature = "client", feature = "http1", feature = "runtime"))]
+//! # #[cfg(all(feature = "client", feature = "http1"))]
 //! # mod rt {
 //! use bytes::Bytes;
 //! use http::{Request, StatusCode};
@@ -57,7 +57,7 @@ use std::fmt;
 #[cfg(not(all(feature = "http1", feature = "http2")))]
 use std::marker::PhantomData;
 use std::sync::Arc;
-#[cfg(all(feature = "runtime", feature = "http2"))]
+#[cfg(feature = "http2")]
 use std::time::Duration;
 
 use bytes::Bytes;
@@ -79,8 +79,8 @@ use crate::proto;
 use crate::rt::Executor;
 #[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
-use crate::{Recv, Request, Response};
 use crate::{common::time::Time, rt::Timer};
+use crate::{Recv, Request, Response};
 
 #[cfg(feature = "http1")]
 pub mod http1;
@@ -121,9 +121,7 @@ pin_project! {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
-    io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
@@ -702,11 +700,6 @@ impl Builder {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(
@@ -723,11 +716,6 @@ impl Builder {
     /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
@@ -743,11 +731,6 @@ impl Builder {
     /// disabled.
     ///
     /// Default is `false`.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {

@@ -8,7 +8,7 @@
 //! ## Example
 //! A simple example that uses the `Http` struct to talk HTTP over a Tokio TCP stream
 //! ```no_run
-//! # #[cfg(all(feature = "http1", feature = "runtime"))]
+//! # #[cfg(feature = "http1")]
 //! # mod rt {
 //! use http::{Request, Response, StatusCode};
 //! use http_body_util::Full;
@@ -47,7 +47,7 @@
 ))]
 use std::marker::PhantomData;
 use std::sync::Arc;
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "runtime"))]
+#[cfg(any(feature = "http1", feature = "http2"))]
 use std::time::Duration;
 
 #[cfg(feature = "http2")]
@@ -93,7 +93,7 @@ pub struct Http<E = Exec> {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
-    #[cfg(all(feature = "http1", feature = "runtime"))]
+    #[cfg(feature = "http1")]
     h1_header_read_timeout: Option<Duration>,
     h1_writev: Option<bool>,
     #[cfg(feature = "http2")]
@@ -233,7 +233,7 @@ impl Http {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
-            #[cfg(all(feature = "http1", feature = "runtime"))]
+            #[cfg(feature = "http1")]
             h1_header_read_timeout: None,
             h1_writev: None,
             #[cfg(feature = "http2")]
@@ -326,8 +326,8 @@ impl<E> Http<E> {
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
-    #[cfg(all(feature = "http1", feature = "runtime"))]
-    #[cfg_attr(docsrs, doc(cfg(all(feature = "http1", feature = "runtime"))))]
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
         self.h1_header_read_timeout = Some(read_timeout);
         self
@@ -460,8 +460,6 @@ impl<E> Http<E> {
     ///
     /// # Cargo Feature
     ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(
@@ -481,8 +479,6 @@ impl<E> Http<E> {
     ///
     /// # Cargo Feature
     ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
@@ -563,7 +559,7 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
-            #[cfg(all(feature = "http1", feature = "runtime"))]
+            #[cfg(feature = "http1")]
             h1_header_read_timeout: self.h1_header_read_timeout,
             h1_writev: self.h1_writev,
             #[cfg(feature = "http2")]
@@ -586,7 +582,7 @@ impl<E> Http<E> {
             h1_keep_alive: self.h1_keep_alive,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
-            #[cfg(all(feature = "http1", feature = "runtime"))]
+            #[cfg(feature = "http1")]
             h1_header_read_timeout: self.h1_header_read_timeout,
             h1_writev: self.h1_writev,
             #[cfg(feature = "http2")]
@@ -638,7 +634,6 @@ impl<E> Http<E> {
         macro_rules! h1 {
             () => {{
                 let mut conn = proto::Conn::new(io);
-                #[cfg(feature = "runtime")]
                 {
                     conn.set_timer(self.timer.clone());
                 }
@@ -654,7 +649,7 @@ impl<E> Http<E> {
                 if self.h1_preserve_header_case {
                     conn.set_preserve_header_case();
                 }
-                #[cfg(all(feature = "http1", feature = "runtime"))]
+                #[cfg(feature = "http1")]
                 if let Some(header_read_timeout) = self.h1_header_read_timeout {
                     conn.set_http1_header_read_timeout(header_read_timeout);
                 }

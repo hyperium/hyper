@@ -1348,7 +1348,7 @@ mod conn {
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
-    use support::TokioTimer;
+    use support::{TokioExecutor, TokioTimer};
 
     #[tokio::test]
     async fn get() {
@@ -1901,7 +1901,7 @@ mod conn {
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
-                            let mut conn = Http::new().http2_only(true).serve_connection(stream, service);
+                            let mut conn = Http::new().with_executor(TokioExecutor).http2_only(true).serve_connection(stream, service);
 
                             tokio::select! {
                                 res = &mut conn => {
@@ -1923,6 +1923,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .http2_only(true)
             .handshake(io)
             .await
@@ -1985,6 +1986,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (_client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
@@ -2019,6 +2021,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
@@ -2056,6 +2059,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
@@ -2103,6 +2107,7 @@ mod conn {
         tokio::spawn(async move {
             let sock = listener.accept().await.unwrap().0;
             hyper::server::conn::Http::new()
+                .with_executor(TokioExecutor)
                 .with_timer(TokioTimer)
                 .http2_only(true)
                 .serve_connection(
@@ -2122,6 +2127,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
@@ -2183,6 +2189,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .http2_only(true)
             .handshake(io)
             .await
@@ -2239,6 +2246,7 @@ mod conn {
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::Builder::new()
+            .executor(TokioExecutor)
             .http2_only(true)
             .handshake::<_, Empty<Bytes>>(io)
             .await
