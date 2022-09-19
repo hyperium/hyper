@@ -8,6 +8,9 @@ on:
 env:
   RUST_BACKTRACE: 1
 
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
 jobs:
   ci-pass:
     name: CI is green
