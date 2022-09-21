@@ -6,6 +6,7 @@ use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
 
 use pin_project_lite::pin_project;
+use socket2::TcpKeepalive;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::trace;
 
@@ -564,8 +565,16 @@ impl<E> Builder<AddrIncoming, E> {
     /// If `None` is specified, keepalive is disabled, otherwise the duration
     /// specified will be the time to remain idle before sending TCP keepalive
     /// probes.
+    #[deprecated(since="0.14.21", note="please use `tcp_keepalive2` instead")]
     pub fn tcp_keepalive(mut self, keepalive: Option<Duration>) -> Self {
+        #[allow(deprecated)]
         self.incoming.set_keepalive(keepalive);
+        self
+    }
+
+    /// Set TCP keepalive parameters on accepted connections.
+    pub fn tcp_keepalive2(mut self, tcp_keepalive: TcpKeepalive) -> Self {
+        self.incoming.set_tcp_keepalive(tcp_keepalive);
         self
     }
 

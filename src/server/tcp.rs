@@ -2,6 +2,7 @@ use std::fmt;
 use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
+use socket2::TcpKeepalive;
 
 use tokio::net::TcpListener;
 use tokio::time::Sleep;
@@ -19,7 +20,7 @@ pub struct AddrIncoming {
     addr: SocketAddr,
     listener: TcpListener,
     sleep_on_errors: bool,
-    tcp_keepalive_timeout: Option<Duration>,
+    tcp_keepalive: TcpKeepalive,
     tcp_nodelay: bool,
     timeout: Option<Pin<Box<Sleep>>>,
 }
@@ -52,7 +53,7 @@ impl AddrIncoming {
             listener,
             addr,
             sleep_on_errors: true,
-            tcp_keepalive_timeout: None,
+            tcp_keepalive: TcpKeepalive::new(),
             tcp_nodelay: false,
             timeout: None,
         })
@@ -68,8 +69,17 @@ impl AddrIncoming {
     /// If `None` is specified, keepalive is disabled, otherwise the duration
     /// specified will be the time to remain idle before sending TCP keepalive
     /// probes.
+    #[deprecated(since="0.14.21", note="please use `set_tcp_keepalive` instead")]
     pub fn set_keepalive(&mut self, keepalive: Option<Duration>) -> &mut Self {
-        self.tcp_keepalive_timeout = keepalive;
+        self.tcp_keepalive = match keepalive {
+            None => TcpKeepalive::new(),
+            Some(duration) => self.tcp_keepalive.clone().with_time(duration),
+        };
+        self
+    }
+
+    pub fn set_tcp_keepalive(&mut self, tcp_keepalive: TcpKeepalive) -> &mut Self {
+        self.tcp_keepalive = tcp_keepalive;
         self
     }
 
@@ -108,12 +118,9 @@ impl AddrIncoming {
         loop {
             match ready!(self.listener.poll_accept(cx)) {
                 Ok((socket, remote_addr)) => {
-                    if let Some(dur) = self.tcp_keepalive_timeout {
-                        let socket = socket2::SockRef::from(&socket);
-                        let conf = socket2::TcpKeepalive::new().with_time(dur);
-                        if let Err(e) = socket.set_tcp_keepalive(&conf) {
-                            trace!("error trying to set TCP keepalive: {}", e);
-                        }
+                    let sock_ref = socket2::SockRef::from(&socket);
+                    if let Err(e) = sock_ref.set_tcp_keepalive(&self.tcp_keepalive) {
+                        trace!("error trying to set TCP keepalive: {}", e);
                     }
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
@@ -188,7 +195,7 @@ impl fmt::Debug for AddrIncoming {
         f.debug_struct("AddrIncoming")
             .field("addr", &self.addr)
             .field("sleep_on_errors", &self.sleep_on_errors)
-            .field("tcp_keepalive_timeout", &self.tcp_keepalive_timeout)
+            .field("tcp_keepalive", &self.tcp_keepalive)
             .field("tcp_nodelay", &self.tcp_nodelay)
             .finish()
     }
