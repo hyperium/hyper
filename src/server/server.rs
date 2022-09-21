@@ -573,7 +573,7 @@ impl<E> Builder<AddrIncoming, E> {
     }
 
     /// Set TCP keepalive parameters on accepted connections.
-    pub fn tcp_keepalive2(mut self, tcp_keepalive: TcpKeepalive) -> Self {
+    pub fn tcp_keepalive2(mut self, tcp_keepalive: Option<TcpKeepalive>) -> Self {
         self.incoming.set_tcp_keepalive(tcp_keepalive);
         self
     }

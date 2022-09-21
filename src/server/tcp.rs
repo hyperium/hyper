@@ -20,7 +20,7 @@ pub struct AddrIncoming {
     addr: SocketAddr,
     listener: TcpListener,
     sleep_on_errors: bool,
-    tcp_keepalive: TcpKeepalive,
+    tcp_keepalive: Option<TcpKeepalive>,
     tcp_nodelay: bool,
     timeout: Option<Pin<Box<Sleep>>>,
 }
@@ -53,7 +53,7 @@ impl AddrIncoming {
             listener,
             addr,
             sleep_on_errors: true,
-            tcp_keepalive: TcpKeepalive::new(),
+            tcp_keepalive: None,
             tcp_nodelay: false,
             timeout: None,
         })
@@ -71,14 +71,13 @@ impl AddrIncoming {
     /// probes.
     #[deprecated(since="0.14.21", note="please use `set_tcp_keepalive` instead")]
     pub fn set_keepalive(&mut self, keepalive: Option<Duration>) -> &mut Self {
-        self.tcp_keepalive = match keepalive {
-            None => TcpKeepalive::new(),
-            Some(duration) => self.tcp_keepalive.clone().with_time(duration),
-        };
+        self.tcp_keepalive = keepalive.map(|duration| {
+            TcpKeepalive::new().with_time(duration)
+        });
         self
     }
 
-    pub fn set_tcp_keepalive(&mut self, tcp_keepalive: TcpKeepalive) -> &mut Self {
+    pub fn set_tcp_keepalive(&mut self, tcp_keepalive: Option<TcpKeepalive>) -> &mut Self {
         self.tcp_keepalive = tcp_keepalive;
         self
     }
@@ -118,9 +117,11 @@ impl AddrIncoming {
         loop {
             match ready!(self.listener.poll_accept(cx)) {
                 Ok((socket, remote_addr)) => {
-                    let sock_ref = socket2::SockRef::from(&socket);
-                    if let Err(e) = sock_ref.set_tcp_keepalive(&self.tcp_keepalive) {
-                        trace!("error trying to set TCP keepalive: {}", e);
+                    if let Some(tcp_keepalive) = &self.tcp_keepalive {
+                        let sock_ref = socket2::SockRef::from(&socket);
+                        if let Err(e) = sock_ref.set_tcp_keepalive(tcp_keepalive) {
+                            trace!("error trying to set TCP keepalive: {}", e);
+                        }
                     }
                     if let Err(e) = socket.set_nodelay(self.tcp_nodelay) {
                         trace!("error trying to set TCP nodelay: {}", e);
