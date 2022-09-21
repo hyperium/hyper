@@ -52,11 +52,14 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T>(
+pub async fn handshake<T, B>(
     io: T,
-) -> crate::Result<(SendRequest<crate::Recv>, Connection<T, crate::Recv>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Body + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     Builder::new().handshake(io).await
 }
@@ -73,6 +76,13 @@ impl<B> SendRequest<B> {
         } else {
             Poll::Ready(Ok(()))
         }
+    }
+
+    /// Waits until the dispatcher is ready
+    ///
+    /// If the associated connection is closed, this returns an Error.
+    pub async fn ready(&mut self) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /*
@@ -174,6 +184,27 @@ impl<B> fmt::Debug for SendRequest<B> {
 }
 
 // ===== impl Connection
+
+impl<T, B> Connection<T, B>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Body + Unpin + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
+    ///
+    /// This setting is configured by the server peer by sending the
+    /// [`SETTINGS_ENABLE_CONNECT_PROTOCOL` parameter][2] in a `SETTINGS` frame.
+    /// This method returns the currently acknowledged value received from the
+    /// remote.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc8441#section-3
+    pub fn is_extended_connect_protocol_enabled(&self) -> bool {
+        self.inner.1.is_extended_connect_protocol_enabled()
+    }
+}
 
 impl<T, B> fmt::Debug for Connection<T, B>
 where

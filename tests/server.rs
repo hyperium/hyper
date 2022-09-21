@@ -2457,9 +2457,8 @@ async fn http2_keep_alive_with_responsive_client() {
     });
 
     let tcp = connect_async(addr).await;
-    let (mut client, conn) = hyper::client::conn::Builder::new()
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new()
         .executor(TokioExecutor)
-        .http2_only(true)
         .handshake(tcp)
         .await
         .expect("http handshake");
@@ -3077,20 +3076,32 @@ impl TestClient {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 
-        let mut builder = hyper::client::conn::Builder::new();
-        builder.http2_only(self.http2_only);
-        builder.executor(TokioExecutor);
-
         let stream = TkTcpStream::connect(format!("{}:{}", host, port))
             .await
             .unwrap();
 
-        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+        if self.http2_only {
+            let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
+                .executor(TokioExecutor)
+                .handshake(stream)
+                .await
+                .unwrap();
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
 
-        tokio::task::spawn(async move {
-            conn.await.unwrap();
-        });
+            sender.send_request(req).await
+        } else {
+            let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
+                .executor(TokioExecutor)
+                .handshake(stream)
+                .await
+                .unwrap();
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
 
-        sender.send_request(req).await
+            sender.send_request(req).await
+        }
     }
 }

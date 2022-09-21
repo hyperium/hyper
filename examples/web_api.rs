@@ -31,7 +31,7 @@ async fn client_request_response() -> Result<Response<BoxBody>> {
     let port = req.uri().port_u16().expect("uri has no port");
     let stream = TcpStream::connect(format!("{}:{}", host, port)).await?;
 
-    let (mut sender, conn) = hyper::client::conn::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
