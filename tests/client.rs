@@ -232,19 +232,17 @@ macro_rules! test {
             // Wrapper around hyper::client::conn::Builder with set_host field to mimic
             // hyper::client::Builder.
             struct Builder {
-                inner: hyper::client::conn::Builder,
+                inner: hyper::client::conn::http1::Builder,
                 set_host: bool,
                 http09_responses: bool,
-                http2_only: bool,
             }
 
             impl Builder {
                 fn new() -> Self {
                     Self {
-                        inner: hyper::client::conn::Builder::new(),
+                        inner: hyper::client::conn::http1::Builder::new(),
                         set_host: true,
                         http09_responses: false,
-                        http2_only: false,
                     }
                 }
 
@@ -260,17 +258,10 @@ macro_rules! test {
                     self.inner.http09_responses(val);
                     self
                 }
-
-                #[allow(unused)]
-                fn http2_only(&mut self, val: bool) -> &mut Self {
-                    self.http2_only = val;
-                    self.inner.http2_only(val);
-                    self
-                }
             }
 
             impl std::ops::Deref for Builder {
-                type Target = hyper::client::conn::Builder;
+                type Target = hyper::client::conn::http1::Builder;
 
                 fn deref(&self) -> &Self::Target {
                     &self.inner
@@ -292,7 +283,7 @@ macro_rules! test {
                 return Err(Error::UnsupportedVersion);
             }
 
-            if req.version() == Version::HTTP_2 && !builder.http2_only {
+            if req.version() == Version::HTTP_2 {
                 return Err(Error::UnsupportedVersion);
             }
 
@@ -1376,7 +1367,7 @@ mod conn {
 
         let client = async move {
             let tcp = tcp_connect(&addr).await.expect("connect");
-            let (mut client, conn) = conn::handshake(tcp).await.expect("handshake");
+            let (mut client, conn) = conn::http1::handshake(tcp).await.expect("handshake");
 
             tokio::task::spawn(async move {
                 conn.await.expect("http conn");
@@ -1420,7 +1411,7 @@ mod conn {
 
         let client = async move {
             let tcp = tcp_connect(&addr).await.expect("connect");
-            let (mut client, conn) = conn::handshake(tcp).await.expect("handshake");
+            let (mut client, conn) = conn::http1::handshake(tcp).await.expect("handshake");
 
             tokio::task::spawn(async move {
                 conn.await.expect("http conn");
@@ -1478,7 +1469,7 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
@@ -1524,7 +1515,7 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
@@ -1581,7 +1572,7 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
@@ -1626,7 +1617,7 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
@@ -1668,7 +1659,7 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
@@ -1738,7 +1729,7 @@ mod conn {
             shutdown_called: false,
         };
 
-        let (mut client, mut conn) = rt.block_on(conn::handshake(io)).unwrap();
+        let (mut client, mut conn) = rt.block_on(conn::http1::handshake(io)).unwrap();
 
         {
             let until_upgrade = poll_fn(|ctx| conn.poll_without_shutdown(ctx));
@@ -1824,7 +1815,7 @@ mod conn {
             shutdown_called: false,
         };
 
-        let (mut client, mut conn) = rt.block_on(conn::handshake(io)).unwrap();
+        let (mut client, mut conn) = rt.block_on(conn::http1::handshake(io)).unwrap();
 
         {
             let until_tunneled = poll_fn(|ctx| conn.poll_without_shutdown(ctx));
@@ -1922,9 +1913,8 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
+        let (mut client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
-            .http2_only(true)
             .handshake(io)
             .await
             .expect("http handshake");
@@ -1985,10 +1975,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (_client, conn) = conn::Builder::new()
+        let (_client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
             .timer(TokioTimer)
-            .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
             // enable while idle since we aren't sending requests
@@ -2020,10 +2009,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
+        let (mut client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
             .timer(TokioTimer)
-            .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
             .handshake::<_, Recv>(io)
@@ -2058,10 +2046,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
+        let (mut client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
             .timer(TokioTimer)
-            .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
             .handshake(io)
@@ -2126,10 +2113,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
+        let (mut client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
             .timer(TokioTimer)
-            .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
             .handshake(io)
@@ -2188,9 +2174,8 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
+        let (mut client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
-            .http2_only(true)
             .handshake(io)
             .await
             .expect("http handshake");
@@ -2245,9 +2230,8 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
+        let (mut client, conn) = conn::http2::Builder::new()
             .executor(TokioExecutor)
-            .http2_only(true)
             .handshake::<_, Empty<Bytes>>(io)
             .await
             .expect("http handshake");
