@@ -12,8 +12,6 @@
     clippy::useless_format,
     clippy::redundant_clone,
     clippy::manual_non_exhaustive,
-    dead_code,
-    unused_imports
 )]
 
 //! # hyper
