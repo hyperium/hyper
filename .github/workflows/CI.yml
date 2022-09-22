@@ -182,7 +182,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly
+          toolchain: stable
           override: true
 
       - name: Install cbindgen
@@ -197,7 +197,7 @@ jobs:
           RUSTFLAGS: --cfg hyper_unstable_ffi
         with:
           command: rustc
-          args: --features client,http1,http2,ffi -Z unstable-options --crate-type cdylib
+          args: --features client,http1,http2,ffi --crate-type cdylib
 
       - name: Make Examples
         run: cd capi/examples && make client
