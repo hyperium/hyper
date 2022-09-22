@@ -11,7 +11,7 @@
     clippy::module_inception,
     clippy::useless_format,
     clippy::redundant_clone,
-    clippy::manual_non_exhaustive,
+    clippy::manual_non_exhaustive
 )]
 
 //! # hyper
