@@ -16,8 +16,9 @@ pub trait ConnStreamExec<F, B: Body>: Clone {
 
 pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
-// Either the user provides an executor for background tasks, or we use
-// `tokio::spawn`.
+// Either the user provides an executor for background tasks, or we panic.
+// TODO: with the `runtime`feature, `Exec::Default` used `tokio::spawn`. With the
+// removal of the opt-in default runtime, this should be refactored.
 #[derive(Clone)]
 pub enum Exec {
     Default,
@@ -33,15 +34,7 @@ impl Exec {
     {
         match *self {
             Exec::Default => {
-                #[cfg(feature = "runtime")]
-                {
-                    tokio::task::spawn(fut);
-                }
-
-                #[cfg(not(feature = "runtime"))]
-                {
-                    panic!("executor must be set")
-                }
+                panic!("executor must be set");
             }
             Exec::Executor(ref e) => {
                 e.execute(Box::pin(fut));

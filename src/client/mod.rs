@@ -7,7 +7,7 @@
 //! For a small example program simply fetching a URL, take a look at the
 //! [full client example](https://github.com/hyperium/hyper/blob/master/examples/client.rs).
 
-#[cfg(all(test, feature = "runtime"))]
+#[cfg(test)]
 mod tests;
 
 cfg_feature! {

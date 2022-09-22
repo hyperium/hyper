@@ -30,7 +30,7 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
 
     let stream = TcpStream::connect(addr).await?;
 
-    let (mut sender, conn) = hyper::client::conn::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {:?}", err);

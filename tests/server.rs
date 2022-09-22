@@ -22,7 +22,7 @@ use h2::{RecvStream, SendStream};
 use http::header::{HeaderName, HeaderValue};
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use hyper::rt::Timer;
-use support::TokioTimer;
+use support::{TokioExecutor, TokioTimer};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
@@ -1820,6 +1820,7 @@ async fn h2_connect() {
 
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
+        .with_executor(TokioExecutor)
         .http2_only(true)
         .serve_connection(socket, svc)
         .with_upgrades()
@@ -1932,6 +1933,7 @@ async fn h2_connect_multiplex() {
 
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
+        .with_executor(TokioExecutor)
         .http2_only(true)
         .serve_connection(socket, svc)
         .with_upgrades()
@@ -2007,6 +2009,7 @@ async fn h2_connect_large_body() {
 
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
+        .with_executor(TokioExecutor)
         .http2_only(true)
         .serve_connection(socket, svc)
         .with_upgrades()
@@ -2079,6 +2082,7 @@ async fn h2_connect_empty_frames() {
 
     let (socket, _) = listener.accept().await.unwrap();
     Http::new()
+        .with_executor(TokioExecutor)
         .http2_only(true)
         .serve_connection(socket, svc)
         .with_upgrades()
@@ -2442,6 +2446,7 @@ async fn http2_keep_alive_with_responsive_client() {
         let (socket, _) = listener.accept().await.expect("accept");
 
         Http::new()
+            .with_executor(TokioExecutor)
             .with_timer(TokioTimer)
             .http2_only(true)
             .http2_keep_alive_interval(Duration::from_secs(1))
@@ -2452,8 +2457,8 @@ async fn http2_keep_alive_with_responsive_client() {
     });
 
     let tcp = connect_async(addr).await;
-    let (mut client, conn) = hyper::client::conn::Builder::new()
-        .http2_only(true)
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new()
+        .executor(TokioExecutor)
         .handshake(tcp)
         .await
         .expect("http handshake");
@@ -2889,7 +2894,7 @@ impl ServeOptions {
                                 let (stream, _) = res.unwrap();
 
                                 tokio::task::spawn(async move {
-                                    let mut http = Http::new();
+                                    let mut http = Http::new().with_executor(TokioExecutor);
 
                                     #[cfg(feature = "http1")]
                                     let http = http
@@ -3071,19 +3076,32 @@ impl TestClient {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 
-        let mut builder = hyper::client::conn::Builder::new();
-        builder.http2_only(self.http2_only);
-
         let stream = TkTcpStream::connect(format!("{}:{}", host, port))
             .await
             .unwrap();
 
-        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+        if self.http2_only {
+            let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
+                .executor(TokioExecutor)
+                .handshake(stream)
+                .await
+                .unwrap();
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
 
-        tokio::task::spawn(async move {
-            conn.await.unwrap();
-        });
+            sender.send_request(req).await
+        } else {
+            let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
+                .executor(TokioExecutor)
+                .handshake(stream)
+                .await
+                .unwrap();
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
 
-        sender.send_request(req).await
+            sender.send_request(req).await
+        }
     }
 }

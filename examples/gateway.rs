@@ -43,7 +43,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             async move {
                 let client_stream = TcpStream::connect(addr).await.unwrap();
 
-                let (mut sender, conn) = hyper::client::conn::handshake(client_stream).await?;
+                let (mut sender, conn) =
+                    hyper::client::conn::http1::handshake(client_stream).await?;
                 tokio::task::spawn(async move {
                     if let Err(err) = conn.await {
                         println!("Connection failed: {:?}", err);

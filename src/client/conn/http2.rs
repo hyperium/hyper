@@ -4,15 +4,13 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
-#[cfg(feature = "runtime")]
 use std::time::Duration;
 
 use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::Recv;
-use crate::body::Body;
 use super::super::dispatch;
+use crate::body::Body;
 use crate::common::time::Time;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
@@ -20,6 +18,7 @@ use crate::common::{
 };
 use crate::proto;
 use crate::rt::{Executor, Timer};
+use crate::Recv;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
@@ -53,11 +52,14 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T>(
+pub async fn handshake<T, B>(
     io: T,
-) -> crate::Result<(SendRequest<crate::Recv>, Connection<T, crate::Recv>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Body + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     Builder::new().handshake(io).await
 }
@@ -74,6 +76,13 @@ impl<B> SendRequest<B> {
         } else {
             Poll::Ready(Ok(()))
         }
+    }
+
+    /// Waits until the dispatcher is ready
+    ///
+    /// If the associated connection is closed, this returns an Error.
+    pub async fn ready(&mut self) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /*
@@ -175,6 +184,27 @@ impl<B> fmt::Debug for SendRequest<B> {
 }
 
 // ===== impl Connection
+
+impl<T, B> Connection<T, B>
+where
+    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Body + Unpin + Send + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
+    ///
+    /// This setting is configured by the server peer by sending the
+    /// [`SETTINGS_ENABLE_CONNECT_PROTOCOL` parameter][2] in a `SETTINGS` frame.
+    /// This method returns the currently acknowledged value received from the
+    /// remote.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+    /// [2]: https://datatracker.ietf.org/doc/html/rfc8441#section-3
+    pub fn is_extended_connect_protocol_enabled(&self) -> bool {
+        self.inner.1.is_extended_connect_protocol_enabled()
+    }
+}
 
 impl<T, B> fmt::Debug for Connection<T, B>
 where
@@ -309,11 +339,6 @@ impl Builder {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_interval(
@@ -330,11 +355,6 @@ impl Builder {
     /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
@@ -350,11 +370,6 @@ impl Builder {
     /// disabled.
     ///
     /// Default is `false`.
-    ///
-    /// # Cargo Feature
-    ///
-    /// Requires the `runtime` cargo feature to be enabled.
-    #[cfg(feature = "runtime")]
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
     pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
@@ -416,9 +431,12 @@ impl Builder {
             let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
                 .await?;
             Ok((
-                SendRequest { dispatch: tx.unbound() },
-                //SendRequest { dispatch: tx },
-                Connection { inner: (PhantomData, h2) },
+                SendRequest {
+                    dispatch: tx.unbound(),
+                },
+                Connection {
+                    inner: (PhantomData, h2),
+                },
             ))
         }
     }

@@ -4,6 +4,7 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -27,6 +28,27 @@ pub struct SendRequest<B> {
     dispatch: dispatch::Sender<Request<B>, Response<Recv>>,
 }
 
+/// Deconstructed parts of a `Connection`.
+///
+/// This allows taking apart a `Connection` at a later time, in order to
+/// reclaim the IO object, and additional related pieces.
+#[derive(Debug)]
+pub struct Parts<T> {
+    /// The original IO object used in the handshake.
+    pub io: T,
+    /// A buffer of bytes that have been read but not processed as HTTP.
+    ///
+    /// For instance, if the `Connection` is used for an HTTP upgrade request,
+    /// it is possible the server sent back the first bytes of the new protocol
+    /// along with the response upgrade.
+    ///
+    /// You will want to check for any existing bytes if you plan to continue
+    /// communicating on the IO object.
+    pub read_buf: Bytes,
+    _inner: (),
+}
+
+
 /// A future that processes all HTTP state for the IO object.
 ///
 /// In most cases, this should just be spawned into an executor, so that it
@@ -38,6 +60,40 @@ where
     B: Body + 'static,
 {
     inner: Option<Dispatcher<T, B>>,
+}
+
+impl<T, B> Connection<T, B>
+where
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    B: Body + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Return the inner IO object, and additional information.
+    ///
+    /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
+    pub fn into_parts(self) -> Parts<T> {
+        let (io, read_buf, _) = self.inner.expect("already upgraded").into_inner();
+        Parts {
+            io,
+            read_buf,
+            _inner: (),
+        }
+    }
+
+    /// Poll the connection for completion, but without calling `shutdown`
+    /// on the underlying IO.
+    ///
+    /// This is useful to allow running a connection while doing an HTTP
+    /// upgrade. Once the upgrade is completed, the connection would be "done",
+    /// but it is not desired to actually shutdown the IO object. Instead you
+    /// would take it back using `into_parts`.
+    ///
+    /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
+    /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
+    /// to work with this function; or use the `without_shutdown` wrapper.
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+    }
 }
 
 /// A builder to configure an HTTP connection.
@@ -52,6 +108,8 @@ pub struct Builder {
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     #[cfg(feature = "ffi")]
+    h1_headers_raw: bool,
+    #[cfg(feature = "ffi")]
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
@@ -61,11 +119,14 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T>(
+pub async fn handshake<T, B>(
     io: T,
-) -> crate::Result<(SendRequest<crate::Recv>, Connection<T, crate::Recv>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Body + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     Builder::new().handshake(io).await
 }
@@ -78,6 +139,13 @@ impl<B> SendRequest<B> {
     /// If the associated connection is closed, this returns an Error.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.dispatch.poll_ready(cx)
+    }
+
+    /// Waits until the dispatcher is ready
+    ///
+    /// If the associated connection is closed, this returns an Error.
+    pub async fn ready(&mut self) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /*
@@ -231,6 +299,8 @@ impl Builder {
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            h1_headers_raw: false,
             #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
@@ -386,6 +456,12 @@ impl Builder {
         self
     }
 
+    #[cfg(feature = "ffi")]
+    pub(crate) fn http1_headers_raw(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_headers_raw = enabled;
+        self
+    }
+
     /// Sets the exact size of the read buffer to *always* use.
     ///
     /// Note that setting this option unsets the `http1_max_buf_size` option.
@@ -458,6 +534,10 @@ impl Builder {
             #[cfg(feature = "ffi")]
             if opts.h1_preserve_header_order {
                 conn.set_preserve_header_order();
+            }
+            #[cfg(feature = "ffi")]
+            if opts.h1_headers_raw {
+                conn.set_raw_headers(true);
             }
             if opts.h09_responses {
                 conn.set_h09_responses();
