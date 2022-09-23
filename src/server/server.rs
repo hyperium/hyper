@@ -2,10 +2,12 @@ use std::error::Error as StdError;
 use std::fmt;
 #[cfg(feature = "tcp")]
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
-#[cfg(any(feature = "tcp", feature = "http1"))]
+
+#[cfg(feature = "tcp")]
 use std::time::Duration;
 
 use pin_project_lite::pin_project;
+
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::trace;
 
@@ -559,13 +561,24 @@ impl<I, E> Builder<I, E> {
     doc(cfg(all(feature = "tcp", any(feature = "http1", feature = "http2"))))
 )]
 impl<E> Builder<AddrIncoming, E> {
-    /// Set whether TCP keepalive messages are enabled on accepted connections.
+    /// Set the duration to remain idle before sending TCP keepalive probes.
     ///
-    /// If `None` is specified, keepalive is disabled, otherwise the duration
-    /// specified will be the time to remain idle before sending TCP keepalive
-    /// probes.
+    /// If `None` is specified, keepalive is disabled.
     pub fn tcp_keepalive(mut self, keepalive: Option<Duration>) -> Self {
         self.incoming.set_keepalive(keepalive);
+        self
+    }
+
+    /// Set the duration between two successive TCP keepalive retransmissions,
+    /// if acknowledgement to the previous keepalive transmission is not received.
+    pub fn tcp_keepalive_interval(mut self, interval: Option<Duration>) -> Self {
+        self.incoming.set_keepalive_interval(interval);
+        self
+    }
+
+    /// Set the number of retransmissions to be carried out before declaring that remote end is not available.
+    pub fn tcp_keepalive_retries(mut self, retries: Option<u32>) -> Self {
+        self.incoming.set_keepalive_retries(retries);
         self
     }
 
