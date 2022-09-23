@@ -68,6 +68,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: clippy
+          args: -- -Aclippy::all -Wclippy::self_named_module_files
 
   test:
     name: Test ${{ matrix.rust }} on ${{ matrix.os }}
