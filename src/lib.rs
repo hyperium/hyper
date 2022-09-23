@@ -1,18 +1,10 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
-#![deny(clippy::self_named_module_files)]
 #![cfg_attr(test, deny(rust_2018_idioms))]
 #![cfg_attr(all(test, feature = "full"), deny(unreachable_pub))]
 #![cfg_attr(all(test, feature = "full"), deny(warnings))]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
-#![allow(
-    clippy::needless_borrow,
-    clippy::module_inception,
-    clippy::useless_format,
-    clippy::redundant_clone,
-    clippy::manual_non_exhaustive
-)]
 
 //! # hyper
 //!
