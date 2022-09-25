@@ -58,6 +58,8 @@ use crate::error::{Kind, Parse};
 use crate::upgrade::Upgraded;
 use crate::{common::time::Time, rt::Timer};
 
+pub mod http1;
+
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]
 
