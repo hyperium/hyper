@@ -19,16 +19,16 @@
 //! #[tokio::main]
 //! async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 //!     let addr: SocketAddr = ([127, 0, 0, 1], 8080).into();
-//!
 //!     let mut tcp_listener = TcpListener::bind(addr).await?;
+//!
+//!     let mut http = Http::new();
+//!     http.http1_only(true)
+//!         .http1_keep_alive(true);
 //!     loop {
 //!         let (tcp_stream, _) = tcp_listener.accept().await?;
+//!         let future = http.serve_connection(tcp_stream, service_fn(hello));
 //!         tokio::task::spawn(async move {
-//!             if let Err(http_err) = Http::new()
-//!                     .http1_only(true)
-//!                     .http1_keep_alive(true)
-//!                     .serve_connection(tcp_stream, service_fn(hello))
-//!                     .await {
+//!             if let Err(http_err) = future.await {
 //!                 eprintln!("Error while serving HTTP connection: {}", http_err);
 //!             }
 //!         });
