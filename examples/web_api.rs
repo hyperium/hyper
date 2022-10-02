@@ -107,13 +107,13 @@ async fn main() -> Result<()> {
 
     let listener = TcpListener::bind(&addr).await?;
     println!("Listening on http://{}", addr);
+
+    let http = Http::new();
     loop {
         let (stream, _) = listener.accept().await?;
-
+        let future = http.serve_connection(stream, service_fn(response_examples));
         tokio::task::spawn(async move {
-            let service = service_fn(move |req| response_examples(req));
-
-            if let Err(err) = Http::new().serve_connection(stream, service).await {
+            if let Err(err) = future.await {
                 println!("Failed to serve connection: {:?}", err);
             }
         });

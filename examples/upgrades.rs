@@ -149,11 +149,8 @@ async fn main() {
 
                     let mut rx = rx.clone();
                     tokio::task::spawn(async move {
-                        let conn = Http::new().serve_connection(stream, service_fn(server_upgrade));
-
                         // Don't forget to enable upgrades on the connection.
-                        let mut conn = conn.with_upgrades();
-
+                        let mut conn = Http::new().serve_connection(stream, service_fn(server_upgrade)).with_upgrades();
                         let mut conn = Pin::new(&mut conn);
 
                         tokio::select! {
@@ -170,9 +167,7 @@ async fn main() {
                         }
                     });
                 }
-                _ = rx.changed() => {
-                    break;
-                }
+                _ = rx.changed() => break,
             }
         }
     });

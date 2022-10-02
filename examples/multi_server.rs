@@ -28,33 +28,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     let addr1: SocketAddr = ([127, 0, 0, 1], 1337).into();
     let addr2: SocketAddr = ([127, 0, 0, 1], 1338).into();
+    let http = Http::new();
 
-    let srv1 = async move {
+    let srv1 = async {
         let listener = TcpListener::bind(addr1).await.unwrap();
         loop {
             let (stream, _) = listener.accept().await.unwrap();
-
+            let future = http.serve_connection(stream, service_fn(index1));
             tokio::task::spawn(async move {
-                if let Err(err) = Http::new()
-                    .serve_connection(stream, service_fn(index1))
-                    .await
-                {
+                if let Err(err) = future.await {
                     println!("Error serving connection: {:?}", err);
                 }
             });
         }
     };
 
-    let srv2 = async move {
+    let srv2 = async {
         let listener = TcpListener::bind(addr2).await.unwrap();
         loop {
             let (stream, _) = listener.accept().await.unwrap();
-
+            let future = http.serve_connection(stream, service_fn(index2));
             tokio::task::spawn(async move {
-                if let Err(err) = Http::new()
-                    .serve_connection(stream, service_fn(index2))
-                    .await
-                {
+                if let Err(err) = future.await {
                     println!("Error serving connection: {:?}", err);
                 }
             });

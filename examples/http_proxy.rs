@@ -26,17 +26,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
 
+    let mut http = Http::new();
+    http.http1_preserve_header_case(true)
+        .http1_title_case_headers(true);
     loop {
         let (stream, _) = listener.accept().await?;
-
+        let future = http
+            .serve_connection(stream, service_fn(proxy))
+            .with_upgrades();
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new()
-                .http1_preserve_header_case(true)
-                .http1_title_case_headers(true)
-                .serve_connection(stream, service_fn(proxy))
-                .with_upgrades()
-                .await
-            {
+            if let Err(err) = future.await {
                 println!("Failed to serve connection: {:?}", err);
             }
         });

@@ -70,6 +70,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
 
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
+
+    let http = Http::new().with_executor(LocalExec);
     loop {
         let (stream, _) = listener.accept().await?;
 
@@ -83,12 +85,9 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
             async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", value)))) }
         });
 
+        let future = http.serve_connection(stream, service);
         tokio::task::spawn_local(async move {
-            if let Err(err) = Http::new()
-                .with_executor(LocalExec)
-                .serve_connection(stream, service)
-                .await
-            {
+            if let Err(err) = future.await {
                 println!("Error serving connection: {:?}", err);
             }
         });

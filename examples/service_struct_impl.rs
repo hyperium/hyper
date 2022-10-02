@@ -18,14 +18,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
 
+    let http = Http::new();
     loop {
         let (stream, _) = listener.accept().await?;
-
+        let future = http.serve_connection(stream, Svc { counter: 81818 });
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new()
-                .serve_connection(stream, Svc { counter: 81818 })
-                .await
-            {
+            if let Err(err) = future.await {
                 println!("Failed to serve connection: {:?}", err);
             }
         });

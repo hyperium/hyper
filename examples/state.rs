@@ -24,6 +24,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
+
+    let http = Http::new();
     loop {
         let (stream, _) = listener.accept().await?;
 
@@ -46,8 +48,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-        if let Err(err) = Http::new().serve_connection(stream, service).await {
-            println!("Error serving connection: {:?}", err);
-        }
+        let future = http.serve_connection(stream, service);
+        tokio::task::spawn(async move {
+            if let Err(err) = future.await {
+                println!("Error serving connection: {:?}", err);
+            }
+        });
     }
 }

@@ -18,6 +18,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Listening on http://{}", in_addr);
     println!("Proxying on http://{}", out_addr);
 
+    let http = Http::new();
     loop {
         let (stream, _) = listener.accept().await?;
 
@@ -55,8 +56,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
+        let future = http.serve_connection(stream, service);
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new().serve_connection(stream, service).await {
+            if let Err(err) = future.await {
                 println!("Failed to servce connection: {:?}", err);
             }
         });
