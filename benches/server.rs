@@ -40,14 +40,14 @@ macro_rules! bench_server {
                         let (stream, _) = listener.accept().await.expect("accept");
                         http.serve_connection(
                             stream,
-                            service_fn(|_| async {
-                                Ok::<_, hyper::Error>(
+                            service_fn(|_| {
+                                std::future::ready(Ok::<_, hyper::Error>(
                                     Response::builder()
                                         .header($header.0, $header.1)
                                         .header("content-type", "text/plain")
                                         .body($body())
                                         .unwrap(),
-                                )
+                                ))
                             }),
                         )
                         .await

@@ -44,9 +44,9 @@ fn hello_world_16(b: &mut test::Bencher) {
                     let (stream, _addr) = listener.accept().await.expect("accept");
                     http.serve_connection(
                         stream,
-                        service_fn(|_| async {
-                            Ok::<_, Infallible>(Response::new(Full::new(Bytes::from(
-                                "Hello, World!",
+                        service_fn(|_| {
+                            std::future::ready(Ok::<_, Infallible>(Response::new(Full::new(
+                                Bytes::from("Hello, World!"),
                             ))))
                         }),
                     )
