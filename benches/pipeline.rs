@@ -37,22 +37,21 @@ fn hello_world_16(b: &mut test::Bencher) {
             let listener = rt.block_on(TcpListener::bind(addr)).unwrap();
             let addr = listener.local_addr().unwrap();
 
+            let mut http = Http::new();
+            http.pipeline_flush(true);
             rt.spawn(async move {
                 loop {
                     let (stream, _addr) = listener.accept().await.expect("accept");
-
-                    Http::new()
-                        .pipeline_flush(true)
-                        .serve_connection(
-                            stream,
-                            service_fn(|_| async {
-                                Ok::<_, Infallible>(Response::new(Full::new(Bytes::from(
-                                    "Hello, World!",
-                                ))))
-                            }),
-                        )
-                        .await
-                        .unwrap();
+                    http.serve_connection(
+                        stream,
+                        service_fn(|_| async {
+                            Ok::<_, Infallible>(Response::new(Full::new(Bytes::from(
+                                "Hello, World!",
+                            ))))
+                        }),
+                    )
+                    .await
+                    .unwrap();
                 }
             });
 

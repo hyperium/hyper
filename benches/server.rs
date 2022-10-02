@@ -34,25 +34,24 @@ macro_rules! bench_server {
                 let listener = rt.block_on(tokio::net::TcpListener::bind(addr)).unwrap();
                 let addr = listener.local_addr().unwrap();
 
+                let http = Http::new();
                 rt.spawn(async move {
                     loop {
                         let (stream, _) = listener.accept().await.expect("accept");
-
-                        Http::new()
-                            .serve_connection(
-                                stream,
-                                service_fn(|_| async {
-                                    Ok::<_, hyper::Error>(
-                                        Response::builder()
-                                            .header($header.0, $header.1)
-                                            .header("content-type", "text/plain")
-                                            .body($body())
-                                            .unwrap(),
-                                    )
-                                }),
-                            )
-                            .await
-                            .unwrap();
+                        http.serve_connection(
+                            stream,
+                            service_fn(|_| async {
+                                Ok::<_, hyper::Error>(
+                                    Response::builder()
+                                        .header($header.0, $header.1)
+                                        .header("content-type", "text/plain")
+                                        .body($body())
+                                        .unwrap(),
+                                )
+                            }),
+                        )
+                        .await
+                        .unwrap();
                     }
                 });
 
