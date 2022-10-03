@@ -279,27 +279,6 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Get a reference to the full raw headers of this response.
-    ///
-    /// You must have enabled `hyper_clientconn_options_headers_raw()`, or this
-    /// will return NULL.
-    ///
-    /// The returned `hyper_buf *` is just a reference, owned by the response.
-    /// You need to make a copy if you wish to use it after freeing the
-    /// response.
-    ///
-    /// The buffer is not null-terminated, see the `hyper_buf` functions for
-    /// getting the bytes and length.
-    fn hyper_response_headers_raw(resp: *const hyper_response) -> *const hyper_buf {
-        let resp = non_null!(&*resp ?= std::ptr::null());
-        match resp.0.extensions().get::<RawHeaders>() {
-            Some(raw) => &raw.0,
-            None => std::ptr::null(),
-        }
-    } ?= std::ptr::null()
-}
-
-ffi_fn! {
     /// Get the HTTP version used by this response.
     ///
     /// The returned value could be:

@@ -153,11 +153,6 @@ static void print_informational(void *userdata, hyper_response *resp) {
     uint16_t http_status = hyper_response_status(resp);
 
     printf("\nInformational (1xx): %d\n", http_status);
-
-    const hyper_buf *headers = hyper_response_headers_raw(resp);
-    if (headers) {
-        write(1, hyper_buf_bytes(headers), hyper_buf_len(headers));
-    }
 }
 
 typedef enum {
@@ -228,7 +223,6 @@ int main(int argc, char *argv[]) {
     // Prepare client options
     hyper_clientconn_options *opts = hyper_clientconn_options_new();
     hyper_clientconn_options_exec(opts, exec);
-    hyper_clientconn_options_headers_raw(opts, 1);
 
     hyper_task *handshake = hyper_clientconn_handshake(io, opts);
     hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE);
