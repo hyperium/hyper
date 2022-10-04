@@ -22,10 +22,10 @@
 //! ## Building
 //!
 //! The C API is part of the Rust library, but isn't compiled by default. Using
-//! `cargo`, it can be compiled with the following command:
+//! `cargo`, staring with `1.64.0`, it can be compiled with the following command:
 //!
 //! ```notrust
-//! RUSTFLAGS="--cfg hyper_unstable_ffi" cargo build --features client,http1,http2,ffi
+//! RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --features client,http1,http2,ffi --crate-type cdylib
 //! ```
 
 // We may eventually allow the FFI to be enabled without `client` or `http1`,
