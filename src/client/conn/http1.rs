@@ -108,8 +108,6 @@ pub struct Builder {
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     #[cfg(feature = "ffi")]
-    h1_headers_raw: bool,
-    #[cfg(feature = "ffi")]
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
@@ -300,8 +298,6 @@ impl Builder {
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             #[cfg(feature = "ffi")]
-            h1_headers_raw: false,
-            #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
         }
@@ -456,12 +452,6 @@ impl Builder {
         self
     }
 
-    #[cfg(feature = "ffi")]
-    pub(crate) fn http1_headers_raw(&mut self, enabled: bool) -> &mut Builder {
-        self.h1_headers_raw = enabled;
-        self
-    }
-
     /// Sets the exact size of the read buffer to *always* use.
     ///
     /// Note that setting this option unsets the `http1_max_buf_size` option.
@@ -535,10 +525,7 @@ impl Builder {
             if opts.h1_preserve_header_order {
                 conn.set_preserve_header_order();
             }
-            #[cfg(feature = "ffi")]
-            if opts.h1_headers_raw {
-                conn.set_raw_headers(true);
-            }
+
             if opts.h09_responses {
                 conn.set_h09_responses();
             }

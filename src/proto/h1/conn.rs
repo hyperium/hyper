@@ -68,8 +68,6 @@ where
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: None,
-                #[cfg(feature = "ffi")]
-                raw_headers: false,
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -140,11 +138,6 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
-    }
-
-    #[cfg(feature = "ffi")]
-    pub(crate) fn set_raw_headers(&mut self, enabled: bool) {
-        self.state.raw_headers = enabled;
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -219,8 +212,6 @@ where
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
-                #[cfg(feature = "ffi")]
-                raw_headers: self.state.raw_headers,
             }
         )) {
             Ok(msg) => msg,
@@ -828,8 +819,6 @@ struct State {
     /// received.
     #[cfg(feature = "ffi")]
     on_informational: Option<crate::ffi::OnInformational>,
-    #[cfg(feature = "ffi")]
-    raw_headers: bool,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,

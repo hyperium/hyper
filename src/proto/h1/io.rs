@@ -197,8 +197,6 @@ where
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
                     on_informational: parse_ctx.on_informational,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: parse_ctx.raw_headers,
                 },
             )? {
                 Some(msg) => {
@@ -738,8 +736,6 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
-                #[cfg(feature = "ffi")]
-                raw_headers: false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)
