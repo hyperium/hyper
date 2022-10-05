@@ -2,7 +2,7 @@ use bytes::Bytes;
 use libc::{c_int, size_t};
 use std::ffi::c_void;
 
-use super::body::{hyper_body};
+use super::body::hyper_body;
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
