@@ -2,7 +2,7 @@ use bytes::Bytes;
 use libc::{c_int, size_t};
 use std::ffi::c_void;
 
-use super::body::{hyper_body, hyper_buf};
+use super::body::{hyper_body};
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
@@ -24,8 +24,6 @@ pub struct hyper_headers {
     orig_casing: HeaderCaseMap,
     orig_order: OriginalHeaderOrder,
 }
-
-pub(crate) struct RawHeaders(pub(crate) hyper_buf);
 
 pub(crate) struct OnInformational {
     func: hyper_request_on_informational_callback,

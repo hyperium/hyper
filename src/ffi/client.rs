@@ -14,7 +14,6 @@ use super::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType
 /// An options builder to configure an HTTP client connection.
 pub struct hyper_clientconn_options {
     http1_allow_obsolete_multiline_headers_in_responses: bool,
-    http1_headers_raw: bool,
     http1_preserve_header_case: bool,
     http1_preserve_header_order: bool,
     http2: bool,
@@ -72,7 +71,6 @@ ffi_fn! {
             conn::http1::Builder::new()
                 .executor(options.exec.clone())
                 .http1_allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
-                .http1_headers_raw(options.http1_headers_raw)
                 .http1_preserve_header_case(options.http1_preserve_header_case)
                 .http1_preserve_header_order(options.http1_preserve_header_order)
                 .handshake::<_, crate::Recv>(io)
@@ -131,7 +129,6 @@ ffi_fn! {
     fn hyper_clientconn_options_new() -> *mut hyper_clientconn_options {
         Box::into_raw(Box::new(hyper_clientconn_options {
             http1_allow_obsolete_multiline_headers_in_responses: false,
-            http1_headers_raw: false,
             http1_preserve_header_case: false,
             http1_preserve_header_order: false,
             http2: false,
