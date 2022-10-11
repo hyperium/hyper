@@ -395,7 +395,13 @@ where
             // In both cases, we should just wait for the other future.
             Either::Left((Err(err), connecting)) => {
                 if err.is_canceled() {
-                    connecting.await.map_err(ClientConnectError::Normal)
+                    connecting.await.map_err(|connecting_err| {
+                        if is_ver_h2 && err.find_source::<CheckoutIsClosedError>().is_some() {
+                            ClientConnectError::H2CheckoutIsClosed(err)
+                        } else {
+                            ClientConnectError::Normal(connecting_err)
+                        }
+                    })
                 } else {
                     Err(ClientConnectError::Normal(err))
                 }
