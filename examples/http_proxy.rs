@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::client::conn::http1::Builder;
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Method, Recv, Request, Response};
@@ -30,7 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (stream, _) = listener.accept().await?;
 
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new()
+            if let Err(err) = http1::Builder::new()
                 .http1_preserve_header_case(true)
                 .http1_title_case_headers(true)
                 .serve_connection(stream, service_fn(proxy))

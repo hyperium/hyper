@@ -2,7 +2,6 @@
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,7 +9,6 @@ use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Recv};
-use crate::common::exec::{ConnStreamExec, Exec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::{common::time::Time, rt::Timer};
 use crate::proto;
@@ -25,21 +23,18 @@ pin_project_lite::pin_project! {
     ///
     /// Polling this future will drive HTTP forward.
     #[must_use = "futures do nothing unless polled"]
-    pub struct Connection<T, S, E>
+    pub struct Connection<T, S>
     where
         S: HttpService<Recv>,
     {
         conn: Option<Http1Dispatcher<T, S::ResBody, S>>,
-        // can we remove this?
-        _exec: PhantomData<E>,
     }
 }
 
 
 /// A configuration builder for HTTP/1 server connections.
 #[derive(Clone, Debug)]
-pub struct Builder<E = Exec> {
-    pub(crate) _exec: E,
+pub struct Builder {
     pub(crate) timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
@@ -75,7 +70,7 @@ pub struct Parts<T, S> {
 
 // ===== impl Connection =====
 
-impl<I, S, E> fmt::Debug for Connection<I, S, E>
+impl<I, S> fmt::Debug for Connection<I, S>
 where
     S: HttpService<Recv>,
 {
@@ -84,14 +79,13 @@ where
     }
 }
 
-impl<I, B, S, E> Connection<I, S, E>
+impl<I, B, S> Connection<I, S>
 where
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: ConnStreamExec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -187,7 +181,7 @@ where
     /// Enable this connection to support higher-level HTTP upgrades.
     ///
     /// See [the `upgrade` module](crate::upgrade) for more.
-    pub fn with_upgrades(self) -> upgrades::UpgradeableConnection<I, S, E>
+    pub fn with_upgrades(self) -> upgrades::UpgradeableConnection<I, S>
     where
         I: Send,
     {
@@ -196,14 +190,13 @@ where
 }
 
 
-impl<I, B, S, E> Future for Connection<I, S, E>
+impl<I, B, S> Future for Connection<I, S>
 where
     S: HttpService<Recv, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: ConnStreamExec<S::Future, B>,
 {
     type Output = crate::Result<()>;
 
@@ -229,13 +222,10 @@ where
 
 // ===== impl Builder =====
 
-impl<E> Builder<E> {
+impl Builder {
     /// Create a new connection builder.
-    ///
-    /// This starts with the default options, and an executor.
-    pub fn new(exec: E) -> Self {
+    pub fn new() -> Self {
         Self {
-            _exec: exec,
             timer: Time::Empty,
             h1_half_close: false,
             h1_keep_alive: true,
@@ -351,24 +341,6 @@ impl<E> Builder<E> {
         self
     }
 
-    /// Set the executor used to spawn background tasks.
-    ///
-    /// Default uses implicit default (like `tokio::spawn`).
-    pub fn with_executor<E2>(self, exec: E2) -> Builder<E2> {
-        Builder {
-            _exec: exec,
-            timer: self.timer,
-            h1_half_close: self.h1_half_close,
-            h1_keep_alive: self.h1_keep_alive,
-            h1_title_case_headers: self.h1_title_case_headers,
-            h1_preserve_header_case: self.h1_preserve_header_case,
-            h1_header_read_timeout: self.h1_header_read_timeout,
-            h1_writev: self.h1_writev,
-            max_buf_size: self.max_buf_size,
-            pipeline_flush: self.pipeline_flush,
-        }
-    }
-
     /// Set the timer used in background tasks.
     pub fn timer<M>(&mut self, timer: M) -> &mut Self
     where
@@ -388,7 +360,7 @@ impl<E> Builder<E> {
     /// ```
     /// # use hyper::{Recv, Request, Response};
     /// # use hyper::service::Service;
-    /// # use hyper::server::conn::Http;
+    /// # use hyper::server::conn::http1::Builder;
     /// # use tokio::io::{AsyncRead, AsyncWrite};
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
@@ -397,7 +369,7 @@ impl<E> Builder<E> {
     /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     /// #     S::Future: Send,
     /// # {
-    /// let http = Http::new();
+    /// let http = Builder::new();
     /// let conn = http.serve_connection(some_io, some_service);
     ///
     /// if let Err(e) = conn.await {
@@ -406,14 +378,13 @@ impl<E> Builder<E> {
     /// # }
     /// # fn main() {}
     /// ```
-    pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
+    pub fn serve_connection<I, S>(&self, io: I, service: S) -> Connection<I, S>
     where
-        S: HttpService<Recv, ResBody = Bd>,
+        S: HttpService<Recv>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bd: Body + 'static,
-        Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::ResBody: 'static,
+        <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
-        E: ConnStreamExec<S::Future, Bd>,
     {
         let mut conn = proto::Conn::new(io);
         conn.set_timer(self.timer.clone());
@@ -447,7 +418,6 @@ impl<E> Builder<E> {
         let proto = proto::h1::Dispatcher::new(sd, conn);
         Connection {
             conn: Some(proto),
-            _exec: PhantomData,
         }
     }
 }
@@ -459,25 +429,23 @@ mod upgrades {
 
     // A future binding a connection with a Service with Upgrade support.
     //
-    // This type is unnameable outside the crate, and so basically just an
-    // `impl Future`, without requiring Rust 1.26.
+    // This type is unnameable outside the crate.
     #[must_use = "futures do nothing unless polled"]
     #[allow(missing_debug_implementations)]
-    pub struct UpgradeableConnection<T, S, E>
+    pub struct UpgradeableConnection<T, S>
     where
         S: HttpService<Recv>,
     {
-        pub(super) inner: Connection<T, S, E>,
+        pub(super) inner: Connection<T, S>,
     }
 
-    impl<I, B, S, E> UpgradeableConnection<I, S, E>
+    impl<I, B, S> UpgradeableConnection<I, S>
     where
         S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Body + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: ConnStreamExec<S::Future, B>,
     {
         /// Start a graceful shutdown process for this connection.
         ///
@@ -488,14 +456,13 @@ mod upgrades {
         }
     }
 
-    impl<I, B, S, E> Future for UpgradeableConnection<I, S, E>
+    impl<I, B, S> Future for UpgradeableConnection<I, S>
     where
         S: HttpService<Recv, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Body + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: ConnStreamExec<S::Future, B>,
     {
         type Output = crate::Result<()>;
 

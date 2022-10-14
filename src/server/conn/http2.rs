@@ -284,30 +284,6 @@ impl<E> Builder<E> {
     ///
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use hyper::{Recv, Request, Response};
-    /// # use hyper::service::Service;
-    /// # use hyper::server::conn::Http;
-    /// # use tokio::io::{AsyncRead, AsyncWrite};
-    /// # async fn run<I, S>(some_io: I, some_service: S)
-    /// # where
-    /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    /// #     S: Service<hyper::Request<Recv>, Response=hyper::Response<Recv>> + Send + 'static,
-    /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    /// #     S::Future: Send,
-    /// # {
-    /// let http = Http::new();
-    /// let conn = http.serve_connection(some_io, some_service);
-    ///
-    /// if let Err(e) = conn.await {
-    ///     eprintln!("server connection error: {}", e);
-    /// }
-    /// # }
-    /// # fn main() {}
-    /// ```
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
         S: HttpService<Recv, ResBody = Bd>,

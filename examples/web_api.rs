@@ -4,7 +4,7 @@ use std::net::SocketAddr;
 
 use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{header, Method, Recv, Request, Response, StatusCode};
 use tokio::net::{TcpListener, TcpStream};
@@ -113,7 +113,10 @@ async fn main() -> Result<()> {
         tokio::task::spawn(async move {
             let service = service_fn(move |req| response_examples(req));
 
-            if let Err(err) = Http::new().serve_connection(stream, service).await {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(stream, service)
+                .await
+            {
                 println!("Failed to serve connection: {:?}", err);
             }
         });

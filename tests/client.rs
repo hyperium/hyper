@@ -1880,7 +1880,7 @@ mod conn {
         let addr = listener.local_addr().unwrap();
         let (shdn_tx, mut shdn_rx) = tokio::sync::watch::channel(false);
         tokio::task::spawn(async move {
-            use hyper::server::conn::Http;
+            use hyper::server::conn::http2;
             use hyper::service::service_fn;
 
             loop {
@@ -1892,7 +1892,8 @@ mod conn {
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
-                            let mut conn = Http::new().with_executor(TokioExecutor).http2_only(true).serve_connection(stream, service);
+                            let mut conn = http2::Builder::new(TokioExecutor)
+                                .serve_connection(stream, service);
 
                             tokio::select! {
                                 res = &mut conn => {
@@ -2093,10 +2094,8 @@ mod conn {
         // Spawn an HTTP2 server that reads the whole body and responds
         tokio::spawn(async move {
             let sock = listener.accept().await.unwrap().0;
-            hyper::server::conn::Http::new()
-                .with_executor(TokioExecutor)
-                .with_timer(TokioTimer)
-                .http2_only(true)
+            hyper::server::conn::http2::Builder::new(TokioExecutor)
+                .timer(TokioTimer)
                 .serve_connection(
                     sock,
                     service_fn(|req| async move {

@@ -13,7 +13,7 @@ use futures_util::{stream, StreamExt};
 use http_body_util::{BodyExt, Full, StreamBody};
 use tokio::sync::oneshot;
 
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::Response;
 
@@ -38,7 +38,7 @@ macro_rules! bench_server {
                     loop {
                         let (stream, _) = listener.accept().await.expect("accept");
 
-                        Http::new()
+                        http1::Builder::new()
                             .serve_connection(
                                 stream,
                                 service_fn(|_| async {

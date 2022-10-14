@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-use hyper::{server::conn::Http, service::service_fn};
+use hyper::{server::conn::http1, service::service_fn};
 use std::net::SocketAddr;
 use tokio::net::{TcpListener, TcpStream};
 
@@ -56,7 +56,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         });
 
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new().serve_connection(stream, service).await {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(stream, service)
+                .await
+            {
                 println!("Failed to servce connection: {:?}", err);
             }
         });

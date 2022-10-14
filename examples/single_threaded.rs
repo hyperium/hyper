@@ -1,6 +1,6 @@
 #![deny(warnings)]
 
-use hyper::server::conn::Http;
+use hyper::server::conn::http2;
 use std::cell::Cell;
 use std::net::SocketAddr;
 use std::rc::Rc;
@@ -84,8 +84,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         });
 
         tokio::task::spawn_local(async move {
-            if let Err(err) = Http::new()
-                .with_executor(LocalExec)
+            if let Err(err) = http2::Builder::new(LocalExec)
                 .serve_connection(stream, service)
                 .await
             {
@@ -95,6 +94,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+// NOTE: This part is only needed for HTTP/2. HTTP/1 doesn't need an executor.
+//
 // Since the Server needs to spawn some background tasks, we needed
 // to configure an Executor that can spawn !Send futures...
 #[derive(Clone, Copy, Debug)]
