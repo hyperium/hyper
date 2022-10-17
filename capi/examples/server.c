@@ -13,7 +13,7 @@
 
 #include "hyper.h"
 
-static const int MAX_EVENTS = 10;
+static const int MAX_EVENTS = 128;
 
 typedef struct conn_data_s {
     int fd;
@@ -238,6 +238,8 @@ int main(int argc, char *argv[]) {
                     free_conn_data(conn);
                 }
                 hyper_task_free(task);
+
+                continue;
             }
 
             if (hyper_task_type(task) == HYPER_TASK_EMPTY) {
@@ -249,6 +251,8 @@ int main(int argc, char *argv[]) {
                     printf("internal hyper task complete\n");
                 }
                 hyper_task_free(task);
+
+                continue;
             }
         }
 
@@ -262,31 +266,36 @@ int main(int argc, char *argv[]) {
             return 1;
         }
 
+        printf("Poll reported %d events\n", nevents);
+
         for (int n = 0; n < nevents; n++) {
             if (events[n].data.ptr == NULL) {
-                // Incoming connection on listen_fd
-                int new_fd = accept(listen_fd, NULL, 0);
-                if (new_fd < 0) {
-                    perror("accept");
-                    return 1;
+                // Incoming connection(s) on listen_fd
+                int new_fd;
+                while ((new_fd = accept(listen_fd, NULL, 0)) >= 0) {
+                  printf("New incoming connection\n");
+
+                  // Set non-blocking
+                  if (fcntl(new_fd, F_SETFL, O_NONBLOCK) != 0) {
+                      perror("fcntl(O_NONBLOCK) (listening)\n");
+                      return 1;
+                  }
+
+                  // Wire up IO
+                  conn_data *conn = create_conn_data(new_fd);
+                  hyper_io* io = create_io(conn);
+
+                  // Ask hyper to drive this connection
+                  hyper_serverconn_options *opts = hyper_serverconn_options_new(exec);
+                  hyper_service *service = hyper_service_new(server_callback);
+                  hyper_task *serverconn = hyper_serve_connection(opts, io, service);
+                  hyper_task_set_userdata(serverconn, conn);
+                  hyper_executor_push(exec, serverconn);
                 }
 
-                // Set non-blocking
-                if (fcntl(new_fd, F_SETFL, O_NONBLOCK) != 0) {
-                    perror("fcntl(O_NONBLOCK) (listening)\n");
-                    return 1;
+                if (errno != EAGAIN) {
+                  perror("accept");
                 }
-
-                // Wire up IO
-                conn_data *conn = create_conn_data(new_fd);
-                hyper_io* io = create_io(conn);
-
-                // Ask hyper to drive this connection
-                hyper_serverconn_options *opts = hyper_serverconn_options_new(exec);
-                hyper_service *service = hyper_service_new(server_callback);
-                hyper_task *serverconn = hyper_serve_connection(opts, io, service);
-                hyper_task_set_userdata(serverconn, conn);
-                hyper_executor_push(exec, serverconn);
             } else {
                 // Existing transport socket, poke the wakers or close the socket
                 conn_data* conn = events[n].data.ptr;
