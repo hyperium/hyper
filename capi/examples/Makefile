@@ -3,18 +3,21 @@
 #
 
 RPATH=$(PWD)/../../target/debug
-CFLAGS = -I../include -ggdb3
-LDFLAGS = -L$(RPATH) -Wl,-rpath,$(RPATH)
+HYPER_CFLAGS += -I../include -ggdb3
+HYPER_LDFLAGS += -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lhyper
 
 all: client upload server
 
+%.o : %.c ../include/hyper.h
+	${CC} -c -o $@ $< $(HYPER_CFLAGS) $(CFLAGS)
+
 client: client.o
-	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $^ $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
 upload: upload.o
-	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $^ $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
 server: server.o
-	$(CC) -o $@ $^ $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $^ $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f *.o client server upload
