@@ -17,7 +17,6 @@ static const int MAX_EVENTS = 10;
 
 typedef struct conn_data_s {
     int fd;
-    bool active;
     hyper_waker *read_waker;
     hyper_waker *write_waker;
 } conn_data;
@@ -26,6 +25,10 @@ int epoll = -1;
 
 static int listen_on(const char* host, const char* port) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int reuseaddr = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int)) < 0) {
+      perror("setsockopt");
+    }
     struct sockaddr_in sin;
     sin.sin_family = AF_INET;
     sin.sin_port = htons(1234);
@@ -92,12 +95,16 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
 static conn_data* create_conn_data(int fd) {
     conn_data *conn = malloc(sizeof(conn_data));
 
-    if (epoll_ctl(epoll, EPOLL_CTL_ADD, new_fd, &transport_event) < 0) {
+    // Add fd to epoll set, associated with this `conn`
+    struct epoll_event transport_event;
+    transport_event.events = EPOLLIN;
+    transport_event.data.ptr = conn;
+    if (epoll_ctl(epoll, EPOLL_CTL_ADD, fd, &transport_event) < 0) {
         perror("epoll_ctl (transport)");
-        return 1;
+        free(conn);
+        return NULL;
     }
 
-    conn->active = false;
     conn->fd = fd;
     conn->read_waker = NULL;
     conn->write_waker = NULL;
@@ -111,12 +118,18 @@ static hyper_io* create_io(conn_data* conn) {
     hyper_io_set_userdata(io, (void *)conn);
     hyper_io_set_read(io, read_cb);
     hyper_io_set_write(io, write_cb);
-    conn->active = true;
 
     return io;
 }
 
 static void free_conn_data(conn_data *conn) {
+    // Disassociate with the epoll
+    if (epoll_ctl(epoll, EPOLL_CTL_DEL, conn->fd, NULL) < 0) {
+        perror("epoll_ctl (transport)");
+    }
+
+    close(conn->fd);
+
     if (conn->read_waker) {
         hyper_waker_free(conn->read_waker);
         conn->read_waker = NULL;
@@ -209,19 +222,37 @@ int main(int argc, char *argv[]) {
 
             if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                 printf("handshake error!\n");
+
                 err = hyper_task_value(task);
-                goto fail;
+                printf("error code: %d\n", hyper_error_code(err));
+                uint8_t errbuf [256];
+                size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
+                printf("details: %.*s\n", (int) errlen, errbuf);
+
+                // clean up the error
+                hyper_error_free(err);
+
+                // clean up the task
+                conn_data* conn = hyper_task_userdata(task);
+                if (conn) {
+                    free_conn_data(conn);
+                }
+                hyper_task_free(task);
             }
 
             if (hyper_task_type(task) == HYPER_TASK_EMPTY) {
-                printf("server connection complete\n");
                 conn_data* conn = hyper_task_userdata(task);
-                free_conn_data(conn);
+                if (conn) {
+                    printf("server connection complete\n");
+                    free_conn_data(conn);
+                } else {
+                    printf("internal hyper task complete\n");
+                }
                 hyper_task_free(task);
             }
         }
 
-        printf("Processed all tasks\n");
+        printf("Processed all tasks - polling for events\n");
 
         struct epoll_event events[MAX_EVENTS];
 
@@ -249,9 +280,6 @@ int main(int argc, char *argv[]) {
                 // Wire up IO
                 conn_data *conn = create_conn_data(new_fd);
                 hyper_io* io = create_io(conn);
-                struct epoll_event transport_event;
-                transport_event.events = EPOLLIN;
-                transport_event.data.ptr = conn;
 
                 // Ask hyper to drive this connection
                 hyper_serverconn_options *opts = hyper_serverconn_options_new(exec);
@@ -272,18 +300,6 @@ int main(int argc, char *argv[]) {
                 }
             }
         }
-    }
-
-fail:
-    if (err) {
-        printf("error code: %d\n", hyper_error_code(err));
-        // grab the error details
-        uint8_t errbuf [256];
-        size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
-        printf("details: %.*s\n", (int) errlen, errbuf);
-
-        // clean up the error
-        hyper_error_free(err);
     }
 
     return 1;
