@@ -21,6 +21,7 @@ include = [
 
 [dependencies]
 bytes = "1"
+bytes-utils = "0.1"
 futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }

@@ -107,3 +107,54 @@ cfg_feature! {
     #[doc(no_inline)]
     pub use crate::server::Server;
 }
+
+use pin_project_lite::pin_project;
+
+pin_project! {
+    #[derive(Debug)]
+    struct Inner {
+        #[pin]
+        body: Body,
+    }
+}
+
+use bytes::Bytes;
+use bytes_utils::SegmentedBuf;
+
+use crate::body::HttpBody;
+
+impl Inner {
+    fn new(body: Body) -> Self {
+        Self { body }
+    }
+
+    async fn collect(self) -> std::result::Result<SegmentedBuf<Bytes>, crate::Error> {
+        let mut output = SegmentedBuf::new();
+        let body = self.body;
+        futures_util::pin_mut!(body);
+        while let Some(buf) = body.data().await {
+            output.push(buf?);
+        }
+        Ok(output)
+    }
+}
+
+use bytes::Buf;
+
+#[tokio::test]
+async fn read_from_channel_body() {
+    let (mut sender, body) = Body::channel();
+    let byte_stream = Inner::new(body);
+    tokio::spawn(async move {
+        sender.send_data(Bytes::from("data 1")).await.unwrap();
+        sender.send_data(Bytes::from("data 2")).await.unwrap();
+        sender.send_data(Bytes::from("data 3")).await.unwrap();
+    });
+
+    let mut aggregated_bytes: SegmentedBuf<Bytes> = byte_stream.collect().await.expect("no errors");
+
+    assert_eq!(
+        aggregated_bytes.copy_to_bytes(aggregated_bytes.remaining()),
+        Bytes::from("data 1data 2data 3")
+    );
+}
