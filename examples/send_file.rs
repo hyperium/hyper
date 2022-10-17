@@ -2,7 +2,7 @@
 
 use std::net::SocketAddr;
 
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use tokio::net::TcpListener;
 
 use bytes::Bytes;
@@ -26,7 +26,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
         let (stream, _) = listener.accept().await?;
 
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new()
+            if let Err(err) = http1::Builder::new()
                 .serve_connection(stream, service_fn(response_examples))
                 .await
             {

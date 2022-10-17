@@ -20,7 +20,7 @@ pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 // TODO: with the `runtime`feature, `Exec::Default` used `tokio::spawn`. With the
 // removal of the opt-in default runtime, this should be refactored.
 #[derive(Clone)]
-pub enum Exec {
+pub(crate) enum Exec {
     Default,
     Executor(Arc<dyn Executor<BoxSendFuture> + Send + Sync>),
 }

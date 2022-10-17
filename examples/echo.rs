@@ -5,7 +5,7 @@ use std::net::SocketAddr;
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::body::Body as _;
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Recv, Request, Response, StatusCode};
 use tokio::net::TcpListener;
@@ -87,7 +87,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (stream, _) = listener.accept().await?;
 
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new().serve_connection(stream, service_fn(echo)).await {
+            if let Err(err) = http1::Builder::new()
+                .serve_connection(stream, service_fn(echo))
+                .await
+            {
                 println!("Error serving connection: {:?}", err);
             }
         });

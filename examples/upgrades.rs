@@ -11,7 +11,7 @@ use tokio::sync::watch;
 use bytes::Bytes;
 use http_body_util::Empty;
 use hyper::header::{HeaderValue, UPGRADE};
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Recv, Request, Response, StatusCode};
@@ -149,7 +149,7 @@ async fn main() {
 
                     let mut rx = rx.clone();
                     tokio::task::spawn(async move {
-                        let conn = Http::new().serve_connection(stream, service_fn(server_upgrade));
+                        let conn = http1::Builder::new().serve_connection(stream, service_fn(server_upgrade));
 
                         // Don't forget to enable upgrades on the connection.
                         let mut conn = conn.with_upgrades();

@@ -8,7 +8,7 @@ use std::sync::{
 
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::server::conn::Http;
+use hyper::server;
 use tokio::net::{TcpListener, TcpStream};
 
 use hyper::service::service_fn;
@@ -383,12 +383,17 @@ async fn async_test(cfg: __TestConfig) {
             });
 
             tokio::task::spawn(async move {
-                Http::new()
-                    .with_executor(TokioExecutor)
-                    .http2_only(http2_only)
-                    .serve_connection(stream, service)
-                    .await
-                    .expect("server error");
+                if http2_only {
+                    server::conn::http2::Builder::new(TokioExecutor)
+                        .serve_connection(stream, service)
+                        .await
+                        .expect("server error");
+                } else {
+                    server::conn::http1::Builder::new()
+                        .serve_connection(stream, service)
+                        .await
+                        .expect("server error");
+                }
             });
         }
     });
@@ -560,12 +565,17 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                     }
                 });
 
-                Http::new()
-                    .with_executor(TokioExecutor)
-                    .http2_only(http2_only)
-                    .serve_connection(stream, service)
-                    .await
-                    .unwrap();
+                if http2_only {
+                    server::conn::http2::Builder::new(TokioExecutor)
+                        .serve_connection(stream, service)
+                        .await
+                        .unwrap();
+                } else {
+                    server::conn::http1::Builder::new()
+                        .serve_connection(stream, service)
+                        .await
+                        .unwrap();
+                }
             }
         });
     };

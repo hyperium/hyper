@@ -8,7 +8,7 @@ use std::sync::{
 
 use bytes::Bytes;
 use http_body_util::Full;
-use hyper::{server::conn::Http, service::service_fn};
+use hyper::{server::conn::http1, service::service_fn};
 use hyper::{Error, Response};
 use tokio::net::TcpListener;
 
@@ -46,7 +46,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-        if let Err(err) = Http::new().serve_connection(stream, service).await {
+        if let Err(err) = http1::Builder::new()
+            .serve_connection(stream, service)
+            .await
+        {
             println!("Error serving connection: {:?}", err);
         }
     }

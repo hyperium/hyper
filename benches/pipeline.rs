@@ -14,7 +14,7 @@ use http_body_util::Full;
 use tokio::net::TcpListener;
 use tokio::sync::oneshot;
 
-use hyper::server::conn::Http;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::Response;
 
@@ -41,7 +41,7 @@ fn hello_world_16(b: &mut test::Bencher) {
                 loop {
                     let (stream, _addr) = listener.accept().await.expect("accept");
 
-                    Http::new()
+                    http1::Builder::new()
                         .pipeline_flush(true)
                         .serve_connection(
                             stream,
