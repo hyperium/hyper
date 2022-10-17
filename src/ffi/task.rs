@@ -128,7 +128,8 @@ impl hyper_executor {
         let mut cx = Context::from_waker(&waker);
 
         loop {
-            match Pin::new(&mut *self.driver.lock().unwrap()).poll_next(&mut cx) {
+            let poll = Pin::new(&mut *self.driver.lock().unwrap()).poll_next(&mut cx);
+            match poll {
                 Poll::Ready(val) => return val,
                 Poll::Pending => {
                     // Check if any of the pending tasks tried to spawn
