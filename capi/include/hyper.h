@@ -193,6 +193,12 @@ typedef struct hyper_request hyper_request;
  */
 typedef struct hyper_response hyper_response;
 
+typedef struct hyper_response_channel hyper_response_channel;
+
+typedef struct hyper_serverconn_options hyper_serverconn_options;
+
+typedef struct hyper_service hyper_service;
+
 /*
  An async task.
  */
@@ -206,6 +212,8 @@ typedef struct hyper_waker hyper_waker;
 typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
+
+typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response*, struct hyper_response_channel*);
 
 typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
 
@@ -400,6 +408,19 @@ enum hyper_code hyper_clientconn_options_http2(struct hyper_clientconn_options *
  */
 enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hyper_clientconn_options *opts,
                                                                        int enabled);
+
+struct hyper_serverconn_options *hyper_serverconn_options_new(const struct hyper_executor *exec);
+
+struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
+
+void hyper_service_set_userdata(struct hyper_service *service, void *userdata);
+
+struct hyper_task *hyper_serve_connection(struct hyper_serverconn_options *serverconn_options,
+                                          struct hyper_io *io,
+                                          struct hyper_service *service);
+
+void hyper_response_channel_send(struct hyper_response_channel *channel,
+                                 struct hyper_response *response);
 
 /*
  Frees a `hyper_error`.
@@ -640,6 +661,15 @@ void hyper_io_free(struct hyper_io *io);
  This value is passed as an argument to the read and write callbacks.
  */
 void hyper_io_set_userdata(struct hyper_io *io, void *data);
+
+/*
+ Get the user data pointer for this IO value.
+
+ The userdata is still owned by the IO so must be treated as "borrowed"
+
+ Returns NULL if no userdata has been set.
+ */
+void *hyper_io_get_userdata(struct hyper_io *io);
 
 /*
  Set the read function for this IO transport.
