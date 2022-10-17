@@ -60,6 +60,17 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Get the user data pointer for this IO value.
+    ///
+    /// The userdata is still owned by the IO so must be treated as "borrowed"
+    ///
+    /// Returns NULL if no userdata has been set.
+    fn hyper_io_get_userdata(io: *mut hyper_io) -> *mut c_void {
+        non_null!(&mut *io ?= std::ptr::null_mut()).userdata
+    }
+}
+
+ffi_fn! {
     /// Set the read function for this IO transport.
     ///
     /// Data that is read from the transport should be put in the `buf` pointer,

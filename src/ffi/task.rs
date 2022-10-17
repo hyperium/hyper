@@ -14,6 +14,8 @@ use libc::c_int;
 use super::error::hyper_code;
 use super::UserDataPointer;
 
+use crate::proto::h2::server::H2Stream;
+
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
 
@@ -182,6 +184,16 @@ impl crate::rt::Executor<BoxFuture<()>> for WeakExec {
         if let Some(exec) = self.0.upgrade() {
             exec.spawn(hyper_task::boxed(fut));
         }
+    }
+}
+
+impl<F, B> crate::common::exec::ConnStreamExec<F, B> for WeakExec
+where
+    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
+    B: crate::body::Body,
+{
+    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
+        <Self as crate::rt::Executor<_>>::execute(&self, Box::pin(fut))
     }
 }
 
