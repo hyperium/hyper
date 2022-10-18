@@ -743,16 +743,16 @@ mod tests {
         }
     }
 
+    use crate::common::buf::BufList;
     use bytes::Bytes;
-    use bytes_utils::SegmentedBuf;
 
     impl Inner {
         fn new(body: Body) -> Self {
             Self { body }
         }
 
-        async fn collect(self) -> std::result::Result<SegmentedBuf<Bytes>, crate::Error> {
-            let mut output = SegmentedBuf::new();
+        async fn collect(self) -> std::result::Result<BufList<Bytes>, crate::Error> {
+            let mut output = BufList::new();
             let body = self.body;
             futures_util::pin_mut!(body);
             while let Some(buf) = body.data().await {
@@ -774,8 +774,7 @@ mod tests {
             sender.send_data(Bytes::from("data 3")).await.unwrap();
         });
 
-        let mut aggregated_bytes: SegmentedBuf<Bytes> =
-            byte_stream.collect().await.expect("no errors");
+        let mut aggregated_bytes: BufList<Bytes> = byte_stream.collect().await.expect("no errors");
 
         assert_eq!(
             aggregated_bytes.copy_to_bytes(aggregated_bytes.remaining()),
