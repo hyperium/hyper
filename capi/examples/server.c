@@ -4,12 +4,14 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <assert.h>
-#include <sys/epoll.h>
+#include <string.h>
+#include <signal.h>
 
+#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/signalfd.h>
 #include <netdb.h>
-#include <string.h>
 
 #include "hyper.h"
 
@@ -21,23 +23,78 @@ typedef struct conn_data_s {
     hyper_waker *write_waker;
 } conn_data;
 
-int epoll = -1;
+typedef enum task_state_type_e {
+  TASK_STATE_NONE,
+  TASK_STATE_SERVERCONN,
+  TASK_STATE_CLIENTCONN,
+} task_state_type;
+
+typedef struct task_state_s {
+  task_state_type type;
+  union {
+    conn_data* conn;
+  } data;
+} task_state;
 
 static int listen_on(const char* host, const char* port) {
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
-    int reuseaddr = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int)) < 0) {
-      perror("setsockopt");
-    }
-    struct sockaddr_in sin;
-    sin.sin_family = AF_INET;
-    sin.sin_port = htons(1234);
-    sin.sin_addr.s_addr = 0;
-    if (bind(sock, (struct sockaddr*)&sin, sizeof(struct sockaddr_in)) < 0) {
-        perror("bind");
+    struct addrinfo hints;
+    struct addrinfo *result;
+
+    // Work out bind address
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE;
+    hints.ai_protocol = 0;
+    hints.ai_canonname = NULL;
+    hints.ai_addr = NULL;
+    hints.ai_next = NULL;
+
+    int gai_rc = getaddrinfo(host, port, &hints, &result);
+    if (gai_rc != 0) {
+        fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(gai_rc));
         return -1;
     }
-    if (listen(sock, 5) < 0) {
+
+    // Try each bind address until one works
+    int sock = -1;
+    for (struct addrinfo *resp = result; resp; resp = resp->ai_next) {
+        sock = socket(resp->ai_family, resp->ai_socktype, resp->ai_protocol);
+        if (sock < 0) {
+            perror("socket");
+            continue;
+        }
+
+        // Enable SO_REUSEADDR
+        int reuseaddr = 1;
+        if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &reuseaddr, sizeof(int)) < 0) {
+            perror("setsockopt");
+        }
+
+        // Attempt to bind to the address
+        if (bind(sock, resp->ai_addr, resp->ai_addrlen) == 0) {
+            break;
+        }
+
+        // Failed, tidy up
+        close(sock);
+        sock = -1;
+    }
+
+    freeaddrinfo(result);
+
+    if (sock < 0) {
+      return -1;
+    }
+
+    // Non-blocking for async
+    if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
+        perror("fcntl(O_NONBLOCK) (listening)\n");
+        return 1;
+    }
+
+    // Enable listening mode
+    if (listen(sock, 32) < 0) {
         perror("listen");
         return -1;
     }
@@ -49,12 +106,8 @@ static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t b
     conn_data *conn = (conn_data *)userdata;
     ssize_t ret = read(conn->fd, buf, buf_len);
 
-    if (ret == 0) {
-        // Closed
-        return ret;
-    }
-
     if (ret >= 0) {
+        // Normal (synchronous) read successful (or socket is closed)
         return ret;
     }
 
@@ -63,7 +116,7 @@ static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t b
         return HYPER_IO_ERROR;
     }
 
-    // would block, register interest
+    // Otherwise this would block, so register interest and return pending
     if (conn->read_waker != NULL) {
         hyper_waker_free(conn->read_waker);
     }
@@ -76,6 +129,7 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
     ssize_t ret = write(conn->fd, buf, buf_len);
 
     if (ret >= 0) {
+        // Normal (synchronous) write successful (or socket is closed)
         return ret;
     }
 
@@ -84,7 +138,7 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
         return HYPER_IO_ERROR;
     }
 
-    // would block, register interest
+    // Otherwise this would block, so register interest and return pending
     if (conn->write_waker != NULL) {
         hyper_waker_free(conn->write_waker);
     }
@@ -92,7 +146,7 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
     return HYPER_IO_PENDING;
 }
 
-static conn_data* create_conn_data(int fd) {
+static conn_data* create_conn_data(int epoll, int fd) {
     conn_data *conn = malloc(sizeof(conn_data));
 
     // Add fd to epoll set, associated with this `conn`
@@ -122,14 +176,13 @@ static hyper_io* create_io(conn_data* conn) {
     return io;
 }
 
-static void free_conn_data(conn_data *conn) {
+static void free_conn_data(int epoll, conn_data *conn) {
     // Disassociate with the epoll
     if (epoll_ctl(epoll, EPOLL_CTL_DEL, conn->fd, NULL) < 0) {
         perror("epoll_ctl (transport)");
     }
 
-    close(conn->fd);
-
+    // Drop any saved-off wakers
     if (conn->read_waker) {
         hyper_waker_free(conn->read_waker);
         conn->read_waker = NULL;
@@ -139,25 +192,11 @@ static void free_conn_data(conn_data *conn) {
         conn->write_waker = NULL;
     }
 
+    // Shut down the socket connection
+    close(conn->fd);
+
+    // ...and clean up
     free(conn);
-}
-
-static int print_each_header(void *userdata,
-                             const uint8_t *name,
-                             size_t name_len,
-                             const uint8_t *value,
-                             size_t value_len) {
-    printf("%.*s: %.*s\n", (int) name_len, name, (int) value_len, value);
-    return HYPER_ITER_CONTINUE;
-}
-
-static int print_each_chunk(void *userdata, const hyper_buf *chunk) {
-    const uint8_t *buf = hyper_buf_bytes(chunk);
-    size_t len = hyper_buf_len(chunk);
-
-    write(1, buf, len);
-
-    return HYPER_ITER_CONTINUE;
 }
 
 typedef enum {
@@ -168,28 +207,39 @@ typedef enum {
 } example_id;
 
 static void server_callback(void* userdata, hyper_request* request, hyper_response* response, hyper_response_channel* channel) {
+    hyper_request_free(request);
     hyper_response_channel_send(channel, response);
 }
-
-#define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
 int main(int argc, char *argv[]) {
     const char *host = argc > 1 ? argv[1] : "127.0.0.1";
     const char *port = argc > 2 ? argv[2] : "1234";
     printf("listening on port %s on %s...\n", port, host);
 
+    // The main listening socket
     int listen_fd = listen_on(host, port);
     if (listen_fd < 0) {
         return 1;
     }
 
-    if (fcntl(listen_fd, F_SETFL, O_NONBLOCK) != 0) {
-        perror("fcntl(O_NONBLOCK) (listening)\n");
-        return 1;
+    // We'll quit on any of these signals
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGQUIT);
+    int signal_fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (signal_fd < 0) {
+      perror("signalfd");
+      return 1;
+    }
+    if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
+      perror("sigprocmask");
+      return 1;
     }
 
     // Use epoll cos' it's cool
-    epoll = epoll_create1(EPOLL_CLOEXEC);
+    int epoll = epoll_create1(EPOLL_CLOEXEC);
     if (epoll < 0) {
         perror("epoll");
         return 1;
@@ -198,11 +248,21 @@ int main(int argc, char *argv[]) {
     // Always await new connections from the listen socket
     struct epoll_event listen_event;
     listen_event.events = EPOLLIN;
-    listen_event.data.ptr = NULL;
+    listen_event.data.ptr = &listen_fd;
     if (epoll_ctl(epoll, EPOLL_CTL_ADD, listen_fd, &listen_event) < 0) {
-        perror("epoll_crt (add listening)");
+        perror("epoll_ctl (add listening)");
         return 1;
     }
+
+    // Always await signals on the signal socket
+    struct epoll_event signal_event;
+    signal_event.events = EPOLLIN;
+    signal_event.data.ptr = &signal_fd;
+    if (epoll_ctl(epoll, EPOLL_CTL_ADD, signal_fd, &signal_event) < 0) {
+        perror("epoll_ctl (add signal)");
+        return 1;
+    }
+
 
     printf("http handshake (hyper v%s) ...\n", hyper_version());
 
@@ -235,7 +295,7 @@ int main(int argc, char *argv[]) {
                 // clean up the task
                 conn_data* conn = hyper_task_userdata(task);
                 if (conn) {
-                    free_conn_data(conn);
+                    free_conn_data(epoll, conn);
                 }
                 hyper_task_free(task);
 
@@ -246,7 +306,7 @@ int main(int argc, char *argv[]) {
                 conn_data* conn = hyper_task_userdata(task);
                 if (conn) {
                     printf("server connection complete\n");
-                    free_conn_data(conn);
+                    free_conn_data(epoll, conn);
                 } else {
                     printf("internal hyper task complete\n");
                 }
@@ -269,7 +329,7 @@ int main(int argc, char *argv[]) {
         printf("Poll reported %d events\n", nevents);
 
         for (int n = 0; n < nevents; n++) {
-            if (events[n].data.ptr == NULL) {
+            if (events[n].data.ptr == &listen_fd) {
                 // Incoming connection(s) on listen_fd
                 int new_fd;
                 while ((new_fd = accept(listen_fd, NULL, 0)) >= 0) {
@@ -282,7 +342,7 @@ int main(int argc, char *argv[]) {
                   }
 
                   // Wire up IO
-                  conn_data *conn = create_conn_data(new_fd);
+                  conn_data *conn = create_conn_data(epoll, new_fd);
                   hyper_io* io = create_io(conn);
 
                   // Ask hyper to drive this connection
@@ -294,7 +354,26 @@ int main(int argc, char *argv[]) {
                 }
 
                 if (errno != EAGAIN) {
-                  perror("accept");
+                    perror("accept");
+                }
+            } else if (events[n].data.ptr == &signal_fd) {
+                struct signalfd_siginfo siginfo;
+                if (read(signal_fd, &siginfo, sizeof(struct signalfd_siginfo)) != sizeof(struct signalfd_siginfo)) {
+                    perror("read (signal_fd)");
+                    return 1;
+                }
+
+                if (siginfo.ssi_signo == SIGINT) {
+                    printf("Caught SIGINT... exiting\n");
+                    goto EXIT;
+                } else if (siginfo.ssi_signo == SIGTERM) {
+                    printf("Caught SIGTERM... exiting\n");
+                    goto EXIT;
+                } else if (siginfo.ssi_signo == SIGQUIT) {
+                    printf("Caught SIGQUIT... exiting\n");
+                    goto EXIT;
+                } else {
+                    printf("Caught unexpected signal %d... ignoring\n", siginfo.ssi_signo);
                 }
             } else {
                 // Existing transport socket, poke the wakers or close the socket
@@ -310,6 +389,9 @@ int main(int argc, char *argv[]) {
             }
         }
     }
+
+EXIT:
+    hyper_executor_free(exec);
 
     return 1;
 }
