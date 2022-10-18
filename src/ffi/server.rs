@@ -5,7 +5,7 @@ use std::ffi::c_void;
 use crate::ffi::UserDataPointer;
 use crate::ffi::io::hyper_io;
 use crate::ffi::http_types::{hyper_request, hyper_response};
-use crate::ffi::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType, IntoDynTaskType, WeakExec};
+use crate::ffi::task::{hyper_executor, hyper_task, WeakExec};
 use crate::server::conn::{Connection, Http};
 
 pub struct hyper_serverconn_options(Http<WeakExec>);
@@ -46,7 +46,7 @@ ffi_fn! {
 
 ffi_fn! {
     fn hyper_serve_connection(serverconn_options: *mut hyper_serverconn_options, io: *mut hyper_io, service: *mut hyper_service) -> *mut hyper_task {
-        let serverconn_options = non_null! { &mut *serverconn_options ?= ptr::null_mut() };
+        let serverconn_options = non_null! { Box::from_raw(serverconn_options) ?= ptr::null_mut() };
         let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
         let service = non_null! { Box::from_raw(service) ?= ptr::null_mut() };
         let task = hyper_task::boxed(hyper_serverconn(serverconn_options.0.serve_connection(*io, *service)));
@@ -77,7 +77,7 @@ impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_servic
 
         (self.service_fn)(self.userdata.0, req_ptr, res_ptr, res_channel);
 
-        Box::pin(async move { 
+        Box::pin(async move {
             let res = rx.await.expect("Channel closed?");
             Ok(res.0)
         })
