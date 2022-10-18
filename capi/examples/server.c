@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/signalfd.h>
+#include <arpa/inet.h>
 #include <netdb.h>
 
 #include "hyper.h"
@@ -90,6 +91,12 @@ static int listen_on(const char* host, const char* port) {
     // Non-blocking for async
     if (fcntl(sock, F_SETFL, O_NONBLOCK) != 0) {
         perror("fcntl(O_NONBLOCK) (listening)\n");
+        return -1;
+    }
+
+    // Close handle on exec(ve)
+    if (fcntl(sock, F_SETFD, FD_CLOEXEC) != 0) {
+        perror("fcntl(FD_CLOEXEC) (listening)\n");
         return 1;
     }
 
@@ -100,6 +107,27 @@ static int listen_on(const char* host, const char* port) {
     }
 
     return sock;
+}
+
+// Register interest in various termination signals.  The returned fd can be
+// polled with epoll.
+static int register_signal_handler() {
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigaddset(&mask, SIGINT);
+    sigaddset(&mask, SIGTERM);
+    sigaddset(&mask, SIGQUIT);
+    int signal_fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (signal_fd < 0) {
+      perror("signalfd");
+      return 1;
+    }
+    if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
+      perror("sigprocmask");
+      return 1;
+    }
+
+    return signal_fd;
 }
 
 static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t buf_len) {
@@ -222,19 +250,8 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // We'll quit on any of these signals
-    sigset_t mask;
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGINT);
-    sigaddset(&mask, SIGTERM);
-    sigaddset(&mask, SIGQUIT);
-    int signal_fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    int signal_fd = register_signal_handler();
     if (signal_fd < 0) {
-      perror("signalfd");
-      return 1;
-    }
-    if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
-      perror("sigprocmask");
       return 1;
     }
 
@@ -278,8 +295,6 @@ int main(int argc, char *argv[]) {
             if (!task) {
                 break;
             }
-            printf("Task completed\n");
-
             if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                 printf("handshake error!\n");
 
@@ -332,13 +347,29 @@ int main(int argc, char *argv[]) {
             if (events[n].data.ptr == &listen_fd) {
                 // Incoming connection(s) on listen_fd
                 int new_fd;
-                while ((new_fd = accept(listen_fd, NULL, 0)) >= 0) {
-                  printf("New incoming connection\n");
+                struct sockaddr_storage remote_addr_storage;
+                struct sockaddr* remote_addr = (struct sockaddr*)&remote_addr_storage;
+                socklen_t remote_addr_len = sizeof(struct sockaddr_storage);
+                while ((new_fd = accept(listen_fd, (struct sockaddr*)&remote_addr_storage, &remote_addr_len)) >= 0) {
+                  char remote_host[128];
+                  char remote_port[8];
+                  if (getnameinfo(remote_addr, remote_addr_len, remote_host, sizeof(remote_host), remote_port, sizeof(remote_port), NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
+                    perror("getnameinfo");
+                    printf("New incoming connection from (unknown)\n");
+                  } else {
+                    printf("New incoming connection from (%s:%s)\n", remote_host, remote_port);
+                  }
 
                   // Set non-blocking
                   if (fcntl(new_fd, F_SETFL, O_NONBLOCK) != 0) {
-                      perror("fcntl(O_NONBLOCK) (listening)\n");
+                      perror("fcntl(O_NONBLOCK) (transport)\n");
                       return 1;
+                  }
+
+                  // Close handle on exec(ve)
+                  if (fcntl(new_fd, F_SETFD, FD_CLOEXEC) != 0) {
+                    perror("fcntl(FD_CLOEXEC) (transport)\n");
+                    return 1;
                   }
 
                   // Wire up IO
