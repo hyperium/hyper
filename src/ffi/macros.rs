@@ -36,7 +36,11 @@ macro_rules! non_null {
         if $ptr.is_null() {
             return $err;
         }
+        #[allow(unused_unsafe)]
         unsafe { $eval }
+    }};
+    (*$ptr:ident ?= $err:expr) => {{
+        non_null!($ptr, *$ptr, $err)
     }};
     (&*$ptr:ident ?= $err:expr) => {{
         non_null!($ptr, &*$ptr, $err)
