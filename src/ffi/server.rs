@@ -7,10 +7,9 @@ use crate::ffi::io::hyper_io;
 use crate::ffi::error::hyper_code;
 use crate::ffi::http_types::{hyper_request, hyper_response};
 use crate::ffi::task::{hyper_executor, hyper_task, WeakExec};
-use crate::server::conn::{Connection, Http};
+use crate::server::conn::Http;
 
 pub struct hyper_serverconn_options(Http<WeakExec>);
-pub struct hyper_serverconn(Connection<hyper_io, hyper_service, WeakExec>);
 pub struct hyper_service {
     service_fn: hyper_service_callback,
     userdata: UserDataPointer,
@@ -184,7 +183,7 @@ ffi_fn! {
         let serverconn_options = non_null! { &*serverconn_options ?= ptr::null_mut() };
         let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
         let service = non_null! { Box::from_raw(service) ?= ptr::null_mut() };
-        let task = hyper_task::boxed(hyper_serverconn(serverconn_options.0.serve_connection(*io, *service)));
+        let task = hyper_task::boxed(serverconn_options.0.serve_connection(*io, *service));
         Box::into_raw(task)
     } ?= ptr::null_mut()
 }
@@ -214,13 +213,5 @@ impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_servic
             let res = rx.await.expect("Channel closed?");
             Ok(res.0)
         })
-    }
-}
-
-impl std::future::Future for hyper_serverconn {
-    type Output = crate::Result<()>;
-
-    fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> std::task::Poll<Self::Output> {
-        std::pin::Pin::new(&mut self.0).poll(cx)
     }
 }
