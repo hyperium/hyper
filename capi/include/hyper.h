@@ -411,6 +411,8 @@ enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hy
 
 struct hyper_serverconn_options *hyper_serverconn_options_new(const struct hyper_executor *exec);
 
+void hyper_serverconn_options_free(struct hyper_serverconn_options *opts);
+
 struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
 
 void hyper_service_set_userdata(struct hyper_service *service, void *userdata);

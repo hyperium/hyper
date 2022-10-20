@@ -286,6 +286,9 @@ int main(int argc, char *argv[]) {
     // We need an executor generally to poll futures
     const hyper_executor *exec = hyper_executor_new();
 
+    // Configure the server HTTP stack
+    hyper_serverconn_options *opts = hyper_serverconn_options_new(exec);
+
     // Might have an error
     hyper_error *err;
 
@@ -377,7 +380,6 @@ int main(int argc, char *argv[]) {
                   hyper_io* io = create_io(conn);
 
                   // Ask hyper to drive this connection
-                  hyper_serverconn_options *opts = hyper_serverconn_options_new(exec);
                   hyper_service *service = hyper_service_new(server_callback);
                   hyper_task *serverconn = hyper_serve_connection(opts, io, service);
                   hyper_task_set_userdata(serverconn, conn);
@@ -422,6 +424,7 @@ int main(int argc, char *argv[]) {
     }
 
 EXIT:
+    hyper_serverconn_options_free(opts);
     hyper_executor_free(exec);
 
     return 1;
