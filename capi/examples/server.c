@@ -234,7 +234,7 @@ typedef enum {
     EXAMPLE_RESP_BODY
 } example_id;
 
-static void server_callback(void* userdata, hyper_request* request, hyper_response* response, hyper_response_channel* channel) {
+static void server_callback(void* userdata, hyper_request* request, hyper_response_channel* channel) {
     unsigned char scheme[16];
     size_t scheme_len = sizeof(scheme);
     unsigned char authority[16];
@@ -255,6 +255,7 @@ static void server_callback(void* userdata, hyper_request* request, hyper_respon
     }
 
     hyper_request_free(request);
+    hyper_response* response = hyper_response_new();
     hyper_response_set_status(response, 404);
     hyper_response_channel_send(channel, response);
 }

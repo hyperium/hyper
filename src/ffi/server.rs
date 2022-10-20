@@ -16,7 +16,7 @@ pub struct hyper_service {
 }
 pub struct hyper_response_channel(futures_channel::oneshot::Sender<Box<hyper_response>>);
 
-type hyper_service_callback = extern "C" fn(*mut c_void, *mut hyper_request, *mut hyper_response, *mut hyper_response_channel);
+type hyper_service_callback = extern "C" fn(*mut c_void, *mut hyper_request, *mut hyper_response_channel);
 
 ffi_fn! {
     fn hyper_serverconn_options_new(exec: *const hyper_executor) -> *mut hyper_serverconn_options {
@@ -69,13 +69,11 @@ impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_servic
 
     fn call(&mut self, req: crate::Request<crate::body::Recv>) -> Self::Future {
         let req_ptr = Box::into_raw(Box::new(hyper_request(req)));
-        let res = crate::Response::new(crate::body::Recv::empty());
-        let res_ptr = Box::into_raw(Box::new(hyper_response(res)));
 
         let (tx, rx) = futures_channel::oneshot::channel();
         let res_channel = Box::into_raw(Box::new(hyper_response_channel(tx)));
 
-        (self.service_fn)(self.userdata.0, req_ptr, res_ptr, res_channel);
+        (self.service_fn)(self.userdata.0, req_ptr, res_channel);
 
         Box::pin(async move {
             let res = rx.await.expect("Channel closed?");

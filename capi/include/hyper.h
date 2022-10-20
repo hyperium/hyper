@@ -217,7 +217,7 @@ typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
-typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response*, struct hyper_response_channel*);
+typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response_channel*);
 
 typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
 
