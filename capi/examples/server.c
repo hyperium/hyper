@@ -235,7 +235,27 @@ typedef enum {
 } example_id;
 
 static void server_callback(void* userdata, hyper_request* request, hyper_response* response, hyper_response_channel* channel) {
+    unsigned char scheme[16];
+    size_t scheme_len = sizeof(scheme);
+    unsigned char authority[16];
+    size_t authority_len = sizeof(authority);
+    unsigned char path_and_query[16];
+    size_t path_and_query_len = sizeof(path_and_query);
+    if (hyper_request_uri_parts(request, scheme, &scheme_len, authority, &authority_len, path_and_query, &path_and_query_len) == 0) {
+        printf("Request scheme was %.*s\n", (int)scheme_len, scheme);
+        printf("Request authority was %.*s\n", (int)authority_len, authority);
+        printf("Request path_and_query was %.*s\n", (int)path_and_query_len, path_and_query);
+    }
+    int version = hyper_request_version(request);
+    printf("Request version was %d\n", version);
+    unsigned char method[16];
+    size_t method_len = sizeof(method);
+    if (hyper_request_method(request, method, &method_len) == 0) {
+        printf("Request method was %.*s\n", (int)method_len, method);
+    }
+
     hyper_request_free(request);
+    hyper_response_set_status(response, 404);
     hyper_response_channel_send(channel, response);
 }
 

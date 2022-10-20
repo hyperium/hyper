@@ -69,6 +69,26 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Get the HTTP Method of the request.
+    fn hyper_request_method(req: *const hyper_request, method: *mut u8, method_len: *mut size_t) -> hyper_code {
+        let req = non_null!(&*req ?= hyper_code::HYPERE_INVALID_ARG);
+        if method.is_null() {
+            return hyper_code::HYPERE_INVALID_ARG;
+        }
+        let req_method_str = req.0.method().as_str();
+        unsafe {
+            if non_null!(*method_len ?= hyper_code::HYPERE_INVALID_ARG) < req_method_str.len() {
+                return hyper_code::HYPERE_INSUFFICIENT_SPACE;
+            }
+            std::ptr::copy_nonoverlapping(req_method_str.as_ptr(), method, req_method_str.len());
+            *method_len = req_method_str.len();
+        }
+        hyper_code::HYPERE_OK
+    }
+}
+
+
+ffi_fn! {
     /// Set the URI of the request.
     ///
     /// The request's URI is best described as the `request-target` from the RFCs. So in HTTP/1,
@@ -149,6 +169,74 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Get the URI of the request split into scheme, authority and path/query strings.
+    ///
+    /// Each of `scheme`, `authority` and `path_and_query` may be pointers to buffers that this
+    /// function will populate with the appopriate values from the request.  If one of these
+    /// pointers is non-NULL then the associated `_len` field must be a pointer to a `size_t`
+    /// which, on call, is populated with the maximum length of the buffer and, on successful
+    /// response, will be set to the actual length of the value written into the buffer.
+    ///
+    /// If a buffer is passed as `NULL` then the `_len` field will be ignored and that component
+    /// will be skipped.
+    ///
+    /// This function may fail with `HYPERE_INSUFFICIENT_SPACE` if one of the provided buffers is
+    /// not long enough to hold the value from the request.
+    fn hyper_request_uri_parts(
+        req: *const hyper_request,
+        scheme: *mut u8,
+        scheme_len: *mut size_t,
+        authority: *mut u8,
+        authority_len: *mut size_t,
+        path_and_query: *mut u8,
+        path_and_query_len: *mut size_t
+    ) -> hyper_code {
+        let req = non_null!(&*req ?= hyper_code::HYPERE_INVALID_ARG);
+        let uri = req.0.uri();
+        if !scheme.is_null() {
+            let req_scheme_str = match uri.scheme() {
+                Some(s) => s.as_str(),
+                None => "",
+            };
+            unsafe {
+                if non_null!(*scheme_len ?= hyper_code::HYPERE_INVALID_ARG) < req_scheme_str.len() {
+                    return hyper_code::HYPERE_INSUFFICIENT_SPACE;
+                }
+                std::ptr::copy_nonoverlapping(req_scheme_str.as_ptr(), scheme, req_scheme_str.len());
+                *scheme_len = req_scheme_str.len();
+            }
+        }
+        if !authority.is_null() {
+            let req_authority_str = match uri.authority() {
+                Some(s) => s.as_str(),
+                None => "",
+            };
+            unsafe {
+                if non_null!(*authority_len ?= hyper_code::HYPERE_INVALID_ARG) < req_authority_str.len() {
+                    return hyper_code::HYPERE_INSUFFICIENT_SPACE;
+                }
+                std::ptr::copy_nonoverlapping(req_authority_str.as_ptr(), authority, req_authority_str.len());
+                *authority_len = req_authority_str.len();
+            }
+        }
+        if !path_and_query.is_null() {
+            let req_path_and_query_str = match uri.path_and_query() {
+                Some(s) => s.as_str(),
+                None => "",
+            };
+            unsafe {
+                if non_null!(*path_and_query_len ?= hyper_code::HYPERE_INVALID_ARG) < req_path_and_query_str.len() {
+                    return hyper_code::HYPERE_INSUFFICIENT_SPACE;
+                }
+                std::ptr::copy_nonoverlapping(req_path_and_query_str.as_ptr(), path_and_query, req_path_and_query_str.len());
+                *path_and_query_len = req_path_and_query_str.len();
+            }
+        }
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
     /// Set the preferred HTTP version of the request.
     ///
     /// The version value should be one of the `HYPER_HTTP_VERSION_` constants.
@@ -170,6 +258,27 @@ ffi_fn! {
             }
         };
         hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    /// Get the HTTP version used by this request.
+    ///
+    /// The returned value could be:
+    ///
+    /// - `HYPER_HTTP_VERSION_1_0`
+    /// - `HYPER_HTTP_VERSION_1_1`
+    /// - `HYPER_HTTP_VERSION_2`
+    /// - `HYPER_HTTP_VERSION_NONE` if newer (or older).
+    fn hyper_request_version(resp: *const hyper_request) -> c_int {
+        use http::Version;
+
+        match non_null!(&*resp ?= 0).0.version() {
+            Version::HTTP_10 => super::HYPER_HTTP_VERSION_1_0,
+            Version::HTTP_11 => super::HYPER_HTTP_VERSION_1_1,
+            Version::HTTP_2 => super::HYPER_HTTP_VERSION_2,
+            _ => super::HYPER_HTTP_VERSION_NONE,
+        }
     }
 }
 
@@ -196,6 +305,16 @@ ffi_fn! {
         *req.0.body_mut() = body.0;
         hyper_code::HYPERE_OK
     }
+}
+
+ffi_fn! {
+    /// Take ownership of the body of this request.
+    ///
+    /// It is safe to free the request even after taking ownership of its body.
+    fn hyper_request_body(req: *mut hyper_request) -> *mut hyper_body {
+        let body = std::mem::replace(non_null!(&mut *req ?= std::ptr::null_mut()).0.body_mut(), crate::Recv::empty());
+        Box::into_raw(Box::new(hyper_body(body)))
+    } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
@@ -238,6 +357,13 @@ impl hyper_request {
 // ===== impl hyper_response =====
 
 ffi_fn! {
+    /// Construct a new HTTP 200 Ok response
+    fn hyper_response_new() -> *mut hyper_response {
+        Box::into_raw(Box::new(hyper_response(Response::new(Recv::empty()))))
+    } ?= std::ptr::null_mut()
+}
+
+ffi_fn! {
     /// Free an HTTP response after using it.
     fn hyper_response_free(resp: *mut hyper_response) {
         drop(non_null!(Box::from_raw(resp) ?= ()));
@@ -250,6 +376,14 @@ ffi_fn! {
     /// It will always be within the range of 100-599.
     fn hyper_response_status(resp: *const hyper_response) -> u16 {
         non_null!(&*resp ?= 0).0.status().as_u16()
+    }
+}
+
+ffi_fn! {
+    /// Set the HTTP Status-Code of this response.
+    fn hyper_response_set_status(resp: *mut hyper_response, status: u16) {
+        let status = crate::StatusCode::from_u16(status).unwrap();
+        *non_null!(&mut *resp ?= ()).0.status_mut() = status;
     }
 }
 
@@ -274,6 +408,31 @@ ffi_fn! {
     /// Use `hyper_response_reason_phrase()` to get the buffer pointer.
     fn hyper_response_reason_phrase_len(resp: *const hyper_response) -> size_t {
         non_null!(&*resp ?= 0).reason_phrase().len()
+    }
+}
+
+ffi_fn! {
+    /// Set the preferred HTTP version of the response.
+    ///
+    /// The version value should be one of the `HYPER_HTTP_VERSION_` constants.
+    ///
+    /// Note that this won't change the major HTTP version of the connection,
+    /// since that is determined at the handshake step.
+    fn hyper_response_set_version(req: *mut hyper_response, version: c_int) -> hyper_code {
+        use http::Version;
+
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
+        *req.0.version_mut() = match version {
+            super::HYPER_HTTP_VERSION_NONE => Version::HTTP_11,
+            super::HYPER_HTTP_VERSION_1_0 => Version::HTTP_10,
+            super::HYPER_HTTP_VERSION_1_1 => Version::HTTP_11,
+            super::HYPER_HTTP_VERSION_2 => Version::HTTP_2,
+            _ => {
+                // We don't know this version
+                return hyper_code::HYPERE_INVALID_ARG;
+            }
+        };
+        hyper_code::HYPERE_OK
     }
 }
 
@@ -306,6 +465,21 @@ ffi_fn! {
     fn hyper_response_headers(resp: *mut hyper_response) -> *mut hyper_headers {
         hyper_headers::get_or_default(unsafe { &mut *resp }.0.extensions_mut())
     } ?= std::ptr::null_mut()
+}
+
+ffi_fn! {
+    /// Set the body of the response.
+    ///
+    /// The default is an empty body.
+    ///
+    /// This takes ownership of the `hyper_body *`, you must not use it or
+    /// free it after setting it on the request.
+    fn hyper_response_set_body(rsp: *mut hyper_response, body: *mut hyper_body) -> hyper_code {
+        let body = non_null!(Box::from_raw(body) ?= hyper_code::HYPERE_INVALID_ARG);
+        let rsp = non_null!(&mut *rsp ?= hyper_code::HYPERE_INVALID_ARG);
+        *rsp.0.body_mut() = body.0;
+        hyper_code::HYPERE_OK
+    }
 }
 
 ffi_fn! {

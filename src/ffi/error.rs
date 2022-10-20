@@ -24,6 +24,8 @@ pub enum hyper_code {
     HYPERE_FEATURE_NOT_ENABLED,
     /// The peer sent an HTTP message that could not be parsed.
     HYPERE_INVALID_PEER_MESSAGE,
+    /// A provided buffer is too small to hold the value that would be written to it.
+    HYPERE_INSUFFICIENT_SPACE,
 }
 
 // ===== impl hyper_error =====

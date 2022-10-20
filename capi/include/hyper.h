@@ -104,6 +104,10 @@ typedef enum hyper_code {
    The peer sent an HTTP message that could not be parsed.
    */
   HYPERE_INVALID_PEER_MESSAGE,
+  /*
+   A provided buffer is too small to hold the value that would be written to it.
+   */
+  HYPERE_INSUFFICIENT_SPACE,
 } hyper_code;
 
 /*
@@ -462,6 +466,13 @@ enum hyper_code hyper_request_set_method(struct hyper_request *req,
                                          size_t method_len);
 
 /*
+ Get the HTTP Method of the request.
+ */
+enum hyper_code hyper_request_method(const struct hyper_request *req,
+                                     uint8_t *method,
+                                     size_t *method_len);
+
+/*
  Set the URI of the request.
 
  The request's URI is best described as the `request-target` from the RFCs. So in HTTP/1,
@@ -499,6 +510,29 @@ enum hyper_code hyper_request_set_uri_parts(struct hyper_request *req,
                                             size_t path_and_query_len);
 
 /*
+ Get the URI of the request split into scheme, authority and path/query strings.
+
+ Each of `scheme`, `authority` and `path_and_query` may be pointers to buffers that this
+ function will populate with the appopriate values from the request.  If one of these
+ pointers is non-NULL then the associated `_len` field must be a pointer to a `size_t`
+ which, on call, is populated with the maximum length of the buffer and, on successful
+ response, will be set to the actual length of the value written into the buffer.
+
+ If a buffer is passed as `NULL` then the `_len` field will be ignored and that component
+ will be skipped.
+
+ This function may fail with `HYPERE_INSUFFICIENT_SPACE` if one of the provided buffers is
+ not long enough to hold the value from the request.
+ */
+enum hyper_code hyper_request_uri_parts(const struct hyper_request *req,
+                                        uint8_t *scheme,
+                                        size_t *scheme_len,
+                                        uint8_t *authority,
+                                        size_t *authority_len,
+                                        uint8_t *path_and_query,
+                                        size_t *path_and_query_len);
+
+/*
  Set the preferred HTTP version of the request.
 
  The version value should be one of the `HYPER_HTTP_VERSION_` constants.
@@ -507,6 +541,18 @@ enum hyper_code hyper_request_set_uri_parts(struct hyper_request *req,
  since that is determined at the handshake step.
  */
 enum hyper_code hyper_request_set_version(struct hyper_request *req, int version);
+
+/*
+ Get the HTTP version used by this request.
+
+ The returned value could be:
+
+ - `HYPER_HTTP_VERSION_1_0`
+ - `HYPER_HTTP_VERSION_1_1`
+ - `HYPER_HTTP_VERSION_2`
+ - `HYPER_HTTP_VERSION_NONE` if newer (or older).
+ */
+int hyper_request_version(const struct hyper_request *resp);
 
 /*
  Gets a reference to the HTTP headers of this request
@@ -525,6 +571,13 @@ struct hyper_headers *hyper_request_headers(struct hyper_request *req);
  free it after setting it on the request.
  */
 enum hyper_code hyper_request_set_body(struct hyper_request *req, struct hyper_body *body);
+
+/*
+ Take ownership of the body of this request.
+
+ It is safe to free the request even after taking ownership of its body.
+ */
+struct hyper_body *hyper_request_body(struct hyper_request *req);
 
 /*
  Set an informational (1xx) response callback.
@@ -548,6 +601,11 @@ enum hyper_code hyper_request_on_informational(struct hyper_request *req,
                                                void *data);
 
 /*
+ Construct a new HTTP 200 Ok response
+ */
+struct hyper_response *hyper_response_new(void);
+
+/*
  Free an HTTP response after using it.
  */
 void hyper_response_free(struct hyper_response *resp);
@@ -558,6 +616,11 @@ void hyper_response_free(struct hyper_response *resp);
  It will always be within the range of 100-599.
  */
 uint16_t hyper_response_status(const struct hyper_response *resp);
+
+/*
+ Set the HTTP Status-Code of this response.
+ */
+void hyper_response_set_status(struct hyper_response *resp, uint16_t status);
 
 /*
  Get a pointer to the reason-phrase of this response.
@@ -580,6 +643,16 @@ const uint8_t *hyper_response_reason_phrase(const struct hyper_response *resp);
 size_t hyper_response_reason_phrase_len(const struct hyper_response *resp);
 
 /*
+ Set the preferred HTTP version of the response.
+
+ The version value should be one of the `HYPER_HTTP_VERSION_` constants.
+
+ Note that this won't change the major HTTP version of the connection,
+ since that is determined at the handshake step.
+ */
+enum hyper_code hyper_response_set_version(struct hyper_response *req, int version);
+
+/*
  Get the HTTP version used by this response.
 
  The returned value could be:
@@ -598,6 +671,16 @@ int hyper_response_version(const struct hyper_response *resp);
  `hyper_response` has been freed.
  */
 struct hyper_headers *hyper_response_headers(struct hyper_response *resp);
+
+/*
+ Set the body of the response.
+
+ The default is an empty body.
+
+ This takes ownership of the `hyper_body *`, you must not use it or
+ free it after setting it on the request.
+ */
+enum hyper_code hyper_response_set_body(struct hyper_response *rsp, struct hyper_body *body);
 
 /*
  Take ownership of the body of this response.
