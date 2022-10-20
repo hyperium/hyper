@@ -1,9 +1,10 @@
 use std::sync::Arc;
 use std::ptr;
-use std::ffi::c_void;
+use std::ffi::{c_void, c_uint};
 
 use crate::ffi::UserDataPointer;
 use crate::ffi::io::hyper_io;
+use crate::ffi::error::hyper_code;
 use crate::ffi::http_types::{hyper_request, hyper_response};
 use crate::ffi::task::{hyper_executor, hyper_task, WeakExec};
 use crate::server::conn::{Connection, Http};
@@ -25,6 +26,140 @@ ffi_fn! {
         std::mem::forget(exec); // We've not incremented the strong count when we loaded
                                 // `from_raw`
         Box::into_raw(Box::new(hyper_serverconn_options(Http::new().with_executor(weak_exec))))
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_free(opts: *mut hyper_serverconn_options) {
+        let _ = non_null! { Box::from_raw(opts) ?= () };
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http1_only(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_only(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http1_half_close(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_half_close(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http1_keep_alive(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_keep_alive(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http1_title_case_headers(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_title_case_headers(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http1_preserve_header_case(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_preserve_header_case(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http1_writev(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_writev(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_only(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_only(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_initial_stream_window_size(opts: *mut hyper_serverconn_options, window_size: c_uint) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_initial_stream_window_size(if window_size == 0 { None } else { Some(window_size) });
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_initial_connection_window_size(opts: *mut hyper_serverconn_options, window_size: c_uint) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_initial_connection_window_size(if window_size == 0 { None } else { Some(window_size) });
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_adaptive_window(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_adaptive_window(enabled);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_max_frame_size(opts: *mut hyper_serverconn_options, frame_size: c_uint) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_max_frame_size(if frame_size == 0 { None } else { Some(frame_size) });
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_max_concurrent_streams(opts: *mut hyper_serverconn_options, max_streams: c_uint) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_max_concurrent_streams(if max_streams == 0 { None } else { Some(max_streams) });
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_max_send_buf_size(opts: *mut hyper_serverconn_options, max_buf_size: usize) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_max_send_buf_size(max_buf_size);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_http2_enable_connect_protocol(opts: *mut hyper_serverconn_options) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_enable_connect_protocol();
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_max_buf_size(opts: *mut hyper_serverconn_options, max_buf_size: usize) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.max_buf_size(max_buf_size);
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    fn hyper_serverconn_options_pipeline_flush(opts: *mut hyper_serverconn_options, enabled: bool) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.pipeline_flush(enabled);
+        hyper_code::HYPERE_OK
     }
 }
 

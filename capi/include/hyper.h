@@ -8,6 +8,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <stdbool.h>
 
 /*
  Return in iter functions to continue iterating.
@@ -416,6 +417,53 @@ enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hy
 struct hyper_serverconn_options *hyper_serverconn_options_new(const struct hyper_executor *exec);
 
 void hyper_serverconn_options_free(struct hyper_serverconn_options *opts);
+
+enum hyper_code hyper_serverconn_options_http1_only(struct hyper_serverconn_options *opts,
+                                                    bool enabled);
+
+enum hyper_code hyper_serverconn_options_http1_half_close(struct hyper_serverconn_options *opts,
+                                                          bool enabled);
+
+enum hyper_code hyper_serverconn_options_http1_keep_alive(struct hyper_serverconn_options *opts,
+                                                          bool enabled);
+
+enum hyper_code hyper_serverconn_options_http1_title_case_headers(struct hyper_serverconn_options *opts,
+                                                                  bool enabled);
+
+enum hyper_code hyper_serverconn_options_http1_preserve_header_case(struct hyper_serverconn_options *opts,
+                                                                    bool enabled);
+
+enum hyper_code hyper_serverconn_options_http1_writev(struct hyper_serverconn_options *opts,
+                                                      bool enabled);
+
+enum hyper_code hyper_serverconn_options_http2_only(struct hyper_serverconn_options *opts,
+                                                    bool enabled);
+
+enum hyper_code hyper_serverconn_options_http2_initial_stream_window_size(struct hyper_serverconn_options *opts,
+                                                                          unsigned int window_size);
+
+enum hyper_code hyper_serverconn_options_http2_initial_connection_window_size(struct hyper_serverconn_options *opts,
+                                                                              unsigned int window_size);
+
+enum hyper_code hyper_serverconn_options_http2_adaptive_window(struct hyper_serverconn_options *opts,
+                                                               bool enabled);
+
+enum hyper_code hyper_serverconn_options_http2_max_frame_size(struct hyper_serverconn_options *opts,
+                                                              unsigned int frame_size);
+
+enum hyper_code hyper_serverconn_options_http2_max_concurrent_streams(struct hyper_serverconn_options *opts,
+                                                                      unsigned int max_streams);
+
+enum hyper_code hyper_serverconn_options_http2_max_send_buf_size(struct hyper_serverconn_options *opts,
+                                                                 uintptr_t max_buf_size);
+
+enum hyper_code hyper_serverconn_options_http2_enable_connect_protocol(struct hyper_serverconn_options *opts);
+
+enum hyper_code hyper_serverconn_options_max_buf_size(struct hyper_serverconn_options *opts,
+                                                      uintptr_t max_buf_size);
+
+enum hyper_code hyper_serverconn_options_pipeline_flush(struct hyper_serverconn_options *opts,
+                                                        bool enabled);
 
 struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
 
