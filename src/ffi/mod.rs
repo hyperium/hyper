@@ -58,6 +58,7 @@ pub use self::client::*;
 pub use self::error::*;
 pub use self::http_types::*;
 pub use self::io::*;
+pub use self::server::*;
 pub use self::task::*;
 
 /// Return in iter functions to continue iterating.
