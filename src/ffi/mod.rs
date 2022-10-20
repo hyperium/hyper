@@ -2,8 +2,6 @@
 #![allow(non_camel_case_types)]
 // fmt::Debug isn't helpful on FFI types
 #![allow(missing_debug_implementations)]
-// unreachable_pub warns `#[no_mangle] pub extern fn` in private mod.
-#![allow(unreachable_pub)]
 
 //! # hyper C API
 //!
@@ -33,8 +31,8 @@
 // the `Cargo.toml`.
 //
 // But for now, give a clear message that this compile error is expected.
-#[cfg(not(all(feature = "client", feature = "http1")))]
-compile_error!("The `ffi` feature currently requires the `client` and `http1` features.");
+#[cfg(not(all(feature = "client", feature = "server", feature = "http1")))]
+compile_error!("The `ffi` feature currently requires the `client`, `server` and `http1` features.");
 
 #[cfg(not(hyper_unstable_ffi))]
 compile_error!(
