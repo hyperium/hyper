@@ -533,7 +533,7 @@ enum hyper_code hyper_http1_serverconn_options_pipeline_flush(struct hyper_http1
 /*
  Create a new HTTP/2 serverconn options object bound to the provided executor.
  */
-struct hyper_http2_serverconn_options *hyper_http2_serverconn_options_new(struct hyper_executor *exec);
+struct hyper_http2_serverconn_options *hyper_http2_serverconn_options_new(const struct hyper_executor *exec);
 
 /*
  Free a `hyper_http2_serverconn_options*`.
@@ -646,7 +646,7 @@ struct hyper_task *hyper_serve_http2_connection(struct hyper_http2_serverconn_op
 
 /*
  Serve the provided `hyper_service *` as either an HTTP/1 or HTTP/2 (depending on what the
- client sends) endpoint over the provided `hyper_io *` and configured as per the
+ client requests) endpoint over the provided `hyper_io *` and configured as per the
  appropriate `hyper_httpX_serverconn_options *`.
 
  Returns a `hyper_task*` which must be given to an executor to make progress.

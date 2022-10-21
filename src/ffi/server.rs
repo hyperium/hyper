@@ -162,7 +162,7 @@ ffi_fn! {
 
 ffi_fn! {
     /// Create a new HTTP/2 serverconn options object bound to the provided executor.
-    fn hyper_http2_serverconn_options_new(exec: *mut hyper_executor) -> *mut hyper_http2_serverconn_options {
+    fn hyper_http2_serverconn_options_new(exec: *const hyper_executor) -> *mut hyper_http2_serverconn_options {
         let exec = non_null! { Arc::from_raw(exec) ?= ptr::null_mut() };
         let weak = hyper_executor::downgrade(&exec);
         std::mem::forget(exec); // We never incremented the strong count in this function so can't
