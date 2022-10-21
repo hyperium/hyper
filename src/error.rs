@@ -67,6 +67,7 @@ pub(super) enum Parse {
     Header(Header),
     TooLarge,
     Status,
+    #[cfg(feature = "http1")]
     #[cfg_attr(debug_assertions, allow(unused))]
     Internal,
 }
@@ -193,7 +194,7 @@ impl Error {
     pub(crate) fn find_source<E: StdError + 'static>(&self) -> Option<&E> {
         let mut cause = self.source();
         while let Some(err) = cause {
-            if let Some(ref typed) = err.downcast_ref() {
+            if let Some(typed) = err.downcast_ref() {
                 return Some(typed);
             }
             cause = err.source();
@@ -351,6 +352,7 @@ impl Error {
             }
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
+            #[cfg(feature = "http1")]
             Kind::Parse(Parse::Internal) => {
                 "internal error inside Hyper and/or its dependencies, please report"
             }

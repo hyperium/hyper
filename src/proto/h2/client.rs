@@ -125,7 +125,7 @@ where
         }
     });
 
-    let ping_config = new_ping_config(&config);
+    let ping_config = new_ping_config(config);
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
@@ -248,17 +248,16 @@ where
                     let eos = body.is_end_stream();
                     let ping = self.ping.clone();
 
-                    if is_connect {
-                        if headers::content_length_parse_all(req.headers())
+                    if is_connect
+                        && headers::content_length_parse_all(req.headers())
                             .map_or(false, |len| len != 0)
-                        {
-                            warn!("h2 connect request with non-zero body not supported");
-                            cb.send(Err((
-                                crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
-                                None,
-                            )));
-                            continue;
-                        }
+                    {
+                        warn!("h2 connect request with non-zero body not supported");
+                        cb.send(Err((
+                            crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
+                            None,
+                        )));
+                        continue;
                     }
 
                     if let Some(protocol) = req.extensions_mut().remove::<Protocol>() {

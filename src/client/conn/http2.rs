@@ -441,3 +441,9 @@ impl Builder {
         }
     }
 }
+
+impl std::default::Default for Builder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

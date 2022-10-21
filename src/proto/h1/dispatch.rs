@@ -19,6 +19,8 @@ pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
     is_closing: bool,
 }
 
+pub(crate) type DispatchResult<Item, Body, Error> = Poll<Option<Result<(Item, Body), Error>>>;
+
 pub(crate) trait Dispatch {
     type PollItem;
     type PollBody;
@@ -27,7 +29,7 @@ pub(crate) trait Dispatch {
     fn poll_msg(
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-    ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
+    ) -> DispatchResult<Self::PollItem, Self::PollBody, Self::PollError>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Recv)>) -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
@@ -307,7 +309,7 @@ where
                             .size_hint()
                             .exact()
                             .map(BodyLength::Known)
-                            .or_else(|| Some(BodyLength::Unknown));
+                            .or(Some(BodyLength::Unknown));
                         self.body_rx.set(Some(body));
                         btype
                     };

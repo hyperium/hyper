@@ -1,3 +1,4 @@
+#![cfg(feature = "nightly")]
 #![feature(test)]
 #![deny(warnings)]
 
@@ -149,7 +150,7 @@ fn raw_tcp_throughput_small_payload(b: &mut test::Bencher) {
 
         let mut buf = [0u8; 8192];
         while rx.try_recv().is_err() {
-            sock.read(&mut buf).unwrap();
+            let _ = sock.read(&mut buf).unwrap();
             sock.write_all(
                 b"\
                 HTTP/1.1 200 OK\r\n\
@@ -196,7 +197,7 @@ fn raw_tcp_throughput_large_payload(b: &mut test::Bencher) {
         let mut buf = [0u8; 8192];
         while rx.try_recv().is_err() {
             let r = sock.read(&mut buf).unwrap();
-            extern crate test;
+
             if r == 0 {
                 break;
             }

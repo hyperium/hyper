@@ -451,7 +451,7 @@ mod tests {
             let mut v = vec![0; len];
             let mut buf = ReadBuf::new(&mut v);
             ready!(Pin::new(self).poll_read(cx, &mut buf)?);
-            Poll::Ready(Ok(Bytes::copy_from_slice(&buf.filled())))
+            Poll::Ready(Ok(Bytes::copy_from_slice(buf.filled())))
         }
     }
 
@@ -487,8 +487,7 @@ mod tests {
                 let result =
                     futures_util::future::poll_fn(|cx| state.step(cx, rdr, &mut size, &mut None))
                         .await;
-                let desc = format!("read_size failed for {:?}", s);
-                state = result.expect(desc.as_str());
+                state = result.unwrap_or_else(|_| panic!("read_size failed for {:?}", s));
                 if state == ChunkedState::Body || state == ChunkedState::EndCr {
                     break;
                 }

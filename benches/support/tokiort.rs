@@ -32,13 +32,13 @@ impl Timer for TokioTimer {
     fn sleep(&self, duration: Duration) -> Box<dyn Sleep + Unpin> {
         let s = tokio::time::sleep(duration);
         let hs = TokioSleep { inner: Box::pin(s) };
-        return Box::new(hs);
+        Box::new(hs)
     }
 
     fn sleep_until(&self, deadline: Instant) -> Box<dyn Sleep + Unpin> {
-        return Box::new(TokioSleep {
+        Box::new(TokioSleep {
             inner: Box::pin(tokio::time::sleep_until(deadline.into())),
-        });
+        })
     }
 }
 

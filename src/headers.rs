@@ -61,7 +61,7 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
         }
     }
 
-    return content_length
+    content_length
 }
 
 fn from_digits(bytes: &[u8]) -> Option<u64> {
@@ -93,10 +93,7 @@ fn from_digits(bytes: &[u8]) -> Option<u64> {
 
 #[cfg(all(feature = "http2", feature = "client"))]
 pub(super) fn method_has_defined_payload_semantics(method: &Method) -> bool {
-    match *method {
-        Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT => false,
-        _ => true,
-    }
+    !matches!(*method, Method::GET | Method::HEAD | Method::DELETE | Method::CONNECT)
 }
 
 #[cfg(feature = "http2")]

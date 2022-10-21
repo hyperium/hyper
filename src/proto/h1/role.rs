@@ -170,7 +170,7 @@ impl Http1Transaction for Server {
                         Version::HTTP_10
                     };
 
-                    record_header_indices(bytes, &req.headers, &mut headers_indices)?;
+                    record_header_indices(bytes, req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
@@ -453,9 +453,10 @@ impl Http1Transaction for Server {
         };
 
         debug!("sending automatic response ({}) for parse error", status);
-        let mut msg = MessageHead::default();
-        msg.subject = status;
-        Some(msg)
+        Some(MessageHead {
+            subject: status,
+            ..MessageHead::default()
+        })
     }
 
     fn is_server() -> bool {
@@ -474,16 +475,13 @@ impl Server {
     }
 
     fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
+        if method == &Some(Method::HEAD)
+            || method == &Some(Method::CONNECT) && status.is_success()
+            || status.is_informational()
         {
             false
-        } else if status.is_informational() {
-            false
         } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
@@ -491,10 +489,7 @@ impl Server {
         if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
             false
         } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
@@ -970,7 +965,7 @@ impl Http1Transaction for Client {
                         } else {
                             Version::HTTP_10
                         };
-                        record_header_indices(bytes, &res.headers, &mut headers_indices)?;
+                        record_header_indices(bytes, res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
                         (len, status, reason, version, headers_len)
                     }
@@ -1646,7 +1641,7 @@ mod tests {
         Server::parse(&mut raw, ctx).unwrap_err();
     }
 
-    const H09_RESPONSE: &'static str = "Baguettes are super delicious, don't you agree?";
+    const H09_RESPONSE: &str = "Baguettes are super delicious, don't you agree?";
 
     #[test]
     fn test_parse_response_h09_allowed() {
@@ -1697,7 +1692,7 @@ mod tests {
         assert_eq!(raw, H09_RESPONSE);
     }
 
-    const RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON: &'static str =
+    const RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON: &str =
         "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Credentials : true\r\n\r\n";
 
     #[test]
