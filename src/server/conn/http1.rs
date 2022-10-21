@@ -120,13 +120,6 @@ where
         }
     }
 
-    /// Return the inner IO object, and additional information, if available.
-    ///
-    ///
-    pub fn try_into_parts(self) -> Option<Parts<I, S>> {
-        Some(self.into_parts())
-    }
-
     /// Poll the connection for completion, but without calling `shutdown`
     /// on the underlying IO.
     ///
