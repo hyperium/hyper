@@ -342,6 +342,7 @@ impl Sender {
     /// This is mostly useful for when trying to send from some other thread
     /// that doesn't have an async context. If in an async context, prefer
     /// `send_data()` instead.
+    #[cfg(feature = "http1")]
     pub(crate) fn try_send_data(&mut self, chunk: Bytes) -> Result<(), Bytes> {
         self.data_tx
             .try_send(Ok(chunk))
@@ -447,7 +448,7 @@ mod tests {
         assert!(err.is_body_write_aborted(), "{:?}", err);
     }
 
-    #[cfg(not(miri))]
+    #[cfg(all(not(miri), feature = "http1"))]
     #[tokio::test]
     async fn channel_abort_when_buffer_is_full() {
         let (mut tx, mut rx) = Recv::channel();
@@ -463,6 +464,7 @@ mod tests {
         assert!(err.is_body_write_aborted(), "{:?}", err);
     }
 
+    #[cfg(feature = "http1")]
     #[test]
     fn channel_buffers_one() {
         let (mut tx, _rx) = Recv::channel();
