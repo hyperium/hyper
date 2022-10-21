@@ -1,15 +1,15 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/select.h>
 #include <assert.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <sys/select.h>
+#include <sys/socket.h>
 
 #include "hyper.h"
 
@@ -114,7 +114,7 @@ static int connect_to(const char *host, const char *port) {
 
 struct upload_body {
     int fd;
-    char *buf;
+    unsigned char *buf;
     size_t len;
 };
 
@@ -160,7 +160,12 @@ typedef enum {
     EXAMPLE_HANDSHAKE,
     EXAMPLE_SEND,
     EXAMPLE_RESP_BODY
-} example_id;
+} example_state;
+
+typedef union example_id {
+  void* ptr;
+  example_state state;
+} example_userdata;
 
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
@@ -243,7 +248,7 @@ int main(int argc, char *argv[]) {
             }
             hyper_task_return_type task_type = hyper_task_type(task);
 
-            switch ((example_id) hyper_task_userdata(task)) {
+            switch (((example_userdata)hyper_task_userdata(task)).state) {
             case EXAMPLE_HANDSHAKE:
                 ;
                 if (task_type == HYPER_TASK_ERROR) {

@@ -1,18 +1,16 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
 #include <errno.h>
-#include <assert.h>
-#include <string.h>
+#include <fcntl.h>
+#include <netdb.h>
 #include <signal.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
 #include <sys/epoll.h>
-#include <sys/types.h>
-#include <sys/socket.h>
 #include <sys/signalfd.h>
-#include <arpa/inet.h>
-#include <netdb.h>
+#include <sys/socket.h>
 
 #include "hyper.h"
 

@@ -1,15 +1,15 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/select.h>
 #include <assert.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <sys/select.h>
+#include <sys/socket.h>
 
 #include "hyper.h"
 
@@ -135,7 +135,12 @@ typedef enum {
     EXAMPLE_HANDSHAKE,
     EXAMPLE_SEND,
     EXAMPLE_RESP_BODY
-} example_id;
+} example_state;
+
+typedef union example_id {
+  void* ptr;
+  example_state state;
+} example_userdata;
 
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
@@ -198,7 +203,7 @@ int main(int argc, char *argv[]) {
             if (!task) {
                 break;
             }
-            switch ((example_id) hyper_task_userdata(task)) {
+            switch (((example_userdata)hyper_task_userdata(task)).state) {
             case EXAMPLE_HANDSHAKE:
                 ;
                 if (hyper_task_type(task) == HYPER_TASK_ERROR) {
@@ -332,7 +337,7 @@ fail:
     if (err) {
         printf("error code: %d\n", hyper_error_code(err));
         // grab the error details
-        char errbuf [256];
+        unsigned char errbuf [256];
         size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
         printf("details: %.*s\n", (int) errlen, errbuf);
 
