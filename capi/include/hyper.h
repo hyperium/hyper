@@ -654,9 +654,10 @@ struct hyper_task *hyper_serve_http2_connection(struct hyper_http2_serverconn_op
  This function consumes the IO and Service objects and thus they should not be accessed
  after this function is called.
  */
-struct hyper_task *hyper_serve_connection(struct hyper_serverconn_options *serverconn_options,
-                                          struct hyper_io *io,
-                                          struct hyper_service *service);
+struct hyper_task *hyper_serve_httpX_connection(struct hyper_http1_serverconn_options *http1_serverconn_options,
+                                                struct hyper_http2_serverconn_options *http2_serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
 
 /*
  Sends a `hyper_response*` back to the client.  This function consumes the response and the

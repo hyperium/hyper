@@ -403,7 +403,7 @@ int main(int argc, char *argv[]) {
 
                   // Ask hyper to drive this connection
                   hyper_service *service = hyper_service_new(server_callback);
-                  hyper_task *serverconn = hyper_serve_http1_connection(http1_opts, io, service);
+                  hyper_task *serverconn = hyper_serve_httpX_connection(http1_opts, http2_opts, io, service);
                   hyper_task_set_userdata(serverconn, conn);
                   hyper_executor_push(exec, serverconn);
                 }

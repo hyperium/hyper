@@ -327,6 +327,37 @@ ffi_fn! {
 }
 
 ffi_fn! {
+    /// Serve the provided `hyper_service *` as either an HTTP/1 or HTTP/2 (depending on what the
+    /// client requests) endpoint over the provided `hyper_io *` and configured as per the
+    /// appropriate `hyper_httpX_serverconn_options *`.
+    ///
+    /// Returns a `hyper_task*` which must be given to an executor to make progress.
+    ///
+    /// This function consumes the IO and Service objects and thus they should not be accessed
+    /// after this function is called.
+    fn hyper_serve_httpX_connection(
+        http1_serverconn_options: *mut hyper_http1_serverconn_options,
+        http2_serverconn_options: *mut hyper_http2_serverconn_options,
+        io: *mut hyper_io,
+        service: *mut hyper_service
+    ) -> *mut hyper_task {
+        let http1_serverconn_options = non_null! { &*http1_serverconn_options ?= ptr::null_mut() };
+        let http2_serverconn_options = non_null! { &*http2_serverconn_options ?= ptr::null_mut() };
+        let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
+        let service = non_null! { Box::from_raw(service) ?= ptr::null_mut() };
+        let task = hyper_task::boxed(
+            AutoConnection::H1(
+                Some((
+                    http1_serverconn_options.0.serve_connection(*io, *service),
+                    http2_serverconn_options.0.clone()
+                ))
+            )
+        );
+        Box::into_raw(task)
+    } ?= ptr::null_mut()
+}
+
+ffi_fn! {
     /// Sends a `hyper_response*` back to the client.  This function consumes the response and the
     /// channel.
     ///
@@ -357,5 +388,71 @@ impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_servic
             let rsp = rx.await.expect("Channel closed?");
             Ok(rsp.0)
         })
+    }
+}
+
+enum AutoConnection {
+    // The internals are in an `Option` so they can be extracted during H1->H2 fallback. Otherwise
+    // this must always be `Some(h1, h2)` (and code is allowed to panic if that's not true).
+    H1(
+        Option<(
+            http1::Connection<hyper_io, hyper_service>,
+            http2::Builder<WeakExec>,
+        )>,
+    ),
+    H2(http2::Connection<crate::common::io::Rewind<hyper_io>, hyper_service, WeakExec>),
+}
+
+impl std::future::Future for AutoConnection {
+    type Output = crate::Result<()>;
+
+    fn poll(
+        self: std::pin::Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let zelf = std::pin::Pin::into_inner(self);
+        let (h1, h2) = match zelf {
+            AutoConnection::H1(inner) => {
+                match ready!(std::pin::Pin::new(&mut inner.as_mut().unwrap().0).poll(cx)) {
+                    Ok(_done) => return std::task::Poll::Ready(Ok(())),
+                    Err(e) => {
+                        let kind = e.kind();
+                        if matches!(
+                            kind,
+                            crate::error::Kind::Parse(crate::error::Parse::VersionH2)
+                        ) {
+                            // Fallback - switching variant has to happen outside the match block since
+                            // `self` is borrowed.
+                            //
+                            // This breaks the invariant of the H1 variant, so we _must_ fix up `zelf`
+                            // before returning from this function.
+                            inner.take().unwrap()
+                        } else {
+                            // Some other error, pass upwards
+                            return std::task::Poll::Ready(Err(e));
+                        }
+                    }
+                }
+            }
+            AutoConnection::H2(h2) => match ready!(std::pin::Pin::new(h2).poll(cx)) {
+                Ok(_done) => return std::task::Poll::Ready(Ok(())),
+                Err(e) => return std::task::Poll::Ready(Err(e)),
+            },
+        };
+
+        // We've not returned already (for pending, success or "other" errors) so we must be
+        // switching to H2 - rewind the IO, build an H2 connection, update `zelf` to the H2 variant
+        // then re-schedule this future for mainline processing.
+        let http1::Parts {
+            io,
+            read_buf,
+            service,
+            ..
+        } = h1.into_parts();
+        let rewind = crate::common::io::Rewind::new_buffered(io, read_buf);
+        let h2 = h2.serve_connection(rewind, service);
+        *zelf = AutoConnection::H2(h2);
+        cx.waker().wake_by_ref();
+        std::task::Poll::Pending
     }
 }
