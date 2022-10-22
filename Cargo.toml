@@ -90,7 +90,7 @@ client = []
 server = []
 
 # C-API support (currently unstable (no semver))
-ffi = ["libc", "http-body-util"]
+ffi = ["libc", "full", "http-body-util"]
 
 # internal features used in CI
 nightly = []

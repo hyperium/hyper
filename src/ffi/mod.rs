@@ -26,14 +26,6 @@
 //! RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --features client,http1,http2,ffi --crate-type cdylib
 //! ```
 
-// We may eventually allow the FFI to be enabled without `client` or `http1`,
-// that is why we don't auto enable them as `ffi = ["client", "http1"]` in
-// the `Cargo.toml`.
-//
-// But for now, give a clear message that this compile error is expected.
-#[cfg(not(all(feature = "client", feature = "server", feature = "http1")))]
-compile_error!("The `ffi` feature currently requires the `client`, `server` and `http1` features.");
-
 #[cfg(not(hyper_unstable_ffi))]
 compile_error!(
     "\
