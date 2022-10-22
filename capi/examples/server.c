@@ -22,19 +22,6 @@ typedef struct conn_data_s {
     hyper_waker *write_waker;
 } conn_data;
 
-typedef enum task_state_type_e {
-  TASK_STATE_NONE,
-  TASK_STATE_SERVERCONN,
-  TASK_STATE_CLIENTCONN,
-} task_state_type;
-
-typedef struct task_state_s {
-  task_state_type type;
-  union {
-    conn_data* conn;
-  } data;
-} task_state;
-
 static int listen_on(const char* host, const char* port) {
     struct addrinfo hints;
     struct addrinfo *result;
@@ -224,13 +211,6 @@ static void free_conn_data(int epoll, conn_data *conn) {
     // ...and clean up
     free(conn);
 }
-
-typedef enum {
-    EXAMPLE_NOT_SET = 0, // tasks we don't know about won't have a userdata set
-    EXAMPLE_HANDSHAKE,
-    EXAMPLE_SEND,
-    EXAMPLE_RESP_BODY
-} example_id;
 
 static void server_callback(void* userdata, hyper_request* request, hyper_response_channel* channel) {
     unsigned char scheme[16];
