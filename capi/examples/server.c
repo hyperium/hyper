@@ -22,7 +22,7 @@ typedef struct conn_data_s {
     hyper_waker *write_waker;
 } conn_data;
 
-static int listen_on(const char* host, const char* port) {
+static int listen_on(const char *host, const char *port) {
     struct addrinfo hints;
     struct addrinfo *result;
 
@@ -70,7 +70,7 @@ static int listen_on(const char* host, const char* port) {
     freeaddrinfo(result);
 
     if (sock < 0) {
-      return -1;
+        return -1;
     }
 
     // Non-blocking for async
@@ -104,12 +104,12 @@ static int register_signal_handler() {
     sigaddset(&mask, SIGQUIT);
     int signal_fd = signalfd(-1, &mask, SFD_NONBLOCK | SFD_CLOEXEC);
     if (signal_fd < 0) {
-      perror("signalfd");
-      return 1;
+        perror("signalfd");
+        return 1;
     }
     if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
-      perror("sigprocmask");
-      return 1;
+        perror("sigprocmask");
+        return 1;
     }
 
     return signal_fd;
@@ -159,7 +159,7 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
     return HYPER_IO_PENDING;
 }
 
-static conn_data* create_conn_data(int epoll, int fd) {
+static conn_data *create_conn_data(int epoll, int fd) {
     conn_data *conn = malloc(sizeof(conn_data));
 
     // Add fd to epoll set, associated with this `conn`
@@ -179,7 +179,7 @@ static conn_data* create_conn_data(int epoll, int fd) {
     return conn;
 }
 
-static hyper_io* create_io(conn_data* conn) {
+static hyper_io *create_io(conn_data *conn) {
     // Hookup the IO
     hyper_io *io = hyper_io_new();
     hyper_io_set_userdata(io, (void *)conn);
@@ -212,14 +212,24 @@ static void free_conn_data(int epoll, conn_data *conn) {
     free(conn);
 }
 
-static void server_callback(void* userdata, hyper_request* request, hyper_response_channel* channel) {
+static void server_callback(
+    void *userdata, hyper_request *request, hyper_response_channel *channel
+) {
     unsigned char scheme[16];
     size_t scheme_len = sizeof(scheme);
     unsigned char authority[16];
     size_t authority_len = sizeof(authority);
     unsigned char path_and_query[16];
     size_t path_and_query_len = sizeof(path_and_query);
-    if (hyper_request_uri_parts(request, scheme, &scheme_len, authority, &authority_len, path_and_query, &path_and_query_len) == 0) {
+    if (hyper_request_uri_parts(
+            request,
+            scheme,
+            &scheme_len,
+            authority,
+            &authority_len,
+            path_and_query,
+            &path_and_query_len
+        ) == 0) {
         printf("Request scheme was %.*s\n", (int)scheme_len, scheme);
         printf("Request authority was %.*s\n", (int)authority_len, authority);
         printf("Request path_and_query was %.*s\n", (int)path_and_query_len, path_and_query);
@@ -233,7 +243,7 @@ static void server_callback(void* userdata, hyper_request* request, hyper_respon
     }
 
     hyper_request_free(request);
-    hyper_response* response = hyper_response_new();
+    hyper_response *response = hyper_response_new();
     hyper_response_set_status(response, 404);
     hyper_response_channel_send(channel, response);
 }
@@ -251,7 +261,7 @@ int main(int argc, char *argv[]) {
 
     int signal_fd = register_signal_handler();
     if (signal_fd < 0) {
-      return 1;
+        return 1;
     }
 
     // Use epoll cos' it's cool
@@ -279,7 +289,6 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-
     printf("http handshake (hyper v%s) ...\n", hyper_version());
 
     // We need an executor generally to poll futures
@@ -296,7 +305,7 @@ int main(int argc, char *argv[]) {
 
     while (1) {
         while (1) {
-            hyper_task* task = hyper_executor_poll(exec);
+            hyper_task *task = hyper_executor_poll(exec);
             if (!task) {
                 break;
             }
@@ -305,15 +314,15 @@ int main(int argc, char *argv[]) {
 
                 err = hyper_task_value(task);
                 printf("error code: %d\n", hyper_error_code(err));
-                uint8_t errbuf [256];
+                uint8_t errbuf[256];
                 size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
-                printf("details: %.*s\n", (int) errlen, errbuf);
+                printf("details: %.*s\n", (int)errlen, errbuf);
 
                 // clean up the error
                 hyper_error_free(err);
 
                 // clean up the task
-                conn_data* conn = hyper_task_userdata(task);
+                conn_data *conn = hyper_task_userdata(task);
                 if (conn) {
                     free_conn_data(epoll, conn);
                 }
@@ -323,7 +332,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (hyper_task_type(task) == HYPER_TASK_EMPTY) {
-                conn_data* conn = hyper_task_userdata(task);
+                conn_data *conn = hyper_task_userdata(task);
                 if (conn) {
                     printf("server connection complete\n");
                     free_conn_data(epoll, conn);
@@ -353,39 +362,50 @@ int main(int argc, char *argv[]) {
                 // Incoming connection(s) on listen_fd
                 int new_fd;
                 struct sockaddr_storage remote_addr_storage;
-                struct sockaddr* remote_addr = (struct sockaddr*)&remote_addr_storage;
+                struct sockaddr *remote_addr = (struct sockaddr *)&remote_addr_storage;
                 socklen_t remote_addr_len = sizeof(struct sockaddr_storage);
-                while ((new_fd = accept(listen_fd, (struct sockaddr*)&remote_addr_storage, &remote_addr_len)) >= 0) {
-                  char remote_host[128];
-                  char remote_port[8];
-                  if (getnameinfo(remote_addr, remote_addr_len, remote_host, sizeof(remote_host), remote_port, sizeof(remote_port), NI_NUMERICHOST | NI_NUMERICSERV) < 0) {
-                    perror("getnameinfo");
-                    printf("New incoming connection from (unknown)\n");
-                  } else {
-                    printf("New incoming connection from (%s:%s)\n", remote_host, remote_port);
-                  }
+                while ((new_fd = accept(
+                            listen_fd, (struct sockaddr *)&remote_addr_storage, &remote_addr_len
+                        )) >= 0) {
+                    char remote_host[128];
+                    char remote_port[8];
+                    if (getnameinfo(
+                            remote_addr,
+                            remote_addr_len,
+                            remote_host,
+                            sizeof(remote_host),
+                            remote_port,
+                            sizeof(remote_port),
+                            NI_NUMERICHOST | NI_NUMERICSERV
+                        ) < 0) {
+                        perror("getnameinfo");
+                        printf("New incoming connection from (unknown)\n");
+                    } else {
+                        printf("New incoming connection from (%s:%s)\n", remote_host, remote_port);
+                    }
 
-                  // Set non-blocking
-                  if (fcntl(new_fd, F_SETFL, O_NONBLOCK) != 0) {
-                      perror("fcntl(O_NONBLOCK) (transport)\n");
-                      return 1;
-                  }
+                    // Set non-blocking
+                    if (fcntl(new_fd, F_SETFL, O_NONBLOCK) != 0) {
+                        perror("fcntl(O_NONBLOCK) (transport)\n");
+                        return 1;
+                    }
 
-                  // Close handle on exec(ve)
-                  if (fcntl(new_fd, F_SETFD, FD_CLOEXEC) != 0) {
-                    perror("fcntl(FD_CLOEXEC) (transport)\n");
-                    return 1;
-                  }
+                    // Close handle on exec(ve)
+                    if (fcntl(new_fd, F_SETFD, FD_CLOEXEC) != 0) {
+                        perror("fcntl(FD_CLOEXEC) (transport)\n");
+                        return 1;
+                    }
 
-                  // Wire up IO
-                  conn_data *conn = create_conn_data(epoll, new_fd);
-                  hyper_io* io = create_io(conn);
+                    // Wire up IO
+                    conn_data *conn = create_conn_data(epoll, new_fd);
+                    hyper_io *io = create_io(conn);
 
-                  // Ask hyper to drive this connection
-                  hyper_service *service = hyper_service_new(server_callback);
-                  hyper_task *serverconn = hyper_serve_httpX_connection(http1_opts, http2_opts, io, service);
-                  hyper_task_set_userdata(serverconn, conn);
-                  hyper_executor_push(exec, serverconn);
+                    // Ask hyper to drive this connection
+                    hyper_service *service = hyper_service_new(server_callback);
+                    hyper_task *serverconn =
+                        hyper_serve_httpX_connection(http1_opts, http2_opts, io, service);
+                    hyper_task_set_userdata(serverconn, conn);
+                    hyper_executor_push(exec, serverconn);
                 }
 
                 if (errno != EAGAIN) {
@@ -393,7 +413,8 @@ int main(int argc, char *argv[]) {
                 }
             } else if (events[n].data.ptr == &signal_fd) {
                 struct signalfd_siginfo siginfo;
-                if (read(signal_fd, &siginfo, sizeof(struct signalfd_siginfo)) != sizeof(struct signalfd_siginfo)) {
+                if (read(signal_fd, &siginfo, sizeof(struct signalfd_siginfo)) !=
+                    sizeof(struct signalfd_siginfo)) {
                     perror("read (signal_fd)");
                     return 1;
                 }
@@ -412,7 +433,7 @@ int main(int argc, char *argv[]) {
                 }
             } else {
                 // Existing transport socket, poke the wakers or close the socket
-                conn_data* conn = events[n].data.ptr;
+                conn_data *conn = events[n].data.ptr;
                 if ((events[n].events & EPOLLIN) && conn->read_waker) {
                     hyper_waker_wake(conn->read_waker);
                     conn->read_waker = NULL;

@@ -13,7 +13,6 @@
 
 #include "hyper.h"
 
-
 struct conn_data {
     int fd;
     hyper_waker *read_waker;
@@ -118,10 +117,8 @@ struct upload_body {
     size_t len;
 };
 
-static int poll_req_upload(void *userdata,
-                           hyper_context *ctx,
-                           hyper_buf **chunk) {
-    struct upload_body* upload = userdata;
+static int poll_req_upload(void *userdata, hyper_context *ctx, hyper_buf **chunk) {
+    struct upload_body *upload = userdata;
 
     ssize_t res = read(upload->fd, upload->buf, upload->len);
     if (res > 0) {
@@ -140,12 +137,10 @@ static int poll_req_upload(void *userdata,
     return HYPER_POLL_ERROR;
 }
 
-static int print_each_header(void *userdata,
-                                         const uint8_t *name,
-                                         size_t name_len,
-                                         const uint8_t *value,
-                                         size_t value_len) {
-    printf("%.*s: %.*s\n", (int) name_len, name, (int) value_len, value);
+static int print_each_header(
+    void *userdata, const uint8_t *name, size_t name_len, const uint8_t *value, size_t value_len
+) {
+    printf("%.*s: %.*s\n", (int)name_len, name, (int)value_len, value);
     return HYPER_ITER_CONTINUE;
 }
 
@@ -163,8 +158,8 @@ typedef enum {
 } example_state;
 
 typedef union example_id {
-  void* ptr;
-  example_state state;
+    void *ptr;
+    example_state state;
 } example_userdata;
 
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
@@ -213,7 +208,6 @@ int main(int argc, char *argv[]) {
     conn->read_waker = NULL;
     conn->write_waker = NULL;
 
-
     // Hookup the IO
     hyper_io *io = hyper_io_new();
     hyper_io_set_userdata(io, (void *)conn);
@@ -250,7 +244,6 @@ int main(int argc, char *argv[]) {
 
             switch (((example_userdata)hyper_task_userdata(task)).state) {
             case EXAMPLE_HANDSHAKE:
-                ;
                 if (task_type == HYPER_TASK_ERROR) {
                     printf("handshake error!\n");
                     return 1;
@@ -300,7 +293,6 @@ int main(int argc, char *argv[]) {
 
                 break;
             case EXAMPLE_SEND:
-                ;
                 if (task_type == HYPER_TASK_ERROR) {
                     printf("send error!\n");
                     return 1;
@@ -331,7 +323,6 @@ int main(int argc, char *argv[]) {
 
                 break;
             case EXAMPLE_RESP_BODY:
-                ;
                 if (task_type == HYPER_TASK_ERROR) {
                     printf("body error!\n");
                     return 1;
@@ -399,7 +390,6 @@ int main(int argc, char *argv[]) {
             conn->write_waker = NULL;
         }
     }
-
 
     return 0;
 }

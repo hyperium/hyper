@@ -13,7 +13,6 @@
 
 #include "hyper.h"
 
-
 struct conn_data {
     int fd;
     hyper_waker *read_waker;
@@ -112,12 +111,10 @@ static int connect_to(const char *host, const char *port) {
     return sfd;
 }
 
-static int print_each_header(void *userdata,
-                                         const uint8_t *name,
-                                         size_t name_len,
-                                         const uint8_t *value,
-                                         size_t value_len) {
-    printf("%.*s: %.*s\n", (int) name_len, name, (int) value_len, value);
+static int print_each_header(
+    void *userdata, const uint8_t *name, size_t name_len, const uint8_t *value, size_t value_len
+) {
+    printf("%.*s: %.*s\n", (int)name_len, name, (int)value_len, value);
     return HYPER_ITER_CONTINUE;
 }
 
@@ -138,8 +135,8 @@ typedef enum {
 } example_state;
 
 typedef union example_id {
-  void* ptr;
-  example_state state;
+    void *ptr;
+    example_state state;
 } example_userdata;
 
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
@@ -205,7 +202,6 @@ int main(int argc, char *argv[]) {
             }
             switch (((example_userdata)hyper_task_userdata(task)).state) {
             case EXAMPLE_HANDSHAKE:
-                ;
                 if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                     printf("handshake error!\n");
                     err = hyper_task_value(task);
@@ -230,7 +226,7 @@ int main(int argc, char *argv[]) {
                 }
 
                 hyper_headers *req_headers = hyper_request_headers(req);
-                hyper_headers_set(req_headers,  STR_ARG("Host"), STR_ARG(host));
+                hyper_headers_set(req_headers, STR_ARG("Host"), STR_ARG(host));
 
                 // Send it!
                 hyper_task *send = hyper_clientconn_send(client, req);
@@ -243,7 +239,6 @@ int main(int argc, char *argv[]) {
 
                 break;
             case EXAMPLE_SEND:
-                ;
                 if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                     printf("send error!\n");
                     err = hyper_task_value(task);
@@ -259,7 +254,7 @@ int main(int argc, char *argv[]) {
                 const uint8_t *rp = hyper_response_reason_phrase(resp);
                 size_t rp_len = hyper_response_reason_phrase_len(resp);
 
-                printf("\nResponse Status: %d %.*s\n", http_status, (int) rp_len, rp);
+                printf("\nResponse Status: %d %.*s\n", http_status, (int)rp_len, rp);
 
                 hyper_headers *headers = hyper_response_headers(resp);
                 hyper_headers_foreach(headers, print_each_header, NULL);
@@ -275,7 +270,6 @@ int main(int argc, char *argv[]) {
 
                 break;
             case EXAMPLE_RESP_BODY:
-                ;
                 if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                     printf("body error!\n");
                     err = hyper_task_value(task);
@@ -328,7 +322,6 @@ int main(int argc, char *argv[]) {
             hyper_waker_wake(conn->write_waker);
             conn->write_waker = NULL;
         }
-
     }
 
     return 0;
@@ -337,9 +330,9 @@ fail:
     if (err) {
         printf("error code: %d\n", hyper_error_code(err));
         // grab the error details
-        unsigned char errbuf [256];
+        unsigned char errbuf[256];
         size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
-        printf("details: %.*s\n", (int) errlen, errbuf);
+        printf("details: %.*s\n", (int)errlen, errbuf);
 
         // clean up the error
         hyper_error_free(err);
