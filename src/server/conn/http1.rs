@@ -27,7 +27,7 @@ pin_project_lite::pin_project! {
     where
         S: HttpService<Recv>,
     {
-        conn: Option<Http1Dispatcher<T, S::ResBody, S>>,
+        conn: Http1Dispatcher<T, S::ResBody, S>,
     }
 }
 
@@ -98,12 +98,7 @@ where
     /// pending. If called after `Connection::poll` has resolved, this does
     /// nothing.
     pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
-        match self.conn {
-            Some(ref mut h1) => {
-                h1.disable_keep_alive();
-            }
-            None => (),
-        }
+        self.conn.disable_keep_alive();
     }
 
     /// Return the inner IO object, and additional information.
@@ -116,25 +111,13 @@ where
     /// # Panics
     /// This method will panic if this connection is using an h2 protocol.
     pub fn into_parts(self) -> Parts<I, S> {
-        self.try_into_parts()
-            .unwrap_or_else(|| panic!("h2 cannot into_inner"))
-    }
-
-    /// Return the inner IO object, and additional information, if available.
-    ///
-    ///
-    /// TODO:(mike) does this need to return none for h1 or is it expected to always be present? previously used an "unwrap"
-    /// This method will return a `None` if this connection is using an h2 protocol.
-    pub fn try_into_parts(self) -> Option<Parts<I, S>> {
-        self.conn.map(|h1| {
-            let (io, read_buf, dispatch) = h1.into_inner();
-            Parts {
-                io,
-                read_buf,
-                service: dispatch.into_service(),
-                _inner: (),
-            }
-        })
+        let (io, read_buf, dispatch) = self.conn.into_inner();
+        Parts {
+            io,
+            read_buf,
+            service: dispatch.into_service(),
+            _inner: (),
+        }
     }
 
     /// Poll the connection for completion, but without calling `shutdown`
@@ -150,7 +133,7 @@ where
         S::Future: Unpin,
         B: Unpin,
     {
-        self.conn.as_mut().unwrap().poll_without_shutdown(cx)
+        self.conn.poll_without_shutdown(cx)
     }
 
     /// Prevent shutdown of the underlying IO object at the end of service the request,
@@ -165,15 +148,11 @@ where
         S::Future: Unpin,
         B: Unpin,
     {
-        // TODO(mike): "new_without_shutdown_not_h1" is not possible here
-        let mut conn = Some(self);
+        let mut zelf = Some(self);
         futures_util::future::poll_fn(move |cx| {
-            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
+            ready!(zelf.as_mut().unwrap().conn.poll_without_shutdown(cx))?;
             Poll::Ready(
-                conn.take()
-                    .unwrap()
-                    .try_into_parts()
-                    .ok_or_else(crate::Error::new_without_shutdown_not_h1),
+                Ok(zelf.take().unwrap().into_parts())
             )
         })
     }
@@ -185,7 +164,7 @@ where
     where
         I: Send,
     {
-        upgrades::UpgradeableConnection { inner: self }
+        upgrades::UpgradeableConnection { inner: Some(self) }
     }
 }
 
@@ -201,7 +180,7 @@ where
     type Output = crate::Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(self.conn.as_mut().unwrap()).poll(cx)) {
+        match ready!(Pin::new(&mut self.conn).poll(cx)) {
             Ok(done) => {
                 match done {
                     proto::Dispatched::Shutdown => {}
@@ -417,7 +396,7 @@ impl Builder {
         let sd = proto::h1::dispatch::Server::new(service);
         let proto = proto::h1::Dispatcher::new(sd, conn);
         Connection {
-            conn: Some(proto),
+            conn: proto,
         }
     }
 }
@@ -436,7 +415,7 @@ mod upgrades {
     where
         S: HttpService<Recv>,
     {
-        pub(super) inner: Connection<T, S>,
+        pub(super) inner: Option<Connection<T, S>>,
     }
 
     impl<I, B, S> UpgradeableConnection<I, S>
@@ -452,7 +431,7 @@ mod upgrades {
         /// This `Connection` should continue to be polled until shutdown
         /// can finish.
         pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
-            Pin::new(&mut self.inner).graceful_shutdown()
+            Pin::new(self.inner.as_mut().unwrap()).graceful_shutdown()
         }
     }
 
@@ -467,10 +446,10 @@ mod upgrades {
         type Output = crate::Result<()>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-            match ready!(Pin::new(self.inner.conn.as_mut().unwrap()).poll(cx)) {
+            match ready!(Pin::new(&mut self.inner.as_mut().unwrap().conn).poll(cx)) {
                 Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
                 Ok(proto::Dispatched::Upgrade(pending)) => {
-                    let (io, buf, _) = self.inner.conn.take().unwrap().into_inner();
+                    let (io, buf, _) = self.inner.take().unwrap().conn.into_inner();
                     pending.fulfill(Upgraded::new(io, buf));
                     Poll::Ready(Ok(()))
                 }

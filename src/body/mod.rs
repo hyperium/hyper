@@ -21,6 +21,7 @@ pub use http_body::SizeHint;
 
 pub use self::aggregate::aggregate;
 pub use self::body::Recv;
+#[cfg(feature = "http1")]
 pub(crate) use self::body::Sender;
 pub(crate) use self::length::DecodedLength;
 pub use self::to_bytes::to_bytes;
