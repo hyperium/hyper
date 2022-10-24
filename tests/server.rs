@@ -2276,8 +2276,8 @@ fn http2_body_user_error_sends_reset_reason() {
 
             let mut res = client.get(uri).await?;
 
-            while let Some(chunk) = res.body_mut().data().await {
-                chunk?;
+            while let Some(item) = res.body_mut().frame().await {
+                item?;
             }
             Ok(())
         })
@@ -2631,7 +2631,9 @@ impl<'a> ReplyBuilder<'a> {
     where
         S: futures_util::Stream<Item = Result<Bytes, BoxError>> + Send + Sync + 'static,
     {
-        let body = BodyExt::boxed(StreamBody::new(stream));
+        use futures_util::TryStreamExt;
+        use hyper::body::Frame;
+        let body = BodyExt::boxed(StreamBody::new(stream.map_ok(Frame::data)));
         self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
@@ -2703,10 +2705,13 @@ impl Service<Request<Recv>> for TestService {
         let replies = self.reply.clone();
 
         Box::pin(async move {
-            while let Some(chunk) = req.data().await {
-                match chunk {
-                    Ok(chunk) => {
-                        tx.send(Msg::Chunk(chunk.to_vec())).unwrap();
+            while let Some(item) = req.frame().await {
+                match item {
+                    Ok(frame) => {
+                        if frame.is_data() {
+                            tx.send(Msg::Chunk(frame.into_data().unwrap().to_vec()))
+                                .unwrap();
+                        }
                     }
                     Err(err) => {
                         tx.send(Msg::Error(err)).unwrap();

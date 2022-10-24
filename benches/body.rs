@@ -6,7 +6,8 @@ extern crate test;
 use bytes::Buf;
 use futures_util::stream;
 use futures_util::StreamExt;
-use http_body_util::StreamBody;
+use http_body::Frame;
+use http_body_util::{BodyExt, StreamBody};
 
 macro_rules! bench_stream {
     ($bencher:ident, bytes: $bytes:expr, count: $count:expr, $total_ident:ident, $body_pat:pat, $block:expr) => {{
@@ -21,7 +22,8 @@ macro_rules! bench_stream {
         $bencher.iter(|| {
             rt.block_on(async {
                 let $body_pat = StreamBody::new(
-                    stream::iter(__s.iter()).map(|&s| Ok::<_, std::convert::Infallible>(s)),
+                    stream::iter(__s.iter())
+                        .map(|&s| Ok::<_, std::convert::Infallible>(Frame::data(s))),
                 );
 
                 $block;
@@ -39,7 +41,7 @@ macro_rules! benches {
             #[bench]
             fn $name(b: &mut test::Bencher) {
                 bench_stream!(b, bytes: $bytes, count: $count, total, body, {
-                    let buf = hyper::body::aggregate(body).await.unwrap();
+                    let buf = BodyExt::collect(body).await.unwrap().aggregate();
                     assert_eq!(buf.remaining(), total);
                 });
             }
@@ -55,7 +57,7 @@ macro_rules! benches {
                 bench_stream!(b, bytes: $bytes, count: $count, total, mut body, {
                     let mut vec = Vec::new();
                     while let Some(chunk) = body.next().await {
-                        vec.extend_from_slice(&chunk.unwrap());
+                        vec.extend_from_slice(&chunk.unwrap().into_data().unwrap());
                     }
                     assert_eq!(vec.len(), total);
                 });
@@ -70,7 +72,7 @@ macro_rules! benches {
             #[bench]
             fn $name(b: &mut test::Bencher) {
                 bench_stream!(b, bytes: $bytes, count: $count, total, body, {
-                    let bytes = hyper::body::to_bytes(body).await.unwrap();
+                    let bytes = BodyExt::collect(body).await.unwrap().to_bytes();
                     assert_eq!(bytes.len(), total);
                 });
             }

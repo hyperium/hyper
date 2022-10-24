@@ -3,8 +3,8 @@
 use std::env;
 
 use bytes::Bytes;
-use http_body_util::Empty;
-use hyper::{body::Body as _, Request};
+use http_body_util::{BodyExt, Empty};
+use hyper::Request;
 use tokio::io::{self, AsyncWriteExt as _};
 use tokio::net::TcpStream;
 
@@ -62,9 +62,11 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
 
     // Stream the body, writing each chunk to stdout as we get it
     // (instead of buffering and printing at the end).
-    while let Some(next) = res.data().await {
-        let chunk = next?;
-        io::stdout().write_all(&chunk).await?;
+    while let Some(next) = res.frame().await {
+        let frame = next?;
+        if let Some(chunk) = frame.data_ref() {
+            io::stdout().write_all(&chunk).await?;
+        }
     }
 
     println!("\n\nDone!");

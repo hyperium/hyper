@@ -7,7 +7,7 @@ use std::sync::{
 };
 
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::{BodyExt, Full};
 use hyper::server;
 use tokio::net::{TcpListener, TcpStream};
 
@@ -370,7 +370,8 @@ async fn async_test(cfg: __TestConfig) {
                     func(&req.headers());
                 }
                 let sbody = sreq.body;
-                hyper::body::to_bytes(req).map_ok(move |body| {
+                req.collect().map_ok(move |collected| {
+                    let body = collected.to_bytes();
                     assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
                     let mut res = Response::builder()
@@ -458,7 +459,7 @@ async fn async_test(cfg: __TestConfig) {
                 func(&res.headers());
             }
 
-            let body = hyper::body::to_bytes(res).await.unwrap();
+            let body = res.collect().await.unwrap().to_bytes();
 
             assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
         }

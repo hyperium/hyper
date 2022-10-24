@@ -3,12 +3,12 @@ use std::mem::ManuallyDrop;
 use std::ptr;
 use std::task::{Context, Poll};
 
-use http::HeaderMap;
+use http_body_util::BodyExt as _;
 use libc::{c_int, size_t};
 
 use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
-use crate::body::{Body as _, Bytes, Recv};
+use crate::body::{Bytes, Frame, Recv};
 
 /// A streaming HTTP body.
 pub struct hyper_body(pub(super) Recv);
@@ -60,7 +60,19 @@ ffi_fn! {
         let mut body = ManuallyDrop::new(non_null!(Box::from_raw(body) ?= ptr::null_mut()));
 
         Box::into_raw(hyper_task::boxed(async move {
-            body.0.data().await.map(|res| res.map(hyper_buf))
+            loop {
+                match body.0.frame().await {
+                    Some(Ok(frame)) => {
+                        if frame.is_data() {
+                            return Ok(Some(hyper_buf(frame.into_data().unwrap())));
+                        } else {
+                            continue;
+                        }
+                    },
+                    Some(Err(e)) => return Err(e),
+                    None => return Ok(None),
+                }
+            }
         }))
     } ?= ptr::null_mut()
 }
@@ -81,10 +93,12 @@ ffi_fn! {
         let userdata = UserDataPointer(userdata);
 
         Box::into_raw(hyper_task::boxed(async move {
-            while let Some(item) = body.0.data().await {
-                let chunk = item?;
-                if HYPER_ITER_CONTINUE != func(userdata.0, &hyper_buf(chunk)) {
-                    return Err(crate::Error::new_user_aborted_by_callback());
+            while let Some(item) = body.0.frame().await {
+                let frame = item?;
+                if let Some(chunk) = frame.into_data() {
+                    if HYPER_ITER_CONTINUE != func(userdata.0, &hyper_buf(chunk)) {
+                        return Err(crate::Error::new_user_aborted_by_callback());
+                    }
                 }
             }
             Ok(())
@@ -136,7 +150,10 @@ impl UserBody {
         }
     }
 
-    pub(crate) fn poll_data(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+    pub(crate) fn poll_data(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<crate::Result<Frame<Bytes>>>> {
         let mut out = std::ptr::null_mut();
         match (self.data_func)(self.userdata, hyper_context::wrap(cx), &mut out) {
             super::task::HYPER_POLL_READY => {
@@ -144,7 +161,7 @@ impl UserBody {
                     Poll::Ready(None)
                 } else {
                     let buf = unsafe { Box::from_raw(out) };
-                    Poll::Ready(Some(Ok(buf.0)))
+                    Poll::Ready(Some(Ok(Frame::data(buf.0))))
                 }
             }
             super::task::HYPER_POLL_PENDING => Poll::Pending,
@@ -156,13 +173,6 @@ impl UserBody {
                 unexpected
             ))))),
         }
-    }
-
-    pub(crate) fn poll_trailers(
-        &mut self,
-        _cx: &mut Context<'_>,
-    ) -> Poll<crate::Result<Option<HeaderMap>>> {
-        Poll::Ready(Ok(None))
     }
 }
 

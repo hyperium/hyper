@@ -13,6 +13,7 @@ use futures_util::{stream, StreamExt};
 use http_body_util::{BodyExt, Full, StreamBody};
 use tokio::sync::oneshot;
 
+use hyper::body::Frame;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::Response;
@@ -109,7 +110,7 @@ fn throughput_fixedsize_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("content-length", "1000000"), move || {
         static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
         BodyExt::boxed(StreamBody::new(
-            stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)),
+            stream::iter(S.iter()).map(|&s| Ok::<_, String>(Frame::data(s))),
         ))
     })
 }
@@ -133,7 +134,7 @@ fn throughput_chunked_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("transfer-encoding", "chunked"), || {
         static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
         BodyExt::boxed(StreamBody::new(
-            stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)),
+            stream::iter(S.iter()).map(|&s| Ok::<_, String>(Frame::data(s))),
         ))
     })
 }
