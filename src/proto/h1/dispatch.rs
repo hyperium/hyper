@@ -333,12 +333,18 @@ where
                         continue;
                     }
 
-                    let item = ready!(body.as_mut().poll_data(cx));
+                    let item = ready!(body.as_mut().poll_frame(cx));
                     if let Some(item) = item {
-                        let chunk = item.map_err(|e| {
+                        let frame = item.map_err(|e| {
                             *clear_body = true;
                             crate::Error::new_user_body(e)
                         })?;
+                        let chunk = if frame.is_data() {
+                            frame.into_data().unwrap()
+                        } else {
+                            trace!("discarding non-data frame");
+                            continue;
+                        };
                         let eos = body.is_end_stream();
                         if eos {
                             *clear_body = true;

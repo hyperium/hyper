@@ -119,43 +119,44 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
-            if !*me.data_done {
-                // we don't have the next chunk of data yet, so just reserve 1 byte to make
-                // sure there's some capacity available. h2 will handle the capacity management
-                // for the actual body chunk.
-                me.body_tx.reserve_capacity(1);
+            // we don't have the next chunk of data yet, so just reserve 1 byte to make
+            // sure there's some capacity available. h2 will handle the capacity management
+            // for the actual body chunk.
+            me.body_tx.reserve_capacity(1);
 
-                if me.body_tx.capacity() == 0 {
-                    loop {
-                        match ready!(me.body_tx.poll_capacity(cx)) {
-                            Some(Ok(0)) => {}
-                            Some(Ok(_)) => break,
-                            Some(Err(e)) => {
-                                return Poll::Ready(Err(crate::Error::new_body_write(e)))
-                            }
-                            None => {
-                                // None means the stream is no longer in a
-                                // streaming state, we either finished it
-                                // somehow, or the remote reset us.
-                                return Poll::Ready(Err(crate::Error::new_body_write(
-                                    "send stream capacity unexpectedly closed",
-                                )));
-                            }
+            if me.body_tx.capacity() == 0 {
+                loop {
+                    match ready!(me.body_tx.poll_capacity(cx)) {
+                        Some(Ok(0)) => {}
+                        Some(Ok(_)) => break,
+                        Some(Err(e)) => {
+                            return Poll::Ready(Err(crate::Error::new_body_write(e)))
+                        }
+                        None => {
+                            // None means the stream is no longer in a
+                            // streaming state, we either finished it
+                            // somehow, or the remote reset us.
+                            return Poll::Ready(Err(crate::Error::new_body_write(
+                                "send stream capacity unexpectedly closed",
+                            )));
                         }
                     }
-                } else if let Poll::Ready(reason) = me
-                    .body_tx
-                    .poll_reset(cx)
-                    .map_err(crate::Error::new_body_write)?
-                {
-                    debug!("stream received RST_STREAM: {:?}", reason);
-                    return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
-                        reason,
-                    ))));
                 }
+            } else if let Poll::Ready(reason) = me
+                .body_tx
+                .poll_reset(cx)
+                .map_err(crate::Error::new_body_write)?
+            {
+                debug!("stream received RST_STREAM: {:?}", reason);
+                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
+                    reason,
+                ))));
+            }
 
-                match ready!(me.stream.as_mut().poll_data(cx)) {
-                    Some(Ok(chunk)) => {
+            match ready!(me.stream.as_mut().poll_frame(cx)) {
+                Some(Ok(frame)) => {
+                    if frame.is_data() {
+                        let chunk = frame.into_data().unwrap();
                         let is_eos = me.stream.is_end_stream();
                         trace!(
                             "send body chunk: {} bytes, eos={}",
@@ -171,43 +172,24 @@ where
                         if is_eos {
                             return Poll::Ready(Ok(()));
                         }
-                    }
-                    Some(Err(e)) => return Poll::Ready(Err(me.body_tx.on_user_err(e))),
-                    None => {
+                    } else if frame.is_trailers() {
+                        // no more DATA, so give any capacity back
                         me.body_tx.reserve_capacity(0);
-                        let is_eos = me.stream.is_end_stream();
-                        if is_eos {
-                            return Poll::Ready(me.body_tx.send_eos_frame());
-                        } else {
-                            *me.data_done = true;
-                            // loop again to poll_trailers
-                        }
-                    }
-                }
-            } else {
-                if let Poll::Ready(reason) = me
-                    .body_tx
-                    .poll_reset(cx)
-                    .map_err(crate::Error::new_body_write)?
-                {
-                    debug!("stream received RST_STREAM: {:?}", reason);
-                    return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
-                        reason,
-                    ))));
-                }
-
-                match ready!(me.stream.poll_trailers(cx)) {
-                    Ok(Some(trailers)) => {
                         me.body_tx
-                            .send_trailers(trailers)
+                            .send_trailers(frame.into_trailers().unwrap())
                             .map_err(crate::Error::new_body_write)?;
                         return Poll::Ready(Ok(()));
+                    } else {
+                        trace!("discarding unknown frame");
+                        // loop again
                     }
-                    Ok(None) => {
-                        // There were no trailers, so send an empty DATA frame...
-                        return Poll::Ready(me.body_tx.send_eos_frame());
-                    }
-                    Err(e) => return Poll::Ready(Err(me.body_tx.on_user_err(e))),
+                }
+                Some(Err(e)) => return Poll::Ready(Err(me.body_tx.on_user_err(e))),
+                None => {
+                    // no more frames means we're done here
+                    // but at this point, we haven't sent an EOS DATA, or
+                    // any trailers, so send an empty EOS DATA.
+                    return Poll::Ready(me.body_tx.send_eos_frame());
                 }
             }
         }

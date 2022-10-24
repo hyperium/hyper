@@ -3,9 +3,9 @@ use std::fmt;
 use bytes::Bytes;
 use futures_channel::mpsc;
 use futures_channel::oneshot;
-use futures_core::Stream; // for mpsc::Receiver
+use futures_core::{FusedStream, Stream}; // for mpsc::Receiver
 use http::HeaderMap;
-use http_body::{Body, SizeHint};
+use http_body::{Body, Frame, SizeHint};
 
 use super::DecodedLength;
 use crate::common::Future;
@@ -16,13 +16,7 @@ use crate::proto::h2::ping;
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
 type TrailersSender = oneshot::Sender<HeaderMap>;
 
-/// A stream of `Bytes`, used when receiving bodies.
-///
-/// A good default [`Body`](crate::body::Body) to use in many
-/// applications.
-///
-/// Note: To read the full body, use [`body::to_bytes`](crate::body::to_bytes)
-/// or [`body::aggregate`](crate::body::aggregate).
+/// A stream of `Bytes`, used when receiving bodies from the network.
 #[must_use = "streams do nothing unless polled"]
 pub struct Recv {
     kind: Kind,
@@ -39,8 +33,9 @@ enum Kind {
     },
     #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
     H2 {
-        ping: ping::Recorder,
         content_length: DecodedLength,
+        data_done: bool,
+        ping: ping::Recorder,
         recv: h2::RecvStream,
     },
     #[cfg(feature = "ffi")]
@@ -131,6 +126,7 @@ impl Recv {
             content_length = DecodedLength::ZERO;
         }
         let body = Recv::new(Kind::H2 {
+            data_done: false,
             ping,
             content_length,
             recv,
@@ -153,86 +149,78 @@ impl Recv {
             _ => unreachable!(),
         }
     }
-
-    fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
-        match self.kind {
-            Kind::Empty => Poll::Ready(None),
-            Kind::Chan {
-                content_length: ref mut len,
-                ref mut data_rx,
-                ref mut want_tx,
-                ..
-            } => {
-                want_tx.send(WANT_READY);
-
-                match ready!(Pin::new(data_rx).poll_next(cx)?) {
-                    Some(chunk) => {
-                        len.sub_if(chunk.len() as u64);
-                        Poll::Ready(Some(Ok(chunk)))
-                    }
-                    None => Poll::Ready(None),
-                }
-            }
-            #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
-            Kind::H2 {
-                ref ping,
-                recv: ref mut h2,
-                content_length: ref mut len,
-            } => match ready!(h2.poll_data(cx)) {
-                Some(Ok(bytes)) => {
-                    let _ = h2.flow_control().release_capacity(bytes.len());
-                    len.sub_if(bytes.len() as u64);
-                    ping.record_data(bytes.len());
-                    Poll::Ready(Some(Ok(bytes)))
-                }
-                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
-                None => Poll::Ready(None),
-            },
-
-            #[cfg(feature = "ffi")]
-            Kind::Ffi(ref mut body) => body.poll_data(cx),
-        }
-    }
 }
 
 impl Body for Recv {
     type Data = Bytes;
     type Error = crate::Error;
 
-    fn poll_data(
+    fn poll_frame(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-    ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        self.poll_inner(cx)
-    }
-
-    fn poll_trailers(
-        #[cfg_attr(not(feature = "http2"), allow(unused_mut))] mut self: Pin<&mut Self>,
-        #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
-    ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match self.kind {
-            Kind::Empty => Poll::Ready(Ok(None)),
+            Kind::Empty => Poll::Ready(None),
+            Kind::Chan {
+                content_length: ref mut len,
+                ref mut data_rx,
+                ref mut want_tx,
+                ref mut trailers_rx,
+            } => {
+                want_tx.send(WANT_READY);
+
+                if !data_rx.is_terminated() {
+                    match ready!(Pin::new(data_rx).poll_next(cx)?) {
+                        Some(chunk) => {
+                            len.sub_if(chunk.len() as u64);
+                            return Poll::Ready(Some(Ok(Frame::data(chunk))));
+                        }
+                        // fall through to trailers
+                        None => (),
+                    }
+                }
+
+                // check trailers after data is terminated
+                match ready!(Pin::new(trailers_rx).poll(cx)) {
+                    Ok(t) => Poll::Ready(Some(Ok(Frame::trailers(t)))),
+                    Err(_) => Poll::Ready(None),
+                }
+            }
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
-                recv: ref mut h2,
+                ref mut data_done,
                 ref ping,
-                ..
-            } => match ready!(h2.poll_trailers(cx)) {
-                Ok(t) => {
-                    ping.record_non_data();
-                    Poll::Ready(Ok(t))
+                recv: ref mut h2,
+                content_length: ref mut len,
+            } => {
+                if !*data_done {
+                    match ready!(h2.poll_data(cx)) {
+                        Some(Ok(bytes)) => {
+                            let _ = h2.flow_control().release_capacity(bytes.len());
+                            len.sub_if(bytes.len() as u64);
+                            ping.record_data(bytes.len());
+                            return Poll::Ready(Some(Ok(Frame::data(bytes))));
+                        }
+                        Some(Err(e)) => return Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                        None => {
+                            *data_done = true;
+                            // fall through to trailers
+                        }
+                    }
                 }
-                Err(e) => Poll::Ready(Err(crate::Error::new_h2(e))),
-            },
-            Kind::Chan {
-                ref mut trailers_rx,
-                ..
-            } => match ready!(Pin::new(trailers_rx).poll(cx)) {
-                Ok(t) => Poll::Ready(Ok(Some(t))),
-                Err(_) => Poll::Ready(Ok(None)),
-            },
+
+                // after data, check trailers
+                match ready!(h2.poll_trailers(cx)) {
+                    Ok(t) => {
+                        ping.record_non_data();
+                        Poll::Ready(Ok(t.map(Frame::trailers)).transpose())
+                    }
+                    Err(e) => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
+                }
+            }
+
             #[cfg(feature = "ffi")]
-            Kind::Ffi(ref mut body) => body.poll_trailers(cx),
+            Kind::Ffi(ref mut body) => body.poll_data(cx),
         }
     }
 
@@ -388,6 +376,7 @@ mod tests {
     use std::task::Poll;
 
     use super::{Body, DecodedLength, Recv, Sender, SizeHint};
+    use http_body_util::BodyExt;
 
     #[test]
     fn test_size_of() {
@@ -395,7 +384,7 @@ mod tests {
         // the size by too much.
 
         let body_size = mem::size_of::<Recv>();
-        let body_expected_size = mem::size_of::<u64>() * 6;
+        let body_expected_size = mem::size_of::<u64>() * 5;
         assert!(
             body_size <= body_expected_size,
             "Body size = {} <= {}",
@@ -403,7 +392,7 @@ mod tests {
             body_expected_size,
         );
 
-        assert_eq!(body_size, mem::size_of::<Option<Recv>>(), "Option<Recv>");
+        //assert_eq!(body_size, mem::size_of::<Option<Recv>>(), "Option<Recv>");
 
         assert_eq!(
             mem::size_of::<Sender>(),
@@ -444,7 +433,7 @@ mod tests {
 
         tx.abort();
 
-        let err = rx.data().await.unwrap().unwrap_err();
+        let err = rx.frame().await.unwrap().unwrap_err();
         assert!(err.is_body_write_aborted(), "{:?}", err);
     }
 
@@ -457,10 +446,16 @@ mod tests {
         // buffer is full, but can still send abort
         tx.abort();
 
-        let chunk1 = rx.data().await.expect("item 1").expect("chunk 1");
+        let chunk1 = rx
+            .frame()
+            .await
+            .expect("item 1")
+            .expect("chunk 1")
+            .into_data()
+            .unwrap();
         assert_eq!(chunk1, "chunk 1");
 
-        let err = rx.data().await.unwrap().unwrap_err();
+        let err = rx.frame().await.unwrap().unwrap_err();
         assert!(err.is_body_write_aborted(), "{:?}", err);
     }
 
@@ -481,7 +476,7 @@ mod tests {
     async fn channel_empty() {
         let (_, mut rx) = Recv::channel();
 
-        assert!(rx.data().await.is_none());
+        assert!(rx.frame().await.is_none());
     }
 
     #[test]
@@ -498,7 +493,7 @@ mod tests {
         let (mut tx, mut rx) = Recv::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
-        let mut rx_data = tokio_test::task::spawn(rx.data());
+        let mut rx_data = tokio_test::task::spawn(rx.frame());
 
         assert!(
             tx_ready.poll().is_pending(),

@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use http::uri::PathAndQuery;
 use http_body_util::{BodyExt, StreamBody};
-use hyper::body::to_bytes as concat;
+use hyper::body::Frame;
 use hyper::header::HeaderValue;
 use hyper::{Method, Request, StatusCode, Uri, Version};
 
@@ -27,6 +27,13 @@ mod support;
 
 fn s(buf: &[u8]) -> &str {
     std::str::from_utf8(buf).expect("from_utf8")
+}
+
+async fn concat<B>(b: B) -> Result<Bytes, B::Error>
+where
+    B: hyper::body::Body,
+{
+    b.collect().await.map(|c| c.to_bytes())
 }
 
 fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
@@ -398,7 +405,10 @@ macro_rules! __client_req_prop {
     }};
 
     ($req_builder:ident, $body:ident, $addr:ident, body_stream: $body_e:expr) => {{
-        $body = BodyExt::boxed(StreamBody::new($body_e));
+        $body = BodyExt::boxed(StreamBody::new(futures_util::TryStreamExt::map_ok(
+            $body_e,
+            Frame::data,
+        )));
     }};
 }
 
@@ -1327,12 +1337,12 @@ mod conn {
     use bytes::{Buf, Bytes};
     use futures_channel::{mpsc, oneshot};
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
-    use http_body_util::{Empty, StreamBody};
+    use http_body_util::{BodyExt, Empty, StreamBody};
     use hyper::rt::Timer;
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
-    use hyper::body::Body;
+    use hyper::body::{Body, Frame};
     use hyper::client::conn;
     use hyper::upgrade::OnUpgrade;
     use hyper::{self, Method, Recv, Request, Response, StatusCode};
@@ -1379,7 +1389,7 @@ mod conn {
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            assert!(res.body_mut().data().await.is_none());
+            assert!(res.body_mut().frame().await.is_none());
         };
 
         future::join(server, client).await;
@@ -1435,7 +1445,7 @@ mod conn {
                 res.headers().get(http::header::CONTENT_LENGTH).unwrap(),
                 "0"
             );
-            assert!(res.body_mut().data().await.is_none());
+            assert!(res.body_mut().frame().await.is_none());
         };
 
         future::join(server, client).await;
@@ -1443,8 +1453,6 @@ mod conn {
 
     #[test]
     fn incoming_content_length() {
-        use hyper::body::Body;
-
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let rt = support::runtime();
@@ -1481,13 +1489,13 @@ mod conn {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             assert_eq!(res.body().size_hint().exact(), Some(5));
             assert!(!res.body().is_end_stream());
-            poll_fn(move |ctx| Pin::new(res.body_mut()).poll_data(ctx)).map(Option::unwrap)
+            poll_fn(move |ctx| Pin::new(res.body_mut()).poll_frame(ctx)).map(Option::unwrap)
         });
 
         let rx = rx1.expect("thread panicked");
         let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         let chunk = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
-        assert_eq!(chunk.len(), 5);
+        assert_eq!(chunk.data_ref().unwrap().len(), 5);
     }
 
     #[test]
@@ -1519,10 +1527,13 @@ mod conn {
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
-        let (mut sender, recv) = mpsc::channel::<Result<Bytes, Box<dyn Error + Send + Sync>>>(0);
+        let (mut sender, recv) =
+            mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
 
         let sender = thread::spawn(move || {
-            sender.try_send(Ok("hello".into())).expect("try_send_data");
+            sender
+                .try_send(Ok(Frame::data("hello".into())))
+                .expect("try_send_data");
             support::runtime().block_on(rx).unwrap();
 
             // Aborts the body in an abnormal fashion.
@@ -2100,7 +2111,7 @@ mod conn {
                     sock,
                     service_fn(|req| async move {
                         tokio::spawn(async move {
-                            let _ = hyper::body::aggregate(req.into_body())
+                            let _ = concat(req.into_body())
                                 .await
                                 .expect("server req body aggregate");
                         });
@@ -2126,7 +2137,7 @@ mod conn {
         });
 
         // Use a channel to keep request stream open
-        let (_tx, recv) = mpsc::channel::<Result<Bytes, Box<dyn Error + Send + Sync>>>(0);
+        let (_tx, recv) = mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
         let req = http::Request::new(StreamBody::new(recv));
 
         let _resp = client.send_request(req).await.expect("send_request");
@@ -2245,7 +2256,7 @@ mod conn {
         assert!(res.extensions().get::<OnUpgrade>().is_none());
 
         let mut body = String::new();
-        hyper::body::aggregate(res.into_body())
+        concat(res.into_body())
             .await
             .unwrap()
             .reader()

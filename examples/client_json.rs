@@ -2,7 +2,7 @@
 #![warn(rust_2018_idioms)]
 
 use bytes::Bytes;
-use http_body_util::Empty;
+use http_body_util::{BodyExt, Empty};
 use hyper::{body::Buf, Request};
 use serde::Deserialize;
 use tokio::net::TcpStream;
@@ -48,7 +48,7 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
     let res = sender.send_request(req).await?;
 
     // asynchronously aggregate the chunks of the body
-    let body = hyper::body::aggregate(res).await?;
+    let body = res.collect().await?.aggregate();
 
     // try to parse as json with serde_json
     let users = serde_json::from_reader(body.reader())?;

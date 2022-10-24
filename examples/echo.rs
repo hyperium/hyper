@@ -50,7 +50,7 @@ async fn echo(req: Request<Recv>) -> Result<Response<BoxBody<Bytes, hyper::Error
                 return Ok(resp);
             }
 
-            let whole_body = hyper::body::to_bytes(req.into_body()).await?;
+            let whole_body = req.collect().await?.to_bytes();
 
             let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
             Ok(Response::new(full(reversed_body)))

@@ -17,19 +17,16 @@
 
 pub use bytes::{Buf, Bytes};
 pub use http_body::Body;
+pub use http_body::Frame;
 pub use http_body::SizeHint;
 
-pub use self::aggregate::aggregate;
 pub use self::body::Recv;
 #[cfg(feature = "http1")]
 pub(crate) use self::body::Sender;
 pub(crate) use self::length::DecodedLength;
-pub use self::to_bytes::to_bytes;
 
-mod aggregate;
 mod body;
 mod length;
-mod to_bytes;
 
 fn _assert_send_sync() {
     fn _assert_send<T: Send>() {}
