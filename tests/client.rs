@@ -1345,7 +1345,7 @@ mod conn {
     use hyper::body::{Body, Frame};
     use hyper::client::conn;
     use hyper::upgrade::OnUpgrade;
-    use hyper::{self, Method, Recv, Request, Response, StatusCode};
+    use hyper::{Method, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
@@ -1899,7 +1899,7 @@ mod conn {
                     res = listener.accept() => {
                         let (stream, _) = res.unwrap();
 
-                        let service = service_fn(|_:Request<Recv>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
+                        let service = service_fn(|_:Request<hyper::body::Incoming>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
@@ -1994,7 +1994,7 @@ mod conn {
             .http2_keep_alive_timeout(Duration::from_secs(1))
             // enable while idle since we aren't sending requests
             .http2_keep_alive_while_idle(true)
-            .handshake::<_, Recv>(io)
+            .handshake::<_, hyper::body::Incoming>(io)
             .await
             .expect("http handshake");
 
@@ -2026,7 +2026,7 @@ mod conn {
             .timer(TokioTimer)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Recv>(io)
+            .handshake::<_, hyper::body::Incoming>(io)
             .await
             .expect("http handshake");
 

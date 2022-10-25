@@ -17,7 +17,7 @@
 //! # mod rt {
 //! use http::{Request, Response, StatusCode};
 //! use http_body_util::Full;
-//! use hyper::{server::conn::http1, service::service_fn, body::Bytes};
+//! use hyper::{server::conn::http1, service::service_fn, body, body::Bytes};
 //! use std::{net::SocketAddr, convert::Infallible};
 //! use tokio::net::TcpListener;
 //!
@@ -39,7 +39,7 @@
 //!     }
 //! }
 //!
-//! async fn hello(_req: Request<hyper::Recv>) -> Result<Response<Full<Bytes>>, Infallible> {
+//! async fn hello(_req: Request<body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
 //!    Ok(Response::new(Full::new(Bytes::from("Hello World!"))))
 //! }
 //! # }

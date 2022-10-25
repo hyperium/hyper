@@ -1085,7 +1085,7 @@ impl Http1Transaction for Client {
             #[cfg(feature = "ffi")]
             if head.subject.is_informational() {
                 if let Some(callback) = ctx.on_informational {
-                    callback.call(head.into_response(crate::Recv::empty()));
+                    callback.call(head.into_response(crate::body::Incoming::empty()));
                 }
             }
 

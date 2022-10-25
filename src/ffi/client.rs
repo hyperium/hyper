@@ -32,9 +32,9 @@ pub struct hyper_clientconn {
 
 enum Tx {
     #[cfg(feature = "http1")]
-    Http1(conn::http1::SendRequest<crate::Recv>),
+    Http1(conn::http1::SendRequest<crate::body::Incoming>),
     #[cfg(feature = "http2")]
-    Http2(conn::http2::SendRequest<crate::Recv>),
+    Http2(conn::http2::SendRequest<crate::body::Incoming>),
 }
 
 // ===== impl hyper_clientconn =====
@@ -57,7 +57,7 @@ ffi_fn! {
             if options.http2 {
                 return conn::http2::Builder::new()
                     .executor(options.exec.clone())
-                    .handshake::<_, crate::Recv>(io)
+                    .handshake::<_, crate::body::Incoming>(io)
                     .await
                     .map(|(tx, conn)| {
                         options.exec.execute(Box::pin(async move {
@@ -73,7 +73,7 @@ ffi_fn! {
                 .http1_allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
                 .http1_preserve_header_case(options.http1_preserve_header_case)
                 .http1_preserve_header_order(options.http1_preserve_header_order)
-                .handshake::<_, crate::Recv>(io)
+                .handshake::<_, crate::body::Incoming>(io)
                 .await
                 .map(|(tx, conn)| {
                     options.exec.execute(Box::pin(async move {

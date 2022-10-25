@@ -6,15 +6,16 @@ use super::body::hyper_body;
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
+use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::header::{HeaderName, HeaderValue};
-use crate::{HeaderMap, Method, Recv, Request, Response, Uri};
+use crate::{HeaderMap, Method, Request, Response, Uri};
 
 /// An HTTP request.
-pub struct hyper_request(pub(super) Request<Recv>);
+pub struct hyper_request(pub(super) Request<IncomingBody>);
 
 /// An HTTP response.
-pub struct hyper_response(pub(super) Response<Recv>);
+pub struct hyper_response(pub(super) Response<IncomingBody>);
 
 /// An HTTP header map.
 ///
@@ -37,7 +38,7 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 ffi_fn! {
     /// Construct a new HTTP request.
     fn hyper_request_new() -> *mut hyper_request {
-        Box::into_raw(Box::new(hyper_request(Request::new(Recv::empty()))))
+        Box::into_raw(Box::new(hyper_request(Request::new(IncomingBody::empty()))))
     } ?= std::ptr::null_mut()
 }
 
@@ -312,13 +313,13 @@ ffi_fn! {
     ///
     /// It is safe to free the response even after taking ownership of its body.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
-        let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), crate::Recv::empty());
+        let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), IncomingBody::empty());
         Box::into_raw(Box::new(hyper_body(body)))
     } ?= std::ptr::null_mut()
 }
 
 impl hyper_response {
-    pub(super) fn wrap(mut resp: Response<Recv>) -> hyper_response {
+    pub(super) fn wrap(mut resp: Response<IncomingBody>) -> hyper_response {
         let headers = std::mem::take(resp.headers_mut());
         let orig_casing = resp
             .extensions_mut()
@@ -509,7 +510,7 @@ unsafe fn raw_name_value(
 // ===== impl OnInformational =====
 
 impl OnInformational {
-    pub(crate) fn call(&mut self, resp: Response<Recv>) {
+    pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
         let mut resp = hyper_response::wrap(resp);
         (self.func)(self.data.0, &mut resp);
     }

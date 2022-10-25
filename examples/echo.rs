@@ -4,15 +4,16 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
-use hyper::body::Body as _;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Method, Recv, Request, Response, StatusCode};
+use hyper::{body::Body, Method, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.
-async fn echo(req: Request<Recv>) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+async fn echo(
+    req: Request<hyper::body::Incoming>,
+) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => Ok(Response::new(full(

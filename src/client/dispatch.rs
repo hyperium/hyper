@@ -379,15 +379,15 @@ mod tests {
     #[cfg(feature = "nightly")]
     #[bench]
     fn giver_queue_throughput(b: &mut test::Bencher) {
-        use crate::{Recv, Request, Response};
+        use crate::{body::Incoming, Request, Response};
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
-        let (mut tx, mut rx) = channel::<Request<Recv>, Response<Recv>>();
+        let (mut tx, mut rx) = channel::<Request<Incoming>, Response<Incoming>>();
 
         b.iter(move || {
-            let _ = tx.send(Request::new(Recv::empty())).unwrap();
+            let _ = tx.send(Request::new(Incoming::empty())).unwrap();
             rt.block_on(async {
                 loop {
                     let poll_once = PollOnce(&mut rx);

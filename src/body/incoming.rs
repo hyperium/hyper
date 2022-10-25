@@ -18,7 +18,7 @@ type TrailersSender = oneshot::Sender<HeaderMap>;
 
 /// A stream of `Bytes`, used when receiving bodies from the network.
 #[must_use = "streams do nothing unless polled"]
-pub struct Recv {
+pub struct Incoming {
     kind: Kind,
 }
 
@@ -65,17 +65,17 @@ pub(crate) struct Sender {
 const WANT_PENDING: usize = 1;
 const WANT_READY: usize = 2;
 
-impl Recv {
+impl Incoming {
     /// Create a `Body` stream with an associated sender half.
     ///
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
     #[allow(unused)]
-    pub(crate) fn channel() -> (Sender, Recv) {
+    pub(crate) fn channel() -> (Sender, Incoming) {
         Self::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false)
     }
 
-    pub(crate) fn new_channel(content_length: DecodedLength, wanter: bool) -> (Sender, Recv) {
+    pub(crate) fn new_channel(content_length: DecodedLength, wanter: bool) -> (Sender, Incoming) {
         let (data_tx, data_rx) = mpsc::channel(0);
         let (trailers_tx, trailers_rx) = oneshot::channel();
 
@@ -90,7 +90,7 @@ impl Recv {
             data_tx,
             trailers_tx: Some(trailers_tx),
         };
-        let rx = Recv::new(Kind::Chan {
+        let rx = Incoming::new(Kind::Chan {
             content_length,
             want_tx,
             data_rx,
@@ -100,18 +100,18 @@ impl Recv {
         (tx, rx)
     }
 
-    fn new(kind: Kind) -> Recv {
-        Recv { kind }
+    fn new(kind: Kind) -> Incoming {
+        Incoming { kind }
     }
 
     #[allow(dead_code)]
-    pub(crate) fn empty() -> Recv {
-        Recv::new(Kind::Empty)
+    pub(crate) fn empty() -> Incoming {
+        Incoming::new(Kind::Empty)
     }
 
     #[cfg(feature = "ffi")]
-    pub(crate) fn ffi() -> Recv {
-        Recv::new(Kind::Ffi(crate::ffi::UserBody::new()))
+    pub(crate) fn ffi() -> Incoming {
+        Incoming::new(Kind::Ffi(crate::ffi::UserBody::new()))
     }
 
     #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
@@ -125,7 +125,7 @@ impl Recv {
         if !content_length.is_exact() && recv.is_end_stream() {
             content_length = DecodedLength::ZERO;
         }
-        let body = Recv::new(Kind::H2 {
+        let body = Incoming::new(Kind::H2 {
             data_done: false,
             ping,
             content_length,
@@ -151,7 +151,7 @@ impl Recv {
     }
 }
 
-impl Body for Recv {
+impl Body for Incoming {
     type Data = Bytes;
     type Error = crate::Error;
 
@@ -259,7 +259,7 @@ impl Body for Recv {
     }
 }
 
-impl fmt::Debug for Recv {
+impl fmt::Debug for Incoming {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]
         struct Streaming;
@@ -375,7 +375,7 @@ mod tests {
     use std::mem;
     use std::task::Poll;
 
-    use super::{Body, DecodedLength, Recv, Sender, SizeHint};
+    use super::{Body, DecodedLength, Incoming, Sender, SizeHint};
     use http_body_util::BodyExt;
 
     #[test]
@@ -383,7 +383,7 @@ mod tests {
         // These are mostly to help catch *accidentally* increasing
         // the size by too much.
 
-        let body_size = mem::size_of::<Recv>();
+        let body_size = mem::size_of::<Incoming>();
         let body_expected_size = mem::size_of::<u64>() * 5;
         assert!(
             body_size <= body_expected_size,
@@ -392,7 +392,7 @@ mod tests {
             body_expected_size,
         );
 
-        //assert_eq!(body_size, mem::size_of::<Option<Recv>>(), "Option<Recv>");
+        //assert_eq!(body_size, mem::size_of::<Option<Incoming>>(), "Option<Incoming>");
 
         assert_eq!(
             mem::size_of::<Sender>(),
@@ -409,18 +409,18 @@ mod tests {
 
     #[test]
     fn size_hint() {
-        fn eq(body: Recv, b: SizeHint, note: &str) {
+        fn eq(body: Incoming, b: SizeHint, note: &str) {
             let a = body.size_hint();
             assert_eq!(a.lower(), b.lower(), "lower for {:?}", note);
             assert_eq!(a.upper(), b.upper(), "upper for {:?}", note);
         }
 
-        eq(Recv::empty(), SizeHint::with_exact(0), "empty");
+        eq(Incoming::empty(), SizeHint::with_exact(0), "empty");
 
-        eq(Recv::channel().1, SizeHint::new(), "channel");
+        eq(Incoming::channel().1, SizeHint::new(), "channel");
 
         eq(
-            Recv::new_channel(DecodedLength::new(4), /*wanter =*/ false).1,
+            Incoming::new_channel(DecodedLength::new(4), /*wanter =*/ false).1,
             SizeHint::with_exact(4),
             "channel with length",
         );
@@ -429,7 +429,7 @@ mod tests {
     #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_abort() {
-        let (tx, mut rx) = Recv::channel();
+        let (tx, mut rx) = Incoming::channel();
 
         tx.abort();
 
@@ -440,7 +440,7 @@ mod tests {
     #[cfg(all(not(miri), feature = "http1"))]
     #[tokio::test]
     async fn channel_abort_when_buffer_is_full() {
-        let (mut tx, mut rx) = Recv::channel();
+        let (mut tx, mut rx) = Incoming::channel();
 
         tx.try_send_data("chunk 1".into()).expect("send 1");
         // buffer is full, but can still send abort
@@ -462,7 +462,7 @@ mod tests {
     #[cfg(feature = "http1")]
     #[test]
     fn channel_buffers_one() {
-        let (mut tx, _rx) = Recv::channel();
+        let (mut tx, _rx) = Incoming::channel();
 
         tx.try_send_data("chunk 1".into()).expect("send 1");
 
@@ -474,14 +474,14 @@ mod tests {
     #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_empty() {
-        let (_, mut rx) = Recv::channel();
+        let (_, mut rx) = Incoming::channel();
 
         assert!(rx.frame().await.is_none());
     }
 
     #[test]
     fn channel_ready() {
-        let (mut tx, _rx) = Recv::new_channel(DecodedLength::CHUNKED, /*wanter = */ false);
+        let (mut tx, _rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ false);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
 
@@ -490,7 +490,8 @@ mod tests {
 
     #[test]
     fn channel_wanter() {
-        let (mut tx, mut rx) = Recv::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
+        let (mut tx, mut rx) =
+            Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
         let mut rx_data = tokio_test::task::spawn(rx.frame());
@@ -511,7 +512,7 @@ mod tests {
 
     #[test]
     fn channel_notices_closure() {
-        let (mut tx, rx) = Recv::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
+        let (mut tx, rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
 

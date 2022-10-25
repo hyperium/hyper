@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 use bytes::Bytes;
 use http_body_util::Full;
 use hyper::service::service_fn;
-use hyper::{Method, Recv, Request, Response, Result, StatusCode};
+use hyper::{Method, Request, Response, Result, StatusCode};
 
 static INDEX: &str = "examples/send_file_index.html";
 static NOTFOUND: &[u8] = b"Not Found";
@@ -36,7 +36,7 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn response_examples(req: Request<Recv>) -> Result<Response<Full<Bytes>>> {
+async fn response_examples(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => simple_file_send(INDEX).await,
         (&Method::GET, "/no_file.html") => {

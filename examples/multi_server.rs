@@ -8,17 +8,17 @@ use futures_util::future::join;
 use http_body_util::Full;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Recv, Request, Response};
+use hyper::{Request, Response};
 use tokio::net::TcpListener;
 
 static INDEX1: &[u8] = b"The 1st service!";
 static INDEX2: &[u8] = b"The 2nd service!";
 
-async fn index1(_: Request<Recv>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+async fn index1(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
     Ok(Response::new(Full::new(Bytes::from(INDEX1))))
 }
 
-async fn index2(_: Request<Recv>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+async fn index2(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
     Ok(Response::new(Full::new(Bytes::from(INDEX2))))
 }
 

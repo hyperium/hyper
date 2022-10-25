@@ -12,7 +12,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
-use crate::body::Body;
+use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::exec::ConnStreamExec;
 use crate::common::time::Time;
 use crate::common::{date, task, Future, Pin, Poll};
@@ -24,7 +24,7 @@ use crate::proto::Dispatched;
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
-use crate::{Recv, Response};
+use crate::{Response};
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -73,7 +73,7 @@ impl Default for Config {
 pin_project! {
     pub(crate) struct Server<T, S, B, E>
     where
-        S: HttpService<Recv>,
+        S: HttpService<IncomingBody>,
         B: Body,
     {
         exec: E,
@@ -107,7 +107,7 @@ where
 impl<T, S, B, E> Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Recv, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -183,7 +183,7 @@ where
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin,
-    S: HttpService<Recv, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
     E: ConnStreamExec<S::Future, B>,
@@ -238,7 +238,7 @@ where
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
     where
-        S: HttpService<Recv, ResBody = B>,
+        S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         E: ConnStreamExec<S::Future, B>,
     {
@@ -265,7 +265,7 @@ where
                             (
                                 Request::from_parts(
                                     parts,
-                                    crate::Recv::h2(stream, content_length.into(), ping),
+                                    IncomingBody::h2(stream, content_length.into(), ping),
                                 ),
                                 None,
                             )
@@ -279,7 +279,7 @@ where
                             debug_assert!(parts.extensions.get::<OnUpgrade>().is_none());
                             parts.extensions.insert(upgrade);
                             (
-                                Request::from_parts(parts, crate::Recv::empty()),
+                                Request::from_parts(parts, IncomingBody::empty()),
                                 Some(ConnectParts {
                                     pending,
                                     ping,
