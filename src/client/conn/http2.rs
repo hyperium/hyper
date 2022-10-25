@@ -10,7 +10,7 @@ use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
-use crate::body::Body;
+use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
@@ -18,11 +18,10 @@ use crate::common::{
 };
 use crate::proto;
 use crate::rt::{Executor, Timer};
-use crate::Recv;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::UnboundedSender<Request<B>, Response<Recv>>,
+    dispatch: dispatch::UnboundedSender<Request<B>, Response<IncomingBody>>,
 }
 
 /// A future that processes all HTTP state for the IO object.
@@ -128,7 +127,7 @@ where
     pub fn send_request(
         &mut self,
         req: Request<B>,
-    ) -> impl Future<Output = crate::Result<Response<Recv>>> {
+    ) -> impl Future<Output = crate::Result<Response<IncomingBody>>> {
         let sent = self.dispatch.send(req);
 
         async move {

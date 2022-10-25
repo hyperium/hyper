@@ -9,8 +9,7 @@ use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::Recv;
-use crate::body::Body;
+use crate::body::{Body, Incoming as IncomingBody};
 use super::super::dispatch;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
@@ -25,7 +24,7 @@ type Dispatcher<T, B> =
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::Sender<Request<B>, Response<Recv>>,
+    dispatch: dispatch::Sender<Request<B>, Response<IncomingBody>>,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -189,7 +188,7 @@ where
     pub fn send_request(
         &mut self,
         req: Request<B>,
-    ) -> impl Future<Output = crate::Result<Response<Recv>>> {
+    ) -> impl Future<Output = crate::Result<Response<IncomingBody>>> {
         let sent = self.dispatch.send(req);
 
         async move {

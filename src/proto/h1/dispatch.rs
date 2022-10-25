@@ -6,7 +6,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
-use crate::body::{Body, DecodedLength, Recv};
+use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
@@ -28,7 +28,7 @@ pub(crate) trait Dispatch {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Recv)>) -> crate::Result<()>;
+    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -45,14 +45,14 @@ cfg_server! {
 cfg_client! {
     pin_project_lite::pin_project! {
         pub(crate) struct Client<B> {
-            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Recv>>>,
+            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<IncomingBody>>>,
             #[pin]
             rx: ClientRx<B>,
             rx_closed: bool,
         }
     }
 
-    type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<Recv>>;
+    type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<IncomingBody>>;
 }
 
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
@@ -247,9 +247,9 @@ where
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
                 let body = match body_len {
-                    DecodedLength::ZERO => Recv::empty(),
+                    DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) = Recv::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) = IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
@@ -470,9 +470,9 @@ cfg_server! {
     // Service is never pinned
     impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
 
-    impl<S, Bs> Dispatch for Server<S, Recv>
+    impl<S, Bs> Dispatch for Server<S, IncomingBody>
     where
-        S: HttpService<Recv, ResBody = Bs>,
+        S: HttpService<IncomingBody, ResBody = Bs>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bs: Body,
     {
@@ -505,7 +505,7 @@ cfg_server! {
             ret
         }
 
-        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Recv)>) -> crate::Result<()> {
+        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()> {
             let (msg, body) = msg?;
             let mut req = Request::new(body);
             *req.method_mut() = msg.subject.0;
@@ -591,7 +591,7 @@ cfg_client! {
             }
         }
 
-        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Recv)>) -> crate::Result<()> {
+        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()> {
             match msg {
                 Ok((msg, body)) => {
                     if let Some(cb) = self.callback.take() {
@@ -673,7 +673,7 @@ mod tests {
             handle.read(b"HTTP/1.1 200 OK\r\n\r\n");
 
             let mut res_rx = tx
-                .try_send(crate::Request::new(crate::Recv::empty()))
+                .try_send(crate::Request::new(IncomingBody::empty()))
                 .unwrap();
 
             tokio_test::assert_ready_ok!(Pin::new(&mut dispatcher).poll(cx));
@@ -706,7 +706,7 @@ mod tests {
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
         let body = {
-            let (mut tx, body) = crate::Recv::new_channel(DecodedLength::new(4), false);
+            let (mut tx, body) = IncomingBody::new_channel(DecodedLength::new(4), false);
             tx.try_send_data("reee".into()).unwrap();
             body
         };
@@ -737,7 +737,7 @@ mod tests {
         assert!(dispatcher.poll().is_pending());
 
         let body = {
-            let (mut tx, body) = crate::Recv::channel();
+            let (mut tx, body) = IncomingBody::channel();
             tx.try_send_data("".into()).unwrap();
             body
         };

@@ -6,7 +6,7 @@ use bytes::{Buf, Bytes};
 use http_body_util::{BodyExt, Full};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{header, Method, Recv, Request, Response, StatusCode};
+use hyper::{body::Incoming as IncomingBody, header, Method, Request, Response, StatusCode};
 use tokio::net::{TcpListener, TcpStream};
 
 type GenericError = Box<dyn std::error::Error + Send + Sync>;
@@ -46,7 +46,7 @@ async fn client_request_response() -> Result<Response<BoxBody>> {
     Ok(Response::new(res_body))
 }
 
-async fn api_post_response(req: Request<Recv>) -> Result<Response<BoxBody>> {
+async fn api_post_response(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
     // Aggregate the body...
     let whole_body = req.collect().await?.aggregate();
     // Decode as JSON...
@@ -77,7 +77,7 @@ async fn api_get_response() -> Result<Response<BoxBody>> {
     Ok(res)
 }
 
-async fn response_examples(req: Request<Recv>) -> Result<Response<BoxBody>> {
+async fn response_examples(req: Request<IncomingBody>) -> Result<Response<BoxBody>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => Ok(Response::new(full(INDEX))),
         (&Method::GET, "/test.html") => client_request_response().await,

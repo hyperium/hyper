@@ -13,11 +13,11 @@ use crate::{Request, Response};
 ///
 /// ```
 /// use bytes::Bytes;
-/// use hyper::{Recv, Request, Response, Version};
+/// use hyper::{body, Request, Response, Version};
 /// use http_body_util::Full;
 /// use hyper::service::service_fn;
 ///
-/// let service = service_fn(|req: Request<Recv>| async move {
+/// let service = service_fn(|req: Request<body::Incoming>| async move {
 ///     if req.version() == Version::HTTP_11 {
 ///         Ok(Response::new(Full::<Bytes>::from("Hello World")))
 ///     } else {

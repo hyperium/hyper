@@ -8,7 +8,7 @@ use std::time::Duration;
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::body::{Body, Recv};
+use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::exec::{ConnStreamExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::{common::time::Time, rt::Timer};
@@ -22,7 +22,7 @@ pin_project! {
     #[must_use = "futures do nothing unless polled"]
     pub struct Connection<T, S, E>
     where
-        S: HttpService<Recv>,
+        S: HttpService<IncomingBody>,
     {
         conn: proto::h2::Server<T, S, S::ResBody, E>,
     }
@@ -40,7 +40,7 @@ pub struct Builder<E> {
 
 impl<I, S, E> fmt::Debug for Connection<I, S, E>
 where
-    S: HttpService<Recv>,
+    S: HttpService<IncomingBody>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -49,7 +49,7 @@ where
 
 impl<I, B, S, E> Connection<I, S, E>
 where
-    S: HttpService<Recv, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Body + 'static,
@@ -73,7 +73,7 @@ where
 
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
-    S: HttpService<Recv, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
@@ -286,7 +286,7 @@ impl<E> Builder<E> {
     /// driven on the connection.
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
-        S: HttpService<Recv, ResBody = Bd>,
+        S: HttpService<IncomingBody, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,

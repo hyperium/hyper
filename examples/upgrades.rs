@@ -14,7 +14,7 @@ use hyper::header::{HeaderValue, UPGRADE};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
-use hyper::{Recv, Request, Response, StatusCode};
+use hyper::{Request, Response, StatusCode};
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -38,7 +38,7 @@ async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<()> {
 }
 
 /// Our server HTTP handler to initiate HTTP upgrades.
-async fn server_upgrade(mut req: Request<Recv>) -> Result<Response<Empty<Bytes>>> {
+async fn server_upgrade(mut req: Request<hyper::body::Incoming>) -> Result<Response<Empty<Bytes>>> {
     let mut res = Response::new(Empty::new());
 
     // Send a 400 to any request that doesn't have

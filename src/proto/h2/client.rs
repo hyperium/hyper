@@ -11,7 +11,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
-use crate::body::Body;
+use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
 use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
@@ -19,9 +19,9 @@ use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
 use crate::upgrade::Upgraded;
-use crate::{Recv, Request, Response};
+use crate::{Request, Response};
 
-type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Recv>>;
+type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<IncomingBody>>;
 
 ///// An mpsc channel is used to help notify the `Connection` task when *all*
 ///// other handles to it have been dropped, so that it can shutdown.
@@ -327,7 +327,7 @@ where
                                     ));
                                 }
                                 let (parts, recv_stream) = res.into_parts();
-                                let mut res = Response::from_parts(parts, Recv::empty());
+                                let mut res = Response::from_parts(parts, IncomingBody::empty());
 
                                 let (pending, on_upgrade) = crate::upgrade::pending();
                                 let io = H2Upgraded {
@@ -345,7 +345,7 @@ where
                             } else {
                                 let res = res.map(|stream| {
                                     let ping = ping.for_stream(&stream);
-                                    crate::Recv::h2(stream, content_length.into(), ping)
+                                    IncomingBody::h2(stream, content_length.into(), ping)
                                 });
                                 Ok(res)
                             }

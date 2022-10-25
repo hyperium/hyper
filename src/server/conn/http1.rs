@@ -8,14 +8,14 @@ use std::time::Duration;
 use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::body::{Body, Recv};
+use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::{common::time::Time, rt::Timer};
 use crate::proto;
 use crate::service::HttpService;
 
 type Http1Dispatcher<T, B, S> =
-    proto::h1::Dispatcher<proto::h1::dispatch::Server<S, Recv>, B, T, proto::ServerTransaction>;
+    proto::h1::Dispatcher<proto::h1::dispatch::Server<S, IncomingBody>, B, T, proto::ServerTransaction>;
 
 
 pin_project_lite::pin_project! {
@@ -25,7 +25,7 @@ pin_project_lite::pin_project! {
     #[must_use = "futures do nothing unless polled"]
     pub struct Connection<T, S>
     where
-        S: HttpService<Recv>,
+        S: HttpService<IncomingBody>,
     {
         conn: Http1Dispatcher<T, S::ResBody, S>,
     }
@@ -72,7 +72,7 @@ pub struct Parts<T, S> {
 
 impl<I, S> fmt::Debug for Connection<I, S>
 where
-    S: HttpService<Recv>,
+    S: HttpService<IncomingBody>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -81,7 +81,7 @@ where
 
 impl<I, B, S> Connection<I, S>
 where
-    S: HttpService<Recv, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     B: Body + 'static,
@@ -171,7 +171,7 @@ where
 
 impl<I, B, S> Future for Connection<I, S>
 where
-    S: HttpService<Recv, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
@@ -337,14 +337,14 @@ impl Builder {
     /// # Example
     ///
     /// ```
-    /// # use hyper::{Recv, Request, Response};
+    /// # use hyper::{body::Incoming, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::http1::Builder;
     /// # use tokio::io::{AsyncRead, AsyncWrite};
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
     /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    /// #     S: Service<hyper::Request<Recv>, Response=hyper::Response<Recv>> + Send + 'static,
+    /// #     S: Service<hyper::Request<Incoming>, Response=hyper::Response<Incoming>> + Send + 'static,
     /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     /// #     S::Future: Send,
     /// # {
@@ -359,7 +359,7 @@ impl Builder {
     /// ```
     pub fn serve_connection<I, S>(&self, io: I, service: S) -> Connection<I, S>
     where
-        S: HttpService<Recv>,
+        S: HttpService<IncomingBody>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::ResBody: 'static,
         <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -413,14 +413,14 @@ mod upgrades {
     #[allow(missing_debug_implementations)]
     pub struct UpgradeableConnection<T, S>
     where
-        S: HttpService<Recv>,
+        S: HttpService<IncomingBody>,
     {
         pub(super) inner: Option<Connection<T, S>>,
     }
 
     impl<I, B, S> UpgradeableConnection<I, S>
     where
-        S: HttpService<Recv, ResBody = B>,
+        S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
         B: Body + 'static,
@@ -437,7 +437,7 @@ mod upgrades {
 
     impl<I, B, S> Future for UpgradeableConnection<I, S>
     where
-        S: HttpService<Recv, ResBody = B>,
+        S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Body + 'static,
