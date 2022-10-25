@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "1.0.0-dev.0"
+version = "1.0.0-rc.1"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -11,8 +11,6 @@ authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 edition = "2018"
-
-publish = false # no accidents while in dev
 
 include = [
   "Cargo.toml",
