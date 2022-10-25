@@ -111,7 +111,7 @@ async fn main() -> Result<()> {
         let (stream, _) = listener.accept().await?;
 
         tokio::task::spawn(async move {
-            let service = service_fn(move |req| response_examples(req));
+            let service = service_fn(response_examples);
 
             if let Err(err) = http1::Builder::new()
                 .serve_connection(stream, service)

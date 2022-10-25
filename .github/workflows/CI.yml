@@ -82,6 +82,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
+          components: clippy
           toolchain: ${{ matrix.rust }}
           override: true
 
@@ -90,6 +91,12 @@ jobs:
         with:
           command: test
           args: ${{ matrix.features }}
+
+      - name: Clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: ${{ matrix.features }} --lib --examples --benches
 
       - name: Test all benches
         if: matrix.benches

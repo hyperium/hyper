@@ -33,6 +33,7 @@ pub struct SendRequest<B> {
 /// This allows taking apart a `Connection` at a later time, in order to
 /// reclaim the IO object, and additional related pieces.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Parts<T> {
     /// The original IO object used in the handshake.
     pub io: T,
@@ -45,7 +46,6 @@ pub struct Parts<T> {
     /// You will want to check for any existing bytes if you plan to continue
     /// communicating on the IO object.
     pub read_buf: Bytes,
-    _inner: (),
 }
 
 
@@ -76,7 +76,6 @@ where
         Parts {
             io,
             read_buf,
-            _inner: (),
         }
     }
 
@@ -544,5 +543,11 @@ impl Builder {
                 Connection { inner: Some(proto) },
             ))
         }
+    }
+}
+
+impl std::default::Default for Builder {
+    fn default() -> Self {
+        Self::new()
     }
 }

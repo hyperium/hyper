@@ -8,12 +8,14 @@ pub(crate) struct BufList<T> {
 }
 
 impl<T: Buf> BufList<T> {
+    #[cfg(feature = "http1")]
     pub(crate) fn new() -> BufList<T> {
         BufList {
             bufs: VecDeque::new(),
         }
     }
 
+    #[cfg(feature = "http1")]
     #[inline]
     pub(crate) fn push(&mut self, buf: T) {
         debug_assert!(buf.has_remaining());

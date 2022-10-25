@@ -125,14 +125,12 @@ impl Recv {
         if !content_length.is_exact() && recv.is_end_stream() {
             content_length = DecodedLength::ZERO;
         }
-        let body = Recv::new(Kind::H2 {
+        Recv::new(Kind::H2 {
             data_done: false,
             ping,
             content_length,
             recv,
-        });
-
-        body
+        })
     }
 
     #[cfg(feature = "ffi")]
@@ -170,13 +168,9 @@ impl Body for Recv {
                 want_tx.send(WANT_READY);
 
                 if !data_rx.is_terminated() {
-                    match ready!(Pin::new(data_rx).poll_next(cx)?) {
-                        Some(chunk) => {
-                            len.sub_if(chunk.len() as u64);
-                            return Poll::Ready(Some(Ok(Frame::data(chunk))));
-                        }
-                        // fall through to trailers
-                        None => (),
+                    if let Some(chunk) = ready!(Pin::new(data_rx).poll_next(cx)?) {
+                        len.sub_if(chunk.len() as u64);
+                        return Poll::Ready(Some(Ok(Frame::data(chunk))));
                     }
                 }
 
@@ -339,6 +333,7 @@ impl Sender {
 
     /// Aborts the body in an abnormal fashion.
     #[allow(unused)]
+    #[allow(clippy::redundant_clone)]
     pub(crate) fn abort(self) {
         let _ = self
             .data_tx

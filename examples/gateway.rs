@@ -11,8 +11,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let in_addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
     let out_addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
 
-    let out_addr_clone = out_addr.clone();
-
     let listener = TcpListener::bind(in_addr).await?;
 
     println!("Listening on http://{}", in_addr);
@@ -27,7 +25,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let service = service_fn(move |mut req| {
             let uri_string = format!(
                 "http://{}{}",
-                out_addr_clone,
+                out_addr,
                 req.uri()
                     .path_and_query()
                     .map(|x| x.as_str())

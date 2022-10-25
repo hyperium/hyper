@@ -51,6 +51,7 @@ pub struct Builder {
 /// This allows taking apart a `Connection` at a later time, in order to
 /// reclaim the IO object, and additional related pieces.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Parts<T, S> {
     /// The original IO object used in the handshake.
     pub io: T,
@@ -65,7 +66,6 @@ pub struct Parts<T, S> {
     pub read_buf: Bytes,
     /// The `Service` used to serve this connection.
     pub service: S,
-    _inner: (),
 }
 
 // ===== impl Connection =====
@@ -116,7 +116,6 @@ where
             io,
             read_buf,
             service: dispatch.into_service(),
-            _inner: (),
         }
     }
 
@@ -192,7 +191,7 @@ where
                         pending.manual();
                     }
                 };
-                return Poll::Ready(Ok(()));
+                Poll::Ready(Ok(()))
             }
             Err(e) =>  Poll::Ready(Err(e)),
         }
@@ -398,6 +397,12 @@ impl Builder {
         Connection {
             conn: proto,
         }
+    }
+}
+
+impl std::default::Default for Builder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

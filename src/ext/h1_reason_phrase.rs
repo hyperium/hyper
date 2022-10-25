@@ -52,6 +52,8 @@ impl ReasonPhrase {
 
     /// Converts a `Bytes` directly into a `ReasonPhrase` without validating.
     ///
+    /// # Safety
+    ///
     /// Use with care; invalid bytes in a reason phrase can cause serious security problems if
     /// emitted in a response.
     pub unsafe fn from_bytes_unchecked(reason: Bytes) -> Self {
@@ -107,9 +109,9 @@ impl TryFrom<Bytes> for ReasonPhrase {
     }
 }
 
-impl Into<Bytes> for ReasonPhrase {
-    fn into(self) -> Bytes {
-        self.0
+impl From<ReasonPhrase> for Bytes {
+    fn from(rp: ReasonPhrase) -> Self {
+        rp.0
     }
 }
 
@@ -144,12 +146,9 @@ const fn is_valid_byte(b: u8) -> bool {
     }
 
     // See https://httpwg.org/http-core/draft-ietf-httpbis-semantics-latest.html#fields.values
-    //
-    // The 0xFF comparison is technically redundant, but it matches the text of the spec more
-    // clearly and will be optimized away.
     #[allow(unused_comparisons)]
     const fn is_obs_text(b: u8) -> bool {
-        0x80 <= b && b <= 0xFF
+        0x80 <= b /* && b <= 0xFF */
     }
 
     // See https://httpwg.org/http-core/draft-ietf-httpbis-messaging-latest.html#rfc.section.4.p.7
@@ -174,26 +173,26 @@ mod tests {
 
     #[test]
     fn basic_valid() {
-        const PHRASE: &'static [u8] = b"OK";
+        const PHRASE: &[u8] = b"OK";
         assert_eq!(ReasonPhrase::from_static(PHRASE).as_bytes(), PHRASE);
         assert_eq!(ReasonPhrase::try_from(PHRASE).unwrap().as_bytes(), PHRASE);
     }
 
     #[test]
     fn empty_valid() {
-        const PHRASE: &'static [u8] = b"";
+        const PHRASE: &[u8] = b"";
         assert_eq!(ReasonPhrase::from_static(PHRASE).as_bytes(), PHRASE);
         assert_eq!(ReasonPhrase::try_from(PHRASE).unwrap().as_bytes(), PHRASE);
     }
 
     #[test]
     fn obs_text_valid() {
-        const PHRASE: &'static [u8] = b"hyp\xe9r";
+        const PHRASE: &[u8] = b"hyp\xe9r";
         assert_eq!(ReasonPhrase::from_static(PHRASE).as_bytes(), PHRASE);
         assert_eq!(ReasonPhrase::try_from(PHRASE).unwrap().as_bytes(), PHRASE);
     }
 
-    const NEWLINE_PHRASE: &'static [u8] = b"hyp\ner";
+    const NEWLINE_PHRASE: &[u8] = b"hyp\ner";
 
     #[test]
     #[should_panic]
@@ -206,7 +205,7 @@ mod tests {
         assert!(ReasonPhrase::try_from(NEWLINE_PHRASE).is_err());
     }
 
-    const CR_PHRASE: &'static [u8] = b"hyp\rer";
+    const CR_PHRASE: &[u8] = b"hyp\rer";
 
     #[test]
     #[should_panic]

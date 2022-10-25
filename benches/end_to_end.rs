@@ -1,7 +1,6 @@
+#![cfg(feature = "nightly")]
 #![feature(test)]
 #![deny(warnings)]
-
-extern crate test;
 
 // TODO: Reimplement Opts::bench using hyper::server::conn and hyper::client::conn
 // (instead of Server and HttpClient).

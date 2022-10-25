@@ -169,10 +169,7 @@ where
     }
 
     pub(crate) fn can_read_body(&self) -> bool {
-        match self.state.reading {
-            Reading::Body(..) | Reading::Continue(..) => true,
-            _ => false,
-        }
+        matches!(self.state.reading, Reading::Body(..) | Reading::Continue(..))
     }
 
     fn should_error_on_eof(&self) -> bool {
@@ -185,6 +182,7 @@ where
         read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
     }
 
+    #[allow(clippy::type_complexity)] // The return type is complex due to task-semantics
     pub(super) fn poll_read_head(
         &mut self,
         cx: &mut task::Context<'_>,
@@ -943,11 +941,7 @@ impl State {
     }
 
     fn wants_keep_alive(&self) -> bool {
-        if let KA::Disabled = self.keep_alive.status() {
-            false
-        } else {
-            true
-        }
+        !matches!(self.keep_alive.status(), KA::Disabled)
     }
 
     fn try_keep_alive<T: Http1Transaction>(&mut self) {

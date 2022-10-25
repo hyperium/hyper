@@ -104,7 +104,7 @@ impl<E> Builder<E> {
     /// This starts with the default options, and an executor.
     pub fn new(exec: E) -> Self {
         Self {
-            exec: exec,
+            exec,
             timer: Time::Empty,
             h2_builder: Default::default(),
         }

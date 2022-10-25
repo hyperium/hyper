@@ -1,7 +1,6 @@
+#![cfg(feature = "nightly")]
 #![feature(test)]
 #![deny(warnings)]
-
-extern crate test;
 
 // TODO: Reimplement http_connector bench using hyper::client::conn
 // (instead of removed HttpConnector).
