@@ -167,7 +167,7 @@ static conn_data *create_conn_data(int epoll, int fd) {
     transport_event.events = EPOLLIN;
     transport_event.data.ptr = conn;
     if (epoll_ctl(epoll, EPOLL_CTL_ADD, fd, &transport_event) < 0) {
-        perror("epoll_ctl (transport)");
+        perror("epoll_ctl (transport, add)");
         free(conn);
         return NULL;
     }
@@ -192,7 +192,7 @@ static hyper_io *create_io(conn_data *conn) {
 static void free_conn_data(int epoll, conn_data *conn) {
     // Disassociate with the epoll
     if (epoll_ctl(epoll, EPOLL_CTL_DEL, conn->fd, NULL) < 0) {
-        perror("epoll_ctl (transport)");
+        perror("epoll_ctl (transport, delete)");
     }
 
     // Drop any saved-off wakers

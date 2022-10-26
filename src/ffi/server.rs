@@ -464,19 +464,30 @@ impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_servic
     }
 }
 
-enum AutoConnection {
+enum AutoConnection<IO, Serv, Exec>
+where
+    Serv: crate::service::HttpService<crate::body::Recv>,
+{
     // The internals are in an `Option` so they can be extracted during H1->H2 fallback. Otherwise
     // this must always be `Some(h1, h2)` (and code is allowed to panic if that's not true).
     H1(
         Option<(
-            http1::Connection<hyper_io, hyper_service>,
-            http2::Builder<WeakExec>,
+            http1::Connection<IO, Serv>,
+            http2::Builder<Exec>,
         )>,
     ),
-    H2(http2::Connection<crate::common::io::Rewind<hyper_io>, hyper_service, WeakExec>),
+    H2(http2::Connection<crate::common::io::Rewind<IO>, Serv, Exec>),
 }
 
-impl std::future::Future for AutoConnection {
+
+impl<IO, Serv, Exec> std::future::Future for AutoConnection<IO, Serv, Exec>
+where
+    IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
+    Serv: crate::service::HttpService<crate::body::Recv, ResBody=crate::body::Recv>,
+    Exec: crate::common::exec::ConnStreamExec<Serv::Future, crate::body::Recv> + Unpin,
+    http1::Connection<IO, Serv>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,
+    http2::Connection<crate::common::io::Rewind<IO>, Serv, Exec>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,
+{
     type Output = crate::Result<()>;
 
     fn poll(
@@ -487,7 +498,7 @@ impl std::future::Future for AutoConnection {
         let (h1, h2) = match zelf {
             AutoConnection::H1(inner) => {
                 match ready!(std::pin::Pin::new(&mut inner.as_mut().unwrap().0).poll(cx)) {
-                    Ok(_done) => return std::task::Poll::Ready(Ok(())),
+                    Ok(()) => return std::task::Poll::Ready(Ok(())),
                     Err(e) => {
                         let kind = e.kind();
                         if matches!(
@@ -508,7 +519,7 @@ impl std::future::Future for AutoConnection {
                 }
             }
             AutoConnection::H2(h2) => match ready!(std::pin::Pin::new(h2).poll(cx)) {
-                Ok(_done) => return std::task::Poll::Ready(Ok(())),
+                Ok(()) => return std::task::Poll::Ready(Ok(())),
                 Err(e) => return std::task::Poll::Ready(Err(e)),
             },
         };
@@ -525,7 +536,6 @@ impl std::future::Future for AutoConnection {
         let rewind = crate::common::io::Rewind::new_buffered(io, read_buf);
         let h2 = h2.serve_connection(rewind, service);
         *zelf = AutoConnection::H2(h2);
-        cx.waker().wake_by_ref();
-        std::task::Poll::Pending
+        std::pin::Pin::new(zelf).poll(cx)
     }
 }
