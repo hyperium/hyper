@@ -50,6 +50,17 @@ cfg_client! {
             rx: ClientRx<B>,
             rx_closed: bool,
         }
+
+        impl<B> PinnedDrop for Client<B> {
+            fn drop(mut this: Pin<&mut Self>) {
+                if let Some(callback) = this.callback.take() {
+                    callback.send(Err((
+                        crate::Error::new_canceled().with("connection closed"),
+                        None,
+                    )));
+                }
+            }
+        }
     }
 
     type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<IncomingBody>>;
