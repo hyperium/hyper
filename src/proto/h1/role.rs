@@ -87,8 +87,7 @@ where
                 }
                 None => {
                     debug!("setting h1 header read timeout timer");
-                    *ctx.h1_header_read_timeout_fut =
-                        Some(crate::common::into_pin(ctx.timer.sleep_until(deadline)));
+                    *ctx.h1_header_read_timeout_fut = Some(ctx.timer.sleep_until(deadline));
                 }
             }
         }

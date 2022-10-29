@@ -28,10 +28,3 @@ cfg_proto! {
     pub(crate) use std::marker::Unpin;
 }
 pub(crate) use std::{future::Future, pin::Pin};
-
-pub(crate) fn into_pin<T: ?Sized>(boxed: Box<T>) -> Pin<Box<T>> {
-    // It's not possible to move or replace the insides of a `Pin<Box<T>>`
-    // when `T: !Unpin`, so it's safe to pin it directly without any
-    // additional requirements.
-    unsafe { Pin::new_unchecked(boxed) }
-}
