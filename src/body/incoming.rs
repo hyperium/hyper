@@ -104,8 +104,9 @@ impl Incoming {
         Incoming { kind }
     }
 
+    /// Create an empty `Body` stream.
     #[allow(dead_code)]
-    pub(crate) fn empty() -> Incoming {
+    pub fn empty() -> Incoming {
         Incoming::new(Kind::Empty)
     }
 
