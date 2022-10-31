@@ -1,3 +1,18 @@
+### v0.14.21 (2022-10-31)
+
+
+#### Bug Fixes
+
+* **client:** send an error back to client when dispatch misbehaves () ([9fa36382](https://github.com/hyperium/hyper/commit/9fa363829ced232acb18c31ebab8ffb93f691ecc), closes [#2649](https://github.com/hyperium/hyper/issues/2649))
+* **http1:** fix `http1_header_read_timeout` to use same future (#2891) ([c5a14e7c](https://github.com/hyperium/hyper/commit/c5a14e7c087424001223aaeb2dad532ba4ee6063))
+
+
+#### Features
+
+* **http1:** allow ignoring invalid header lines in requests ([73dd4746](https://github.com/hyperium/hyper/commit/73dd474652f5e71fe8a87baa6f9b2490ae746eb3))
+* **server:** add `Server::tcp_keepalive_interval` and `Server::tcp_keepalive_retries` (#2991) ([287d7124](https://github.com/hyperium/hyper/commit/287d712483aec6671427438d60ed2a72f856fd9f))
+
+
 ### v0.14.20 (2022-07-07)
 
 
