@@ -1,3 +1,11 @@
+### v0.14.22 (2022-10-31)
+
+
+#### Bug Fixes
+
+* **server:** fix compile-time cfgs for TCP keepalive options (#3039) ([e8765e0f](https://github.com/hyperium/hyper/commit/e8765e0febd0267472799dcd1109af75944c2637), closes [#3038](https://github.com/hyperium/hyper/issues/3038))
+
+
 ### v0.14.21 (2022-10-31)
 
 
