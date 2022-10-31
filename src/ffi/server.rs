@@ -2,6 +2,7 @@ use std::ffi::{c_uint, c_void};
 use std::ptr;
 use std::sync::Arc;
 
+use crate::body::Incoming as IncomingBody;
 use crate::ffi::error::hyper_code;
 use crate::ffi::http_types::{hyper_request, hyper_response};
 use crate::ffi::io::hyper_io;
@@ -442,14 +443,14 @@ ffi_fn! {
     }
 }
 
-impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_service {
-    type Response = crate::Response<crate::body::Recv>;
+impl crate::service::Service<crate::Request<IncomingBody>> for hyper_service {
+    type Response = crate::Response<IncomingBody>;
     type Error = crate::Error;
     type Future = std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
     >;
 
-    fn call(&mut self, req: crate::Request<crate::body::Recv>) -> Self::Future {
+    fn call(&mut self, req: crate::Request<IncomingBody>) -> Self::Future {
         let req_ptr = Box::into_raw(Box::new(hyper_request(req)));
 
         let (tx, rx) = futures_channel::oneshot::channel();
@@ -466,7 +467,7 @@ impl crate::service::Service<crate::Request<crate::body::Recv>> for hyper_servic
 
 enum AutoConnection<IO, Serv, Exec>
 where
-    Serv: crate::service::HttpService<crate::body::Recv>,
+    Serv: crate::service::HttpService<IncomingBody>,
 {
     // The internals are in an `Option` so they can be extracted during H1->H2 fallback. Otherwise
     // this must always be `Some(h1, h2)` (and code is allowed to panic if that's not true).
@@ -483,8 +484,8 @@ where
 impl<IO, Serv, Exec> std::future::Future for AutoConnection<IO, Serv, Exec>
 where
     IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
-    Serv: crate::service::HttpService<crate::body::Recv, ResBody=crate::body::Recv>,
-    Exec: crate::common::exec::ConnStreamExec<Serv::Future, crate::body::Recv> + Unpin,
+    Serv: crate::service::HttpService<IncomingBody, ResBody=IncomingBody>,
+    Exec: crate::common::exec::ConnStreamExec<Serv::Future, IncomingBody> + Unpin,
     http1::Connection<IO, Serv>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,
     http2::Connection<crate::common::io::Rewind<IO>, Serv, Exec>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,
 {

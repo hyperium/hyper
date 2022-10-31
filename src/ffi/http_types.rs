@@ -312,7 +312,7 @@ ffi_fn! {
     ///
     /// It is safe to free the request even after taking ownership of its body.
     fn hyper_request_body(req: *mut hyper_request) -> *mut hyper_body {
-        let body = std::mem::replace(non_null!(&mut *req ?= std::ptr::null_mut()).0.body_mut(), crate::Recv::empty());
+        let body = std::mem::replace(non_null!(&mut *req ?= std::ptr::null_mut()).0.body_mut(), IncomingBody::empty());
         Box::into_raw(Box::new(hyper_body(body)))
     } ?= std::ptr::null_mut()
 }
@@ -359,7 +359,7 @@ impl hyper_request {
 ffi_fn! {
     /// Construct a new HTTP 200 Ok response
     fn hyper_response_new() -> *mut hyper_response {
-        Box::into_raw(Box::new(hyper_response(Response::new(Recv::empty()))))
+        Box::into_raw(Box::new(hyper_response(Response::new(IncomingBody::empty()))))
     } ?= std::ptr::null_mut()
 }
 

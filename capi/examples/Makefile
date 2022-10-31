@@ -2,7 +2,7 @@
 # Build the example client
 #
 
-RPATH=$(PWD)/../../target/x86_64-unknown-linux-gnu/release
+RPATH=$(PWD)/../../target/release
 HYPER_CFLAGS += -I../include -ggdb3
 HYPER_LDFLAGS += -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lhyper
