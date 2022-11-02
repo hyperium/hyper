@@ -46,8 +46,18 @@ pub type hyper_service_callback =
 
 ffi_fn! {
     /// Create a new HTTP/1 serverconn options object.
-    fn hyper_http1_serverconn_options_new() -> *mut hyper_http1_serverconn_options {
-        Box::into_raw(Box::new(hyper_http1_serverconn_options(http1::Builder::new())))
+    fn hyper_http1_serverconn_options_new(
+        exec: *const hyper_executor
+    ) -> *mut hyper_http1_serverconn_options {
+        let exec = non_null! { Arc::from_raw(exec) ?= ptr::null_mut() };
+        let weak = hyper_executor::downgrade(&exec);
+        std::mem::forget(exec); // We never incremented the strong count in this function so can't
+                                // drop our Arc.
+        let mut builder = http1::Builder::new();
+        builder.timer(weak);
+        Box::into_raw(Box::new(hyper_http1_serverconn_options(
+            builder
+        )))
     }
 }
 
@@ -126,7 +136,20 @@ ffi_fn! {
     }
 }
 
-// TODO: http1_header_read_timeout
+ffi_fn! {
+    /// Set a timeout for reading client request headers. If a client does not
+    /// transmit the entire header within this time, the connection is closed.
+    ///
+    /// Default is to have no timeout.
+    fn hyper_http1_serverconn_options_header_read_timeout(
+        opts: *mut hyper_http1_serverconn_options,
+        millis: u64,
+    ) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http1_header_read_timeout(std::time::Duration::from_millis(millis));
+        hyper_code::HYPERE_OK
+    }
+}
 
 ffi_fn! {
     /// Set whether HTTP/1 connections should try to use vectored writes, or always flatten into a
@@ -191,8 +214,10 @@ ffi_fn! {
         let weak = hyper_executor::downgrade(&exec);
         std::mem::forget(exec); // We never incremented the strong count in this function so can't
                                 // drop our Arc.
+        let mut builder = http2::Builder::new(weak.clone());
+        builder.timer(weak);
         Box::into_raw(Box::new(hyper_http2_serverconn_options(
-            http2::Builder::new(weak),
+            builder
         )))
     }
 }
@@ -291,8 +316,40 @@ ffi_fn! {
     }
 }
 
-// TODO: http2_keep_alive_interval
-// TODO: http2_keep_alive_timeout
+ffi_fn! {
+    /// Sets an interval for HTTP/2 Ping frames should be sent to keep a connection alive.
+    ///
+    /// Default is to not use keepalive pings.  Passing `0` will use this default.
+    fn hyper_http2_serverconn_options_keep_alive_interval(
+        opts: *mut hyper_http2_serverconn_options,
+        interval_seconds: u64,
+    ) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_keep_alive_interval(if interval_seconds == 0 {
+            None
+        } else {
+            Some(std::time::Duration::from_secs(interval_seconds))
+        });
+        hyper_code::HYPERE_OK
+    }
+}
+
+ffi_fn! {
+    /// Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+    ///
+    /// If the ping is not acknowledged within the timeout, the connection will be closed. Does
+    /// nothing if `hyper_http2_serverconn_options_keep_alive_interval` is disabled.
+    ///
+    /// Default is 20 seconds.
+    fn hyper_http2_serverconn_options_keep_alive_timeout(
+        opts: *mut hyper_http2_serverconn_options,
+        timeout_seconds: u64,
+    ) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.0.http2_keep_alive_timeout(std::time::Duration::from_secs(timeout_seconds));
+        hyper_code::HYPERE_OK
+    }
+}
 
 ffi_fn! {
     /// Set the maximum write buffer size for each HTTP/2 stream.  Must be no larger than

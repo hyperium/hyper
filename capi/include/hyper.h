@@ -445,7 +445,7 @@ enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hy
 /*
  Create a new HTTP/1 serverconn options object.
  */
-struct hyper_http1_serverconn_options *hyper_http1_serverconn_options_new(void);
+struct hyper_http1_serverconn_options *hyper_http1_serverconn_options_new(const struct hyper_executor *exec);
 
 /*
  Free a `hyper_http1_serverconn_options*`.
@@ -495,6 +495,15 @@ enum hyper_code hyper_http1_serverconn_options_title_case_headers(struct hyper_h
  */
 enum hyper_code hyper_http1_serverconn_options_preserve_header_case(struct hyper_http1_serverconn_options *opts,
                                                                     bool enabled);
+
+/*
+ Set a timeout for reading client request headers. If a client does not
+ transmit the entire header within this time, the connection is closed.
+
+ Default is to have no timeout.
+ */
+enum hyper_code hyper_http1_serverconn_options_header_read_timeout(struct hyper_http1_serverconn_options *opts,
+                                                                   uint64_t millis);
 
 /*
  Set whether HTTP/1 connections should try to use vectored writes, or always flatten into a
@@ -582,6 +591,25 @@ enum hyper_code hyper_http2_serverconn_options_max_frame_size(struct hyper_http2
  */
 enum hyper_code hyper_http2_serverconn_options_max_concurrent_streams(struct hyper_http2_serverconn_options *opts,
                                                                       unsigned int max_streams);
+
+/*
+ Sets an interval for HTTP/2 Ping frames should be sent to keep a connection alive.
+
+ Default is to not use keepalive pings.  Passing `0` will use this default.
+ */
+enum hyper_code hyper_http2_serverconn_options_keep_alive_interval(struct hyper_http2_serverconn_options *opts,
+                                                                   uint64_t interval_seconds);
+
+/*
+ Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+
+ If the ping is not acknowledged within the timeout, the connection will be closed. Does
+ nothing if `hyper_http2_serverconn_options_keep_alive_interval` is disabled.
+
+ Default is 20 seconds.
+ */
+enum hyper_code hyper_http2_serverconn_options_keep_alive_timeout(struct hyper_http2_serverconn_options *opts,
+                                                                  uint64_t timeout_seconds);
 
 /*
  Set the maximum write buffer size for each HTTP/2 stream.  Must be no larger than
@@ -1060,6 +1088,16 @@ enum hyper_code hyper_executor_push(const struct hyper_executor *exec, struct hy
  If there are no ready tasks, this returns `NULL`.
  */
 struct hyper_task *hyper_executor_poll(const struct hyper_executor *exec);
+
+/*
+ Returns the time until the executor will be able to make progress on tasks due to internal
+ timers popping.  The executor should be polled soon after this time if not earlier due to
+ IO operations becoming available.
+
+ Returns the time in milliseconds - a return value of -1 means there's no configured timers
+ and the executor doesn't need polling until there's IO work available.
+ */
+int hyper_executor_next_timer_pop(const struct hyper_executor *exec);
 
 /*
  Free a task.
