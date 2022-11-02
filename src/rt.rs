@@ -33,3 +33,5 @@ pub trait Timer {
 
 /// A future returned by a `Timer`.
 pub trait Sleep: Send + Sync + Unpin + Future<Output = ()> {}
+
+impl<T> Sleep for T where T: Send + Sync + Unpin + Future<Output = ()> {}

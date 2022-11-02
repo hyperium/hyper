@@ -49,6 +49,39 @@ pub struct hyper_executor {
     /// This is used to track when a future calls `wake` while we are within
     /// `hyper_executor::poll_next`.
     is_woken: Arc<ExecWaker>,
+
+    /// The heap of programmed timers, these will be progressed at the start of
+    /// `hyper_executor_poll`
+    timers: Mutex<std::collections::BinaryHeap<Timer>>,
+}
+
+#[derive(Clone, Debug)]
+struct Timer {
+    waker: std::task::Waker,
+    wake_at: std::time::Instant,
+}
+
+// Consistency with `Ord` requires us to report `Timer`s with the same `wake_at` as equal.
+impl std::cmp::PartialEq for Timer {
+    fn eq(&self, other: &Self) -> bool {
+        self.wake_at.eq(&other.wake_at)
+    }
+}
+impl std::cmp::Eq for Timer {}
+
+// BinaryHeap is a max-heap and we want the top of the heap to be the nearest to popping timer
+// so we want the "bigger" timer to have the earlier `wake_at` time.  We achieve this by flipping
+// the sides of the comparisons in `Ord` and implementing `PartialOrd` in terms of `Ord`.
+impl std::cmp::PartialOrd for Timer {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl std::cmp::Ord for Timer {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        // Note flipped order
+        other.wake_at.cmp(&self.wake_at)
+    }
 }
 
 #[derive(Clone)]
@@ -106,6 +139,7 @@ impl hyper_executor {
             driver: Mutex::new(FuturesUnordered::new()),
             spawn_queue: Mutex::new(Vec::new()),
             is_woken: Arc::new(ExecWaker(AtomicBool::new(false))),
+            timers: Mutex::new(std::collections::BinaryHeap::new()),
         })
     }
 
@@ -121,8 +155,11 @@ impl hyper_executor {
     }
 
     fn poll_next(&self) -> Option<Box<hyper_task>> {
-        // Drain the queue first.
+        // Move any new tasks to the runnable queue
         self.drain_queue();
+
+        // Wake all popped timers
+        self.pop_timers();
 
         let waker = futures_util::task::waker_ref(&self.is_woken);
         let mut cx = Context::from_waker(&waker);
@@ -132,13 +169,17 @@ impl hyper_executor {
             match poll {
                 Poll::Ready(val) => return val,
                 Poll::Pending => {
-                    // Check if any of the pending tasks tried to spawn
-                    // some new tasks. If so, drain into the driver and loop.
+                    // Time has progressed while polling above, so fire any wakers for timers that
+                    // have popped in that window.
+                    self.pop_timers();
+
+                    // Check if any of the pending tasks tried to spawn some new tasks. If so,
+                    // drain into the driver and loop.
                     if self.drain_queue() {
                         continue;
                     }
 
-                    // If the driver called `wake` while we were polling,
+                    // If the driver called `wake` while we were polling or any timers have popped,
                     // we should poll again immediately!
                     if self.is_woken.0.swap(false, Ordering::SeqCst) {
                         continue;
@@ -163,6 +204,19 @@ impl hyper_executor {
         }
 
         true
+    }
+
+    fn pop_timers(&self) {
+        let mut heap = self.timers.lock().unwrap();
+        let now = std::time::Instant::now();
+        while let Some(timer) = heap.pop() {
+            if timer.wake_at < now {
+                timer.waker.wake_by_ref();
+            } else {
+                heap.push(timer);
+                break;
+            }
+        }
     }
 }
 
@@ -195,6 +249,45 @@ where
 {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
         <Self as crate::rt::Executor<_>>::execute(&self, Box::pin(fut))
+    }
+}
+
+struct TimerFuture {
+    exec: WeakExec,
+    wake: std::time::Instant,
+}
+
+impl std::future::Future for TimerFuture {
+    type Output = ();
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let now = std::time::Instant::now();
+
+        if self.wake - now < std::time::Duration::from_millis(1) {
+            return Poll::Ready(());
+        }
+
+        if let Some(exec) = self.exec.0.upgrade() {
+            let mut heap = exec.timers.lock().unwrap();
+            let t = Timer {
+                waker: cx.waker().clone(),
+                wake_at: self.wake,
+            };
+            heap.push(t);
+        }
+
+        return Poll::Pending;
+    }
+}
+
+impl crate::rt::Timer for WeakExec {
+    fn sleep(&self, duration: std::time::Duration) -> Box<dyn crate::rt::Sleep + Unpin> {
+        self.sleep_until(std::time::Instant::now() + duration)
+    }
+    fn sleep_until(&self, instant: std::time::Instant) -> Box<dyn crate::rt::Sleep + Unpin> {
+        Box::new(TimerFuture {
+            exec: self.clone(),
+            wake: instant,
+        })
     }
 }
 
@@ -239,6 +332,27 @@ ffi_fn! {
             None => ptr::null_mut(),
         }
     } ?= ptr::null_mut()
+}
+
+ffi_fn! {
+    /// Returns the time until the executor will be able to make progress on tasks due to internal
+    /// timers popping.  The executor should be polled soon after this time if not earlier due to
+    /// IO operations becoming available.
+    ///
+    /// Returns the time in milliseconds - a return value of -1 means there's no configured timers
+    /// and the executor doesn't need polling until there's IO work available.
+    fn hyper_executor_next_timer_pop(exec: *const hyper_executor) -> std::ffi::c_int {
+        let exec = non_null!(&*exec ?= -1);
+        match exec.timers.lock().unwrap().peek() {
+            Some(timer) => {
+                let duration = timer.wake_at - std::time::Instant::now();
+                let micros = duration.as_micros() + 999; // Add "1000 - 1" to round up to next
+                                                         // millisecond
+                (micros / 1000) as _
+            }
+            None => -1
+        }
+    }
 }
 
 // ===== impl hyper_task =====
