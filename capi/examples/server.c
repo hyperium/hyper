@@ -295,13 +295,13 @@ int main(int argc, char *argv[]) {
     const hyper_executor *exec = hyper_executor_new();
 
     // Configure the server HTTP/1 stack
-    hyper_http1_serverconn_options *http1_opts = hyper_http1_serverconn_options_new();
+    hyper_http1_serverconn_options *http1_opts = hyper_http1_serverconn_options_new(exec);
+    hyper_http1_serverconn_options_header_read_timeout(http1_opts, 1000 * 5); // 5 seconds
 
     // Configure the server HTTP/2 stack
     hyper_http2_serverconn_options *http2_opts = hyper_http2_serverconn_options_new(exec);
-
-    // Might have an error
-    hyper_error *err;
+    hyper_http2_serverconn_options_keep_alive_interval(http2_opts, 5); // 5 seconds
+    hyper_http2_serverconn_options_keep_alive_timeout(http2_opts, 5); // 5 seconds
 
     while (1) {
         while (1) {
@@ -312,7 +312,7 @@ int main(int argc, char *argv[]) {
             if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                 printf("handshake error!\n");
 
-                err = hyper_task_value(task);
+                hyper_error* err = hyper_task_value(task);
                 printf("error code: %d\n", hyper_error_code(err));
                 uint8_t errbuf[256];
                 size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
@@ -345,11 +345,13 @@ int main(int argc, char *argv[]) {
             }
         }
 
-        printf("Processed all tasks - polling for events\n");
+        int timeout = hyper_executor_next_timer_pop(exec);
+
+        printf("Processed all tasks - polling for events (max %dms)\n", timeout);
 
         struct epoll_event events[MAX_EVENTS];
 
-        int nevents = epoll_wait(epoll, events, MAX_EVENTS, -1);
+        int nevents = epoll_wait(epoll, events, MAX_EVENTS, timeout);
         if (nevents < 0) {
             perror("epoll");
             return 1;
