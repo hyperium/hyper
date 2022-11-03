@@ -209,11 +209,11 @@ impl hyper_executor {
     fn pop_timers(&self) {
         let mut heap = self.timers.lock().unwrap();
         let now = std::time::Instant::now();
-        while let Some(timer) = heap.pop() {
+        while let Some(timer) = heap.peek_mut() {
             if timer.wake_at < now {
+                let timer = std::collections::binary_heap::PeekMut::pop(timer);
                 timer.waker.wake_by_ref();
             } else {
-                heap.push(timer);
                 break;
             }
         }
