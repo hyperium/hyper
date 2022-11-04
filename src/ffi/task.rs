@@ -7,6 +7,7 @@ use std::sync::{
     Arc, Mutex, Weak,
 };
 use std::task::{Context, Poll};
+use std::collections::binary_heap::PeekMut;
 
 use futures_util::stream::{FuturesUnordered, Stream};
 use libc::c_int;
@@ -59,6 +60,7 @@ pub struct hyper_executor {
 struct Timer {
     waker: std::task::Waker,
     wake_at: std::time::Instant,
+    is_alive: Arc<AtomicBool>,
 }
 
 // Consistency with `Ord` requires us to report `Timer`s with the same `wake_at` as equal.
@@ -210,9 +212,12 @@ impl hyper_executor {
         let mut heap = self.timers.lock().unwrap();
         let now = std::time::Instant::now();
         while let Some(timer) = heap.peek_mut() {
-            if timer.wake_at < now {
-                let timer = std::collections::binary_heap::PeekMut::pop(timer);
+            let is_alive = timer.is_alive.load(Ordering::Relaxed);
+            if timer.wake_at < now && is_alive {
+                let timer = PeekMut::pop(timer);
                 timer.waker.wake_by_ref();
+            } else if !is_alive {
+                let _ = PeekMut::pop(timer);
             } else {
                 break;
             }
@@ -255,27 +260,46 @@ where
 struct TimerFuture {
     exec: WeakExec,
     wake: std::time::Instant,
+    is_alive: Option<Arc<AtomicBool>>,
 }
 
 impl std::future::Future for TimerFuture {
     type Output = ();
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let now = std::time::Instant::now();
 
+        // Allow millisecond-accurate timers, since that's what the FFI code sees
         if self.wake - now < std::time::Duration::from_millis(1) {
             return Poll::Ready(());
         }
 
+        if let Some(is_alive) = &self.is_alive {
+            is_alive.store(false, Ordering::Relaxed);
+        }
+
         if let Some(exec) = self.exec.0.upgrade() {
+            let is_alive = Arc::new(AtomicBool::new(true));
+            self.is_alive = Some(Arc::clone(&is_alive));
+
             let mut heap = exec.timers.lock().unwrap();
             let t = Timer {
                 waker: cx.waker().clone(),
                 wake_at: self.wake,
+                is_alive: is_alive,
             };
             heap.push(t);
         }
 
         return Poll::Pending;
+    }
+}
+
+impl std::ops::Drop for TimerFuture {
+    fn drop(&mut self) {
+        if let Some(is_alive) = &self.is_alive {
+            is_alive.store(false, Ordering::Relaxed);
+        }
     }
 }
 
@@ -287,6 +311,7 @@ impl crate::rt::Timer for WeakExec {
         Box::new(TimerFuture {
             exec: self.clone(),
             wake: instant,
+            is_alive: None,
         })
     }
 }
@@ -343,15 +368,19 @@ ffi_fn! {
     /// and the executor doesn't need polling until there's IO work available.
     fn hyper_executor_next_timer_pop(exec: *const hyper_executor) -> std::ffi::c_int {
         let exec = non_null!(&*exec ?= -1);
-        match exec.timers.lock().unwrap().peek() {
-            Some(timer) => {
+        let mut heap = exec.timers.lock().unwrap();
+        while let Some(timer) = heap.peek_mut() {
+            let is_alive = timer.is_alive.load(Ordering::Relaxed);
+            if is_alive {
                 let duration = timer.wake_at - std::time::Instant::now();
-                let micros = duration.as_micros() + 999; // Add "1000 - 1" to round up to next
-                                                         // millisecond
-                (micros / 1000) as _
+                let micros = duration.as_micros();
+                return (micros + 999 / 1000) as _
+            } else {
+                PeekMut::pop(timer);
             }
-            None => -1
         }
+
+        return -1;
     }
 }
 
