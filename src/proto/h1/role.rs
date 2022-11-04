@@ -14,7 +14,7 @@ use tracing::{debug, error, trace, trace_span, warn};
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::date;
-use crate::error::Parse;
+use crate::error::{InvalidUri, Parse};
 use crate::ext::HeaderCaseMap;
 #[cfg(feature = "ffi")]
 use crate::ext::OriginalHeaderOrder;
@@ -182,7 +182,7 @@ impl Http1Transaction for Server {
                                 Parse::Method
                             } else {
                                 debug_assert!(req.path.is_none());
-                                Parse::Uri
+                                Parse::Uri(InvalidUri::Other("invalid token"))
                             }
                         }
                         other => other.into(),
@@ -445,7 +445,7 @@ impl Http1Transaction for Server {
         let status = match *err.kind() {
             Kind::Parse(Parse::Method)
             | Kind::Parse(Parse::Header(_))
-            | Kind::Parse(Parse::Uri)
+            | Kind::Parse(Parse::Uri(_))
             | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,

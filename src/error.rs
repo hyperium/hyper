@@ -61,7 +61,7 @@ pub(super) enum Parse {
     Version,
     #[cfg(feature = "http1")]
     VersionH2,
-    Uri,
+    Uri(InvalidUri),
     #[cfg_attr(not(all(feature = "http1", feature = "server")), allow(unused))]
     UriTooLong,
     Header(Header),
@@ -122,6 +122,14 @@ pub(super) enum User {
 // Sentinel type to indicate the error was caused by a timeout.
 #[derive(Debug)]
 pub(super) struct TimedOut;
+
+pub(super) enum InvalidUri {
+    Uri(http::uri::InvalidUri),
+    Parts(http::uri::InvalidUriParts),
+
+    #[cfg(feature = "server")]
+    Other(&'static str),
+}
 
 impl Error {
     /// Returns true if this was an HTTP parse error.
@@ -343,7 +351,7 @@ impl Error {
             Kind::Parse(Parse::Version) => "invalid HTTP version parsed",
             #[cfg(feature = "http1")]
             Kind::Parse(Parse::VersionH2) => "invalid HTTP version parsed (found HTTP2 preface)",
-            Kind::Parse(Parse::Uri) => "invalid URI",
+            Kind::Parse(Parse::Uri(_)) => "invalid URI",
             Kind::Parse(Parse::UriTooLong) => "URI too long",
             Kind::Parse(Parse::Header(Header::Token)) => "invalid HTTP header parsed",
             #[cfg(feature = "http1")]
@@ -420,6 +428,11 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // handle "invalid URI" parse errors separately, since the inner error
+        // is not stored as a cause.
+        if let Kind::Parse(Parse::Uri(ref error)) = self.inner.kind {
+            return fmt::Display::fmt(error, f);
+        }
         if let Some(ref cause) = self.inner.cause {
             write!(f, "{}: {}", self.description(), cause)
         } else {
@@ -487,14 +500,14 @@ impl From<http::status::InvalidStatusCode> for Parse {
 }
 
 impl From<http::uri::InvalidUri> for Parse {
-    fn from(_: http::uri::InvalidUri) -> Parse {
-        Parse::Uri
+    fn from(inner: http::uri::InvalidUri) -> Parse {
+        Parse::Uri(InvalidUri::Uri(inner))
     }
 }
 
 impl From<http::uri::InvalidUriParts> for Parse {
-    fn from(_: http::uri::InvalidUriParts) -> Parse {
-        Parse::Uri
+    fn from(inner: http::uri::InvalidUriParts) -> Parse {
+        Parse::Uri(InvalidUri::Parts(inner))
     }
 }
 
@@ -512,6 +525,30 @@ impl fmt::Display for TimedOut {
 }
 
 impl StdError for TimedOut {}
+
+// === impl InvalidUri ===
+
+impl fmt::Display for InvalidUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            #[cfg(feature = "server")]
+            Self::Other(msg) => write!(f, "invalid URI: {}", msg),
+            Self::Uri(e) => fmt::Display::fmt(e, f),
+            Self::Parts(e) => fmt::Display::fmt(e, f),
+        }
+    }
+}
+
+impl fmt::Debug for InvalidUri {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            #[cfg(feature = "server")]
+            Self::Other(msg) => f.debug_tuple("InvalidUri").field(msg).finish(),
+            Self::Uri(e) => fmt::Debug::fmt(e, f),
+            Self::Parts(e) => fmt::Debug::fmt(e, f),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
