@@ -50,6 +50,17 @@ where
 {
     futures_util::pin_mut!(body);
 
+    const MAX_ALLOWED_SIZE: u64 = 10 * 1024 * 1024 * 1024;
+
+    let content_length = body.size_hint().lower();
+
+    // If the expected content length is to large, returnan empty body.
+    // It is also possible to return an error instead.
+    if content_length > MAX_ALLOWED_SIZE {
+        return Ok(Bytes::new());
+    }
+
+
     // If there's only 1 chunk, we can just return Buf::to_bytes()
     let mut first = if let Some(buf) = body.data().await {
         buf?
