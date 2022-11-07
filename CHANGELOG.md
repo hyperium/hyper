@@ -1,3 +1,11 @@
+### v0.14.23 (2022-11-07)
+
+
+#### Bug Fixes
+
+* **http2:** Fix race condition in client dispatcher (#3041) ([2f1c0b72](https://github.com/hyperium/hyper/commit/2f1c0b720da4553fff216a38018a78ecafe23d60), closes [#2419](https://github.com/hyperium/hyper/issues/2419))
+
+
 ### v0.14.22 (2022-10-31)
 
 
