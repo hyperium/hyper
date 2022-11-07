@@ -54,7 +54,7 @@ where
 
     let content_length = body.size_hint().lower();
 
-    // If the expected content length is to large, return an empty body.
+    // If the expected content length is too large, return an empty body.
     if content_length > MAX_ALLOWED_SIZE {
         return Ok(Bytes::new());
     }
