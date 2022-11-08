@@ -7,7 +7,6 @@ use std::sync::{
     Arc, Mutex, Weak,
 };
 use std::task::{Context, Poll};
-use std::collections::binary_heap::PeekMut;
 
 use futures_util::stream::{FuturesUnordered, Stream};
 use libc::c_int;
@@ -53,11 +52,11 @@ pub struct hyper_executor {
 
     /// The heap of programmed timers, these will be progressed at the start of
     /// `hyper_executor_poll`
-    timers: Mutex<std::collections::BinaryHeap<Timer>>,
+    timers: Arc<Mutex<crate::ffi::time::TimerHeap>>,
 }
 
 #[derive(Clone)]
-pub(crate) struct WeakExec(Weak<hyper_executor>);
+pub(super) struct WeakExec(Weak<hyper_executor>);
 
 struct ExecWaker(AtomicBool);
 
@@ -95,11 +94,11 @@ pub enum hyper_task_return_type {
     HYPER_TASK_BUF,
 }
 
-pub(crate) unsafe trait AsTaskType {
+pub(super) unsafe trait AsTaskType {
     fn as_task_type(&self) -> hyper_task_return_type;
 }
 
-pub(crate) trait IntoDynTaskType {
+pub(super) trait IntoDynTaskType {
     fn into_dyn_task_type(self) -> BoxAny;
 }
 
@@ -111,12 +110,16 @@ impl hyper_executor {
             driver: Mutex::new(FuturesUnordered::new()),
             spawn_queue: Mutex::new(Vec::new()),
             is_woken: Arc::new(ExecWaker(AtomicBool::new(false))),
-            timers: Mutex::new(std::collections::BinaryHeap::new()),
+            timers: Arc::new(Mutex::new(crate::ffi::time::TimerHeap::new())),
         })
     }
 
-    pub(crate) fn downgrade(exec: &Arc<hyper_executor>) -> WeakExec {
+    pub(super) fn downgrade(exec: &Arc<hyper_executor>) -> WeakExec {
         WeakExec(Arc::downgrade(exec))
+    }
+
+    pub(super) fn timer_heap(&self) -> &Arc<Mutex<crate::ffi::time::TimerHeap>> {
+        &self.timers
     }
 
     fn spawn(&self, task: Box<hyper_task>) {
@@ -181,18 +184,7 @@ impl hyper_executor {
     // Walk the timer heap waking active timers and discarding cancelled ones.
     fn pop_timers(&self) {
         let mut heap = self.timers.lock().unwrap();
-        let now = std::time::Instant::now();
-        while let Some(timer) = heap.peek_mut() {
-            if let Some(waker) = &mut timer.shared.lock().unwrap().waker {
-                if timer.wake_at < now {
-                    waker.wake_by_ref();
-                } else {
-                    break;
-                }
-            }
-            // This time was for the past so pop it now.
-            let _ = PeekMut::pop(timer);
-        }
+        heap.process_timers();
     }
 }
 
@@ -205,7 +197,7 @@ impl futures_util::task::ArcWake for ExecWaker {
 // ===== impl WeakExec =====
 
 impl WeakExec {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         WeakExec(Weak::new())
     }
 }
@@ -225,107 +217,6 @@ where
 {
     fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
         <Self as crate::rt::Executor<_>>::execute(&self, Box::pin(fut))
-    }
-}
-
-// The entry in the timer heap for a programmed timer.  The heap should expire the timer at
-// `wake_at` and wake any waker it finds in the `shared` state.
-struct Timer {
-    shared: Arc<Mutex<TimerShared>>,
-    wake_at: std::time::Instant,
-}
-
-// Consistency with `Ord` requires us to report `Timer`s with the same `wake_at` as equal.
-impl std::cmp::PartialEq for Timer {
-    fn eq(&self, other: &Self) -> bool {
-        self.wake_at.eq(&other.wake_at)
-    }
-}
-impl std::cmp::Eq for Timer {}
-
-// BinaryHeap is a max-heap and we want the top of the heap to be the nearest to popping timer
-// so we want the "bigger" timer to have the earlier `wake_at` time.  We achieve this by flipping
-// the sides of the comparisons in `Ord` and implementing `PartialOrd` in terms of `Ord`.
-impl std::cmp::PartialOrd for Timer {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-impl std::cmp::Ord for Timer {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        // Note flipped order
-        other.wake_at.cmp(&self.wake_at)
-    }
-}
-
-// A future that completes at `wake_at`.
-struct TimerFuture {
-    exec: WeakExec,
-    wake_at: std::time::Instant,
-    // This is None when the timer isn't programmed in the heap
-    shared: Option<Arc<Mutex<TimerShared>>>,
-}
-
-// Shared between the timer future and the timer heap.  If the heap expires a timer is should wake
-// the waker if one is present (which indicates that the timer has not been cancelled).
-struct TimerShared {
-    waker: Option<std::task::Waker>,
-}
-
-impl std::future::Future for TimerFuture {
-    type Output = ();
-
-    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        let now = std::time::Instant::now();
-
-        if self.wake_at <= now {
-            return Poll::Ready(());
-        }
-
-        match &self.shared {
-            Some(shared) => {
-                // Timer was already programmed, update the waker
-                shared.lock().unwrap().waker = Some(cx.waker().clone());
-            }
-            None => {
-                // Need to program the timer into the heap
-                if let Some(exec) = self.exec.0.upgrade() {
-                    let mut heap = exec.timers.lock().unwrap();
-                    let shared = Arc::new(Mutex::new(TimerShared {
-                        waker: Some(cx.waker().clone()),
-                    }));
-                    let t = Timer {
-                        shared: Arc::clone(&shared),
-                        wake_at: self.wake_at,
-                    };
-                    heap.push(t);
-                    self.shared = Some(shared);
-                }
-            }
-        }
-
-        return Poll::Pending;
-    }
-}
-
-impl std::ops::Drop for TimerFuture {
-    fn drop(&mut self) {
-        if let Some(shared) = &self.shared {
-            let _ = shared.lock().unwrap().waker.take();
-        }
-    }
-}
-
-impl crate::rt::Timer for WeakExec {
-    fn sleep(&self, duration: std::time::Duration) -> Box<dyn crate::rt::Sleep + Unpin> {
-        self.sleep_until(std::time::Instant::now() + duration)
-    }
-    fn sleep_until(&self, instant: std::time::Instant) -> Box<dyn crate::rt::Sleep + Unpin> {
-        Box::new(TimerFuture {
-            exec: self.clone(),
-            wake_at: instant,
-            shared: None,
-        })
     }
 }
 
@@ -381,27 +272,20 @@ ffi_fn! {
     /// and the executor doesn't need polling until there's IO work available.
     fn hyper_executor_next_timer_pop(exec: *const hyper_executor) -> std::ffi::c_int {
         let exec = non_null!(&*exec ?= -1);
-        let mut heap = exec.timers.lock().unwrap();
-        while let Some(timer) = heap.peek_mut() {
-            if timer.shared.lock().unwrap().waker.is_some() {
-                let now = std::time::Instant::now();
-                let duration = timer.wake_at - now;
-                eprintln!("Next timer to pop - now={:?}, wake_at={:?}, micros={}", now, timer.wake_at, duration.as_micros());
+        match exec.timers.lock().unwrap().next_timer_pop() {
+            Some(duration) => {
                 let micros = duration.as_micros();
-                return ((micros + 999) / 1000) as _
-            } else {
-                PeekMut::pop(timer);
+                ((micros + 999) / 1000) as _
             }
+            None => -1
         }
-
-        return -1;
     }
 }
 
 // ===== impl hyper_task =====
 
 impl hyper_task {
-    pub(crate) fn boxed<F>(fut: F) -> Box<hyper_task>
+    pub(super) fn boxed<F>(fut: F) -> Box<hyper_task>
     where
         F: Future + Send + 'static,
         F::Output: IntoDynTaskType + Send + Sync + 'static,
@@ -547,7 +431,7 @@ where
 // ===== impl hyper_context =====
 
 impl hyper_context<'_> {
-    pub(crate) fn wrap<'a, 'b>(cx: &'a mut Context<'b>) -> &'a mut hyper_context<'b> {
+    pub(super) fn wrap<'a, 'b>(cx: &'a mut Context<'b>) -> &'a mut hyper_context<'b> {
         // A struct with only one field has the same layout as that field.
         unsafe { std::mem::transmute::<&mut Context<'_>, &mut hyper_context<'_>>(cx) }
     }

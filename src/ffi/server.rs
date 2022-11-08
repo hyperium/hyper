@@ -50,11 +50,10 @@ ffi_fn! {
         exec: *const hyper_executor
     ) -> *mut hyper_http1_serverconn_options {
         let exec = non_null! { Arc::from_raw(exec) ?= ptr::null_mut() };
-        let weak = hyper_executor::downgrade(&exec);
+        let mut builder = http1::Builder::new();
+        builder.timer(Arc::clone(exec.timer_heap()));
         std::mem::forget(exec); // We never incremented the strong count in this function so can't
                                 // drop our Arc.
-        let mut builder = http1::Builder::new();
-        builder.timer(weak);
         Box::into_raw(Box::new(hyper_http1_serverconn_options(
             builder
         )))
@@ -212,10 +211,10 @@ ffi_fn! {
     ) -> *mut hyper_http2_serverconn_options {
         let exec = non_null! { Arc::from_raw(exec) ?= ptr::null_mut() };
         let weak = hyper_executor::downgrade(&exec);
+        let mut builder = http2::Builder::new(weak.clone());
+        builder.timer(Arc::clone(exec.timer_heap()));
         std::mem::forget(exec); // We never incremented the strong count in this function so can't
                                 // drop our Arc.
-        let mut builder = http2::Builder::new(weak.clone());
-        builder.timer(weak);
         Box::into_raw(Box::new(hyper_http2_serverconn_options(
             builder
         )))

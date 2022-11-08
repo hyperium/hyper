@@ -44,6 +44,7 @@ mod error;
 mod http_types;
 mod io;
 mod task;
+mod time;
 
 pub use self::body::*;
 pub use self::client::*;

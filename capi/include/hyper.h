@@ -1091,8 +1091,8 @@ struct hyper_task *hyper_executor_poll(const struct hyper_executor *exec);
 
 /*
  Returns the time until the executor will be able to make progress on tasks due to internal
- timers popping.  The executor should be polled soon after this time if not earlier due to
- IO operations becoming available.
+ timers popping.  The executor should be polled soon after this time (if not earlier due to
+ IO operations becoming available).
 
  Returns the time in milliseconds - a return value of -1 means there's no configured timers
  and the executor doesn't need polling until there's IO work available.
