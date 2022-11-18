@@ -40,7 +40,7 @@
 //! }
 //!
 //! async fn hello(_req: Request<body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
-//!    Ok(Response::new(Full::new(Bytes::from("Hello World!"))))
+//!    Ok(Response::new(Full::new(Bytes::from("Witaj świecie!"))))
 //! }
 //! # }
 //! ```
