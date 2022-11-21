@@ -109,6 +109,9 @@ tcp = [
 # C-API support (currently unstable (no semver))
 ffi = ["libc"]
 
+# 1.0 compatibile client API
+backports = []
+
 # internal features used in CI
 nightly = []
 __internal_happy_eyeballs_tests = []
