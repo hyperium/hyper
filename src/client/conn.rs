@@ -123,12 +123,19 @@ pin_project! {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This function will be replaced with `client::conn::http1::handshake` and `client::conn::http2::handshake` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
 pub async fn handshake<T>(
     io: T,
 ) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    #[allow(deprecated)]
     Builder::new().handshake(io).await
 }
 
@@ -555,6 +562,12 @@ where
 
 impl Builder {
     /// Creates a new connection builder.
+    #[cfg_attr(
+        feature = "deprecated",
+        deprecated(
+            note = "This type will be replaced with `client::conn::http1::Builder` and `client::conn::http2::Builder` in 1.0, enable the \"backports\" feature to use them now."
+        )
+    )]
     #[inline]
     pub fn new() -> Builder {
         Builder {

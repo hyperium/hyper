@@ -906,6 +906,7 @@ impl Default for Builder {
                 set_host: true,
                 ver: Ver::Auto,
             },
+            #[allow(deprecated)]
             conn_builder: conn::Builder::new(),
             pool_config: pool::Config {
                 idle_timeout: Some(Duration::from_secs(90)),
