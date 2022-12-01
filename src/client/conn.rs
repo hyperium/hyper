@@ -54,7 +54,7 @@
 //! # }
 //! ```
 
-use std::error::Error as StdError;
+use std::{error::Error as StdError, collections::HashMap};
 use std::fmt;
 #[cfg(not(all(feature = "http1", feature = "http2")))]
 use std::marker::PhantomData;
@@ -156,6 +156,7 @@ pub struct Builder {
     h1_writev: Option<bool>,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    h1_special_headers: Option<&'static HashMap<&'static str, &'static [u8]>>,
     #[cfg(feature = "ffi")]
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
@@ -571,6 +572,7 @@ impl Builder {
             version: Proto::Http1,
             #[cfg(not(feature = "http1"))]
             version: Proto::Http2,
+            h1_special_headers: None,
         }
     }
 
@@ -723,6 +725,17 @@ impl Builder {
     /// Default is false.
     pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Builder {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Allows passing a HashMap of headers that will be sent with
+    /// specified casing
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is None.
+    pub fn http1_special_headers(&mut self, val: Option<&'static HashMap<&'static str, &'static [u8]>>) -> &mut Self {
+        self.h1_special_headers = val;
         self
     }
 
@@ -988,6 +1001,9 @@ impl Builder {
                     if opts.h1_preserve_header_case {
                         conn.set_preserve_header_case();
                     }
+
+                    conn.set_special_headers(opts.h1_special_headers);
+
                     #[cfg(feature = "ffi")]
                     if opts.h1_preserve_header_order {
                         conn.set_preserve_header_order();

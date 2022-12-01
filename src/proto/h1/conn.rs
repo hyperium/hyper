@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
@@ -61,6 +62,7 @@ where
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 title_case_headers: false,
+                special_headers: None,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: None,
@@ -107,6 +109,10 @@ where
 
     pub(crate) fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
+    }
+
+    pub(crate) fn set_special_headers(&mut self, val: Option<&'static HashMap<&'static str, &'static [u8]>>) {
+        self.state.special_headers = val;
     }
 
     pub(crate) fn set_preserve_header_case(&mut self) {
@@ -562,6 +568,7 @@ where
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
+                special_headers: self.state.special_headers,
             },
             buf,
         ) {
@@ -827,6 +834,7 @@ struct State {
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
     title_case_headers: bool,
+    special_headers: Option<&'static HashMap<&'static str, &'static [u8]>>,
     h09_responses: bool,
     /// If set, called with each 1xx informational response received for
     /// the current request. MUST be unset after a non-1xx response is

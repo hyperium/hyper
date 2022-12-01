@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::error::Error as StdError;
 use std::fmt;
 use std::mem;
@@ -1139,6 +1140,17 @@ impl Builder {
     /// Default is false.
     pub fn http1_preserve_header_case(&mut self, val: bool) -> &mut Self {
         self.conn_builder.http1_preserve_header_case(val);
+        self
+    }
+
+    /// Allows passing a HashMap of headers that will be sent with
+    /// specified casing
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is None.
+    pub fn http1_special_headers(&mut self, val: Option<&'static HashMap<&'static str, &'static [u8]>>) -> &mut Self {
+        self.conn_builder.http1_special_headers(val);
         self
     }
 

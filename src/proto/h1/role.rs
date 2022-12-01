@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{self, Write};
 use std::mem::MaybeUninit;
 
@@ -1146,7 +1147,7 @@ impl Http1Transaction for Client {
         } else if msg.title_case_headers {
             write_headers_title_case(&msg.head.headers, dst);
         } else {
-            write_headers(&msg.head.headers, dst);
+            write_headers(&msg.head.headers, dst, msg.special_headers);
         }
 
         extend(dst, b"\r\n");
@@ -1441,9 +1442,17 @@ fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     }
 }
 
-fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
+fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>, special_headers: Option<&HashMap<&'static str, &'static [u8]>>) {
     for (name, value) in headers {
-        extend(dst, name.as_str().as_bytes());
+        let name = if let Some(special_headers) = special_headers.as_ref() {
+            match special_headers.get(&name.as_str()) {
+                Some(x) => x,
+                None => name.as_str().as_bytes(),
+            }
+        } else {
+            name.as_str().as_bytes()
+        };
+        extend(dst, name);
         extend(dst, b": ");
         extend(dst, value.as_bytes());
         extend(dst, b"\r\n");
@@ -2404,6 +2413,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2435,6 +2445,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: false,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2469,6 +2480,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2493,6 +2505,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut Some(Method::CONNECT),
                 title_case_headers: false,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2522,6 +2535,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2556,6 +2570,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: false,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2590,6 +2605,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                special_headers: None,
             },
             &mut vec,
         )
@@ -2665,6 +2681,23 @@ mod tests {
 
         assert_eq!(dst, b"X-Empty: a\r\nX-EMPTY: b\r\n");
     }
+
+    #[test]
+    fn test_write_special_headers() {
+        let special_headers = HashMap::from([
+                    ("a-special-header", "A-spEciAl-hEaDER".as_bytes()),
+                ]);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(http::header::HeaderName::from_static("a-special-header"), "a".parse().unwrap());
+        headers.insert(http::header::HeaderName::from_static("not-a-special-header"), "a".parse().unwrap());
+
+        let mut dst = Vec::new();
+        super::write_headers(&headers, &mut dst, Some(&special_headers));
+
+        assert_eq!(dst, b"A-spEciAl-hEaDER: a\r\nnot-a-special-header: a\r\n");
+    }
+
 
     #[cfg(feature = "nightly")]
     use test::Bencher;
@@ -2806,6 +2839,7 @@ mod tests {
                     keep_alive: true,
                     req_method: &mut Some(Method::GET),
                     title_case_headers: false,
+                    special_headers: None,
                 },
                 &mut vec,
             )
@@ -2834,6 +2868,7 @@ mod tests {
                     keep_alive: true,
                     req_method: &mut Some(Method::GET),
                     title_case_headers: false,
+                    special_headers: None,
                 },
                 &mut vec,
             )
