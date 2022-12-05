@@ -13,7 +13,10 @@ use super::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType
 
 /// An options builder to configure an HTTP client connection.
 pub struct hyper_clientconn_options {
-    builder: conn::Builder,
+    http1_allow_obsolete_multiline_headers_in_responses: bool,
+    http1_preserve_header_case: bool,
+    http1_preserve_header_order: bool,
+    http2: bool,
     /// Use a `Weak` to prevent cycles.
     exec: WeakExec,
 }
@@ -24,7 +27,14 @@ pub struct hyper_clientconn_options {
 /// send multiple requests on a single connection, such as when HTTP/1
 /// keep-alive or HTTP/2 is used.
 pub struct hyper_clientconn {
-    tx: conn::SendRequest<crate::Body>,
+    tx: Tx,
+}
+
+enum Tx {
+    #[cfg(feature = "http1")]
+    Http1(conn::http1::SendRequest<crate::body::Incoming>),
+    #[cfg(feature = "http2")]
+    Http2(conn::http2::SendRequest<crate::body::Incoming>),
 }
 
 // ===== impl hyper_clientconn =====
@@ -42,13 +52,34 @@ ffi_fn! {
         let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
 
         Box::into_raw(hyper_task::boxed(async move {
-            options.builder.handshake::<_, crate::Body>(io)
+            #[cfg(feature = "http2")]
+            {
+            if options.http2 {
+                return conn::http2::Builder::new()
+                    .executor(options.exec.clone())
+                    .handshake::<_, crate::body::Incoming>(io)
+                    .await
+                    .map(|(tx, conn)| {
+                        options.exec.execute(Box::pin(async move {
+                            let _ = conn.await;
+                        }));
+                        hyper_clientconn { tx: Tx::Http2(tx) }
+                    });
+            }
+            }
+
+            conn::http1::Builder::new()
+                .executor(options.exec.clone())
+                .http1_allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
+                .http1_preserve_header_case(options.http1_preserve_header_case)
+                .http1_preserve_header_order(options.http1_preserve_header_order)
+                .handshake::<_, crate::body::Incoming>(io)
                 .await
                 .map(|(tx, conn)| {
                     options.exec.execute(Box::pin(async move {
                         let _ = conn.await;
                     }));
-                    hyper_clientconn { tx }
+                    hyper_clientconn { tx: Tx::Http1(tx) }
                 })
         }))
     } ?= std::ptr::null_mut()
@@ -65,7 +96,10 @@ ffi_fn! {
         // Update request with original-case map of headers
         req.finalize_request();
 
-        let fut = non_null! { &mut *conn ?= ptr::null_mut() }.tx.send_request(req.0);
+        let fut = match non_null! { &mut *conn ?= ptr::null_mut() }.tx {
+            Tx::Http1(ref mut tx) => futures_util::future::Either::Left(tx.send_request(req.0)),
+            Tx::Http2(ref mut tx) => futures_util::future::Either::Right(tx.send_request(req.0)),
+        };
 
         let fut = async move {
             fut.await.map(hyper_response::wrap)
@@ -93,10 +127,11 @@ unsafe impl AsTaskType for hyper_clientconn {
 ffi_fn! {
     /// Creates a new set of HTTP clientconn options to be used in a handshake.
     fn hyper_clientconn_options_new() -> *mut hyper_clientconn_options {
-        let builder = conn::Builder::new();
-
         Box::into_raw(Box::new(hyper_clientconn_options {
-            builder,
+            http1_allow_obsolete_multiline_headers_in_responses: false,
+            http1_preserve_header_case: false,
+            http1_preserve_header_order: false,
+            http2: false,
             exec: WeakExec::new(),
         }))
     } ?= std::ptr::null_mut()
@@ -108,7 +143,7 @@ ffi_fn! {
     /// Pass `0` to allow lowercase normalization (default), `1` to retain original case.
     fn hyper_clientconn_options_set_preserve_header_case(opts: *mut hyper_clientconn_options, enabled: c_int) {
         let opts = non_null! { &mut *opts ?= () };
-        opts.builder.http1_preserve_header_case(enabled != 0);
+        opts.http1_preserve_header_case = enabled != 0;
     }
 }
 
@@ -118,7 +153,7 @@ ffi_fn! {
     /// Pass `0` to allow reordering (default), `1` to retain original ordering.
     fn hyper_clientconn_options_set_preserve_header_order(opts: *mut hyper_clientconn_options, enabled: c_int) {
         let opts = non_null! { &mut *opts ?= () };
-        opts.builder.http1_preserve_header_order(enabled != 0);
+        opts.http1_preserve_header_order = enabled != 0;
     }
 }
 
@@ -140,7 +175,6 @@ ffi_fn! {
         let weak_exec = hyper_executor::downgrade(&exec);
         std::mem::forget(exec);
 
-        opts.builder.executor(weak_exec.clone());
         opts.exec = weak_exec;
     }
 }
@@ -153,7 +187,7 @@ ffi_fn! {
         #[cfg(feature = "http2")]
         {
             let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-            opts.builder.http2_only(enabled != 0);
+            opts.http2 = enabled != 0;
             hyper_code::HYPERE_OK
         }
 
@@ -167,20 +201,6 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Set the whether to include a copy of the raw headers in responses
-    /// received on this connection.
-    ///
-    /// Pass `0` to disable, `1` to enable.
-    ///
-    /// If enabled, see `hyper_response_headers_raw()` for usage.
-    fn hyper_clientconn_options_headers_raw(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
-        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.builder.http1_headers_raw(enabled != 0);
-        hyper_code::HYPERE_OK
-    }
-}
-
-ffi_fn! {
     /// Set whether HTTP/1 connections will accept obsolete line folding for header values.
     /// Newline codepoints (\r and \n) will be transformed to spaces when parsing.
     ///
@@ -188,7 +208,7 @@ ffi_fn! {
     ///
     fn hyper_clientconn_options_http1_allow_multiline_headers(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.builder.http1_allow_obsolete_multiline_headers_in_responses(enabled != 0);
+        opts.http1_allow_obsolete_multiline_headers_in_responses = enabled != 0;
         hyper_code::HYPERE_OK
     }
 }

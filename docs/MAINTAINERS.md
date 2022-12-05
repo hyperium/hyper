@@ -1,8 +1,11 @@
 # The People
 
-To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERNANCED.md).
+To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERNANCE.md).
 
 ## Triagers
+
+- Eray Karatay (@programatik29)
+- Oddbjørn Grødem (@oddgrd)
 
 ## Collaborators
 

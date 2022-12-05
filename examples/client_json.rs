@@ -1,7 +1,8 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
 
-use hyper::Body;
+use bytes::Bytes;
+use http_body_util::{BodyExt, Empty};
 use hyper::{body::Buf, Request};
 use serde::Deserialize;
 use tokio::net::TcpStream;
@@ -29,7 +30,7 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
 
     let stream = TcpStream::connect(addr).await?;
 
-    let (mut sender, conn) = hyper::client::conn::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {:?}", err);
@@ -42,12 +43,12 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
     let req = Request::builder()
         .uri(url)
         .header(hyper::header::HOST, authority.as_str())
-        .body(Body::empty())?;
+        .body(Empty::<Bytes>::new())?;
 
     let res = sender.send_request(req).await?;
 
     // asynchronously aggregate the chunks of the body
-    let body = hyper::body::aggregate(res).await?;
+    let body = res.collect().await?.aggregate();
 
     // try to parse as json with serde_json
     let users = serde_json::from_reader(body.reader())?;

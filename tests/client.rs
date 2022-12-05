@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use http::uri::PathAndQuery;
 use http_body_util::{BodyExt, StreamBody};
-use hyper::body::to_bytes as concat;
+use hyper::body::Frame;
 use hyper::header::HeaderValue;
 use hyper::{Method, Request, StatusCode, Uri, Version};
 
@@ -27,6 +27,13 @@ mod support;
 
 fn s(buf: &[u8]) -> &str {
     std::str::from_utf8(buf).expect("from_utf8")
+}
+
+async fn concat<B>(b: B) -> Result<Bytes, B::Error>
+where
+    B: hyper::body::Body,
+{
+    b.collect().await.map(|c| c.to_bytes())
 }
 
 fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
@@ -232,19 +239,17 @@ macro_rules! test {
             // Wrapper around hyper::client::conn::Builder with set_host field to mimic
             // hyper::client::Builder.
             struct Builder {
-                inner: hyper::client::conn::Builder,
+                inner: hyper::client::conn::http1::Builder,
                 set_host: bool,
                 http09_responses: bool,
-                http2_only: bool,
             }
 
             impl Builder {
                 fn new() -> Self {
                     Self {
-                        inner: hyper::client::conn::Builder::new(),
+                        inner: hyper::client::conn::http1::Builder::new(),
                         set_host: true,
                         http09_responses: false,
-                        http2_only: false,
                     }
                 }
 
@@ -260,17 +265,10 @@ macro_rules! test {
                     self.inner.http09_responses(val);
                     self
                 }
-
-                #[allow(unused)]
-                fn http2_only(&mut self, val: bool) -> &mut Self {
-                    self.http2_only = val;
-                    self.inner.http2_only(val);
-                    self
-                }
             }
 
             impl std::ops::Deref for Builder {
-                type Target = hyper::client::conn::Builder;
+                type Target = hyper::client::conn::http1::Builder;
 
                 fn deref(&self) -> &Self::Target {
                     &self.inner
@@ -292,7 +290,7 @@ macro_rules! test {
                 return Err(Error::UnsupportedVersion);
             }
 
-            if req.version() == Version::HTTP_2 && !builder.http2_only {
+            if req.version() == Version::HTTP_2 {
                 return Err(Error::UnsupportedVersion);
             }
 
@@ -407,7 +405,10 @@ macro_rules! __client_req_prop {
     }};
 
     ($req_builder:ident, $body:ident, $addr:ident, body_stream: $body_e:expr) => {{
-        $body = BodyExt::boxed(StreamBody::new($body_e));
+        $body = BodyExt::boxed(StreamBody::new(futures_util::TryStreamExt::map_ok(
+            $body_e,
+            Frame::data,
+        )));
     }};
 }
 
@@ -1325,6 +1326,7 @@ test! {
 }
 
 mod conn {
+    use std::error::Error;
     use std::io::{self, Read, Write};
     use std::net::{SocketAddr, TcpListener};
     use std::pin::Pin;
@@ -1332,18 +1334,22 @@ mod conn {
     use std::thread;
     use std::time::Duration;
 
-    use bytes::Buf;
-    use futures_channel::oneshot;
+    use bytes::{Buf, Bytes};
+    use futures_channel::{mpsc, oneshot};
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
-    use hyper::upgrade::OnUpgrade;
+    use http_body_util::{BodyExt, Empty, StreamBody};
+    use hyper::rt::Timer;
     use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
-    use hyper::body::HttpBody;
+    use hyper::body::{Body, Frame};
     use hyper::client::conn;
-    use hyper::{self, Body, Method, Request, Response, StatusCode};
+    use hyper::upgrade::OnUpgrade;
+    use hyper::{Method, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
+
+    use support::{TokioExecutor, TokioTimer};
 
     #[tokio::test]
     async fn get() {
@@ -1371,7 +1377,7 @@ mod conn {
 
         let client = async move {
             let tcp = tcp_connect(&addr).await.expect("connect");
-            let (mut client, conn) = conn::handshake(tcp).await.expect("handshake");
+            let (mut client, conn) = conn::http1::handshake(tcp).await.expect("handshake");
 
             tokio::task::spawn(async move {
                 conn.await.expect("http conn");
@@ -1379,11 +1385,11 @@ mod conn {
 
             let req = Request::builder()
                 .uri("/a")
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
-            assert!(res.body_mut().data().await.is_none());
+            assert!(res.body_mut().frame().await.is_none());
         };
 
         future::join(server, client).await;
@@ -1415,7 +1421,7 @@ mod conn {
 
         let client = async move {
             let tcp = tcp_connect(&addr).await.expect("connect");
-            let (mut client, conn) = conn::handshake(tcp).await.expect("handshake");
+            let (mut client, conn) = conn::http1::handshake(tcp).await.expect("handshake");
 
             tokio::task::spawn(async move {
                 conn.await.expect("http conn");
@@ -1423,7 +1429,7 @@ mod conn {
 
             let req = Request::builder()
                 .uri("/a")
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
             assert_eq!(res.status(), hyper::StatusCode::OK);
@@ -1439,7 +1445,7 @@ mod conn {
                 res.headers().get(http::header::CONTENT_LENGTH).unwrap(),
                 "0"
             );
-            assert!(res.body_mut().data().await.is_none());
+            assert!(res.body_mut().frame().await.is_none());
         };
 
         future::join(server, client).await;
@@ -1447,8 +1453,6 @@ mod conn {
 
     #[test]
     fn incoming_content_length() {
-        use hyper::body::HttpBody;
-
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
         let addr = server.local_addr().unwrap();
         let rt = support::runtime();
@@ -1473,25 +1477,25 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
         let req = Request::builder()
             .uri("/")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res = client.send_request(req).and_then(move |mut res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
             assert_eq!(res.body().size_hint().exact(), Some(5));
             assert!(!res.body().is_end_stream());
-            poll_fn(move |ctx| Pin::new(res.body_mut()).poll_data(ctx)).map(Option::unwrap)
+            poll_fn(move |ctx| Pin::new(res.body_mut()).poll_frame(ctx)).map(Option::unwrap)
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         let chunk = rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
-        assert_eq!(chunk.len(), 5);
+        assert_eq!(chunk.data_ref().unwrap().len(), 5);
     }
 
     #[test]
@@ -1519,21 +1523,30 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
-        let (mut sender, body) = Body::channel();
+        let (mut sender, recv) =
+            mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
+
         let sender = thread::spawn(move || {
-            sender.try_send_data("hello".into()).expect("try_send_data");
+            sender
+                .try_send(Ok(Frame::data("hello".into())))
+                .expect("try_send_data");
             support::runtime().block_on(rx).unwrap();
-            sender.abort();
+
+            // Aborts the body in an abnormal fashion.
+            let _ = sender.try_send(Err(Box::new(std::io::Error::new(
+                io::ErrorKind::Other,
+                "body write aborted",
+            ))));
         });
 
         let req = Request::builder()
             .method(Method::POST)
             .uri("/")
-            .body(body)
+            .body(StreamBody::new(recv))
             .unwrap();
         let res = client.send_request(req);
         rt.block_on(res).unwrap_err();
@@ -1570,13 +1583,13 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
         let req = Request::builder()
             .uri("http://hyper.local/a")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
 
         let res = client.send_request(req).and_then(move |res| {
@@ -1584,7 +1597,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1615,14 +1628,14 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
         let req = Request::builder()
             .uri("/a")
             .version(hyper::Version::HTTP_2)
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
 
         let res = client.send_request(req).and_then(move |res| {
@@ -1630,7 +1643,7 @@ mod conn {
             concat(res)
         });
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         rt.block_on(future::join(res, rx).map(|r| r.0)).unwrap();
     }
 
@@ -1657,13 +1670,13 @@ mod conn {
 
         let tcp = rt.block_on(tcp_connect(&addr)).unwrap();
 
-        let (mut client, conn) = rt.block_on(conn::handshake(tcp)).unwrap();
+        let (mut client, conn) = rt.block_on(conn::http1::handshake(tcp)).unwrap();
 
         rt.spawn(conn.map_err(|e| panic!("conn error: {}", e)).map(|_| ()));
 
         let req = Request::builder()
             .uri("/a")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res1 = client.send_request(req).and_then(move |res| {
             assert_eq!(res.status(), hyper::StatusCode::OK);
@@ -1673,7 +1686,7 @@ mod conn {
         // pipelined request will hit NotReady, and thus should return an Error::Cancel
         let req = Request::builder()
             .uri("/b")
-            .body(Default::default())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res2 = client.send_request(req).map(|result| {
             let err = result.expect_err("res2");
@@ -1682,7 +1695,7 @@ mod conn {
         });
 
         let rx = rx1.expect("thread panicked");
-        let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+        let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
         rt.block_on(future::join3(res1, res2, rx).map(|r| r.0))
             .unwrap();
     }
@@ -1727,14 +1740,14 @@ mod conn {
             shutdown_called: false,
         };
 
-        let (mut client, mut conn) = rt.block_on(conn::handshake(io)).unwrap();
+        let (mut client, mut conn) = rt.block_on(conn::http1::handshake(io)).unwrap();
 
         {
             let until_upgrade = poll_fn(|ctx| conn.poll_without_shutdown(ctx));
 
             let req = Request::builder()
                 .uri("/a")
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let res = client.send_request(req).and_then(move |res| {
                 assert_eq!(res.status(), hyper::StatusCode::SWITCHING_PROTOCOLS);
@@ -1743,7 +1756,7 @@ mod conn {
             });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+            let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_upgrade, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -1813,7 +1826,7 @@ mod conn {
             shutdown_called: false,
         };
 
-        let (mut client, mut conn) = rt.block_on(conn::handshake(io)).unwrap();
+        let (mut client, mut conn) = rt.block_on(conn::http1::handshake(io)).unwrap();
 
         {
             let until_tunneled = poll_fn(|ctx| conn.poll_without_shutdown(ctx));
@@ -1821,7 +1834,7 @@ mod conn {
             let req = Request::builder()
                 .method("CONNECT")
                 .uri(addr.to_string())
-                .body(Default::default())
+                .body(Empty::<Bytes>::new())
                 .unwrap();
             let res = client
                 .send_request(req)
@@ -1834,7 +1847,7 @@ mod conn {
                 });
 
             let rx = rx1.expect("thread panicked");
-            let rx = rx.then(|_| tokio::time::sleep(Duration::from_millis(200)));
+            let rx = rx.then(|_| TokioTimer.sleep(Duration::from_millis(200)));
             rt.block_on(future::join3(until_tunneled, res, rx).map(|r| r.0))
                 .unwrap();
 
@@ -1878,7 +1891,7 @@ mod conn {
         let addr = listener.local_addr().unwrap();
         let (shdn_tx, mut shdn_rx) = tokio::sync::watch::channel(false);
         tokio::task::spawn(async move {
-            use hyper::server::conn::Http;
+            use hyper::server::conn::http2;
             use hyper::service::service_fn;
 
             loop {
@@ -1886,11 +1899,12 @@ mod conn {
                     res = listener.accept() => {
                         let (stream, _) = res.unwrap();
 
-                        let service = service_fn(|_:Request<Body>| future::ok::<Response<Body>, hyper::Error>(Response::new(Body::empty())));
+                        let service = service_fn(|_:Request<hyper::body::Incoming>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
 
                         let mut shdn_rx = shdn_rx.clone();
                         tokio::task::spawn(async move {
-                            let mut conn = Http::new().http2_only(true).serve_connection(stream, service);
+                            let mut conn = http2::Builder::new(TokioExecutor)
+                                .serve_connection(stream, service);
 
                             tokio::select! {
                                 res = &mut conn => {
@@ -1911,9 +1925,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
-            .http2_only(true)
-            .handshake::<_, Body>(io)
+        let (mut client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -1928,7 +1942,7 @@ mod conn {
 
         let req = Request::builder()
             .uri(format!("http://{}/", addr))
-            .body(Body::empty())
+            .body(Empty::<Bytes>::new())
             .expect("request builder");
 
         client.send_request(req).await.expect("req1 send");
@@ -1942,7 +1956,7 @@ mod conn {
         let _ = shdn_tx.send(true);
 
         // Allow time for graceful shutdown roundtrips...
-        tokio::time::sleep(Duration::from_millis(100)).await;
+        TokioTimer.sleep(Duration::from_millis(100)).await;
 
         // After graceful shutdown roundtrips, the client should be closed...
         future::poll_fn(|ctx| client.poll_ready(ctx))
@@ -1973,13 +1987,14 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (_client, conn) = conn::Builder::new()
-            .http2_only(true)
+        let (_client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .timer(TokioTimer)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
             // enable while idle since we aren't sending requests
             .http2_keep_alive_while_idle(true)
-            .handshake::<_, Body>(io)
+            .handshake::<_, hyper::body::Incoming>(io)
             .await
             .expect("http handshake");
 
@@ -2006,11 +2021,12 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
-            .http2_only(true)
+        let (mut client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .timer(TokioTimer)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake::<_, hyper::body::Incoming>(io)
             .await
             .expect("http handshake");
 
@@ -2019,7 +2035,7 @@ mod conn {
         });
 
         // sleep longer than keepalive would trigger
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        TokioTimer.sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2042,11 +2058,12 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
-            .http2_only(true)
+        let (mut client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .timer(TokioTimer)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -2055,7 +2072,7 @@ mod conn {
             assert!(err.is_timeout());
         });
 
-        let req = http::Request::new(hyper::Body::empty());
+        let req = http::Request::new(Empty::<Bytes>::new());
         let err = client
             .send_request(req)
             .await
@@ -2088,17 +2105,17 @@ mod conn {
         // Spawn an HTTP2 server that reads the whole body and responds
         tokio::spawn(async move {
             let sock = listener.accept().await.unwrap().0;
-            hyper::server::conn::Http::new()
-                .http2_only(true)
+            hyper::server::conn::http2::Builder::new(TokioExecutor)
+                .timer(TokioTimer)
                 .serve_connection(
                     sock,
                     service_fn(|req| async move {
                         tokio::spawn(async move {
-                            let _ = hyper::body::aggregate(req.into_body())
+                            let _ = concat(req.into_body())
                                 .await
                                 .expect("server req body aggregate");
                         });
-                        Ok::<_, hyper::Error>(http::Response::new(hyper::Body::empty()))
+                        Ok::<_, hyper::Error>(http::Response::new(Empty::<Bytes>::new()))
                     }),
                 )
                 .await
@@ -2106,11 +2123,12 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
-            .http2_only(true)
+        let (mut client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .timer(TokioTimer)
             .http2_keep_alive_interval(Duration::from_secs(1))
             .http2_keep_alive_timeout(Duration::from_secs(1))
-            .handshake::<_, Body>(io)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -2119,12 +2137,13 @@ mod conn {
         });
 
         // Use a channel to keep request stream open
-        let (_tx, body) = hyper::Body::channel();
-        let req1 = http::Request::new(body);
-        let _resp = client.send_request(req1).await.expect("send_request");
+        let (_tx, recv) = mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
+        let req = http::Request::new(StreamBody::new(recv));
+
+        let _resp = client.send_request(req).await.expect("send_request");
 
         // sleep longer than keepalive would trigger
-        tokio::time::sleep(Duration::from_secs(4)).await;
+        TokioTimer.sleep(Duration::from_secs(4)).await;
 
         future::poll_fn(|ctx| client.poll_ready(ctx))
             .await
@@ -2153,7 +2172,7 @@ mod conn {
 
             let mut body = req.into_body();
 
-            let mut send_stream = respond.send_response(Response::default(), false).unwrap();
+            let mut send_stream = respond.send_response(Response::new(()), false).unwrap();
 
             send_stream.send_data("Bread?".into(), true).unwrap();
 
@@ -2165,9 +2184,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
-            .http2_only(true)
-            .handshake::<_, Body>(io)
+        let (mut client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .handshake(io)
             .await
             .expect("http handshake");
 
@@ -2176,7 +2195,7 @@ mod conn {
         });
 
         let req = Request::connect("localhost")
-            .body(hyper::Body::empty())
+            .body(Empty::<Bytes>::new())
             .unwrap();
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::OK);
@@ -2221,9 +2240,9 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::Builder::new()
-            .http2_only(true)
-            .handshake::<_, Body>(io)
+        let (mut client, conn) = conn::http2::Builder::new()
+            .executor(TokioExecutor)
+            .handshake::<_, Empty<Bytes>>(io)
             .await
             .expect("http handshake");
 
@@ -2231,15 +2250,13 @@ mod conn {
             conn.await.expect("client conn shouldn't error");
         });
 
-        let req = Request::connect("localhost")
-            .body(hyper::Body::empty())
-            .unwrap();
+        let req = Request::connect("localhost").body(Empty::new()).unwrap();
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::BAD_REQUEST);
         assert!(res.extensions().get::<OnUpgrade>().is_none());
 
         let mut body = String::new();
-        hyper::body::aggregate(res.into_body())
+        concat(res.into_body())
             .await
             .unwrap()
             .reader()
@@ -2248,6 +2265,48 @@ mod conn {
         assert_eq!(body, "No bread for you!");
 
         done_tx.send(()).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_body_panics() {
+        let _ = pretty_env_logger::try_init();
+
+        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+            .await
+            .unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        // spawn a server that reads but doesn't write
+        tokio::spawn(async move {
+            let sock = listener.accept().await.unwrap().0;
+            drain_til_eof(sock).await.expect("server read");
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .handshake(io)
+            .await
+            .expect("handshake");
+
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        let req = Request::post("/a")
+            .body(http_body_util::BodyExt::map_frame::<_, bytes::Bytes>(
+                http_body_util::Full::<bytes::Bytes>::from("baguette"),
+                |_| panic!("oopsie"),
+            ))
+            .unwrap();
+
+        let error = client.send_request(req).await.unwrap_err();
+
+        assert!(error.is_user());
+        assert_eq!(
+            error.to_string(),
+            "dispatch task is gone: user code panicked"
+        );
     }
 
     async fn drain_til_eof<T: AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {

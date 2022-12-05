@@ -1,17 +1,13 @@
 use std::cmp;
 use std::fmt;
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use std::future::Future;
 use std::io::{self, IoSlice};
 use std::marker::Unpin;
 use std::mem::MaybeUninit;
-#[cfg(all(feature = "server", feature = "runtime"))]
-use std::time::Duration;
 
 use bytes::{Buf, BufMut, Bytes, BytesMut};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Instant;
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
@@ -187,37 +183,29 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
-                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    #[cfg(feature = "server")]
                     h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
-                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    #[cfg(feature = "server")]
                     h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
-                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    #[cfg(feature = "server")]
                     h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
+                    #[cfg(feature = "server")]
+                    timer: parse_ctx.timer.clone(),
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
                     on_informational: parse_ctx.on_informational,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: parse_ctx.raw_headers,
                 },
             )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
 
-                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    #[cfg(feature = "server")]
                     {
                         *parse_ctx.h1_header_read_timeout_running = false;
-
-                        if let Some(h1_header_read_timeout_fut) =
-                            parse_ctx.h1_header_read_timeout_fut
-                        {
-                            // Reset the timer in order to avoid woken up when the timeout finishes
-                            h1_header_read_timeout_fut
-                                .as_mut()
-                                .reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
-                        }
+                        parse_ctx.h1_header_read_timeout_fut.take();
                     }
                     return Poll::Ready(Ok(msg));
                 }
@@ -228,7 +216,7 @@ where
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
 
-                    #[cfg(all(feature = "server", feature = "runtime"))]
+                    #[cfg(feature = "server")]
                     if *parse_ctx.h1_header_read_timeout_running {
                         if let Some(h1_header_read_timeout_fut) =
                             parse_ctx.h1_header_read_timeout_fut
@@ -674,6 +662,8 @@ enum WriteStrategy {
 
 #[cfg(test)]
 mod tests {
+    use crate::common::time::Time;
+
     use super::*;
     use std::time::Duration;
 
@@ -713,6 +703,7 @@ mod tests {
         // io_buf.flush().await.expect("should short-circuit flush");
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn parse_reads_until_blocked() {
         use crate::proto::h1::ClientTransaction;
@@ -735,20 +726,16 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
-                #[cfg(feature = "runtime")]
                 h1_header_read_timeout: None,
-                #[cfg(feature = "runtime")]
                 h1_header_read_timeout_fut: &mut None,
-                #[cfg(feature = "runtime")]
                 h1_header_read_timeout_running: &mut false,
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
-                #[cfg(feature = "ffi")]
-                raw_headers: false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)
@@ -903,6 +890,7 @@ mod tests {
     }
     */
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn write_buf_flatten() {
         let _ = pretty_env_logger::try_init();
@@ -956,6 +944,7 @@ mod tests {
         assert_eq!(write_buf.headers.pos, 0);
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn write_buf_queue_disable_auto() {
         let _ = pretty_env_logger::try_init();

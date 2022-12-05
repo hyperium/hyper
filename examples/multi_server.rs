@@ -3,21 +3,23 @@
 
 use std::net::SocketAddr;
 
+use bytes::Bytes;
 use futures_util::future::join;
-use hyper::server::conn::Http;
+use http_body_util::Full;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response};
+use hyper::{Request, Response};
 use tokio::net::TcpListener;
 
 static INDEX1: &[u8] = b"The 1st service!";
 static INDEX2: &[u8] = b"The 2nd service!";
 
-async fn index1(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    Ok(Response::new(Body::from(INDEX1)))
+async fn index1(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+    Ok(Response::new(Full::new(Bytes::from(INDEX1))))
 }
 
-async fn index2(_: Request<Body>) -> Result<Response<Body>, hyper::Error> {
-    Ok(Response::new(Body::from(INDEX2)))
+async fn index2(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, hyper::Error> {
+    Ok(Response::new(Full::new(Bytes::from(INDEX2))))
 }
 
 #[tokio::main]
@@ -33,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let (stream, _) = listener.accept().await.unwrap();
 
             tokio::task::spawn(async move {
-                if let Err(err) = Http::new()
+                if let Err(err) = http1::Builder::new()
                     .serve_connection(stream, service_fn(index1))
                     .await
                 {
@@ -49,7 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let (stream, _) = listener.accept().await.unwrap();
 
             tokio::task::spawn(async move {
-                if let Err(err) = Http::new()
+                if let Err(err) = http1::Builder::new()
                     .serve_connection(stream, service_fn(index2))
                     .await
                 {

@@ -1,13 +1,12 @@
 #![deny(warnings)]
 
-use hyper::server::conn::Http;
+use hyper::server::conn::http2;
 use std::cell::Cell;
 use std::net::SocketAddr;
 use std::rc::Rc;
 use tokio::net::TcpListener;
 
-use hyper::body::{Bytes, HttpBody};
-use hyper::header::{HeaderMap, HeaderValue};
+use hyper::body::{Body as HttpBody, Bytes, Frame};
 use hyper::service::service_fn;
 use hyper::{Error, Response};
 use std::marker::PhantomData;
@@ -33,18 +32,11 @@ impl HttpBody for Body {
     type Data = Bytes;
     type Error = Error;
 
-    fn poll_data(
+    fn poll_frame(
         self: Pin<&mut Self>,
         _: &mut Context<'_>,
-    ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
-        Poll::Ready(self.get_mut().data.take().map(Ok))
-    }
-
-    fn poll_trailers(
-        self: Pin<&mut Self>,
-        _: &mut Context<'_>,
-    ) -> Poll<Result<Option<HeaderMap<HeaderValue>>, Self::Error>> {
-        Poll::Ready(Ok(None))
+    ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
+        Poll::Ready(self.get_mut().data.take().map(|d| Ok(Frame::data(d))))
     }
 }
 
@@ -84,8 +76,7 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         });
 
         tokio::task::spawn_local(async move {
-            if let Err(err) = Http::new()
-                .with_executor(LocalExec)
+            if let Err(err) = http2::Builder::new(LocalExec)
                 .serve_connection(stream, service)
                 .await
             {
@@ -95,6 +86,8 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+// NOTE: This part is only needed for HTTP/2. HTTP/1 doesn't need an executor.
+//
 // Since the Server needs to spawn some background tasks, we needed
 // to configure an Executor that can spawn !Send futures...
 #[derive(Clone, Copy, Debug)]

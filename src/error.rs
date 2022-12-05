@@ -38,7 +38,7 @@ pub(super) enum Kind {
     #[cfg(all(feature = "tcp", feature = "server"))]
     Listen,
     /// User took too long to send headers
-    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+    #[cfg(all(feature = "http1", feature = "server"))]
     HeaderTimeout,
     /// Error while reading a body from connection.
     #[cfg(any(feature = "http1", feature = "http2"))]
@@ -84,7 +84,7 @@ pub(super) enum Header {
 
 #[derive(Debug)]
 pub(super) enum User {
-    /// Error calling user's HttpBody::poll_data().
+    /// Error calling user's Body::poll_data().
     #[cfg(any(feature = "http1", feature = "http2"))]
     Body,
     /// The user aborted writing of the outgoing body.
@@ -110,9 +110,9 @@ pub(super) enum User {
     #[cfg(feature = "http1")]
     ManualUpgrade,
 
-    /// User called `server::Connection::without_shutdown()` on an HTTP/2 conn.
-    #[cfg(feature = "server")]
-    WithoutShutdownNonHttp1,
+    /// The dispatch task is gone.
+    #[cfg(feature = "client")]
+    DispatchGone,
 
     /// User aborted in an FFI callback.
     #[cfg(feature = "ffi")]
@@ -278,7 +278,7 @@ impl Error {
         Error::new_user(User::UnexpectedHeader)
     }
 
-    #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+    #[cfg(all(feature = "http1", feature = "server"))]
     pub(super) fn new_header_timeout() -> Error {
         Error::new(Kind::HeaderTimeout)
     }
@@ -308,11 +308,6 @@ impl Error {
         Error::new_user(User::Body).with(cause)
     }
 
-    #[cfg(feature = "server")]
-    pub(super) fn new_without_shutdown_not_h1() -> Error {
-        Error::new(Kind::User(User::WithoutShutdownNonHttp1))
-    }
-
     #[cfg(feature = "http1")]
     pub(super) fn new_shutdown(cause: std::io::Error) -> Error {
         Error::new(Kind::Shutdown).with(cause)
@@ -321,6 +316,11 @@ impl Error {
     #[cfg(feature = "ffi")]
     pub(super) fn new_user_aborted_by_callback() -> Error {
         Error::new_user(User::AbortedByCallback)
+    }
+
+    #[cfg(feature = "client")]
+    pub(super) fn new_user_dispatch_gone() -> Error {
+        Error::new(Kind::User(User::DispatchGone))
     }
 
     #[cfg(feature = "http2")]
@@ -370,7 +370,7 @@ impl Error {
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "server", feature = "tcp"))]
             Kind::Listen => "error creating server listener",
-            #[cfg(all(feature = "http1", feature = "server", feature = "runtime"))]
+            #[cfg(all(feature = "http1", feature = "server"))]
             Kind::HeaderTimeout => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Body => "error reading a body from connection",
@@ -384,7 +384,7 @@ impl Error {
             Kind::Io => "connection error",
 
             #[cfg(any(feature = "http1", feature = "http2"))]
-            Kind::User(User::Body) => "error from user's HttpBody stream",
+            Kind::User(User::Body) => "error from user's Body stream",
             Kind::User(User::BodyWriteAborted) => "user body write aborted",
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::User(User::Service) => "error from user's Service",
@@ -399,10 +399,8 @@ impl Error {
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(feature = "http1")]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
-            #[cfg(feature = "server")]
-            Kind::User(User::WithoutShutdownNonHttp1) => {
-                "without_shutdown() called on a non-HTTP/1 connection"
-            }
+            #[cfg(feature = "client")]
+            Kind::User(User::DispatchGone) => "dispatch task is gone",
             #[cfg(feature = "ffi")]
             Kind::User(User::AbortedByCallback) => "operation aborted by an application callback",
         }

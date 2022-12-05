@@ -1,3 +1,67 @@
+### v1.0.0-rc.1 (2022-10-25)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * trim obs-folded headers when unfolding (#2926) ([d4b5bd4e](https://github.com/hyperium/hyper/commit/d4b5bd4ee6af0ae8924cf05ab799cc3e19a3c62d))
+
+
+#### Features
+
+* **body:**
+  * rename `Body` struct to `Incoming` (#3022) ([95a153bb](https://github.com/hyperium/hyper/commit/95a153bbc2717bd4233486e09848622ceb900574), closes [#2971](https://github.com/hyperium/hyper/issues/2971))
+  * update `HttpBody` trait to use `Frame`s (#3020) ([0888623d](https://github.com/hyperium/hyper/commit/0888623d3764e887706d4e38f82f0fb57c50bd1a), closes [#3010](https://github.com/hyperium/hyper/issues/3010))
+  * make body::Sender and Body::channel private (#2970) ([d963e6a9](https://github.com/hyperium/hyper/commit/d963e6a9504575116f63df2485d8480fdb9b6f0b), closes [#2962](https://github.com/hyperium/hyper/issues/2962))
+  * remove "full" constructors from `Body` (#2958) ([9e8fc8fc](https://github.com/hyperium/hyper/commit/9e8fc8fca195f470a82be5bfb2fd8019c044b97a))
+* **client:**
+  * remove `client::conn::{SendRequest, Connection}` (#2987) ([8ae73cac](https://github.com/hyperium/hyper/commit/8ae73cac6a8f6a61944505c121158dc312e7b68f))
+  * remove `client::connect` module (#2949) ([5e206883](https://github.com/hyperium/hyper/commit/5e206883984fe6de2812861ec363964d92b89b06))
+  * remove higher-level `hyper::Client` (#2941) ([bb3af17c](https://github.com/hyperium/hyper/commit/bb3af17ce1a3841e9170adabcce595c7c8743ea7))
+  * remove `hyper::client::server` (#2940) ([889fa2d8](https://github.com/hyperium/hyper/commit/889fa2d87252108eb7668b8bf034ffcc30985117))
+  * introduce version-specific client modules (#2906) ([509672aa](https://github.com/hyperium/hyper/commit/509672aada0af68a91d963e69828c6e31c44cb7b))
+* **ffi:** add http1_allow_multiline_headers (#2918) ([09e35668](https://github.com/hyperium/hyper/commit/09e35668e5b094d679efb4b98ecde9cb6f9f2f93))
+* **lib:** remove `stream` cargo feature (#2896) ([ce72f734](https://github.com/hyperium/hyper/commit/ce72f73464d96fd67b59ceff08fd424733b43ffa), closes [#2855](https://github.com/hyperium/hyper/issues/2855))
+* **rt:** add Timer trait (#2974) ([fae97ced](https://github.com/hyperium/hyper/commit/fae97ced3a1f71fc46b6eadd3313e19705cc0006))
+* **server:**
+  * remove `server::conn::{Http, Connection}` types (#3013) ([0766d3f7](https://github.com/hyperium/hyper/commit/0766d3f78d116ea243222cea134cfe7f418e6a3c), closes [#3012](https://github.com/hyperium/hyper/issues/3012))
+  * `server::conn::http1` and `server::conn::http2` modules (#3011) ([fc4d3356](https://github.com/hyperium/hyper/commit/fc4d3356cb7f2fffff5af9c474fa34c5adc5d6f1), closes [#2851](https://github.com/hyperium/hyper/issues/2851))
+  * remove the high-level Server API (#2932) ([3c7bef3b](https://github.com/hyperium/hyper/commit/3c7bef3b6f6b6c3ec780e5e2db12c9d5795c1b80))
+  * remove `AddrStream` struct (#2869) ([e9cab49e](https://github.com/hyperium/hyper/commit/e9cab49e6e18f712b94137966580f6756e32fabb), closes [#2850](https://github.com/hyperium/hyper/issues/2850))
+* **service:** create own `Service` trait (#2920) ([fee7d361](https://github.com/hyperium/hyper/commit/fee7d361c28c7eb42ef6bbfae0db14028d24bfee), closes [#2853](https://github.com/hyperium/hyper/issues/2853))
+
+
+#### Breaking Changes
+
+* The polling functions of the `Body` trait have been
+  redesigned.
+
+  The free functions `hyper::body::to_bytes` and `aggregate` have been
+  removed. Similar functionality is on
+  `http_body_util::BodyExt::collect`.
+ ([0888623d](https://github.com/hyperium/hyper/commit/0888623d3764e887706d4e38f82f0fb57c50bd1a))
+* Either choose a version-specific `Connection` type, or
+  look for the auto-version type in `hyper-util`.
+ ([0766d3f7](https://github.com/hyperium/hyper/commit/0766d3f78d116ea243222cea134cfe7f418e6a3c))
+* Pick a version-specific connection, or use the combined
+  one in `hyper-util`.
+ ([8ae73cac](https://github.com/hyperium/hyper/commit/8ae73cac6a8f6a61944505c121158dc312e7b68f))
+* Change any manual `impl tower::Service` to implement `hyper::service::Service` instead. The `poll_ready` method has been removed.
+ ([fee7d361](https://github.com/hyperium/hyper/commit/fee7d361c28c7eb42ef6bbfae0db14028d24bfee))
+* The trait has been renamed.
+ ([031454e5](https://github.com/hyperium/hyper/commit/031454e5e647dda0648424a944dbef795505e2e4))
+* A channel body will be available in `hyper-util`.
+ ([d963e6a9](https://github.com/hyperium/hyper/commit/d963e6a9504575116f63df2485d8480fdb9b6f0b))
+* Use the types from `http-body-util`.
+ ([9e8fc8fc](https://github.com/hyperium/hyper/commit/9e8fc8fca195f470a82be5bfb2fd8019c044b97a))
+* Use `connect` from `hyper-util`.
+ ([5e206883](https://github.com/hyperium/hyper/commit/5e206883984fe6de2812861ec363964d92b89b06))
+* A pooling client is in the hyper-util crate.
+ ([bb3af17c](https://github.com/hyperium/hyper/commit/bb3af17ce1a3841e9170adabcce595c7c8743ea7))
+* Tower `Service` utilities will exist in `hyper-util`.
+ ([889fa2d8](https://github.com/hyperium/hyper/commit/889fa2d87252108eb7668b8bf034ffcc30985117))
+
+
 ### v0.14.19 (2022-05-27)
 
 

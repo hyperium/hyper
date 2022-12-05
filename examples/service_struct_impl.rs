@@ -1,12 +1,13 @@
-use hyper::server::conn::Http;
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::server::conn::http1;
 use hyper::service::Service;
-use hyper::{Body, Request, Response};
+use hyper::{body::Incoming as IncomingBody, Request, Response};
 use tokio::net::TcpListener;
 
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::task::{Context, Poll};
 
 type Counter = i32;
 
@@ -21,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let (stream, _) = listener.accept().await?;
 
         tokio::task::spawn(async move {
-            if let Err(err) = Http::new()
+            if let Err(err) = http1::Builder::new()
                 .serve_connection(stream, Svc { counter: 81818 })
                 .await
             {
@@ -35,18 +36,14 @@ struct Svc {
     counter: Counter,
 }
 
-impl Service<Request<Body>> for Svc {
-    type Response = Response<Body>;
+impl Service<Request<IncomingBody>> for Svc {
+    type Response = Response<Full<Bytes>>;
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn poll_ready(&mut self, _: &mut Context) -> Poll<Result<(), Self::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
-        fn mk_response(s: String) -> Result<Response<Body>, hyper::Error> {
-            Ok(Response::builder().body(Body::from(s)).unwrap())
+    fn call(&mut self, req: Request<IncomingBody>) -> Self::Future {
+        fn mk_response(s: String) -> Result<Response<Full<Bytes>>, hyper::Error> {
+            Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
         }
 
         let res = match req.uri().path() {

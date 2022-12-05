@@ -6,8 +6,10 @@ use std::sync::{
     Arc,
 };
 
-use hyper::{server::conn::Http, service::service_fn};
-use hyper::{Body, Error, Response};
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::{server::conn::http1, service::service_fn};
+use hyper::{Error, Response};
 use tokio::net::TcpListener;
 
 #[tokio::main]
@@ -36,10 +38,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             // Get the current count, and also increment by 1, in a single
             // atomic operation.
             let count = counter.fetch_add(1, Ordering::AcqRel);
-            async move { Ok::<_, Error>(Response::new(Body::from(format!("Request #{}", count)))) }
+            async move {
+                Ok::<_, Error>(Response::new(Full::new(Bytes::from(format!(
+                    "Request #{}",
+                    count
+                )))))
+            }
         });
 
-        if let Err(err) = Http::new().serve_connection(stream, service).await {
+        if let Err(err) = http1::Builder::new()
+            .serve_connection(stream, service)
+            .await
+        {
             println!("Error serving connection: {:?}", err);
         }
     }

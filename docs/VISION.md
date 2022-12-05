@@ -217,7 +217,7 @@ so we can safely report and fix issues.
 
 After writing this up, it is easier to articulate what sorts of things many
 might associate with an HTTP library, but which are explicitly *not* for hyper.
-These are all things that definitely **out of scope**.
+These are all things that are definitely **out of scope**.
 
 - TLS: We learned early that bundling TLS directly in hyper [has
   problems](https://github.com/hyperium/hyper/issues/985). People also have

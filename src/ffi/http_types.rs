@@ -2,19 +2,20 @@ use bytes::Bytes;
 use libc::{c_int, size_t};
 use std::ffi::c_void;
 
-use super::body::{hyper_body, hyper_buf};
+use super::body::hyper_body;
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
+use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::header::{HeaderName, HeaderValue};
-use crate::{Body, HeaderMap, Method, Request, Response, Uri};
+use crate::{HeaderMap, Method, Request, Response, Uri};
 
 /// An HTTP request.
-pub struct hyper_request(pub(super) Request<Body>);
+pub struct hyper_request(pub(super) Request<IncomingBody>);
 
 /// An HTTP response.
-pub struct hyper_response(pub(super) Response<Body>);
+pub struct hyper_response(pub(super) Response<IncomingBody>);
 
 /// An HTTP header map.
 ///
@@ -24,8 +25,6 @@ pub struct hyper_headers {
     orig_casing: HeaderCaseMap,
     orig_order: OriginalHeaderOrder,
 }
-
-pub(crate) struct RawHeaders(pub(crate) hyper_buf);
 
 pub(crate) struct OnInformational {
     func: hyper_request_on_informational_callback,
@@ -39,7 +38,7 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 ffi_fn! {
     /// Construct a new HTTP request.
     fn hyper_request_new() -> *mut hyper_request {
-        Box::into_raw(Box::new(hyper_request(Request::new(Body::empty()))))
+        Box::into_raw(Box::new(hyper_request(Request::new(IncomingBody::empty()))))
     } ?= std::ptr::null_mut()
 }
 
@@ -279,27 +278,6 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Get a reference to the full raw headers of this response.
-    ///
-    /// You must have enabled `hyper_clientconn_options_headers_raw()`, or this
-    /// will return NULL.
-    ///
-    /// The returned `hyper_buf *` is just a reference, owned by the response.
-    /// You need to make a copy if you wish to use it after freeing the
-    /// response.
-    ///
-    /// The buffer is not null-terminated, see the `hyper_buf` functions for
-    /// getting the bytes and length.
-    fn hyper_response_headers_raw(resp: *const hyper_response) -> *const hyper_buf {
-        let resp = non_null!(&*resp ?= std::ptr::null());
-        match resp.0.extensions().get::<RawHeaders>() {
-            Some(raw) => &raw.0,
-            None => std::ptr::null(),
-        }
-    } ?= std::ptr::null()
-}
-
-ffi_fn! {
     /// Get the HTTP version used by this response.
     ///
     /// The returned value could be:
@@ -335,13 +313,13 @@ ffi_fn! {
     ///
     /// It is safe to free the response even after taking ownership of its body.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
-        let body = std::mem::take(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut());
+        let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), IncomingBody::empty());
         Box::into_raw(Box::new(hyper_body(body)))
     } ?= std::ptr::null_mut()
 }
 
 impl hyper_response {
-    pub(super) fn wrap(mut resp: Response<Body>) -> hyper_response {
+    pub(super) fn wrap(mut resp: Response<IncomingBody>) -> hyper_response {
         let headers = std::mem::take(resp.headers_mut());
         let orig_casing = resp
             .extensions_mut()
@@ -532,7 +510,7 @@ unsafe fn raw_name_value(
 // ===== impl OnInformational =====
 
 impl OnInformational {
-    pub(crate) fn call(&mut self, resp: Response<Body>) {
+    pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
         let mut resp = hyper_response::wrap(resp);
         (self.func)(self.data.0, &mut resp);
     }

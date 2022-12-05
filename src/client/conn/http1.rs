@@ -4,28 +4,49 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::sync::Arc;
 
+use bytes::Bytes;
 use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::Body;
-use crate::body::HttpBody;
+use crate::body::{Body, Incoming as IncomingBody};
+use super::super::dispatch;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
-use crate::upgrade::Upgraded;
 use crate::proto;
-use crate::rt::Executor;
-use super::super::dispatch;
+use crate::rt::{Executor};
+use crate::upgrade::Upgraded;
 
 type Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
-    dispatch: dispatch::Sender<Request<B>, Response<Body>>,
+    dispatch: dispatch::Sender<Request<B>, Response<IncomingBody>>,
 }
+
+/// Deconstructed parts of a `Connection`.
+///
+/// This allows taking apart a `Connection` at a later time, in order to
+/// reclaim the IO object, and additional related pieces.
+#[derive(Debug)]
+pub struct Parts<T> {
+    /// The original IO object used in the handshake.
+    pub io: T,
+    /// A buffer of bytes that have been read but not processed as HTTP.
+    ///
+    /// For instance, if the `Connection` is used for an HTTP upgrade request,
+    /// it is possible the server sent back the first bytes of the new protocol
+    /// along with the response upgrade.
+    ///
+    /// You will want to check for any existing bytes if you plan to continue
+    /// communicating on the IO object.
+    pub read_buf: Bytes,
+    _inner: (),
+}
+
 
 /// A future that processes all HTTP state for the IO object.
 ///
@@ -35,9 +56,43 @@ pub struct SendRequest<B> {
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     inner: Option<Dispatcher<T, B>>,
+}
+
+impl<T, B> Connection<T, B>
+where
+    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    B: Body + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Return the inner IO object, and additional information.
+    ///
+    /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
+    pub fn into_parts(self) -> Parts<T> {
+        let (io, read_buf, _) = self.inner.expect("already upgraded").into_inner();
+        Parts {
+            io,
+            read_buf,
+            _inner: (),
+        }
+    }
+
+    /// Poll the connection for completion, but without calling `shutdown`
+    /// on the underlying IO.
+    ///
+    /// This is useful to allow running a connection while doing an HTTP
+    /// upgrade. Once the upgrade is completed, the connection would be "done",
+    /// but it is not desired to actually shutdown the IO object. Instead you
+    /// would take it back using `into_parts`.
+    ///
+    /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
+    /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
+    /// to work with this function; or use the `without_shutdown` wrapper.
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+        self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+    }
 }
 
 /// A builder to configure an HTTP connection.
@@ -61,11 +116,14 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T>(
+pub async fn handshake<T, B>(
     io: T,
-) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    B: Body + 'static,
+    B::Data: Send,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     Builder::new().handshake(io).await
 }
@@ -78,6 +136,13 @@ impl<B> SendRequest<B> {
     /// If the associated connection is closed, this returns an Error.
     pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.dispatch.poll_ready(cx)
+    }
+
+    /// Waits until the dispatcher is ready
+    ///
+    /// If the associated connection is closed, this returns an Error.
+    pub async fn ready(&mut self) -> crate::Result<()> {
+        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /*
@@ -102,7 +167,7 @@ impl<B> SendRequest<B> {
 
 impl<B> SendRequest<B>
 where
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -120,32 +185,10 @@ where
     ///   before calling this method.
     /// - Since absolute-form `Uri`s are not required, if received, they will
     ///   be serialized as-is.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use http::header::HOST;
-    /// # use hyper::client::conn::SendRequest;
-    /// # use hyper::Body;
-    /// use hyper::Request;
-    ///
-    /// # async fn doc(mut tx: SendRequest<Body>) -> hyper::Result<()> {
-    /// // build a Request
-    /// let req = Request::builder()
-    ///     .uri("/foo/bar")
-    ///     .header(HOST, "hyper.rs")
-    ///     .body(Body::empty())
-    ///     .unwrap();
-    ///
-    /// // send it and await a Response
-    /// let res = tx.send_request(req).await?;
-    /// // assert the Response
-    /// assert!(res.status().is_success());
-    /// # Ok(())
-    /// # }
-    /// # fn main() {}
-    /// ```
-    pub fn send_request(&mut self, req: Request<B>) -> impl Future<Output = crate::Result<Response<Body>>> {
+    pub fn send_request(
+        &mut self,
+        req: Request<B>,
+    ) -> impl Future<Output = crate::Result<Response<IncomingBody>>> {
         let sent = self.dispatch.send(req);
 
         async move {
@@ -155,7 +198,7 @@ where
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
-                }
+                },
                 Err(_req) => {
                     tracing::debug!("connection was not ready");
 
@@ -205,7 +248,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
-    B: HttpBody + 'static,
+    B: Body + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -215,7 +258,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: HttpBody + Send + 'static,
+    B: Body + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -347,6 +390,24 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections will silently ignored malformed header lines.
+    ///
+    /// If this is enabled and and a header line does not start with a valid header
+    /// name, or does not include a colon at all, the line will be silently ignored
+    /// and no error will be reported.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http1_ignore_invalid_headers_in_responses(
+        &mut self,
+        enabled: bool,
+    ) -> &mut Builder {
+        self.h1_parser_config
+            .ignore_invalid_headers_in_responses(enabled);
+        self
+    }
+
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///
@@ -452,7 +513,7 @@ impl Builder {
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-        B: HttpBody + 'static,
+        B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {
@@ -481,6 +542,7 @@ impl Builder {
             if opts.h1_preserve_header_order {
                 conn.set_preserve_header_order();
             }
+
             if opts.h09_responses {
                 conn.set_h09_responses();
             }
@@ -501,4 +563,3 @@ impl Builder {
         }
     }
 }
-

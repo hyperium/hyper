@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "1.0.0-dev.0"
+version = "1.0.0-rc.1"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -11,8 +11,6 @@ authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 edition = "2018"
-
-publish = false # no accidents while in dev
 
 include = [
   "Cargo.toml",
@@ -27,15 +25,14 @@ futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
-http-body = { git = "https://github.com/hyperium/http-body", branch = "master" }
-http-body-util = { git = "https://github.com/hyperium/http-body", branch = "master" }
+http-body = "1.0.0-rc.1"
+http-body-util = { version = "0.1.0-rc.1", optional = true }
 httpdate = "1.0"
-httparse = "1.6"
+httparse = "1.8"
 h2 = { version = "0.3.9", optional = true }
 itoa = "1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
-tower-service = "0.3"
 tokio = { version = "1", features = ["sync"] }
 want = "0.3"
 
@@ -46,6 +43,7 @@ socket2 = { version = "0.4", optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+http-body-util = "0.1.0-rc.1"
 matches = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.4"
@@ -55,6 +53,7 @@ serde_json = "1.0"
 tokio = { version = "1", features = [
     "fs",
     "macros",
+    "net",
     "io-std",
     "io-util",
     "rt",
@@ -65,7 +64,6 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = { version = "0.7", features = ["codec"] }
-tower = { version = "0.4", features = ["make", "util"] }
 url = "2.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
@@ -81,7 +79,6 @@ full = [
     "http1",
     "http2",
     "server",
-    "runtime",
 ]
 
 # HTTP versions
@@ -92,15 +89,8 @@ http2 = ["h2"]
 client = []
 server = []
 
-# Tokio support
-runtime = [
-    "tokio/net",
-    "tokio/rt",
-    "tokio/time",
-]
-
 # C-API support (currently unstable (no semver))
-ffi = ["libc"]
+ffi = ["libc", "http-body-util"]
 
 # internal features used in CI
 nightly = []
@@ -179,11 +169,6 @@ required-features = ["full"]
 [[example]]
 name = "state"
 path = "examples/state.rs"
-required-features = ["full"]
-
-[[example]]
-name = "tower_server"
-path = "examples/tower_server.rs"
 required-features = ["full"]
 
 [[example]]

@@ -2,7 +2,9 @@
 #![warn(rust_2018_idioms)]
 use std::env;
 
-use hyper::{body::HttpBody as _, Body, Request};
+use bytes::Bytes;
+use http_body_util::{BodyExt, Empty};
+use hyper::Request;
 use tokio::io::{self, AsyncWriteExt as _};
 use tokio::net::TcpStream;
 
@@ -39,7 +41,7 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
     let addr = format!("{}:{}", host, port);
     let stream = TcpStream::connect(addr).await?;
 
-    let (mut sender, conn) = hyper::client::conn::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
             println!("Connection failed: {:?}", err);
@@ -51,7 +53,7 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
     let req = Request::builder()
         .uri(url)
         .header(hyper::header::HOST, authority.as_str())
-        .body(Body::empty())?;
+        .body(Empty::<Bytes>::new())?;
 
     let mut res = sender.send_request(req).await?;
 
@@ -60,9 +62,11 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
 
     // Stream the body, writing each chunk to stdout as we get it
     // (instead of buffering and printing at the end).
-    while let Some(next) = res.data().await {
-        let chunk = next?;
-        io::stdout().write_all(&chunk).await?;
+    while let Some(next) = res.frame().await {
+        let frame = next?;
+        if let Some(chunk) = frame.data_ref() {
+            io::stdout().write_all(&chunk).await?;
+        }
     }
 
     println!("\n\nDone!");

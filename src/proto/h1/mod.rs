@@ -1,14 +1,16 @@
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use std::{pin::Pin, time::Duration};
 
 use bytes::BytesMut;
 use http::{HeaderMap, Method};
 use httparse::ParserConfig;
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Sleep;
 
 use crate::body::DecodedLength;
+#[cfg(feature = "server")]
+use crate::common::time::Time;
 use crate::proto::{BodyLength, MessageHead};
+#[cfg(feature = "server")]
+use crate::rt::Sleep;
 
 pub(crate) use self::conn::Conn;
 pub(crate) use self::decode::Decoder;
@@ -76,20 +78,20 @@ pub(crate) struct ParseContext<'a> {
     cached_headers: &'a mut Option<HeaderMap>,
     req_method: &'a mut Option<Method>,
     h1_parser_config: ParserConfig,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
-    #[cfg(all(feature = "server", feature = "runtime"))]
-    h1_header_read_timeout_fut: &'a mut Option<Pin<Box<Sleep>>>,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
+    h1_header_read_timeout_fut: &'a mut Option<Pin<Box<dyn Sleep>>>,
+    #[cfg(feature = "server")]
     h1_header_read_timeout_running: &'a mut bool,
+    #[cfg(feature = "server")]
+    timer: Time,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
     h09_responses: bool,
     #[cfg(feature = "ffi")]
     on_informational: &'a mut Option<crate::ffi::OnInformational>,
-    #[cfg(feature = "ffi")]
-    raw_headers: bool,
 }
 
 /// Passed to Http1Transaction::encode

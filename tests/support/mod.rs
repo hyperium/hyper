@@ -6,18 +6,22 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use hyper::client::conn::Builder;
-use hyper::server::conn::Http;
+use bytes::Bytes;
+use http_body_util::{BodyExt, Full};
+use hyper::server;
 use tokio::net::{TcpListener, TcpStream};
 
 use hyper::service::service_fn;
-use hyper::{Body, Request, Response, Version};
+use hyper::{body::Incoming as IncomingBody, Request, Response, Version};
 
 pub use futures_util::{
     future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
 };
 pub use hyper::{HeaderMap, StatusCode};
 pub use std::net::SocketAddr;
+
+mod tokiort;
+pub use tokiort::{TokioExecutor, TokioTimer};
 
 #[allow(unused_macros)]
 macro_rules! t {
@@ -356,7 +360,7 @@ async fn async_test(cfg: __TestConfig) {
 
             // Move a clone into the service_fn
             let serve_handles = serve_handles.clone();
-            let service = service_fn(move |req: Request<Body>| {
+            let service = service_fn(move |req: Request<IncomingBody>| {
                 let (sreq, sres) = serve_handles.lock().unwrap().remove(0);
 
                 assert_eq!(req.uri().path(), sreq.uri, "client path");
@@ -366,12 +370,13 @@ async fn async_test(cfg: __TestConfig) {
                     func(&req.headers());
                 }
                 let sbody = sreq.body;
-                hyper::body::to_bytes(req).map_ok(move |body| {
+                req.collect().map_ok(move |collected| {
+                    let body = collected.to_bytes();
                     assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
                     let mut res = Response::builder()
                         .status(sres.status)
-                        .body(Body::from(sres.body))
+                        .body(Full::new(Bytes::from(sres.body)))
                         .expect("Response::build");
                     *res.headers_mut() = sres.headers;
                     res
@@ -379,11 +384,17 @@ async fn async_test(cfg: __TestConfig) {
             });
 
             tokio::task::spawn(async move {
-                Http::new()
-                    .http2_only(http2_only)
-                    .serve_connection(stream, service)
-                    .await
-                    .expect("server error");
+                if http2_only {
+                    server::conn::http2::Builder::new(TokioExecutor)
+                        .serve_connection(stream, service)
+                        .await
+                        .expect("server error");
+                } else {
+                    server::conn::http1::Builder::new()
+                        .serve_connection(stream, service)
+                        .await
+                        .expect("server error");
+                }
             });
         }
     });
@@ -405,7 +416,7 @@ async fn async_test(cfg: __TestConfig) {
             .method(creq.method)
             .uri(uri)
             //.headers(creq.headers)
-            .body(creq.body.into())
+            .body(Full::new(Bytes::from(creq.body)))
             .expect("Request::build");
         *req.headers_mut() = creq.headers;
         let cstatus = cres.status;
@@ -415,19 +426,32 @@ async fn async_test(cfg: __TestConfig) {
         async move {
             let stream = TcpStream::connect(addr).await.unwrap();
 
-            let (mut sender, conn) = hyper::client::conn::Builder::new()
-                .http2_only(http2_only)
-                .handshake::<TcpStream, Body>(stream)
-                .await
-                .unwrap();
+            let res = if http2_only {
+                let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
+                    .executor(TokioExecutor)
+                    .handshake(stream)
+                    .await
+                    .unwrap();
 
-            tokio::task::spawn(async move {
-                if let Err(err) = conn.await {
-                    panic!("{:?}", err);
-                }
-            });
+                tokio::task::spawn(async move {
+                    if let Err(err) = conn.await {
+                        panic!("{:?}", err);
+                    }
+                });
+                sender.send_request(req).await.unwrap()
+            } else {
+                let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
+                    .handshake(stream)
+                    .await
+                    .unwrap();
 
-            let res = sender.send_request(req).await.unwrap();
+                tokio::task::spawn(async move {
+                    if let Err(err) = conn.await {
+                        panic!("{:?}", err);
+                    }
+                });
+                sender.send_request(req).await.unwrap()
+            };
 
             assert_eq!(res.status(), cstatus, "server status");
             assert_eq!(res.version(), version, "server version");
@@ -435,7 +459,7 @@ async fn async_test(cfg: __TestConfig) {
                 func(&res.headers());
             }
 
-            let body = hyper::body::to_bytes(res).await.unwrap();
+            let body = res.collect().await.unwrap().to_bytes();
 
             assert_eq!(body.as_ref(), cbody.as_slice(), "server body");
         }
@@ -501,17 +525,32 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                             .await
                             .unwrap();
 
-                        let mut builder = Builder::new();
-                        builder.http2_only(http2_only);
-                        let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+                        let resp = if http2_only {
+                            let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
+                                .executor(TokioExecutor)
+                                .handshake(stream)
+                                .await
+                                .unwrap();
 
-                        tokio::task::spawn(async move {
-                            if let Err(err) = conn.await {
-                                panic!("{:?}", err);
-                            }
-                        });
+                            tokio::task::spawn(async move {
+                                if let Err(err) = conn.await {
+                                    panic!("{:?}", err);
+                                }
+                            });
 
-                        let resp = sender.send_request(req).await?;
+                            sender.send_request(req).await?
+                        } else {
+                            let builder = hyper::client::conn::http1::Builder::new();
+                            let (mut sender, conn) = builder.handshake(stream).await.unwrap();
+
+                            tokio::task::spawn(async move {
+                                if let Err(err) = conn.await {
+                                    panic!("{:?}", err);
+                                }
+                            });
+
+                            sender.send_request(req).await?
+                        };
 
                         let (mut parts, body) = resp.into_parts();
 
@@ -523,15 +562,23 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                         let mut builder = Response::builder().status(parts.status);
                         *builder.headers_mut().unwrap() = parts.headers;
 
-                        Result::<Response<Body>, hyper::Error>::Ok(builder.body(body).unwrap())
+                        Result::<Response<hyper::body::Incoming>, hyper::Error>::Ok(
+                            builder.body(body).unwrap(),
+                        )
                     }
                 });
 
-                Http::new()
-                    .http2_only(http2_only)
-                    .serve_connection(stream, service)
-                    .await
-                    .unwrap();
+                if http2_only {
+                    server::conn::http2::Builder::new(TokioExecutor)
+                        .serve_connection(stream, service)
+                        .await
+                        .unwrap();
+                } else {
+                    server::conn::http1::Builder::new()
+                        .serve_connection(stream, service)
+                        .await
+                        .unwrap();
+                }
             }
         });
     };

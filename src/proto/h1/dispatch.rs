@@ -6,14 +6,12 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
-use crate::body::{Body, DecodedLength, HttpBody};
+use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::proto::{
-    BodyLength, Conn, Dispatched, MessageHead, RequestHead,
-};
+use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
-pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
+pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
     conn: Conn<I, Bs::Data, T>,
     dispatch: D,
     body_tx: Option<crate::body::Sender>,
@@ -30,7 +28,7 @@ pub(crate) trait Dispatch {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()>;
+    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -47,27 +45,27 @@ cfg_server! {
 cfg_client! {
     pin_project_lite::pin_project! {
         pub(crate) struct Client<B> {
-            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<Body>>>,
+            callback: Option<crate::client::dispatch::Callback<Request<B>, http::Response<IncomingBody>>>,
             #[pin]
             rx: ClientRx<B>,
             rx_closed: bool,
         }
     }
 
-    type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<Body>>;
+    type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<IncomingBody>>;
 }
 
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-        PollItem = MessageHead<T::Outgoing>,
-        PollBody = Bs,
-        RecvItem = MessageHead<T::Incoming>,
-    > + Unpin,
+            PollItem = MessageHead<T::Outgoing>,
+            PollBody = Bs,
+            RecvItem = MessageHead<T::Incoming>,
+        > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: HttpBody + 'static,
+    Bs: Body + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
@@ -235,7 +233,7 @@ where
     }
 
     fn poll_read_head(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        // can dispatch receive, or does it still care about, an incoming message?
+        // can dispatch receive, or does it still care about other incoming message?
         match ready!(self.dispatch.poll_ready(cx)) {
             Ok(()) => (),
             Err(()) => {
@@ -244,13 +242,14 @@ where
                 return Poll::Ready(Ok(()));
             }
         }
+
         // dispatch is ready for a message, try to read one
         match ready!(self.conn.poll_read_head(cx)) {
             Some(Ok((mut head, body_len, wants))) => {
                 let body = match body_len {
-                    DecodedLength::ZERO => Body::empty(),
+                    DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) = Body::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) = IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
@@ -258,7 +257,10 @@ where
                 if wants.contains(Wants::UPGRADE) {
                     let upgrade = self.conn.on_upgrade();
                     debug_assert!(!upgrade.is_none(), "empty upgrade");
-                    debug_assert!(head.extensions.get::<OnUpgrade>().is_none(), "OnUpgrade already set");
+                    debug_assert!(
+                        head.extensions.get::<OnUpgrade>().is_none(),
+                        "OnUpgrade already set"
+                    );
                     head.extensions.insert(upgrade);
                 }
                 self.dispatch.recv_msg(Ok((head, body)))?;
@@ -295,16 +297,7 @@ where
                 && self.dispatch.should_poll()
             {
                 if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
-                    let (head, mut body) = msg.map_err(crate::Error::new_user_service)?;
-
-                    // Check if the body knows its full data immediately.
-                    //
-                    // If so, we can skip a bit of bookkeeping that streaming
-                    // bodies need to do.
-                    if let Some(full) = crate::body::take_full_data(&mut body) {
-                        self.conn.write_full_msg(head, full);
-                        return Poll::Ready(Ok(()));
-                    }
+                    let (head, body) = msg.map_err(crate::Error::new_user_service)?;
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
@@ -340,12 +333,18 @@ where
                         continue;
                     }
 
-                    let item = ready!(body.as_mut().poll_data(cx));
+                    let item = ready!(body.as_mut().poll_frame(cx));
                     if let Some(item) = item {
-                        let chunk = item.map_err(|e| {
+                        let frame = item.map_err(|e| {
                             *clear_body = true;
                             crate::Error::new_user_body(e)
                         })?;
+                        let chunk = if frame.is_data() {
+                            frame.into_data().unwrap()
+                        } else {
+                            trace!("discarding non-data frame");
+                            continue;
+                        };
                         let eos = body.is_end_stream();
                         if eos {
                             *clear_body = true;
@@ -407,14 +406,14 @@ where
 impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-        PollItem = MessageHead<T::Outgoing>,
-        PollBody = Bs,
-        RecvItem = MessageHead<T::Incoming>,
-    > + Unpin,
+            PollItem = MessageHead<T::Outgoing>,
+            PollBody = Bs,
+            RecvItem = MessageHead<T::Incoming>,
+        > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: HttpBody + 'static,
+    Bs: Body + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<Dispatched>;
@@ -471,11 +470,11 @@ cfg_server! {
     // Service is never pinned
     impl<S: HttpService<B>, B> Unpin for Server<S, B> {}
 
-    impl<S, Bs> Dispatch for Server<S, Body>
+    impl<S, Bs> Dispatch for Server<S, IncomingBody>
     where
-        S: HttpService<Body, ResBody = Bs>,
+        S: HttpService<IncomingBody, ResBody = Bs>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bs: HttpBody,
+        Bs: Body,
     {
         type PollItem = MessageHead<http::StatusCode>;
         type PollBody = Bs;
@@ -506,7 +505,7 @@ cfg_server! {
             ret
         }
 
-        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
+        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()> {
             let (msg, body) = msg?;
             let mut req = Request::new(body);
             *req.method_mut() = msg.subject.0;
@@ -519,14 +518,11 @@ cfg_server! {
             Ok(())
         }
 
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+        fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
             if self.in_flight.is_some() {
                 Poll::Pending
             } else {
-                self.service.poll_ready(cx).map_err(|_e| {
-                    // FIXME: return error value.
-                    trace!("service closed");
-                })
+                Poll::Ready(Ok(()))
             }
         }
 
@@ -551,7 +547,7 @@ cfg_client! {
 
     impl<B> Dispatch for Client<B>
     where
-        B: HttpBody,
+        B: Body,
     {
         type PollItem = RequestHead;
         type PollBody = B;
@@ -595,7 +591,7 @@ cfg_client! {
             }
         }
 
-        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()> {
+        fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()> {
             match msg {
                 Ok((msg, body)) => {
                     if let Some(cb) = self.callback.take() {
@@ -677,7 +673,7 @@ mod tests {
             handle.read(b"HTTP/1.1 200 OK\r\n\r\n");
 
             let mut res_rx = tx
-                .try_send(crate::Request::new(crate::Body::empty()))
+                .try_send(crate::Request::new(IncomingBody::empty()))
                 .unwrap();
 
             tokio_test::assert_ready_ok!(Pin::new(&mut dispatcher).poll(cx));
@@ -691,6 +687,7 @@ mod tests {
         });
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn client_flushing_is_not_ready_for_next_request() {
         let _ = pretty_env_logger::try_init();
@@ -708,10 +705,13 @@ mod tests {
         let dispatcher = Dispatcher::new(Client::new(rx), conn);
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
-        let req = crate::Request::builder()
-            .method("POST")
-            .body(crate::Body::from("reee"))
-            .unwrap();
+        let body = {
+            let (mut tx, body) = IncomingBody::new_channel(DecodedLength::new(4), false);
+            tx.try_send_data("reee".into()).unwrap();
+            body
+        };
+
+        let req = crate::Request::builder().method("POST").body(body).unwrap();
 
         let res = tx.try_send(req).unwrap().await.expect("response");
         drop(res);
@@ -719,6 +719,7 @@ mod tests {
         assert!(!tx.is_ready());
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn body_empty_chunks_ignored() {
         let _ = pretty_env_logger::try_init();
@@ -736,7 +737,7 @@ mod tests {
         assert!(dispatcher.poll().is_pending());
 
         let body = {
-            let (mut tx, body) = crate::Body::channel();
+            let (mut tx, body) = IncomingBody::channel();
             tx.try_send_data("".into()).unwrap();
             body
         };

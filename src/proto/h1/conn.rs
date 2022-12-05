@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
-#[cfg(all(feature = "server", feature = "runtime"))]
+#[cfg(feature = "server")]
 use std::time::Duration;
 
 use bytes::{Buf, Bytes};
@@ -9,16 +9,18 @@ use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
-#[cfg(all(feature = "server", feature = "runtime"))]
-use tokio::time::Sleep;
 use tracing::{debug, error, trace};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
+#[cfg(feature = "server")]
+use crate::common::time::Time;
 use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, MessageHead};
+#[cfg(feature = "server")]
+use crate::rt::Sleep;
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
@@ -51,12 +53,14 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: None,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_running: false,
+                #[cfg(feature = "server")]
+                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -64,8 +68,6 @@ where
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: None,
-                #[cfg(feature = "ffi")]
-                raw_headers: false,
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -76,6 +78,11 @@ where
             },
             _marker: PhantomData,
         }
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn set_timer(&mut self, timer: Time) {
+        self.state.timer = timer;
     }
 
     #[cfg(feature = "server")]
@@ -123,7 +130,7 @@ where
         self.state.h09_responses = true;
     }
 
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
     }
@@ -131,11 +138,6 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
-    }
-
-    #[cfg(feature = "ffi")]
-    pub(crate) fn set_raw_headers(&mut self, enabled: bool) {
-        self.state.raw_headers = enabled;
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -196,20 +198,20 @@ where
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout: self.state.h1_header_read_timeout,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
-                #[cfg(all(feature = "server", feature = "runtime"))]
+                #[cfg(feature = "server")]
                 h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
+                #[cfg(feature = "server")]
+                timer: self.state.timer.clone(),
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
-                #[cfg(feature = "ffi")]
-                raw_headers: self.state.raw_headers,
             }
         )) {
             Ok(msg) => msg,
@@ -522,24 +524,6 @@ where
         }
     }
 
-    pub(crate) fn write_full_msg(&mut self, head: MessageHead<T::Outgoing>, body: B) {
-        if let Some(encoder) =
-            self.encode_head(head, Some(BodyLength::Known(body.remaining() as u64)))
-        {
-            let is_last = encoder.is_last();
-            // Make sure we don't write a body if we weren't actually allowed
-            // to do so, like because its a HEAD request.
-            if !encoder.is_eof() {
-                encoder.danger_full_buf(body, self.io.write_buf());
-            }
-            self.state.writing = if is_last {
-                Writing::Closed
-            } else {
-                Writing::KeepAlive
-            }
-        }
-    }
-
     fn encode_head(
         &mut self,
         mut head: MessageHead<T::Outgoing>,
@@ -817,12 +801,14 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
-    #[cfg(all(feature = "server", feature = "runtime"))]
-    h1_header_read_timeout_fut: Option<Pin<Box<Sleep>>>,
-    #[cfg(all(feature = "server", feature = "runtime"))]
+    #[cfg(feature = "server")]
+    h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
+    #[cfg(feature = "server")]
     h1_header_read_timeout_running: bool,
+    #[cfg(feature = "server")]
+    timer: Time,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
@@ -833,8 +819,6 @@ struct State {
     /// received.
     #[cfg(feature = "ffi")]
     on_informational: Option<crate::ffi::OnInformational>,
-    #[cfg(feature = "ffi")]
-    raw_headers: bool,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,
@@ -1043,7 +1027,7 @@ impl State {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "nightly")]
+    #[cfg(all(feature = "nightly", not(miri)))]
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
         use super::*;

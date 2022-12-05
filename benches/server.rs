@@ -8,11 +8,13 @@ use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use bytes::Bytes;
 use futures_util::{stream, StreamExt};
-use http_body_util::{BodyExt, StreamBody};
+use http_body_util::{BodyExt, Full, StreamBody};
 use tokio::sync::oneshot;
 
-use hyper::server::conn::Http;
+use hyper::body::Frame;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::Response;
 
@@ -37,7 +39,7 @@ macro_rules! bench_server {
                     loop {
                         let (stream, _) = listener.accept().await.expect("accept");
 
-                        Http::new()
+                        http1::Builder::new()
                             .serve_connection(
                                 stream,
                                 service_fn(|_| async {
@@ -87,8 +89,8 @@ macro_rules! bench_server {
     }};
 }
 
-fn body(b: &'static [u8]) -> hyper::Body {
-    b.into()
+fn body(b: &'static [u8]) -> Full<Bytes> {
+    Full::new(b.into())
 }
 
 #[bench]
@@ -108,7 +110,7 @@ fn throughput_fixedsize_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("content-length", "1000000"), move || {
         static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
         BodyExt::boxed(StreamBody::new(
-            stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)),
+            stream::iter(S.iter()).map(|&s| Ok::<_, String>(Frame::data(s))),
         ))
     })
 }
@@ -132,7 +134,7 @@ fn throughput_chunked_many_chunks(b: &mut test::Bencher) {
     bench_server!(b, ("transfer-encoding", "chunked"), || {
         static S: &[&[u8]] = &[&[b'x'; 1_000] as &[u8]; 1_000] as _;
         BodyExt::boxed(StreamBody::new(
-            stream::iter(S.iter()).map(|&s| Ok::<_, String>(s)),
+            stream::iter(S.iter()).map(|&s| Ok::<_, String>(Frame::data(s))),
         ))
     })
 }

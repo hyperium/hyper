@@ -14,7 +14,7 @@ pub(crate) struct Rewind<T> {
 }
 
 impl<T> Rewind<T> {
-    #[cfg(any(all(feature = "http2", feature = "server"), test))]
+    #[cfg(test)]
     pub(crate) fn new(io: T) -> Self {
         Rewind {
             pre: None,
@@ -29,7 +29,7 @@ impl<T> Rewind<T> {
         }
     }
 
-    #[cfg(any(all(feature = "http1", feature = "http2", feature = "server"), test))]
+    #[cfg(test)]
     pub(crate) fn rewind(&mut self, bs: Bytes) {
         debug_assert!(self.pre.is_none());
         self.pre = Some(bs);
@@ -113,6 +113,7 @@ mod tests {
     use bytes::Bytes;
     use tokio::io::AsyncReadExt;
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn partial_rewind() {
         let underlying = [104, 101, 108, 108, 111];
@@ -135,6 +136,7 @@ mod tests {
         assert_eq!(&buf, &underlying);
     }
 
+    #[cfg(not(miri))]
     #[tokio::test]
     async fn full_rewind() {
         let underlying = [104, 101, 108, 108, 111];

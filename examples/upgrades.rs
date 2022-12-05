@@ -1,18 +1,20 @@
 #![deny(warnings)]
 
 // Note: `hyper::upgrade` docs link to this upgrade.
+use std::net::SocketAddr;
 use std::str;
 
-use hyper::server::conn::Http;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::watch;
 
+use bytes::Bytes;
+use http_body_util::Empty;
 use hyper::header::{HeaderValue, UPGRADE};
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
-use hyper::{Body, Request, Response, StatusCode};
-use std::net::SocketAddr;
+use hyper::{Request, Response, StatusCode};
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;
@@ -36,8 +38,8 @@ async fn server_upgraded_io(mut upgraded: Upgraded) -> Result<()> {
 }
 
 /// Our server HTTP handler to initiate HTTP upgrades.
-async fn server_upgrade(mut req: Request<Body>) -> Result<Response<Body>> {
-    let mut res = Response::new(Body::empty());
+async fn server_upgrade(mut req: Request<hyper::body::Incoming>) -> Result<Response<Empty<Bytes>>> {
+    let mut res = Response::new(Empty::new());
 
     // Send a 400 to any request that doesn't have
     // an `Upgrade` header.
@@ -91,11 +93,11 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
     let req = Request::builder()
         .uri(format!("http://{}/", addr))
         .header(UPGRADE, "foobar")
-        .body(Body::empty())
+        .body(Empty::<Bytes>::new())
         .unwrap();
 
     let stream = TcpStream::connect(addr).await?;
-    let (mut sender, conn) = hyper::client::conn::handshake(stream).await?;
+    let (mut sender, conn) = hyper::client::conn::http1::handshake(stream).await?;
 
     tokio::task::spawn(async move {
         if let Err(err) = conn.await {
@@ -147,7 +149,7 @@ async fn main() {
 
                     let mut rx = rx.clone();
                     tokio::task::spawn(async move {
-                        let conn = Http::new().serve_connection(stream, service_fn(server_upgrade));
+                        let conn = http1::Builder::new().serve_connection(stream, service_fn(server_upgrade));
 
                         // Don't forget to enable upgrades on the connection.
                         let mut conn = conn.with_upgrades();
