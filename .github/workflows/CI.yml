@@ -276,7 +276,11 @@ jobs:
           toolchain: nightly
           override: true
 
-      - name: cargo check-external-types
+      - name: Install cargo-check-external-types
+        uses: actions-rs/toolchain@v1
+        run: cargo install cargo-check-external-types@0.1.0
+
+      - name: check-external-types
         uses: actions-rs/cargo@v1
         with:
           command: check-external-types
