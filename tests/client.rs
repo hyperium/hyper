@@ -1351,13 +1351,29 @@ mod conn {
 
     use support::{TokioExecutor, TokioTimer};
 
-    #[tokio::test]
-    async fn get() {
-        let _ = ::pretty_env_logger::try_init();
+    fn setup_logger() {
+        let _ = pretty_env_logger::try_init();
+    }
+
+    async fn setup_tk_test_server() -> (TkTcpListener, SocketAddr) {
+        setup_logger();
         let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
             .await
             .unwrap();
         let addr = listener.local_addr().unwrap();
+        (listener, addr)
+    }
+
+    fn setup_std_test_server() -> (TcpListener, SocketAddr) {
+        setup_logger();
+        let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0))).unwrap();
+        let addr = listener.local_addr().unwrap();
+        (listener, addr)
+    }
+
+    #[tokio::test]
+    async fn get() {
+        let (listener, addr) = setup_tk_test_server().await;
 
         let server = async move {
             let mut sock = listener.accept().await.unwrap().0;
@@ -1397,11 +1413,7 @@ mod conn {
 
     #[tokio::test]
     async fn get_custom_reason_phrase() {
-        let _ = ::pretty_env_logger::try_init();
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         let server = async move {
             let mut sock = listener.accept().await.unwrap().0;
@@ -1453,8 +1465,7 @@ mod conn {
 
     #[test]
     fn incoming_content_length() {
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
@@ -1501,8 +1512,7 @@ mod conn {
     #[test]
     fn aborted_body_isnt_completed() {
         let _ = ::pretty_env_logger::try_init();
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx, rx) = oneshot::channel();
@@ -1557,8 +1567,7 @@ mod conn {
 
     #[test]
     fn uri_absolute_form() {
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
@@ -1603,8 +1612,7 @@ mod conn {
 
     #[test]
     fn http1_conn_coerces_http2_request() {
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
@@ -1649,8 +1657,7 @@ mod conn {
 
     #[test]
     fn pipeline() {
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
@@ -1702,10 +1709,7 @@ mod conn {
 
     #[test]
     fn upgrade() {
-        let _ = ::pretty_env_logger::try_init();
-
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
@@ -1789,10 +1793,7 @@ mod conn {
 
     #[test]
     fn connect_method() {
-        let _ = ::pretty_env_logger::try_init();
-
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let (server, addr) = setup_std_test_server();
         let rt = support::runtime();
 
         let (tx1, rx1) = oneshot::channel();
@@ -1883,12 +1884,8 @@ mod conn {
     async fn http2_detect_conn_eof() {
         use futures_util::future;
 
-        let _ = pretty_env_logger::try_init();
+        let (listener, addr) = setup_tk_test_server().await;
 
-        let addr = SocketAddr::from(([127, 0, 0, 1], 0));
-        let listener = TkTcpListener::bind(addr).await.unwrap();
-
-        let addr = listener.local_addr().unwrap();
         let (shdn_tx, mut shdn_rx) = tokio::sync::watch::channel(false);
         tokio::task::spawn(async move {
             use hyper::server::conn::http2;
@@ -1966,12 +1963,7 @@ mod conn {
 
     #[tokio::test]
     async fn http2_keep_alive_detects_unresponsive_server() {
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         // spawn a server that reads but doesn't write
         tokio::spawn(async move {
@@ -2007,12 +1999,7 @@ mod conn {
         // will use the default behavior which will NOT detect the server
         // is unresponsive while no streams are active.
 
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         // spawn a server that reads but doesn't write
         tokio::spawn(async move {
@@ -2044,12 +2031,7 @@ mod conn {
 
     #[tokio::test]
     async fn http2_keep_alive_closes_open_streams() {
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         // spawn a server that reads but doesn't write
         tokio::spawn(async move {
@@ -2095,12 +2077,7 @@ mod conn {
         // alive is enabled
         use hyper::service::service_fn;
 
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         // Spawn an HTTP2 server that reads the whole body and responds
         tokio::spawn(async move {
@@ -2152,12 +2129,7 @@ mod conn {
 
     #[tokio::test]
     async fn h2_connect() {
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         // Spawn an HTTP2 server that asks for bread and responds with baguette.
         tokio::spawn(async move {
@@ -2213,12 +2185,7 @@ mod conn {
 
     #[tokio::test]
     async fn h2_connect_rejected() {
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
         let (done_tx, done_rx) = oneshot::channel();
 
         tokio::spawn(async move {
@@ -2269,12 +2236,7 @@ mod conn {
 
     #[tokio::test]
     async fn test_body_panics() {
-        let _ = pretty_env_logger::try_init();
-
-        let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
-            .await
-            .unwrap();
-        let addr = listener.local_addr().unwrap();
+        let (listener, addr) = setup_tk_test_server().await;
 
         // spawn a server that reads but doesn't write
         tokio::spawn(async move {
