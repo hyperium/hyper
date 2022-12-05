@@ -280,8 +280,11 @@ jobs:
           override: true
 
       - name: Install cargo-check-external-types
-        uses: actions-rs/toolchain@v1
-        run: cargo install cargo-check-external-types@0.1.0
+        uses: actions-rs/install@v1
+        with:
+          crate: cargo-check-external-types
+          version: 0.1.0
+          use-tool-cache: true
 
       - name: check-external-types
         uses: actions-rs/cargo@v1
