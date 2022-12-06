@@ -743,6 +743,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(miri))]
     fn channel_wanter() {
         let (mut tx, mut rx) = Body::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
@@ -764,6 +765,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(miri))]
     fn channel_notices_closure() {
         let (mut tx, rx) = Body::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
