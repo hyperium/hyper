@@ -4,6 +4,9 @@ To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERN
 
 ## Triagers
 
+- Eray Karatay (@programatik29)
+- Oddbjørn Grødem (@oddgrd)
+
 ## Collaborators
 
 - Sean McArthur (@seanmonstar)
