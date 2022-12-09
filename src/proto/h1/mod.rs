@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 #[cfg(all(feature = "server", feature = "runtime"))]
 use std::{pin::Pin, time::Duration};
 
@@ -101,7 +100,6 @@ pub(crate) struct Encode<'a, T> {
     keep_alive: bool,
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,
-    special_headers: Option<&'static HashMap<&'static str, &'static [u8]>>,
 }
 
 /// Extra flags that a request "wants", like expect-continue or upgrades.

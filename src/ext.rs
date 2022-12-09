@@ -95,7 +95,7 @@ impl fmt::Debug for Protocol {
 ///
 /// [`http1_preserve_header_case`]: /client/struct.Client.html#method.http1_preserve_header_case
 #[derive(Clone, Debug)]
-pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
+pub struct HeaderCaseMap(HeaderMap<Bytes>);
 
 #[cfg(feature = "http1")]
 impl HeaderCaseMap {
@@ -128,6 +128,12 @@ impl HeaderCaseMap {
         N: IntoHeaderName,
     {
         self.0.append(name, orig);
+    }
+}
+
+impl From<HeaderMap<Bytes>> for HeaderCaseMap {
+    fn from(hdr_map: HeaderMap<Bytes>) -> Self {
+        Self(hdr_map)
     }
 }
 
