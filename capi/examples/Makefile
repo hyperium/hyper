@@ -13,11 +13,11 @@ all: client upload server
 	${CC} -c -o $@ $< $(HYPER_CFLAGS) $(CFLAGS)
 
 client: client.o
-	$(CC) -o $@ $^ $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $< $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
 upload: upload.o
-	$(CC) -o $@ $^ $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $< $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
 server: server.o
-	$(CC) -o $@ $^ $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
+	$(CC) -o $@ $< $(HYPER_LDFLAGS) $(LDFLAGS) $(LIBS)
 
 clean:
 	rm -f *.o client server upload
