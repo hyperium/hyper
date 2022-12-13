@@ -61,7 +61,7 @@ pub(super) fn channel(ping_pong: PingPong, config: Config, __timer: Time) -> (Re
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        sleep: crate::common::into_pin(__timer.sleep(interval)),
+        sleep: __timer.sleep(interval),
         state: KeepAliveState::Init,
         timer: __timer,
     });
