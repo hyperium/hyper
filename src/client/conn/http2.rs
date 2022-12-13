@@ -24,6 +24,12 @@ pub struct SendRequest<B> {
     dispatch: dispatch::UnboundedSender<Request<B>, Response<IncomingBody>>,
 }
 
+impl<B> Clone for SendRequest<B> {
+    fn clone(&self) -> SendRequest<B> {
+        SendRequest { dispatch: self.dispatch.clone() }
+    }
+}
+
 /// A future that processes all HTTP state for the IO object.
 ///
 /// In most cases, this should just be spawned into an executor, so that it

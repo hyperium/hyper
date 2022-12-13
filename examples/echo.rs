@@ -4,6 +4,7 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
+use hyper::body::Frame;
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{body::Body, Method, Request, Response, StatusCode};
@@ -23,17 +24,22 @@ async fn echo(
         // Simply echo the body back to the client.
         (&Method::POST, "/echo") => Ok(Response::new(req.into_body().boxed())),
 
-        // TODO: Fix this, broken in PR #2896
         // Convert to uppercase before sending back to client using a stream.
-        // (&Method::POST, "/echo/uppercase") => {
-        // let chunk_stream = req.into_body().map_ok(|chunk| {
-        //     chunk
-        //         .iter()
-        //         .map(|byte| byte.to_ascii_uppercase())
-        //         .collect::<Vec<u8>>()
-        // });
-        // Ok(Response::new(Body::wrap_stream(chunk_stream)))
-        // }
+        (&Method::POST, "/echo/uppercase") => {
+            let frame_stream = req.into_body().map_frame(|frame| {
+                let frame = if let Some(data) = frame.into_data() {
+                    data.iter()
+                        .map(|byte| byte.to_ascii_uppercase())
+                        .collect::<Bytes>()
+                } else {
+                    Bytes::new()
+                };
+
+                Frame::data(frame)
+            });
+
+            Ok(Response::new(frame_stream.boxed()))
+        }
 
         // Reverse the entire body before sending back to the client.
         //

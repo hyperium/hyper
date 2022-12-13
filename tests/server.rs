@@ -924,11 +924,16 @@ fn expect_continue_but_no_body_is_ignored() {
     assert_eq!(&resp[..expected.len()], expected);
 }
 
-#[tokio::test]
-async fn expect_continue_waits_for_body_poll() {
+fn setup_tcp_listener() -> (TcpListener, SocketAddr) {
     let _ = pretty_env_logger::try_init();
     let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
     let addr = listener.local_addr().unwrap();
+    (listener, addr)
+}
+
+#[tokio::test]
+async fn expect_continue_waits_for_body_poll() {
+    let (listener, addr) = setup_tcp_listener();
 
     let child = thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1112,9 +1117,7 @@ fn http_11_uri_too_long() {
 
 #[tokio::test]
 async fn disable_keep_alive_mid_request() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
-
+    let (listener, addr) = setup_tcp_listener();
     let (tx1, rx1) = oneshot::channel();
     let (tx2, rx2) = mpsc::channel();
 
@@ -1149,10 +1152,7 @@ async fn disable_keep_alive_mid_request() {
 
 #[tokio::test]
 async fn disable_keep_alive_post_request() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
-
+    let (listener, addr) = setup_tcp_listener();
     let (tx1, rx1) = oneshot::channel();
 
     let child = thread::spawn(move || {
@@ -1201,10 +1201,7 @@ async fn disable_keep_alive_post_request() {
 
 #[tokio::test]
 async fn empty_parse_eof_does_not_return_error() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
-
+    let (listener, addr) = setup_tcp_listener();
     thread::spawn(move || {
         let _tcp = connect(&addr);
     });
@@ -1218,8 +1215,7 @@ async fn empty_parse_eof_does_not_return_error() {
 
 #[tokio::test]
 async fn nonempty_parse_eof_returns_error() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1236,9 +1232,7 @@ async fn nonempty_parse_eof_returns_error() {
 #[cfg(feature = "http1")]
 #[tokio::test]
 async fn http1_allow_half_close() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     let t1 = thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1271,9 +1265,7 @@ async fn http1_allow_half_close() {
 #[cfg(feature = "http1")]
 #[tokio::test]
 async fn disconnect_after_reading_request_before_responding() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1299,8 +1291,7 @@ async fn disconnect_after_reading_request_before_responding() {
 
 #[tokio::test]
 async fn returning_1xx_response_is_error() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1349,8 +1340,7 @@ fn header_name_too_long() {
 
 #[tokio::test]
 async fn header_read_timeout_slow_writes() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1396,8 +1386,7 @@ async fn header_read_timeout_slow_writes() {
 
 #[tokio::test]
 async fn header_read_timeout_slow_writes_multiple_requests() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -1472,9 +1461,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
 
 #[tokio::test]
 async fn upgrades() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let (tx, rx) = oneshot::channel();
 
     thread::spawn(move || {
@@ -1529,9 +1516,7 @@ async fn upgrades() {
 
 #[tokio::test]
 async fn http_connect() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let (tx, rx) = oneshot::channel();
 
     thread::spawn(move || {
@@ -1585,9 +1570,7 @@ async fn http_connect() {
 async fn upgrades_new() {
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let (read_101_tx, read_101_rx) = oneshot::channel();
 
     thread::spawn(move || {
@@ -1653,9 +1636,7 @@ async fn upgrades_new() {
 
 #[tokio::test]
 async fn upgrades_ignored() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     tokio::spawn(async move {
         let svc = service_fn(move |req: Request<IncomingBody>| {
@@ -1697,9 +1678,7 @@ async fn upgrades_ignored() {
 
 #[tokio::test]
 async fn http_connect_new() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let (read_200_tx, read_200_rx) = oneshot::channel();
 
     thread::spawn(move || {
@@ -1761,9 +1740,7 @@ async fn http_connect_new() {
 
 #[tokio::test]
 async fn h2_connect() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let conn = connect_async(addr).await;
 
     let (h2, connection) = h2::client::handshake(conn).await.unwrap();
@@ -1831,9 +1808,7 @@ async fn h2_connect_multiplex() {
     use futures_util::stream::FuturesUnordered;
     use futures_util::StreamExt;
 
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let conn = connect_async(addr).await;
 
     let (h2, connection) = h2::client::handshake(conn).await.unwrap();
@@ -1939,9 +1914,7 @@ async fn h2_connect_multiplex() {
 
 #[tokio::test]
 async fn h2_connect_large_body() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let conn = connect_async(addr).await;
 
     let (h2, connection) = h2::client::handshake(conn).await.unwrap();
@@ -2013,9 +1986,7 @@ async fn h2_connect_large_body() {
 
 #[tokio::test]
 async fn h2_connect_empty_frames() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
     let conn = connect_async(addr).await;
 
     let (h2, connection) = h2::client::handshake(conn).await.unwrap();
@@ -2084,8 +2055,7 @@ async fn h2_connect_empty_frames() {
 
 #[tokio::test]
 async fn parse_errors_send_4xx_response() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -2106,8 +2076,7 @@ async fn parse_errors_send_4xx_response() {
 
 #[tokio::test]
 async fn illegal_request_length_returns_400_response() {
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
@@ -2145,9 +2114,7 @@ fn max_buf_size_no_panic() {
 #[cfg(feature = "http1")]
 #[tokio::test]
 async fn max_buf_size() {
-    let _ = pretty_env_logger::try_init();
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     const MAX: usize = 16_000;
 
@@ -2362,10 +2329,7 @@ fn no_implicit_zero_content_length_for_head_responses() {
 
 #[tokio::test]
 async fn http2_keep_alive_detects_unresponsive_client() {
-    let _ = pretty_env_logger::try_init();
-
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     // Spawn a "client" conn that only reads until EOF
     tokio::spawn(async move {
@@ -2410,10 +2374,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
 
 #[tokio::test]
 async fn http2_keep_alive_with_responsive_client() {
-    let _ = pretty_env_logger::try_init();
-
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     tokio::spawn(async move {
         let (socket, _) = listener.accept().await.expect("accept");
@@ -2477,10 +2438,7 @@ async fn write_pong_frame(conn: &mut TkTcpStream) {
 
 #[tokio::test]
 async fn http2_keep_alive_count_server_pings() {
-    let _ = pretty_env_logger::try_init();
-
-    let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
-    let addr = listener.local_addr().unwrap();
+    let (listener, addr) = setup_tcp_listener();
 
     tokio::spawn(async move {
         let (socket, _) = listener.accept().await.expect("accept");
