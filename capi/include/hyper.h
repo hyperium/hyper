@@ -735,6 +735,11 @@ enum hyper_code hyper_request_set_method(struct hyper_request *req,
 
 /*
  Get the HTTP Method of the request.
+
+ `method` must be a pointer to a buffer that this function will populate with the HTTP
+ method of the request.  The `header_len` argument must be a pointer to a `size_t` which, on
+ call, is populated with the maximum length of the `method` buffer and, on successful
+ response, will be set to the actual length of the value written into the buffer.
  */
 enum hyper_code hyper_request_method(const struct hyper_request *req,
                                      uint8_t *method,

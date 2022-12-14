@@ -70,6 +70,11 @@ ffi_fn! {
 
 ffi_fn! {
     /// Get the HTTP Method of the request.
+    ///
+    /// `method` must be a pointer to a buffer that this function will populate with the HTTP
+    /// method of the request.  The `header_len` argument must be a pointer to a `size_t` which, on
+    /// call, is populated with the maximum length of the `method` buffer and, on successful
+    /// response, will be set to the actual length of the value written into the buffer.
     fn hyper_request_method(req: *const hyper_request, method: *mut u8, method_len: *mut size_t) -> hyper_code {
         let req = non_null!(&*req ?= hyper_code::HYPERE_INVALID_ARG);
         if method.is_null() {
