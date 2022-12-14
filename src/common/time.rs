@@ -55,7 +55,7 @@ impl<F> Future for HyperTimeout<F> where F: Future {
 */
 
 impl Time {
-    pub(crate) fn sleep(&self, duration: Duration) -> Box<dyn Sleep + Unpin> {
+    pub(crate) fn sleep(&self, duration: Duration) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
                 panic!("You must supply a timer.")
@@ -64,7 +64,7 @@ impl Time {
         }
     }
 
-    pub(crate) fn sleep_until(&self, deadline: Instant) -> Box<dyn Sleep + Unpin> {
+    pub(crate) fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
                 panic!("You must supply a timer.")

@@ -104,12 +104,12 @@ impl std::ops::Drop for TimerFuture {
 // ===== impl TimerHeap =====
 
 impl crate::rt::Timer for Arc<Mutex<TimerHeap>> {
-    fn sleep(&self, duration: Duration) -> Box<dyn crate::rt::Sleep + Unpin> {
+    fn sleep(&self, duration: Duration) -> Pin<Box<dyn crate::rt::Sleep>> {
         self.sleep_until(Instant::now() + duration)
     }
 
-    fn sleep_until(&self, instant: Instant) -> Box<dyn crate::rt::Sleep + Unpin> {
-        Box::new(TimerFuture {
+    fn sleep_until(&self, instant: Instant) -> Pin<Box<dyn crate::rt::Sleep>> {
+        Box::pin(TimerFuture {
             heap: Arc::clone(self),
             wake_at: instant,
             shared: None,
