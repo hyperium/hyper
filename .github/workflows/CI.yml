@@ -185,22 +185,16 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install cbindgen
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cbindgen
-
       - name: Build FFI
         uses: actions-rs/cargo@v1
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
         with:
           command: rustc
-          args: --features client,http1,http2,ffi --crate-type cdylib
+          args: --features ffi --crate-type cdylib --release
 
       - name: Make Examples
-        run: cd capi/examples && make client
+        run: cd capi/examples && make
 
       - name: Run FFI unit tests
         uses: actions-rs/cargo@v1
@@ -208,7 +202,7 @@ jobs:
           RUSTFLAGS: --cfg hyper_unstable_ffi
         with:
           command: test
-          args: --features full,ffi --lib
+          args: --features ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date
