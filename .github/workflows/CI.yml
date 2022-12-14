@@ -232,6 +232,12 @@ jobs:
           command: install
           args: cbindgen
 
+      - name: Install cargo-expand
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-expand
+
       - name: Build FFI
         uses: actions-rs/cargo@v1
         env:
