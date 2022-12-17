@@ -9,11 +9,11 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::exec::{ConnStreamExec};
+use crate::common::exec::ConnStreamExec;
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::{common::time::Time, rt::Timer};
 use crate::proto;
 use crate::service::HttpService;
+use crate::{common::time::Time, rt::Timer};
 
 pin_project! {
     /// A future binding an HTTP/2 connection with a Service.
@@ -89,9 +89,7 @@ where
                 //the Dispatched enum
                 Poll::Ready(Ok(()))
             }
-            Err(e) => {
-                Poll::Ready(Err(e))
-            }
+            Err(e) => Poll::Ready(Err(e)),
         }
     }
 }
@@ -260,17 +258,6 @@ impl<E> Builder<E> {
         self
     }
 
-    /// Set the executor used to spawn background tasks.
-    ///
-    /// Default uses implicit default (like `tokio::spawn`).
-    pub fn with_executor<E2>(self, exec: E2) -> Builder<E2> {
-        Builder {
-            exec,
-            timer: self.timer,
-            h2_builder: self.h2_builder,
-        }
-    }
-
     /// Set the timer used in background tasks.
     pub fn timer<M>(&mut self, timer: M) -> &mut Self
     where
@@ -300,8 +287,6 @@ impl<E> Builder<E> {
             self.exec.clone(),
             self.timer.clone(),
         );
-        Connection {
-            conn: proto,
-        }
+        Connection { conn: proto }
     }
 }
