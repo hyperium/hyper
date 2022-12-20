@@ -9,14 +9,14 @@ use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::body::{Body, Incoming as IncomingBody};
 use super::super::dispatch;
+use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
 use crate::proto;
-use crate::rt::{Executor};
+use crate::rt::Executor;
 use crate::upgrade::Upgraded;
 
 type Dispatcher<T, B> =
@@ -46,7 +46,6 @@ pub struct Parts<T> {
     pub read_buf: Bytes,
     _inner: (),
 }
-
 
 /// A future that processes all HTTP state for the IO object.
 ///
@@ -91,7 +90,10 @@ where
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+        self.inner
+            .as_mut()
+            .expect("algready upgraded")
+            .poll_without_shutdown(cx)
     }
 }
 
@@ -116,9 +118,7 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
-    io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
@@ -302,7 +302,7 @@ impl Builder {
         }
     }
 
-    /// Provide an executor to execute background HTTP2 tasks.
+    /// Provide an executor to execute background HTTP1 tasks.
     pub fn executor<E>(&mut self, exec: E) -> &mut Builder
     where
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
@@ -399,10 +399,7 @@ impl Builder {
     /// Note that this setting does not affect HTTP/2.
     ///
     /// Default is false.
-    pub fn http1_ignore_invalid_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn http1_ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_responses(enabled);
         self
