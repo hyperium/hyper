@@ -91,18 +91,18 @@ ffi_fn! {
     /// Returns a task that needs to be polled until it is ready. When ready, the
     /// task yields a `hyper_response *`.
     fn hyper_clientconn_send(conn: *mut hyper_clientconn, req: *mut hyper_request) -> *mut hyper_task {
-        let mut req = non_null! { Box::from_raw(req) ?= ptr::null_mut() };
+        let req = non_null! { Box::from_raw(req) ?= ptr::null_mut() };
 
         // Update request with original-case map of headers
-        req.finalize_request();
+        let req = (*req).finalize();
 
         let fut = match non_null! { &mut *conn ?= ptr::null_mut() }.tx {
-            Tx::Http1(ref mut tx) => futures_util::future::Either::Left(tx.send_request(req.0)),
-            Tx::Http2(ref mut tx) => futures_util::future::Either::Right(tx.send_request(req.0)),
+            Tx::Http1(ref mut tx) => futures_util::future::Either::Left(tx.send_request(req)),
+            Tx::Http2(ref mut tx) => futures_util::future::Either::Right(tx.send_request(req)),
         };
 
         let fut = async move {
-            fut.await.map(hyper_response::wrap)
+            fut.await.map(hyper_response::from)
         };
 
         Box::into_raw(hyper_task::boxed(fut))

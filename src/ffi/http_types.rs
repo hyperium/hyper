@@ -12,10 +12,10 @@ use crate::header::{HeaderName, HeaderValue};
 use crate::{HeaderMap, Method, Request, Response, Uri};
 
 /// An HTTP request.
-pub struct hyper_request(pub(super) Request<IncomingBody>);
+pub struct hyper_request(Request<IncomingBody>);
 
 /// An HTTP response.
-pub struct hyper_response(pub(super) Response<IncomingBody>);
+pub struct hyper_response(Response<IncomingBody>);
 
 /// An HTTP header map.
 ///
@@ -38,7 +38,7 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 ffi_fn! {
     /// Construct a new HTTP request.
     fn hyper_request_new() -> *mut hyper_request {
-        Box::into_raw(Box::new(hyper_request(Request::new(IncomingBody::empty()))))
+        Box::into_raw(Box::new(hyper_request::from(Request::new(IncomingBody::empty()))))
     } ?= std::ptr::null_mut()
 }
 
@@ -91,7 +91,6 @@ ffi_fn! {
         hyper_code::HYPERE_OK
     }
 }
-
 
 ffi_fn! {
     /// Set the URI of the request.
@@ -350,12 +349,34 @@ ffi_fn! {
 }
 
 impl hyper_request {
-    pub(super) fn finalize_request(&mut self) {
+    pub(super) fn finalize(mut self) -> Request<IncomingBody> {
         if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
             *self.0.headers_mut() = headers.headers;
             self.0.extensions_mut().insert(headers.orig_casing);
             self.0.extensions_mut().insert(headers.orig_order);
         }
+        self.0
+    }
+}
+
+impl From<Request<IncomingBody>> for hyper_request {
+    fn from(mut req: Request<IncomingBody>) -> Self {
+        let headers = std::mem::take(req.headers_mut());
+        let orig_casing = req
+            .extensions_mut()
+            .remove::<HeaderCaseMap>()
+            .unwrap_or_else(HeaderCaseMap::default);
+        let orig_order = req
+            .extensions_mut()
+            .remove::<OriginalHeaderOrder>()
+            .unwrap_or_else(OriginalHeaderOrder::default);
+        req.extensions_mut().insert(hyper_headers {
+            headers,
+            orig_casing,
+            orig_order,
+        });
+
+        hyper_request(req)
     }
 }
 
@@ -498,25 +519,6 @@ ffi_fn! {
 }
 
 impl hyper_response {
-    pub(super) fn wrap(mut resp: Response<IncomingBody>) -> hyper_response {
-        let headers = std::mem::take(resp.headers_mut());
-        let orig_casing = resp
-            .extensions_mut()
-            .remove::<HeaderCaseMap>()
-            .unwrap_or_else(HeaderCaseMap::default);
-        let orig_order = resp
-            .extensions_mut()
-            .remove::<OriginalHeaderOrder>()
-            .unwrap_or_else(OriginalHeaderOrder::default);
-        resp.extensions_mut().insert(hyper_headers {
-            headers,
-            orig_casing,
-            orig_order,
-        });
-
-        hyper_response(resp)
-    }
-
     fn reason_phrase(&self) -> &[u8] {
         if let Some(reason) = self.0.extensions().get::<ReasonPhrase>() {
             return reason.as_bytes();
@@ -528,7 +530,38 @@ impl hyper_response {
 
         &[]
     }
+
+    pub(super) fn finalize(mut self) -> Response<IncomingBody> {
+        if let Some(headers) = self.0.extensions_mut().remove::<hyper_headers>() {
+            *self.0.headers_mut() = headers.headers;
+            self.0.extensions_mut().insert(headers.orig_casing);
+            self.0.extensions_mut().insert(headers.orig_order);
+        }
+        self.0
+    }
 }
+
+impl From<Response<IncomingBody>> for hyper_response {
+    fn from(mut rsp: Response<IncomingBody>) -> Self {
+        let headers = std::mem::take(rsp.headers_mut());
+        let orig_casing = rsp
+            .extensions_mut()
+            .remove::<HeaderCaseMap>()
+            .unwrap_or_else(HeaderCaseMap::default);
+        let orig_order = rsp
+            .extensions_mut()
+            .remove::<OriginalHeaderOrder>()
+            .unwrap_or_else(OriginalHeaderOrder::default);
+        rsp.extensions_mut().insert(hyper_headers {
+            headers,
+            orig_casing,
+            orig_order,
+        });
+
+        hyper_response(rsp)
+    }
+}
+
 
 unsafe impl AsTaskType for hyper_response {
     fn as_task_type(&self) -> hyper_task_return_type {
@@ -690,7 +723,7 @@ unsafe fn raw_name_value(
 
 impl OnInformational {
     pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
-        let mut resp = hyper_response::wrap(resp);
+        let mut resp = hyper_response::from(resp);
         (self.func)(self.data.0, &mut resp);
     }
 }
