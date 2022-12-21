@@ -212,9 +212,17 @@ static void free_conn_data(int epoll, conn_data *conn) {
     free(conn);
 }
 
+static int print_each_header(
+    void *userdata, const uint8_t *name, size_t name_len, const uint8_t *value, size_t value_len
+) {
+    printf("%.*s: %.*s\n", (int)name_len, name, (int)value_len, value);
+    return HYPER_ITER_CONTINUE;
+}
+
 static void server_callback(
     void *userdata, hyper_request *request, hyper_response_channel *channel
 ) {
+    // Print out various properties of the request.
     unsigned char scheme[16];
     size_t scheme_len = sizeof(scheme);
     unsigned char authority[16];
@@ -242,9 +250,24 @@ static void server_callback(
         printf("Request method was %.*s\n", (int)method_len, method);
     }
 
+    // Print out all the headers from the request
+    hyper_headers *req_headers = hyper_request_headers(request);
+    hyper_headers_foreach(req_headers, print_each_header, NULL);
     hyper_request_free(request);
+
+    // Build a response
     hyper_response *response = hyper_response_new();
     hyper_response_set_status(response, 404);
+    hyper_headers* rsp_headers = hyper_response_headers(response);
+    hyper_headers_set(
+        rsp_headers,
+        (unsigned char*)"Cache-Control",
+        13,
+        (unsigned char*)"no-cache",
+        8
+    );
+
+    // And send the response, completing the transaction
     hyper_response_channel_send(channel, response);
 }
 
