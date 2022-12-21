@@ -185,12 +185,6 @@ jobs:
           toolchain: stable
           override: true
 
-      - name: Install cbindgen
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: cbindgen
-
       - name: Build FFI
         uses: actions-rs/cargo@v1
         env:
@@ -208,7 +202,7 @@ jobs:
           RUSTFLAGS: --cfg hyper_unstable_ffi
         with:
           command: test
-          args: --features full,ffi --lib
+          args: --features server,client,http1,http2,ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date
@@ -231,6 +225,12 @@ jobs:
         with:
           command: install
           args: cbindgen
+
+      - name: Install cargo-expand
+        uses: actions-rs/cargo@v1
+        with:
+          command: install
+          args: cargo-expand
 
       - name: Build FFI
         uses: actions-rs/cargo@v1
