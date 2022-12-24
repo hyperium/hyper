@@ -31,8 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .http1_preserve_header_case(true)
-                .http1_title_case_headers(true)
+                .preserve_header_case(true)
+                .title_case_headers(true)
                 .serve_connection(stream, service_fn(proxy))
                 .with_upgrades()
                 .await

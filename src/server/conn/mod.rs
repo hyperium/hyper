@@ -30,7 +30,7 @@
 //!         let (tcp_stream, _) = tcp_listener.accept().await?;
 //!         tokio::task::spawn(async move {
 //!             if let Err(http_err) = http1::Builder::new()
-//!                     .http1_keep_alive(true)
+//!                     .keep_alive(true)
 //!                     .serve_connection(tcp_stream, service_fn(hello))
 //!                     .await {
 //!                 eprintln!("Error while serving HTTP connection: {}", http_err);
