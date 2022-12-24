@@ -2363,8 +2363,8 @@ async fn http2_keep_alive_detects_unresponsive_client() {
 
     let err = http2::Builder::new(TokioExecutor)
         .timer(TokioTimer)
-        .http2_keep_alive_interval(Duration::from_secs(1))
-        .http2_keep_alive_timeout(Duration::from_secs(1))
+        .keep_alive_interval(Duration::from_secs(1))
+        .keep_alive_timeout(Duration::from_secs(1))
         .serve_connection(socket, unreachable_service())
         .await
         .expect_err("serve_connection should error");
@@ -2381,8 +2381,8 @@ async fn http2_keep_alive_with_responsive_client() {
 
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .serve_connection(socket, HelloWorld)
             .await
             .expect("serve_connection");
@@ -2445,8 +2445,8 @@ async fn http2_keep_alive_count_server_pings() {
 
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .serve_connection(socket, unreachable_service())
             .await
             .expect("serve_connection");
