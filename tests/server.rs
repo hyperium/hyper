@@ -1247,7 +1247,7 @@ async fn http1_allow_half_close() {
 
     let (socket, _) = listener.accept().await.unwrap();
     http1::Builder::new()
-        .http1_half_close(true)
+        .half_close(true)
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1274,7 +1274,7 @@ async fn disconnect_after_reading_request_before_responding() {
 
     let (socket, _) = listener.accept().await.unwrap();
     http1::Builder::new()
-        .http1_half_close(false)
+        .half_close(false)
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1370,7 +1370,7 @@ async fn header_read_timeout_slow_writes() {
     let (socket, _) = listener.accept().await.unwrap();
     let conn = http1::Builder::new()
         .timer(TokioTimer)
-        .http1_header_read_timeout(Duration::from_secs(5))
+        .header_read_timeout(Duration::from_secs(5))
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1445,7 +1445,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
     let (socket, _) = listener.accept().await.unwrap();
     let conn = http1::Builder::new()
         .timer(TokioTimer)
-        .http1_header_read_timeout(Duration::from_secs(5))
+        .header_read_timeout(Duration::from_secs(5))
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -2839,7 +2839,7 @@ impl ServeOptions {
                                             .serve_connection(stream, service).await.unwrap();
                                     } else {
                                         http1::Builder::new()
-                                            .http1_keep_alive(_options.keep_alive)
+                                            .keep_alive(_options.keep_alive)
                                             .pipeline_flush(_options.pipeline)
                                             .serve_connection(stream, service).await.unwrap();
                                     }
