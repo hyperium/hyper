@@ -90,8 +90,8 @@ async fn proxy(
         let stream = TcpStream::connect(addr).await.unwrap();
 
         let (mut sender, conn) = Builder::new()
-            .http1_preserve_header_case(true)
-            .http1_title_case_headers(true)
+            .preserve_header_case(true)
+            .title_case_headers(true)
             .handshake(stream)
             .await?;
         tokio::task::spawn(async move {
