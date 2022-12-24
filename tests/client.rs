@@ -1197,7 +1197,7 @@ test! {
 
     client:
         options: {
-            http1_title_case_headers: true,
+            title_case_headers: true,
         },
         request: {
             method: GET,
@@ -1311,7 +1311,7 @@ test! {
 
     client:
         options: {
-            http1_allow_obsolete_multiline_headers_in_responses: true,
+            allow_obsolete_multiline_headers_in_responses: true,
         },
         request: {
             method: GET,
