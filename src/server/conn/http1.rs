@@ -240,8 +240,6 @@ impl Builder {
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     pub fn title_case_headers(&mut self, enabled: bool) -> &mut Self {
         self.h1_title_case_headers = enabled;
@@ -257,8 +255,6 @@ impl Builder {
     /// Since the relevant extension is still private, there is no way to
     /// interact with the original cases. The only effect this can have now is
     /// to forward the cases in a proxy-like fashion.
-    ///
-    /// Note that this setting does not affect HTTP/2.
     ///
     /// Default is false.
     pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Self {
