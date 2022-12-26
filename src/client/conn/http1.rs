@@ -333,8 +333,6 @@ impl Builder {
     /// > of 400 (Bad Request). A proxy MUST remove any such whitespace from a
     /// > response message before forwarding the message downstream.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
@@ -376,8 +374,6 @@ impl Builder {
     /// > obs-fold with one or more SP octets prior to interpreting the field
     /// > value.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
@@ -395,8 +391,6 @@ impl Builder {
     /// If this is enabled and and a header line does not start with a valid header
     /// name, or does not include a colon at all, the line will be silently ignored
     /// and no error will be reported.
-    ///
-    /// Note that this setting does not affect HTTP/2.
     ///
     /// Default is false.
     pub fn ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
@@ -425,8 +419,6 @@ impl Builder {
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     pub fn title_case_headers(&mut self, enabled: bool) -> &mut Builder {
         self.h1_title_case_headers = enabled;
@@ -443,8 +435,6 @@ impl Builder {
     /// interact with the original cases. The only effect this can have now is
     /// to forward the cases in a proxy-like fashion.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Builder {
         self.h1_preserve_header_case = enabled;
@@ -456,8 +446,6 @@ impl Builder {
     /// Currently, this will record the order in which headers are received, and store this
     /// ordering in a private extension on the `Response`. It will also look for and use
     /// such an extension in any provided `Request`.
-    ///
-    /// Note that this setting does not affect HTTP/2.
     ///
     /// Default is false.
     #[cfg(feature = "ffi")]
