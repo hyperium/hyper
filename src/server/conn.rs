@@ -58,6 +58,11 @@ use crate::error::{Kind, Parse};
 #[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
 
+#[cfg(all(feature = "backports", feature = "http1"))]
+pub mod http1;
+#[cfg(all(feature = "backports", feature = "http2"))]
+pub mod http2;
+
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]
 
@@ -327,7 +332,7 @@ impl<E> Http<E> {
         self
     }
 
-    /// Set a timeout for reading client request headers. If a client does not 
+    /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
@@ -817,7 +822,12 @@ where
         let mut conn = Some(self);
         futures_util::future::poll_fn(move |cx| {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
-            Poll::Ready(conn.take().unwrap().try_into_parts().ok_or_else(crate::Error::new_without_shutdown_not_h1))
+            Poll::Ready(
+                conn.take()
+                    .unwrap()
+                    .try_into_parts()
+                    .ok_or_else(crate::Error::new_without_shutdown_not_h1),
+            )
         })
     }
 
