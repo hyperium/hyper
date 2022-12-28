@@ -90,7 +90,6 @@ ffi = ["libc", "http-body-util"]
 
 # internal features used in CI
 nightly = []
-__internal_happy_eyeballs_tests = []
 
 [package.metadata.docs.rs]
 features = ["ffi", "full"]
