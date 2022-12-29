@@ -7,9 +7,6 @@ header = """/*
  */"""
 include_guard = "_HYPER_H"
 no_includes = true
-sys_includes = ["stdint.h", "stddef.h"]
+sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
 cpp_compat = true
 documentation_style = "c"
-
-[parse.expand]
-crates = ["hyper-capi"]
