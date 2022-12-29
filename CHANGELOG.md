@@ -1,3 +1,35 @@
+### v1.0.0-rc.2 (2022-12-29)
+
+
+#### Bug Fixes
+
+* **client:** send an error back to client when dispatch misbehaves () ([75aac9f4](https://github.com/hyperium/hyper/commit/75aac9f47fe0246016e6133cd3cfa35b63c8904e), closes [#2649](https://github.com/hyperium/hyper/issues/2649))
+* **http2:** Fix race condition in client dispatcher (#3041) ([f202230c](https://github.com/hyperium/hyper/commit/f202230c6fa274f6a4e6cbaad57ca59beb0a5125))
+
+
+#### Features
+
+* **body:** upgrade to http-body 1.0.0-rc.2 (#3106) ([51b45e3f](https://github.com/hyperium/hyper/commit/51b45e3f8580da5667a45395e6622455b10e2ad3))
+* **client:**
+  * remove http2_ prefixes from `client::conn::http2::Builder` methods ([669df217](https://github.com/hyperium/hyper/commit/669df2173e059544fbaded0d666c5bfc113eaa0e))
+  * remove http1_ prefixes from `client::conn::http1::Builder` methods ([4cbaef79](https://github.com/hyperium/hyper/commit/4cbaef79f0ec03643c09e4e6fbbed23bf589e548))
+  * implement `Clone` for `http2::SendRequest` (#3042) ([00ea49e4](https://github.com/hyperium/hyper/commit/00ea49e47a565748a4e4657f7047dca5851f8b7a), closes [#3036](https://github.com/hyperium/hyper/issues/3036))
+  * allow ignoring HTTP/1 invalid header lines in requests ([81e25fa8](https://github.com/hyperium/hyper/commit/81e25fa868c86e4ea81d5a96fdca497a4b1ab3c1))
+* **rt:** Clean up Timer trait (#3037) ([8790fee7](https://github.com/hyperium/hyper/commit/8790fee74937016e6b288493bc62c61f7866c310), closes [#3028](https://github.com/hyperium/hyper/issues/3028))
+* **server:**
+  * remove http1_ method prefixes from `server::conn::http2::Builder` ([291ed0b4](https://github.com/hyperium/hyper/commit/291ed0b49bc7fd6f43890815cdf93aaefaf59011))
+  * remove http1_ method prefixes from `server::conn::http2::Builder` ([48e70c69](https://github.com/hyperium/hyper/commit/48e70c691e44d5e37d4b51fe8980f76d27c989b3))
+  * remove `server::conn::http2::Builder::with_executor()` (#3089) ([ab59a6f7](https://github.com/hyperium/hyper/commit/ab59a6f7a1e654b1607744320de5f8477de5d6c8), closes [#3087](https://github.com/hyperium/hyper/issues/3087))
+
+
+#### Breaking Changes
+
+* removes `server::conn::http2::Builder::with_executor()`
+ ([ab59a6f7](https://github.com/hyperium/hyper/commit/ab59a6f7a1e654b1607744320de5f8477de5d6c8))
+* The return types of `Timer` have been changed.
+ ([8790fee7](https://github.com/hyperium/hyper/commit/8790fee74937016e6b288493bc62c61f7866c310))
+* The return types for `Frame::into_data()` and `Frame::into_trailers()` have been changed from `Option<T>` to `Result<T, Self>`.
+
 ### v1.0.0-rc.1 (2022-10-25)
 
 
