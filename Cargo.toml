@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "1.0.0-rc.1"
+version = "1.0.0-rc.2"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
