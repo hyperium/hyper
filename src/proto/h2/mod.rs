@@ -156,7 +156,7 @@ where
             match ready!(me.stream.as_mut().poll_frame(cx)) {
                 Some(Ok(frame)) => {
                     if frame.is_data() {
-                        let chunk = frame.into_data().unwrap();
+                        let chunk = frame.into_data().unwrap_or_else(|_| unreachable!());
                         let is_eos = me.stream.is_end_stream();
                         trace!(
                             "send body chunk: {} bytes, eos={}",
@@ -176,7 +176,7 @@ where
                         // no more DATA, so give any capacity back
                         me.body_tx.reserve_capacity(0);
                         me.body_tx
-                            .send_trailers(frame.into_trailers().unwrap())
+                            .send_trailers(frame.into_trailers().unwrap_or_else(|_| unreachable!()))
                             .map_err(crate::Error::new_body_write)?;
                         return Poll::Ready(Ok(()));
                     } else {
