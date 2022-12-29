@@ -333,12 +333,10 @@ impl Builder {
     /// > of 400 (Bad Request). A proxy MUST remove any such whitespace from a
     /// > response message before forwarding the message downstream.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn http1_allow_spaces_after_header_name_in_responses(
+    pub fn allow_spaces_after_header_name_in_responses(
         &mut self,
         enabled: bool,
     ) -> &mut Builder {
@@ -376,12 +374,10 @@ impl Builder {
     /// > obs-fold with one or more SP octets prior to interpreting the field
     /// > value.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn http1_allow_obsolete_multiline_headers_in_responses(
+    pub fn allow_obsolete_multiline_headers_in_responses(
         &mut self,
         enabled: bool,
     ) -> &mut Builder {
@@ -396,10 +392,8 @@ impl Builder {
     /// name, or does not include a colon at all, the line will be silently ignored
     /// and no error will be reported.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
-    pub fn http1_ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
+    pub fn ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_responses(enabled);
         self
@@ -417,7 +411,7 @@ impl Builder {
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
     /// mode to use
-    pub fn http1_writev(&mut self, enabled: bool) -> &mut Builder {
+    pub fn writev(&mut self, enabled: bool) -> &mut Builder {
         self.h1_writev = Some(enabled);
         self
     }
@@ -425,10 +419,8 @@ impl Builder {
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
-    pub fn http1_title_case_headers(&mut self, enabled: bool) -> &mut Builder {
+    pub fn title_case_headers(&mut self, enabled: bool) -> &mut Builder {
         self.h1_title_case_headers = enabled;
         self
     }
@@ -443,10 +435,8 @@ impl Builder {
     /// interact with the original cases. The only effect this can have now is
     /// to forward the cases in a proxy-like fashion.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
-    pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Builder {
+    pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Builder {
         self.h1_preserve_header_case = enabled;
         self
     }
@@ -457,21 +447,19 @@ impl Builder {
     /// ordering in a private extension on the `Response`. It will also look for and use
     /// such an extension in any provided `Request`.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
     #[cfg(feature = "ffi")]
-    pub fn http1_preserve_header_order(&mut self, enabled: bool) -> &mut Builder {
+    pub fn preserve_header_order(&mut self, enabled: bool) -> &mut Builder {
         self.h1_preserve_header_order = enabled;
         self
     }
 
     /// Sets the exact size of the read buffer to *always* use.
     ///
-    /// Note that setting this option unsets the `http1_max_buf_size` option.
+    /// Note that setting this option unsets the `max_buf_size` option.
     ///
     /// Default is an adaptive read buffer.
-    pub fn http1_read_buf_exact_size(&mut self, sz: Option<usize>) -> &mut Builder {
+    pub fn read_buf_exact_size(&mut self, sz: Option<usize>) -> &mut Builder {
         self.h1_read_buf_exact_size = sz;
         self.h1_max_buf_size = None;
         self
@@ -481,12 +469,12 @@ impl Builder {
     ///
     /// Default is ~400kb.
     ///
-    /// Note that setting this option unsets the `http1_read_exact_buf_size` option.
+    /// Note that setting this option unsets the `read_exact_buf_size` option.
     ///
     /// # Panics
     ///
     /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
-    pub fn http1_max_buf_size(&mut self, max: usize) -> &mut Self {
+    pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(
             max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,
             "the max_buf_size cannot be smaller than the minimum that h1 specifies."

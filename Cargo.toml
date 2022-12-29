@@ -16,7 +16,6 @@ include = [
   "Cargo.toml",
   "LICENSE",
   "src/**/*",
-  #"build.rs",
 ]
 
 [dependencies]
@@ -66,9 +65,6 @@ tokio-test = "0.4"
 tokio-util = { version = "0.7", features = ["codec"] }
 url = "2.2"
 
-[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
-pnet_datalink = "0.27.2"
-
 [features]
 # Nothing by default
 default = []
@@ -94,7 +90,6 @@ ffi = ["libc", "http-body-util"]
 
 # internal features used in CI
 nightly = []
-__internal_happy_eyeballs_tests = []
 
 [package.metadata.docs.rs]
 features = ["ffi", "full"]

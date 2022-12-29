@@ -70,9 +70,9 @@ ffi_fn! {
 
             conn::http1::Builder::new()
                 .executor(options.exec.clone())
-                .http1_allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
-                .http1_preserve_header_case(options.http1_preserve_header_case)
-                .http1_preserve_header_order(options.http1_preserve_header_order)
+                .allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
+                .preserve_header_case(options.http1_preserve_header_case)
+                .preserve_header_order(options.http1_preserve_header_order)
                 .handshake::<_, crate::body::Incoming>(io)
                 .await
                 .map(|(tx, conn)| {
