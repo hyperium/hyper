@@ -35,7 +35,7 @@ pin_project_lite::pin_project! {
 /// A configuration builder for HTTP/1 server connections.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    pub(crate) timer: Time,
+    timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
     h1_title_case_headers: bool,

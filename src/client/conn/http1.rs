@@ -2,7 +2,6 @@
 
 use std::error::Error as StdError;
 use std::fmt;
-use std::sync::Arc;
 
 use bytes::Bytes;
 use http::{Request, Response};
@@ -12,11 +11,9 @@ use tokio::io::{AsyncRead, AsyncWrite};
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{
-    exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
 };
 use crate::proto;
-use crate::rt::Executor;
 use crate::upgrade::Upgraded;
 
 type Dispatcher<T, B> =
@@ -102,7 +99,6 @@ where
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    pub(super) exec: Exec,
     h09_responses: bool,
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
@@ -289,7 +285,6 @@ impl Builder {
     #[inline]
     pub fn new() -> Builder {
         Builder {
-            exec: Exec::Default,
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
@@ -300,15 +295,6 @@ impl Builder {
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
         }
-    }
-
-    /// Provide an executor to execute background HTTP1 tasks.
-    pub fn executor<E>(&mut self, exec: E) -> &mut Builder
-    where
-        E: Executor<BoxSendFuture> + Send + Sync + 'static,
-    {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
     }
 
     /// Set whether HTTP/0.9 responses should be tolerated.

@@ -65,11 +65,10 @@ ffi_fn! {
                         }));
                         hyper_clientconn { tx: Tx::Http2(tx) }
                     });
-            }
+                }
             }
 
             conn::http1::Builder::new()
-                .executor(options.exec.clone())
                 .allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
                 .preserve_header_case(options.http1_preserve_header_case)
                 .preserve_header_order(options.http1_preserve_header_order)
