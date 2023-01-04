@@ -3029,7 +3029,6 @@ impl TestClient {
             sender.send_request(req).await
         } else {
             let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
-                .executor(TokioExecutor)
                 .handshake(stream)
                 .await
                 .unwrap();
