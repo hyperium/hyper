@@ -63,8 +63,13 @@ where
         return Ok(first.copy_to_bytes(first.remaining()));
     };
 
+    // Don't pre-emptively reserve *too* much.
+    let rest = (body.size_hint().lower() as usize).min(1024 * 16);
+    let cap = first
+        .remaining()
+        .saturating_add(second.remaining())
+        .saturating_add(rest);
     // With more than 1 buf, we gotta flatten into a Vec first.
-    let cap = first.remaining() + second.remaining() + body.size_hint().lower() as usize;
     let mut vec = Vec::with_capacity(cap);
     vec.put(first);
     vec.put(second);
