@@ -35,7 +35,7 @@ to include them all.
 ### Categorize
 
 Once enough information has been gathered, the issue should be categorized
-with [labels][#labels]. Ideally, most issues should be labelled with an area,
+with [labels](#labels). Ideally, most issues should be labelled with an area,
 effort, and severity. An issue _can_ have multiple areas, pick what fits. There
 should be only one severity, and the descriptions of each should help to pick
 the right one. The hardest label to select is "effort". If after reading the
@@ -111,3 +111,4 @@ The severity marks how _severe_ the issue is. Note this isn't "importance" or "p
 [issues]: https://github.com/hyperium/hyper/issues
 [COC]: ./CODE_OF_CONDUCT.md
 [PRs]: ./PULL_REQUESTS.md
+[MRE]: https://en.wikipedia.org/wiki/Minimal_reproducible_example
