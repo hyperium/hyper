@@ -89,7 +89,7 @@ where
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.inner
             .as_mut()
-            .expect("algready upgraded")
+            .expect("already upgraded")
             .poll_without_shutdown(cx)
     }
 }
