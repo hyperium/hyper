@@ -5,6 +5,8 @@
 //! If the `runtime` feature is disabled, the types in this module can be used
 //! to plug in other runtimes.
 
+pub mod bounds;
+
 use std::{
     future::Future,
     pin::Pin,
