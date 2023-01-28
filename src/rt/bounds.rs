@@ -1,4 +1,7 @@
-//! Sealed traits
+//! Trait aliases
+//!
+//! Traits in this module ease setting bounds and usually automatically
+//! implemented by implementing another trait.
 
 #[cfg(all(feature = "server", feature = "http2"))]
 pub use self::h2::Http2ConnExec;
@@ -12,7 +15,12 @@ mod h2 {
 
     /// An executor to spawn http2 connections.
     ///
+    /// This trait is implemented for any type that implements [`Executor`]
+    /// trait for any future.
+    ///
     /// This trait is sealed and cannot be implemented for types outside this crate.
+    ///
+    /// [`Executor`]: crate::rt::Executor
     pub trait Http2ConnExec<F, B: Body>: sealed::Sealed<(F, B)> + Clone {
         #[doc(hidden)]
         fn execute_h2stream(&mut self, fut: H2Stream<F, B>);

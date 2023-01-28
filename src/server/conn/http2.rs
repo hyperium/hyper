@@ -99,7 +99,10 @@ where
 impl<E> Builder<E> {
     /// Create a new connection builder.
     ///
-    /// This starts with the default options, and an executor.
+    /// This starts with the default options, and an executor which is a type
+    /// that implements [`Http2ConnExec`] trait.
+    ///
+    /// [`Http2ConnExec`]: crate::rt::bounds::Http2ConnExec
     pub fn new(exec: E) -> Self {
         Self {
             exec: exec,
