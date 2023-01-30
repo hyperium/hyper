@@ -55,8 +55,7 @@ ffi_fn! {
             #[cfg(feature = "http2")]
             {
             if options.http2 {
-                return conn::http2::Builder::new()
-                    .executor(options.exec.clone())
+                return conn::http2::Builder::new(options.exec.clone())
                     .handshake::<_, crate::body::Incoming>(io)
                     .await
                     .map(|(tx, conn)| {
