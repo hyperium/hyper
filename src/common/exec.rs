@@ -3,16 +3,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-#[cfg(feature = "server")]
-use crate::body::Body;
-#[cfg(all(feature = "http2", feature = "server"))]
-use crate::proto::h2::server::H2Stream;
 use crate::rt::Executor;
-
-#[cfg(feature = "server")]
-pub trait ConnStreamExec<F, B: Body>: Clone {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
-}
 
 pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
@@ -41,31 +32,6 @@ impl Exec {
 impl fmt::Debug for Exec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Exec").finish()
-    }
-}
-
-#[cfg(feature = "server")]
-impl<F, B> ConnStreamExec<F, B> for Exec
-where
-    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: Body,
-{
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
-    }
-}
-
-// ==== impl Executor =====
-
-#[cfg(feature = "server")]
-impl<E, F, B> ConnStreamExec<F, B> for E
-where
-    E: Executor<H2Stream<F, B>> + Clone,
-    H2Stream<F, B>: Future<Output = ()>,
-    B: Body,
-{
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
     }
 }
 

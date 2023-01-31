@@ -9,9 +9,9 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::exec::ConnStreamExec;
 use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto;
+use crate::rt::bounds::Http2ConnExec;
 use crate::service::HttpService;
 use crate::{common::time::Time, rt::Timer};
 
@@ -54,7 +54,7 @@ where
     I: AsyncRead + AsyncWrite + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: ConnStreamExec<S::Future, B>,
+    E: Http2ConnExec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -78,7 +78,7 @@ where
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: ConnStreamExec<S::Future, B>,
+    E: Http2ConnExec<S::Future, B>,
 {
     type Output = crate::Result<()>;
 
@@ -99,7 +99,10 @@ where
 impl<E> Builder<E> {
     /// Create a new connection builder.
     ///
-    /// This starts with the default options, and an executor.
+    /// This starts with the default options, and an executor which is a type
+    /// that implements [`Http2ConnExec`] trait.
+    ///
+    /// [`Http2ConnExec`]: crate::rt::bounds::Http2ConnExec
     pub fn new(exec: E) -> Self {
         Self {
             exec: exec,
@@ -259,7 +262,7 @@ impl<E> Builder<E> {
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
-        E: ConnStreamExec<S::Future, Bd>,
+        E: Http2ConnExec<S::Future, Bd>,
     {
         let proto = proto::h2::Server::new(
             io,
