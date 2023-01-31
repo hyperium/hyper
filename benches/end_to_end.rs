@@ -316,11 +316,10 @@ impl Opts {
         let mut client = rt.block_on(async {
             if self.http2 {
                 let io = tokio::net::TcpStream::connect(&addr).await.unwrap();
-                let (tx, conn) = hyper::client::conn::http2::Builder::new()
+                let (tx, conn) = hyper::client::conn::http2::Builder::new(support::TokioExecutor)
                     .initial_stream_window_size(self.http2_stream_window)
                     .initial_connection_window_size(self.http2_conn_window)
                     .adaptive_window(self.http2_adaptive_window)
-                    .executor(support::TokioExecutor)
                     .handshake(io)
                     .await
                     .unwrap();
