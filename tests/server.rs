@@ -2389,8 +2389,7 @@ async fn http2_keep_alive_with_responsive_client() {
     });
 
     let tcp = connect_async(addr).await;
-    let (mut client, conn) = hyper::client::conn::http2::Builder::new()
-        .executor(TokioExecutor)
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
         .handshake(tcp)
         .await
         .expect("http handshake");
@@ -3017,8 +3016,7 @@ impl TestClient {
             .unwrap();
 
         if self.http2_only {
-            let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
-                .executor(TokioExecutor)
+            let (mut sender, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
                 .handshake(stream)
                 .await
                 .unwrap();

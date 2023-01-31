@@ -57,16 +57,18 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
+pub async fn handshake<E, T, B>(
+    exec: E,
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
+    E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    Builder::new().handshake(io).await
+    Builder::new(exec).handshake(io).await
 }
 
 // ===== impl SendRequest
@@ -244,21 +246,15 @@ where
 impl Builder {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new() -> Builder {
-        Builder {
-            exec: Exec::Default,
-            timer: Time::Empty,
-            h2_builder: Default::default(),
-        }
-    }
-
-    /// Provide an executor to execute background HTTP2 tasks.
-    pub fn executor<E>(&mut self, exec: E) -> &mut Builder
+    pub fn new<E>(exec: E) -> Builder 
     where
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
+        Builder {
+            exec: Exec::new(exec),
+            timer: Time::Empty,
+            h2_builder: Default::default(),
+        }
     }
 
     /// Provide a timer to execute background HTTP2 tasks.
