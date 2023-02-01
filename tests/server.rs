@@ -973,9 +973,8 @@ async fn expect_continue_waits_for_body_poll() {
             service_fn(|req| {
                 assert_eq!(req.headers()["expect"], "100-continue");
                 // But! We're never going to poll the body!
+                drop(req);
                 tokio::time::sleep(Duration::from_millis(50)).map(move |_| {
-                    // Move and drop the req, so we don't auto-close
-                    drop(req);
                     Response::builder()
                         .status(StatusCode::BAD_REQUEST)
                         .body(hyper::Body::empty())
