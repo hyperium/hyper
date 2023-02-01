@@ -732,6 +732,12 @@ where
 
     /// If the read side can be cheaply drained, do so. Otherwise, close.
     pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut task::Context<'_>) {
+        if let Reading::Continue(ref decoder) = self.state.reading {
+            // skip sending the 100-continue
+            // just move forward to a read, in case a tiny body was included
+            self.state.reading = Reading::Body(decoder.clone());
+        }
+
         let _ = self.poll_read_body(cx);
 
         // If still in Reading::Body, just give up
