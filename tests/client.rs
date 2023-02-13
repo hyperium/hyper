@@ -1121,10 +1121,11 @@ mod dispatch_impl {
     use http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
+    use tokio_test::block_on;
 
     use super::support;
     use hyper::body::HttpBody;
-    use hyper::client::connect::{Connected, Connection, HttpConnector};
+    use hyper::client::connect::{capture_connection, Connected, Connection, HttpConnector};
     use hyper::Client;
 
     #[test]
@@ -1531,6 +1532,37 @@ mod dispatch_impl {
         // internal Connect::connect should have been lazy, and not
         // triggered an actual connect yet.
         assert_eq!(connects.load(Ordering::Relaxed), 0);
+    }
+
+    #[test]
+    fn capture_connection_on_client() {
+        let _ = pretty_env_logger::try_init();
+
+        let _rt = support::runtime();
+        let connector = DebugConnector::new();
+
+        let client = Client::builder().build(connector);
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            //drop(server);
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .expect("write 1");
+        });
+        let mut req = Request::builder()
+            .uri(&*format!("http://{}/a", addr))
+            .body(Body::empty())
+            .unwrap();
+        let captured_conn = capture_connection(&mut req);
+        block_on(client.request(req)).expect("200 OK");
+        assert!(captured_conn.connection_metadata().is_some());
     }
 
     #[test]

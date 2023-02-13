@@ -10,6 +10,14 @@ use http::uri::{Port, Scheme};
 use http::{Method, Request, Response, Uri, Version};
 use tracing::{debug, trace, warn};
 
+use crate::body::{Body, HttpBody};
+use crate::client::connect::CaptureConnectionExtension;
+use crate::common::{
+    exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, task, Future, Lazy, Pin,
+    Poll,
+};
+use crate::rt::Executor;
+
 use super::conn;
 use super::connect::{self, sealed::Connect, Alpn, Connected, Connection};
 use super::pool::{
@@ -17,9 +25,6 @@ use super::pool::{
 };
 #[cfg(feature = "tcp")]
 use super::HttpConnector;
-use crate::body::{Body, HttpBody};
-use crate::common::{exec::BoxSendFuture, sync_wrapper::SyncWrapper, lazy as hyper_lazy, task, Future, Lazy, Pin, Poll};
-use crate::rt::Executor;
 
 /// A Client to make outgoing HTTP requests.
 ///
@@ -238,7 +243,9 @@ where
                 })
             }
         };
-
+        req.extensions_mut()
+            .get_mut::<CaptureConnectionExtension>()
+            .map(|conn| conn.set(&pooled.conn_info));
         if pooled.is_http1() {
             if req.version() == Version::HTTP_2 {
                 warn!("Connection is HTTP/1, but request requires HTTP/2");
