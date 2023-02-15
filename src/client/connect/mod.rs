@@ -80,6 +80,9 @@
 //! [`AsyncWrite`]: tokio::io::AsyncWrite
 //! [`Connection`]: Connection
 use std::fmt;
+use std::fmt::{Debug, Formatter};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 
 use ::http::Extensions;
 
@@ -113,6 +116,34 @@ pub struct Connected {
     pub(super) alpn: Alpn,
     pub(super) is_proxied: bool,
     pub(super) extra: Option<Extra>,
+    pub(super) poisoned: PoisonPill,
+}
+
+#[derive(Clone)]
+pub(crate) struct PoisonPill {
+    poisoned: Arc<AtomicBool>,
+}
+
+impl Debug for PoisonPill {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        // print the address of the pill—this makes debugging issues much easier
+        write!(f, "PoisonPill@{:p} {{ poisoned: {} }}", self.poisoned, self.poisoned.load(Ordering::Relaxed))
+    }
+}
+
+impl PoisonPill {
+    pub(crate) fn healthy() -> Self {
+        Self {
+            poisoned: Arc::new(AtomicBool::new(false)),
+        }
+    }
+    pub(crate) fn poison(&self) {
+        self.poisoned.store(true, Ordering::Relaxed)
+    }
+
+    pub(crate) fn poisoned(&self) -> bool {
+        self.poisoned.load(Ordering::Relaxed)
+    }
 }
 
 pub(super) struct Extra(Box<dyn ExtraInner>);
@@ -130,6 +161,7 @@ impl Connected {
             alpn: Alpn::None,
             is_proxied: false,
             extra: None,
+            poisoned: PoisonPill::healthy(),
         }
     }
 
@@ -189,6 +221,16 @@ impl Connected {
         self.alpn == Alpn::H2
     }
 
+    /// Poison this connection
+    ///
+    /// A poisoned connection will not be reused for subsequent requests by the pool
+    pub fn poison(&self) {
+        self.poisoned.poison();
+        tracing::debug!(
+            poison_pill = ?self.poisoned, "connection was poisoned"
+        );
+    }
+
     // Don't public expose that `Connected` is `Clone`, unsure if we want to
     // keep that contract...
     #[cfg(feature = "http2")]
@@ -197,6 +239,7 @@ impl Connected {
             alpn: self.alpn.clone(),
             is_proxied: self.is_proxied,
             extra: self.extra.clone(),
+            poisoned: self.poisoned.clone(),
         }
     }
 }

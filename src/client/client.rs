@@ -689,6 +689,10 @@ where
     B: Send + 'static,
 {
     fn is_open(&self) -> bool {
+        if self.conn_info.poisoned.poisoned() {
+            trace!("marking {:?} as closed because it was poisoned", self.conn_info);
+            return false;
+        }
         match self.tx {
             PoolTx::Http1(ref tx) => tx.is_ready(),
             #[cfg(feature = "http2")]
