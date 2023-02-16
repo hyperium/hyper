@@ -92,22 +92,19 @@ impl<B> SendRequest<B> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
-    /*
-    pub(super) async fn when_ready(self) -> crate::Result<Self> {
-        let mut me = Some(self);
-        future::poll_fn(move |cx| {
-            ready!(me.as_mut().unwrap().poll_ready(cx))?;
-            Poll::Ready(Ok(me.take().unwrap()))
-        })
-        .await
-    }
-
-    pub(super) fn is_ready(&self) -> bool {
+    /// Checks if the connection is currently ready to send a request.
+    ///
+    /// # Note
+    ///
+    /// This is mostly a hint. Due to inherent latency of networks, it is
+    /// possible that even after checking this is ready, sending a request
+    /// may still fail because the connection was closed in the meantime.
+    pub fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
-    */
 
-    pub(super) fn is_closed(&self) -> bool {
+    /// Checks if the connection side has been closed.
+    pub fn is_closed(&self) -> bool {
         self.dispatch.is_closed()
     }
 }
