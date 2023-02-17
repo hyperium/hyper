@@ -59,16 +59,13 @@ impl<T, U> Sender<T, U> {
             .map_err(|_| crate::Error::new_closed())
     }
 
-    #[cfg(test)]
     pub(crate) fn is_ready(&self) -> bool {
         self.giver.is_wanting()
     }
 
-    /*
     pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }
-    */
 
     fn can_send(&mut self) -> bool {
         if self.giver.give() || !self.buffered_once {
@@ -117,11 +114,9 @@ impl<T, U> Sender<T, U> {
 
 #[cfg(feature = "http2")]
 impl<T, U> UnboundedSender<T, U> {
-    /*
     pub(crate) fn is_ready(&self) -> bool {
         !self.giver.is_canceled()
     }
-    */
 
     pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
