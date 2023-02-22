@@ -82,9 +82,11 @@
 use std::fmt;
 use std::fmt::{Debug, Formatter};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::ops::Deref;
 use std::sync::Arc;
 
 use ::http::Extensions;
+use tokio::sync::watch;
 
 cfg_feature! {
     #![feature = "tcp"]
@@ -143,6 +145,114 @@ impl PoisonPill {
 
     pub(crate) fn poisoned(&self) -> bool {
         self.poisoned.load(Ordering::Relaxed)
+    }
+}
+
+/// [`CaptureConnection`] allows callers to capture [`Connected`] information
+///
+/// To capture a connection for a request, use [`capture_connection`].
+#[derive(Debug, Clone)]
+pub struct CaptureConnection {
+    rx: watch::Receiver<Option<Connected>>,
+}
+
+/// Capture the connection for a given request
+///
+/// When making a request with Hyper, the underlying connection must implement the [`Connection`] trait.
+/// [`capture_connection`] allows a caller to capture the returned [`Connected`] structure as soon
+/// as the connection is established.
+///
+/// *Note*: If establishing a connection fails, [`CaptureConnection::connection_metadata`] will always return none.
+///
+/// # Examples
+///
+/// **Synchronous access**:
+/// The [`CaptureConnection::connection_metadata`] method allows callers to check if a connection has been
+/// established. This is ideal for situations where you are certain the connection has already
+/// been established (e.g. after the response future has already completed).
+/// ```rust
+/// use hyper::client::connect::{capture_connection, CaptureConnection};
+/// let mut request = http::Request::builder()
+///   .uri("http://foo.com")
+///   .body(())
+///   .unwrap();
+///
+/// let captured_connection = capture_connection(&mut request);
+/// // some time later after the request has been sent...
+/// let connection_info = captured_connection.connection_metadata();
+/// println!("we are connected! {:?}", connection_info.as_ref());
+/// ```
+///
+/// **Asynchronous access**:
+/// The [`CaptureConnection::wait_for_connection_metadata`] method returns a future resolves as soon as the
+/// connection is available.
+///
+/// ```rust
+/// # #[cfg(feature  = "runtime")]
+/// # async fn example() {
+/// use hyper::client::connect::{capture_connection, CaptureConnection};
+/// let mut request = http::Request::builder()
+///   .uri("http://foo.com")
+///   .body(hyper::Body::empty())
+///   .unwrap();
+///
+/// let mut captured = capture_connection(&mut request);
+/// tokio::task::spawn(async move {
+///     let connection_info = captured.wait_for_connection_metadata().await;
+///     println!("we are connected! {:?}", connection_info.as_ref());
+/// });
+///
+/// let client = hyper::Client::new();
+/// client.request(request).await.expect("request failed");
+/// # }
+/// ```
+pub fn capture_connection<B>(request: &mut crate::http::Request<B>) -> CaptureConnection {
+    let (tx, rx) = CaptureConnection::new();
+    request.extensions_mut().insert(tx);
+    rx
+}
+
+/// TxSide for [`CaptureConnection`]
+///
+/// This is inserted into `Extensions` to allow Hyper to back channel connection info
+#[derive(Clone)]
+pub(crate) struct CaptureConnectionExtension {
+    tx: Arc<watch::Sender<Option<Connected>>>,
+}
+
+impl CaptureConnectionExtension {
+    pub(crate) fn set(&self, connected: &Connected) {
+        self.tx.send_replace(Some(connected.clone()));
+    }
+}
+
+impl CaptureConnection {
+    /// Internal API to create the tx and rx half of [`CaptureConnection`]
+    pub(crate) fn new() -> (CaptureConnectionExtension, Self) {
+        let (tx, rx) = watch::channel(None);
+        (
+            CaptureConnectionExtension { tx: Arc::new(tx) },
+            CaptureConnection { rx },
+        )
+    }
+
+    /// Retrieve the connection metadata, if available
+    pub fn connection_metadata(&self) -> impl Deref<Target = Option<Connected>> + '_ {
+        self.rx.borrow()
+    }
+
+    /// Wait for the connection to be established
+    ///
+    /// If a connection was established, this will always return `Some(...)`. If the request never
+    /// successfully connected (e.g. DNS resolution failure), this method will never return.
+    pub async fn wait_for_connection_metadata(
+        &mut self,
+    ) -> impl Deref<Target = Option<Connected>> + '_ {
+        if self.rx.borrow().is_some() {
+            return self.rx.borrow();
+        }
+        let _ = self.rx.changed().await;
+        self.rx.borrow()
     }
 }
 
@@ -233,7 +343,6 @@ impl Connected {
 
     // Don't public expose that `Connected` is `Clone`, unsure if we want to
     // keep that contract...
-    #[cfg(feature = "http2")]
     pub(super) fn clone(&self) -> Connected {
         Connected {
             alpn: self.alpn.clone(),
@@ -394,6 +503,7 @@ pub(super) mod sealed {
 #[cfg(test)]
 mod tests {
     use super::Connected;
+    use crate::client::connect::CaptureConnection;
 
     #[derive(Clone, Debug, PartialEq)]
     struct Ex1(usize);
@@ -451,5 +561,73 @@ mod tests {
 
         assert_eq!(ex2.get::<Ex1>(), Some(&Ex1(99)));
         assert_eq!(ex2.get::<Ex2>(), Some(&Ex2("hiccup")));
+    }
+
+    #[test]
+    fn test_sync_capture_connection() {
+        let (tx, rx) = CaptureConnection::new();
+        assert!(
+            rx.connection_metadata().is_none(),
+            "connection has not been set"
+        );
+        tx.set(&Connected::new().proxy(true));
+        assert_eq!(
+            rx.connection_metadata()
+                .as_ref()
+                .expect("connected should be set")
+                .is_proxied(),
+            true
+        );
+
+        // ensure it can be called multiple times
+        assert_eq!(
+            rx.connection_metadata()
+                .as_ref()
+                .expect("connected should be set")
+                .is_proxied(),
+            true
+        );
+    }
+
+    #[tokio::test]
+    async fn async_capture_connection() {
+        let (tx, mut rx) = CaptureConnection::new();
+        assert!(
+            rx.connection_metadata().is_none(),
+            "connection has not been set"
+        );
+        let test_task = tokio::spawn(async move {
+            assert_eq!(
+                rx.wait_for_connection_metadata()
+                    .await
+                    .as_ref()
+                    .expect("connection should be set")
+                    .is_proxied(),
+                true
+            );
+            // can be awaited multiple times
+            assert!(
+                rx.wait_for_connection_metadata().await.is_some(),
+                "should be awaitable multiple times"
+            );
+
+            assert_eq!(rx.connection_metadata().is_some(), true);
+        });
+        // can't be finished, we haven't set the connection yet
+        assert_eq!(test_task.is_finished(), false);
+        tx.set(&Connected::new().proxy(true));
+
+        assert!(test_task.await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn capture_connection_sender_side_dropped() {
+        let (tx, mut rx) = CaptureConnection::new();
+        assert!(
+            rx.connection_metadata().is_none(),
+            "connection has not been set"
+        );
+        drop(tx);
+        assert!(rx.wait_for_connection_metadata().await.is_none());
     }
 }
