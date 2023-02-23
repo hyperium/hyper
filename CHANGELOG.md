@@ -1,3 +1,29 @@
+### v1.0.0-rc.3 (2023-02-23)
+
+
+#### Bug Fixes
+
+* **server:** prevent sending 100-continue if user drops request body (#3137) ([499fe1f9](https://github.com/hyperium/hyper/commit/499fe1f949895218c4fd2305a0eddaf24f1dd0a9))
+
+
+#### Features
+
+* **client:**
+  * add `is_ready()` and `is_closed()` methods to `SendRequest` (#3148) ([3fb59919](https://github.com/hyperium/hyper/commit/3fb59919941d3145be6d84dab85d222ea0e7664b))
+  * `http2` builder now requires an `Executor` (#3135) ([8068aa01](https://github.com/hyperium/hyper/commit/8068aa011f6477a21ad54230c8fef9e26b330503), closes [#3128](https://github.com/hyperium/hyper/issues/3128))
+  * remove unneeded HTTP/1 executor (#3108) ([1de9accf](https://github.com/hyperium/hyper/commit/1de9accf1e133d1a23311879f466251b2f6481e5))
+* **rt:** make private executor traits public (but sealed) in `rt::bounds` (#3127) ([fc9f3070](https://github.com/hyperium/hyper/commit/fc9f30701a159772d0c014de47d16798502bae2c), closes [#2051](https://github.com/hyperium/hyper/issues/2051), [#3097](https://github.com/hyperium/hyper/issues/3097))
+
+
+#### Breaking Changes
+
+*  `hyper::client::conn::Http2::Builder::new` now requires an executor argument.
+ ([8068aa01](https://github.com/hyperium/hyper/commit/8068aa011f6477a21ad54230c8fef9e26b330503))
+* The method
+  `hyper::client::conn::http1::Builder::executor()` is removed, since it did nothing.
+ ([1de9accf](https://github.com/hyperium/hyper/commit/1de9accf1e133d1a23311879f466251b2f6481e5))
+
+
 ### v1.0.0-rc.2 (2022-12-29)
 
 
