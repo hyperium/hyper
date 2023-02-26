@@ -1,5 +1,6 @@
 use std::ptr;
 use std::sync::Arc;
+use std::pin::Pin;
 
 use libc::c_int;
 
@@ -55,30 +56,28 @@ ffi_fn! {
             #[cfg(feature = "http2")]
             {
             if options.http2 {
-                return conn::http2::Builder::new()
-                    .executor(options.exec.clone())
+                return conn::http2::Builder::new(options.exec.clone())
                     .handshake::<_, crate::body::Incoming>(io)
                     .await
                     .map(|(tx, conn)| {
                         options.exec.execute(Box::pin(async move {
                             let _ = conn.await;
-                        }));
+                        }) as Pin<Box<_>>);
                         hyper_clientconn { tx: Tx::Http2(tx) }
                     });
-            }
+                }
             }
 
             conn::http1::Builder::new()
-                .executor(options.exec.clone())
-                .http1_allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
-                .http1_preserve_header_case(options.http1_preserve_header_case)
-                .http1_preserve_header_order(options.http1_preserve_header_order)
+                .allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
+                .preserve_header_case(options.http1_preserve_header_case)
+                .preserve_header_order(options.http1_preserve_header_order)
                 .handshake::<_, crate::body::Incoming>(io)
                 .await
                 .map(|(tx, conn)| {
                     options.exec.execute(Box::pin(async move {
                         let _ = conn.await;
-                    }));
+                    }) as Pin<Box<_>>);
                     hyper_clientconn { tx: Tx::Http1(tx) }
                 })
         }))

@@ -57,16 +57,18 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
+pub async fn handshake<E, T, B>(
+    exec: E,
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
+    E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    Builder::new().handshake(io).await
+    Builder::new(exec).handshake(io).await
 }
 
 // ===== impl SendRequest
@@ -90,22 +92,19 @@ impl<B> SendRequest<B> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
-    /*
-    pub(super) async fn when_ready(self) -> crate::Result<Self> {
-        let mut me = Some(self);
-        future::poll_fn(move |cx| {
-            ready!(me.as_mut().unwrap().poll_ready(cx))?;
-            Poll::Ready(Ok(me.take().unwrap()))
-        })
-        .await
-    }
-
-    pub(super) fn is_ready(&self) -> bool {
+    /// Checks if the connection is currently ready to send a request.
+    ///
+    /// # Note
+    ///
+    /// This is mostly a hint. Due to inherent latency of networks, it is
+    /// possible that even after checking this is ready, sending a request
+    /// may still fail because the connection was closed in the meantime.
+    pub fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
-    */
 
-    pub(super) fn is_closed(&self) -> bool {
+    /// Checks if the connection side has been closed.
+    pub fn is_closed(&self) -> bool {
         self.dispatch.is_closed()
     }
 }
@@ -244,21 +243,15 @@ where
 impl Builder {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new() -> Builder {
-        Builder {
-            exec: Exec::Default,
-            timer: Time::Empty,
-            h2_builder: Default::default(),
-        }
-    }
-
-    /// Provide an executor to execute background HTTP2 tasks.
-    pub fn executor<E>(&mut self, exec: E) -> &mut Builder
+    pub fn new<E>(exec: E) -> Builder 
     where
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
-        self.exec = Exec::Executor(Arc::new(exec));
-        self
+        Builder {
+            exec: Exec::new(exec),
+            timer: Time::Empty,
+            h2_builder: Default::default(),
+        }
     }
 
     /// Provide a timer to execute background HTTP2 tasks.
@@ -278,9 +271,7 @@ impl Builder {
     /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+    pub fn initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_stream_window_size = sz;
@@ -293,9 +284,7 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_initial_connection_window_size(
+    pub fn initial_connection_window_size(
         &mut self,
         sz: impl Into<Option<u32>>,
     ) -> &mut Self {
@@ -309,11 +298,9 @@ impl Builder {
     /// Sets whether to use an adaptive flow control.
     ///
     /// Enabling this will override the limits set in
-    /// `http2_initial_stream_window_size` and
-    /// `http2_initial_connection_window_size`.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
+    /// `initial_stream_window_size` and
+    /// `initial_connection_window_size`.
+    pub fn adaptive_window(&mut self, enabled: bool) -> &mut Self {
         use proto::h2::SPEC_WINDOW_SIZE;
 
         self.h2_builder.adaptive_window = enabled;
@@ -329,9 +316,7 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+    pub fn max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.max_frame_size = sz;
         }
@@ -344,9 +329,7 @@ impl Builder {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_keep_alive_interval(
+    pub fn keep_alive_interval(
         &mut self,
         interval: impl Into<Option<Duration>>,
     ) -> &mut Self {
@@ -357,12 +340,10 @@ impl Builder {
     /// Sets a timeout for receiving an acknowledgement of the keep-alive ping.
     ///
     /// If the ping is not acknowledged within the timeout, the connection will
-    /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
+    /// be closed. Does nothing if `keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
+    pub fn keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.h2_builder.keep_alive_timeout = timeout;
         self
     }
@@ -371,13 +352,11 @@ impl Builder {
     ///
     /// If disabled, keep-alive pings are only sent while there are open
     /// request/responses streams. If enabled, pings are also sent when no
-    /// streams are active. Does nothing if `http2_keep_alive_interval` is
+    /// streams are active. Does nothing if `keep_alive_interval` is
     /// disabled.
     ///
     /// Default is `false`.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
+    pub fn keep_alive_while_idle(&mut self, enabled: bool) -> &mut Self {
         self.h2_builder.keep_alive_while_idle = enabled;
         self
     }
@@ -390,9 +369,7 @@ impl Builder {
     /// The default value is determined by the `h2` crate.
     ///
     /// [`h2::client::Builder::max_concurrent_reset_streams`]: https://docs.rs/h2/client/struct.Builder.html#method.max_concurrent_reset_streams
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_concurrent_reset_streams(&mut self, max: usize) -> &mut Self {
+    pub fn max_concurrent_reset_streams(&mut self, max: usize) -> &mut Self {
         self.h2_builder.max_concurrent_reset_streams = Some(max);
         self
     }
@@ -404,9 +381,7 @@ impl Builder {
     /// # Panics
     ///
     /// The value must be no larger than `u32::MAX`.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_send_buf_size(&mut self, max: usize) -> &mut Self {
+    pub fn max_send_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(max <= std::u32::MAX as usize);
         self.h2_builder.max_send_buffer_size = max;
         self

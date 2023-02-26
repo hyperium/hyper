@@ -80,7 +80,7 @@ ffi_fn! {
         enabled: bool,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http1_half_close(enabled);
+        opts.0.half_close(enabled);
         hyper_code::HYPERE_OK
     }
 }
@@ -94,7 +94,7 @@ ffi_fn! {
         enabled: bool,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http1_keep_alive(enabled);
+        opts.0.keep_alive(enabled);
         hyper_code::HYPERE_OK
     }
 }
@@ -108,7 +108,7 @@ ffi_fn! {
         enabled: bool,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http1_title_case_headers(enabled);
+        opts.0.title_case_headers(enabled);
         hyper_code::HYPERE_OK
     }
 }
@@ -130,7 +130,7 @@ ffi_fn! {
         enabled: bool,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http1_preserve_header_case(enabled);
+        opts.0.preserve_header_case(enabled);
         hyper_code::HYPERE_OK
     }
 }
@@ -145,7 +145,7 @@ ffi_fn! {
         millis: u64,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http1_header_read_timeout(std::time::Duration::from_millis(millis));
+        opts.0.header_read_timeout(std::time::Duration::from_millis(millis));
         hyper_code::HYPERE_OK
     }
 }
@@ -167,7 +167,7 @@ ffi_fn! {
         enabled: bool,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http1_writev(enabled);
+        opts.0.writev(enabled);
         hyper_code::HYPERE_OK
     }
 }
@@ -238,7 +238,7 @@ ffi_fn! {
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
         opts.0
-            .http2_initial_stream_window_size(if window_size == 0 {
+            .initial_stream_window_size(if window_size == 0 {
                 None
             } else {
                 Some(window_size)
@@ -257,7 +257,7 @@ ffi_fn! {
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
         opts.0
-            .http2_initial_connection_window_size(if window_size == 0 {
+            .initial_connection_window_size(if window_size == 0 {
                 None
             } else {
                 Some(window_size)
@@ -278,7 +278,7 @@ ffi_fn! {
         enabled: bool,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_adaptive_window(enabled);
+        opts.0.adaptive_window(enabled);
         hyper_code::HYPERE_OK
     }
 }
@@ -292,7 +292,7 @@ ffi_fn! {
         frame_size: c_uint,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_max_frame_size(if frame_size == 0 { None } else { Some(frame_size) });
+        opts.0.max_frame_size(if frame_size == 0 { None } else { Some(frame_size) });
         hyper_code::HYPERE_OK
     }
 }
@@ -306,7 +306,7 @@ ffi_fn! {
         max_streams: c_uint,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_max_concurrent_streams(if max_streams == 0 {
+        opts.0.max_concurrent_streams(if max_streams == 0 {
             None
         } else {
             Some(max_streams)
@@ -324,7 +324,7 @@ ffi_fn! {
         interval_seconds: u64,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_keep_alive_interval(if interval_seconds == 0 {
+        opts.0.keep_alive_interval(if interval_seconds == 0 {
             None
         } else {
             Some(std::time::Duration::from_secs(interval_seconds))
@@ -345,7 +345,7 @@ ffi_fn! {
         timeout_seconds: u64,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_keep_alive_timeout(std::time::Duration::from_secs(timeout_seconds));
+        opts.0.keep_alive_timeout(std::time::Duration::from_secs(timeout_seconds));
         hyper_code::HYPERE_OK
     }
 }
@@ -360,7 +360,7 @@ ffi_fn! {
         max_buf_size: usize,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_max_send_buf_size(max_buf_size);
+        opts.0.max_send_buf_size(max_buf_size);
         hyper_code::HYPERE_OK
     }
 }
@@ -371,7 +371,7 @@ ffi_fn! {
         opts: *mut hyper_http2_serverconn_options,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_enable_connect_protocol();
+        opts.0.enable_connect_protocol();
         hyper_code::HYPERE_OK
     }
 }
@@ -385,7 +385,7 @@ ffi_fn! {
         max: u32,
     ) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
-        opts.0.http2_max_header_list_size(max);
+        opts.0.max_header_list_size(max);
         hyper_code::HYPERE_OK
     }
 }
@@ -535,7 +535,7 @@ impl<IO, Serv, Exec> std::future::Future for AutoConnection<IO, Serv, Exec>
 where
     IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
     Serv: crate::service::HttpService<IncomingBody, ResBody = IncomingBody>,
-    Exec: crate::common::exec::ConnStreamExec<Serv::Future, IncomingBody> + Unpin,
+    Exec: crate::rt::Executor<crate::proto::h2::server::H2Stream<Serv::Future, IncomingBody>> + Unpin + Clone,
     http1::Connection<IO, Serv>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,
     http2::Connection<crate::common::io::Rewind<IO>, Serv, Exec>:
         std::future::Future<Output = Result<(), crate::Error>> + Unpin,

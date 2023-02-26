@@ -63,8 +63,8 @@ ffi_fn! {
             loop {
                 match body.0.frame().await {
                     Some(Ok(frame)) => {
-                        if frame.is_data() {
-                            return Ok(Some(hyper_buf(frame.into_data().unwrap())));
+                        if let Ok(data) = frame.into_data() {
+                            return Ok(Some(hyper_buf(data)));
                         } else {
                             continue;
                         }
@@ -95,7 +95,7 @@ ffi_fn! {
         Box::into_raw(hyper_task::boxed(async move {
             while let Some(item) = body.0.frame().await {
                 let frame = item?;
-                if let Some(chunk) = frame.into_data() {
+                if let Ok(chunk) = frame.into_data() {
                     if HYPER_ITER_CONTINUE != func(userdata.0, &hyper_buf(chunk)) {
                         return Err(crate::Error::new_user_aborted_by_callback());
                     }

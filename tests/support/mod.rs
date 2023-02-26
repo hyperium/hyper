@@ -427,8 +427,7 @@ async fn async_test(cfg: __TestConfig) {
             let stream = TcpStream::connect(addr).await.unwrap();
 
             let res = if http2_only {
-                let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
-                    .executor(TokioExecutor)
+                let (mut sender, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
                     .handshake(stream)
                     .await
                     .unwrap();
@@ -526,11 +525,11 @@ async fn naive_proxy(cfg: ProxyConfig) -> (SocketAddr, impl Future<Output = ()>)
                             .unwrap();
 
                         let resp = if http2_only {
-                            let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
-                                .executor(TokioExecutor)
-                                .handshake(stream)
-                                .await
-                                .unwrap();
+                            let (mut sender, conn) =
+                                hyper::client::conn::http2::Builder::new(TokioExecutor)
+                                    .handshake(stream)
+                                    .await
+                                    .unwrap();
 
                             tokio::task::spawn(async move {
                                 if let Err(err) = conn.await {

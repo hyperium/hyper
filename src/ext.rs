@@ -76,7 +76,7 @@ impl fmt::Debug for Protocol {
 /// A map from header names to their original casing as received in an HTTP message.
 ///
 /// If an HTTP/1 response `res` is parsed on a connection whose option
-/// [`http1_preserve_header_case`] was set to true and the response included
+/// [`preserve_header_case`] was set to true and the response included
 /// the following headers:
 ///
 /// ```ignore
@@ -93,7 +93,7 @@ impl fmt::Debug for Protocol {
 /// })
 /// ```
 ///
-/// [`http1_preserve_header_case`]: /client/struct.Client.html#method.http1_preserve_header_case
+/// [`preserve_header_case`]: /client/struct.Client.html#method.preserve_header_case
 #[derive(Clone, Debug)]
 pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 

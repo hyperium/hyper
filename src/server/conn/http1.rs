@@ -35,7 +35,7 @@ pin_project_lite::pin_project! {
 /// A configuration builder for HTTP/1 server connections.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    pub(crate) timer: Time,
+    timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
@@ -224,7 +224,7 @@ impl Builder {
     /// detects an EOF in the middle of a request.
     ///
     /// Default is `false`.
-    pub fn http1_half_close(&mut self, val: bool) -> &mut Self {
+    pub fn half_close(&mut self, val: bool) -> &mut Self {
         self.h1_half_close = val;
         self
     }
@@ -232,7 +232,7 @@ impl Builder {
     /// Enables or disables HTTP/1 keep-alive.
     ///
     /// Default is true.
-    pub fn http1_keep_alive(&mut self, val: bool) -> &mut Self {
+    pub fn keep_alive(&mut self, val: bool) -> &mut Self {
         self.h1_keep_alive = val;
         self
     }
@@ -240,10 +240,8 @@ impl Builder {
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
-    pub fn http1_title_case_headers(&mut self, enabled: bool) -> &mut Self {
+    pub fn title_case_headers(&mut self, enabled: bool) -> &mut Self {
         self.h1_title_case_headers = enabled;
         self
     }
@@ -258,10 +256,8 @@ impl Builder {
     /// interact with the original cases. The only effect this can have now is
     /// to forward the cases in a proxy-like fashion.
     ///
-    /// Note that this setting does not affect HTTP/2.
-    ///
     /// Default is false.
-    pub fn http1_preserve_header_case(&mut self, enabled: bool) -> &mut Self {
+    pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
         self
     }
@@ -270,7 +266,7 @@ impl Builder {
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
-    pub fn http1_header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
+    pub fn header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
         self.h1_header_read_timeout = Some(read_timeout);
         self
     }
@@ -287,7 +283,7 @@ impl Builder {
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
     /// mode to use
-    pub fn http1_writev(&mut self, val: bool) -> &mut Self {
+    pub fn writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = Some(val);
         self
     }
@@ -299,8 +295,6 @@ impl Builder {
     /// # Panics
     ///
     /// The minimum value allowed is 8192. This method panics if the passed `max` is less than the minimum.
-    #[cfg(feature = "http1")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn max_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(
             max >= proto::h1::MINIMUM_MAX_BUFFER_SIZE,

@@ -339,8 +339,8 @@ where
                             *clear_body = true;
                             crate::Error::new_user_body(e)
                         })?;
-                        let chunk = if frame.is_data() {
-                            frame.into_data().unwrap()
+                        let chunk = if let Ok(data) = frame.into_data() {
+                            data
                         } else {
                             trace!("discarding non-data frame");
                             continue;

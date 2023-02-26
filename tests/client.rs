@@ -1197,7 +1197,7 @@ test! {
 
     client:
         options: {
-            http1_title_case_headers: true,
+            title_case_headers: true,
         },
         request: {
             method: GET,
@@ -1311,7 +1311,7 @@ test! {
 
     client:
         options: {
-            http1_allow_obsolete_multiline_headers_in_responses: true,
+            allow_obsolete_multiline_headers_in_responses: true,
         },
         request: {
             method: GET,
@@ -1922,8 +1922,7 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
             .handshake(io)
             .await
             .expect("http handshake");
@@ -1979,13 +1978,12 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (_client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (_client, conn) = conn::http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             // enable while idle since we aren't sending requests
-            .http2_keep_alive_while_idle(true)
+            .keep_alive_while_idle(true)
             .handshake::<_, hyper::body::Incoming>(io)
             .await
             .expect("http handshake");
@@ -2008,11 +2006,10 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .handshake::<_, hyper::body::Incoming>(io)
             .await
             .expect("http handshake");
@@ -2040,11 +2037,10 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .handshake(io)
             .await
             .expect("http handshake");
@@ -2100,11 +2096,10 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .handshake(io)
             .await
             .expect("http handshake");
@@ -2156,8 +2151,7 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
             .handshake(io)
             .await
             .expect("http handshake");
@@ -2207,8 +2201,7 @@ mod conn {
         });
 
         let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new()
-            .executor(TokioExecutor)
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
             .handshake::<_, Empty<Bytes>>(io)
             .await
             .expect("http handshake");

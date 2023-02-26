@@ -9,11 +9,11 @@ use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::exec::{ConnStreamExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::{common::time::Time, rt::Timer};
 use crate::proto;
+use crate::rt::bounds::Http2ConnExec;
 use crate::service::HttpService;
+use crate::{common::time::Time, rt::Timer};
 
 pin_project! {
     /// A future binding an HTTP/2 connection with a Service.
@@ -54,7 +54,7 @@ where
     I: AsyncRead + AsyncWrite + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: ConnStreamExec<S::Future, B>,
+    E: Http2ConnExec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -78,7 +78,7 @@ where
     I: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: ConnStreamExec<S::Future, B>,
+    E: Http2ConnExec<S::Future, B>,
 {
     type Output = crate::Result<()>;
 
@@ -89,9 +89,7 @@ where
                 //the Dispatched enum
                 Poll::Ready(Ok(()))
             }
-            Err(e) => {
-                Poll::Ready(Err(e))
-            }
+            Err(e) => Poll::Ready(Err(e)),
         }
     }
 }
@@ -101,7 +99,10 @@ where
 impl<E> Builder<E> {
     /// Create a new connection builder.
     ///
-    /// This starts with the default options, and an executor.
+    /// This starts with the default options, and an executor which is a type
+    /// that implements [`Http2ConnExec`] trait.
+    ///
+    /// [`Http2ConnExec`]: crate::rt::bounds::Http2ConnExec
     pub fn new(exec: E) -> Self {
         Self {
             exec: exec,
@@ -118,9 +119,7 @@ impl<E> Builder<E> {
     /// If not set, hyper will use a default.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+    pub fn initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_stream_window_size = sz;
@@ -133,9 +132,7 @@ impl<E> Builder<E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_initial_connection_window_size(
+    pub fn initial_connection_window_size(
         &mut self,
         sz: impl Into<Option<u32>>,
     ) -> &mut Self {
@@ -149,11 +146,9 @@ impl<E> Builder<E> {
     /// Sets whether to use an adaptive flow control.
     ///
     /// Enabling this will override the limits set in
-    /// `http2_initial_stream_window_size` and
-    /// `http2_initial_connection_window_size`.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_adaptive_window(&mut self, enabled: bool) -> &mut Self {
+    /// `initial_stream_window_size` and
+    /// `initial_connection_window_size`.
+    pub fn adaptive_window(&mut self, enabled: bool) -> &mut Self {
         use proto::h2::SPEC_WINDOW_SIZE;
 
         self.h2_builder.adaptive_window = enabled;
@@ -169,9 +164,7 @@ impl<E> Builder<E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
+    pub fn max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.max_frame_size = sz;
         }
@@ -184,9 +177,7 @@ impl<E> Builder<E> {
     /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
     /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
+    pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
         self.h2_builder.max_concurrent_streams = max.into();
         self
     }
@@ -200,9 +191,7 @@ impl<E> Builder<E> {
     ///
     /// # Cargo Feature
     ///
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_keep_alive_interval(
+    pub fn keep_alive_interval(
         &mut self,
         interval: impl Into<Option<Duration>>,
     ) -> &mut Self {
@@ -213,15 +202,13 @@ impl<E> Builder<E> {
     /// Sets a timeout for receiving an acknowledgement of the keep-alive ping.
     ///
     /// If the ping is not acknowledged within the timeout, the connection will
-    /// be closed. Does nothing if `http2_keep_alive_interval` is disabled.
+    /// be closed. Does nothing if `keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
     ///
     /// # Cargo Feature
     ///
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
+    pub fn keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.h2_builder.keep_alive_timeout = timeout;
         self
     }
@@ -233,9 +220,7 @@ impl<E> Builder<E> {
     /// # Panics
     ///
     /// The value must be no larger than `u32::MAX`.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_send_buf_size(&mut self, max: usize) -> &mut Self {
+    pub fn max_send_buf_size(&mut self, max: usize) -> &mut Self {
         assert!(max <= std::u32::MAX as usize);
         self.h2_builder.max_send_buffer_size = max;
         self
@@ -244,8 +229,7 @@ impl<E> Builder<E> {
     /// Enables the [extended CONNECT protocol].
     ///
     /// [extended CONNECT protocol]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
-    #[cfg(feature = "http2")]
-    pub fn http2_enable_connect_protocol(&mut self) -> &mut Self {
+    pub fn enable_connect_protocol(&mut self) -> &mut Self {
         self.h2_builder.enable_connect_protocol = true;
         self
     }
@@ -253,22 +237,9 @@ impl<E> Builder<E> {
     /// Sets the max size of received header frames.
     ///
     /// Default is currently ~16MB, but may change.
-    #[cfg(feature = "http2")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn http2_max_header_list_size(&mut self, max: u32) -> &mut Self {
+    pub fn max_header_list_size(&mut self, max: u32) -> &mut Self {
         self.h2_builder.max_header_list_size = max;
         self
-    }
-
-    /// Set the executor used to spawn background tasks.
-    ///
-    /// Default uses implicit default (like `tokio::spawn`).
-    pub fn with_executor<E2>(self, exec: E2) -> Builder<E2> {
-        Builder {
-            exec,
-            timer: self.timer,
-            h2_builder: self.h2_builder,
-        }
     }
 
     /// Set the timer used in background tasks.
@@ -291,7 +262,7 @@ impl<E> Builder<E> {
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: AsyncRead + AsyncWrite + Unpin,
-        E: ConnStreamExec<S::Future, Bd>,
+        E: Http2ConnExec<S::Future, Bd>,
     {
         let proto = proto::h2::Server::new(
             io,
@@ -300,8 +271,6 @@ impl<E> Builder<E> {
             self.exec.clone(),
             self.timer.clone(),
         );
-        Connection {
-            conn: proto,
-        }
+        Connection { conn: proto }
     }
 }

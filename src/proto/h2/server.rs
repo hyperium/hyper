@@ -13,7 +13,7 @@ use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::exec::ConnStreamExec;
+use crate::rt::bounds::Http2ConnExec;
 use crate::common::time::Time;
 use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
@@ -110,7 +110,7 @@ where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
-    E: ConnStreamExec<S::Future, B>,
+    E: Http2ConnExec<S::Future, B>,
 {
     pub(crate) fn new(
         io: T,
@@ -186,7 +186,7 @@ where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
-    E: ConnStreamExec<S::Future, B>,
+    E: Http2ConnExec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -240,7 +240,7 @@ where
     where
         S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: ConnStreamExec<S::Future, B>,
+        E: Http2ConnExec<S::Future, B>,
     {
         if self.closing.is_none() {
             loop {

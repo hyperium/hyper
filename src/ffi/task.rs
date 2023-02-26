@@ -210,13 +210,13 @@ impl crate::rt::Executor<BoxFuture<()>> for WeakExec {
     }
 }
 
-impl<F, B> crate::common::exec::ConnStreamExec<F, B> for WeakExec
+impl<F, B> crate::rt::Executor<H2Stream<F, B>> for WeakExec
 where
     H2Stream<F, B>: Future<Output = ()> + Send + 'static,
     B: crate::body::Body,
 {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        <Self as crate::rt::Executor<_>>::execute(&self, Box::pin(fut))
+    fn execute(&self, fut: H2Stream<F, B>) {
+        <Self as crate::rt::Executor<_>>::execute(&self, Box::pin(fut) as Pin<Box<_>>)
     }
 }
 

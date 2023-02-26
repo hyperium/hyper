@@ -3,74 +3,35 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
-#[cfg(feature = "server")]
-use crate::body::Body;
-#[cfg(all(feature = "http2", feature = "server"))]
-use crate::proto::h2::server::H2Stream;
 use crate::rt::Executor;
-
-#[cfg(feature = "server")]
-pub trait ConnStreamExec<F, B: Body>: Clone {
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
-}
 
 pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
 
-// Either the user provides an executor for background tasks, or we panic.
-// TODO: with the `runtime`feature, `Exec::Default` used `tokio::spawn`. With the
-// removal of the opt-in default runtime, this should be refactored.
+// Executor must be provided by the user
 #[derive(Clone)]
-pub(crate) enum Exec {
-    Default,
-    Executor(Arc<dyn Executor<BoxSendFuture> + Send + Sync>),
-}
+pub(crate) struct Exec(Arc<dyn Executor<BoxSendFuture> + Send + Sync>);
 
 // ===== impl Exec =====
 
 impl Exec {
+    pub(crate) fn new<E>(exec: E) -> Self
+    where
+        E: Executor<BoxSendFuture> + Send + Sync + 'static,
+    {
+        Self(Arc::new(exec))
+    }
+
     pub(crate) fn execute<F>(&self, fut: F)
     where
         F: Future<Output = ()> + Send + 'static,
     {
-        match *self {
-            Exec::Default => {
-                panic!("executor must be set");
-            }
-            Exec::Executor(ref e) => {
-                e.execute(Box::pin(fut));
-            }
-        }
+        self.0.execute(Box::pin(fut))
     }
 }
 
 impl fmt::Debug for Exec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Exec").finish()
-    }
-}
-
-#[cfg(feature = "server")]
-impl<F, B> ConnStreamExec<F, B> for Exec
-where
-    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: Body,
-{
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
-    }
-}
-
-// ==== impl Executor =====
-
-#[cfg(feature = "server")]
-impl<E, F, B> ConnStreamExec<F, B> for E
-where
-    E: Executor<H2Stream<F, B>> + Clone,
-    H2Stream<F, B>: Future<Output = ()>,
-    B: Body,
-{
-    fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-        self.execute(fut)
     }
 }
 

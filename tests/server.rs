@@ -965,9 +965,8 @@ async fn expect_continue_waits_for_body_poll() {
             service_fn(|req| {
                 assert_eq!(req.headers()["expect"], "100-continue");
                 // But! We're never going to poll the body!
+                drop(req);
                 TokioTimer.sleep(Duration::from_millis(50)).map(move |_| {
-                    // Move and drop the req, so we don't auto-close
-                    drop(req);
                     Response::builder()
                         .status(StatusCode::BAD_REQUEST)
                         .body(Empty::<Bytes>::new())
@@ -1247,7 +1246,7 @@ async fn http1_allow_half_close() {
 
     let (socket, _) = listener.accept().await.unwrap();
     http1::Builder::new()
-        .http1_half_close(true)
+        .half_close(true)
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1274,7 +1273,7 @@ async fn disconnect_after_reading_request_before_responding() {
 
     let (socket, _) = listener.accept().await.unwrap();
     http1::Builder::new()
-        .http1_half_close(false)
+        .half_close(false)
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1370,7 +1369,7 @@ async fn header_read_timeout_slow_writes() {
     let (socket, _) = listener.accept().await.unwrap();
     let conn = http1::Builder::new()
         .timer(TokioTimer)
-        .http1_header_read_timeout(Duration::from_secs(5))
+        .header_read_timeout(Duration::from_secs(5))
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1445,7 +1444,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
     let (socket, _) = listener.accept().await.unwrap();
     let conn = http1::Builder::new()
         .timer(TokioTimer)
-        .http1_header_read_timeout(Duration::from_secs(5))
+        .header_read_timeout(Duration::from_secs(5))
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -2363,8 +2362,8 @@ async fn http2_keep_alive_detects_unresponsive_client() {
 
     let err = http2::Builder::new(TokioExecutor)
         .timer(TokioTimer)
-        .http2_keep_alive_interval(Duration::from_secs(1))
-        .http2_keep_alive_timeout(Duration::from_secs(1))
+        .keep_alive_interval(Duration::from_secs(1))
+        .keep_alive_timeout(Duration::from_secs(1))
         .serve_connection(socket, unreachable_service())
         .await
         .expect_err("serve_connection should error");
@@ -2381,16 +2380,15 @@ async fn http2_keep_alive_with_responsive_client() {
 
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .serve_connection(socket, HelloWorld)
             .await
             .expect("serve_connection");
     });
 
     let tcp = connect_async(addr).await;
-    let (mut client, conn) = hyper::client::conn::http2::Builder::new()
-        .executor(TokioExecutor)
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
         .handshake(tcp)
         .await
         .expect("http handshake");
@@ -2445,8 +2443,8 @@ async fn http2_keep_alive_count_server_pings() {
 
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
-            .http2_keep_alive_interval(Duration::from_secs(1))
-            .http2_keep_alive_timeout(Duration::from_secs(1))
+            .keep_alive_interval(Duration::from_secs(1))
+            .keep_alive_timeout(Duration::from_secs(1))
             .serve_connection(socket, unreachable_service())
             .await
             .expect("serve_connection");
@@ -2839,7 +2837,7 @@ impl ServeOptions {
                                             .serve_connection(stream, service).await.unwrap();
                                     } else {
                                         http1::Builder::new()
-                                            .http1_keep_alive(_options.keep_alive)
+                                            .keep_alive(_options.keep_alive)
                                             .pipeline_flush(_options.pipeline)
                                             .serve_connection(stream, service).await.unwrap();
                                     }
@@ -3017,8 +3015,7 @@ impl TestClient {
             .unwrap();
 
         if self.http2_only {
-            let (mut sender, conn) = hyper::client::conn::http2::Builder::new()
-                .executor(TokioExecutor)
+            let (mut sender, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
                 .handshake(stream)
                 .await
                 .unwrap();
@@ -3029,7 +3026,6 @@ impl TestClient {
             sender.send_request(req).await
         } else {
             let (mut sender, conn) = hyper::client::conn::http1::Builder::new()
-                .executor(TokioExecutor)
                 .handshake(stream)
                 .await
                 .unwrap();
