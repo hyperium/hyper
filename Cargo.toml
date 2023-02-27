@@ -11,6 +11,7 @@ authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 edition = "2018"
+rust-version = "1.56"
 
 include = [
   "Cargo.toml",
