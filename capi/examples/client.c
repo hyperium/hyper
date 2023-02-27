@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
 
     // Hookup the IO
     hyper_io *io = hyper_io_new();
-    hyper_io_set_userdata(io, (void *)conn);
+    hyper_io_set_userdata(io, (void *)conn, NULL);
     hyper_io_set_read(io, read_cb);
     hyper_io_set_write(io, write_cb);
 

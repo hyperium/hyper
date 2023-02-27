@@ -252,6 +252,8 @@ typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_resp
 
 typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
 
+typedef void (*hyper_io_userdata_drop_callback)(void*);
+
 typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
 
 typedef size_t (*hyper_io_write_callback)(void*, struct hyper_context*, const uint8_t*, size_t);
@@ -1017,8 +1019,14 @@ void hyper_io_free(struct hyper_io *io);
  Set the user data pointer for this IO to some value.
 
  This value is passed as an argument to the read and write callbacks.
+
+ If passed, the `drop_func` will be called on the `userdata` when the
+ `hyper_io` is destroyed (either explicitely by `hyper_io_free` or
+ implicitely by an associated hyper task completing).
  */
-void hyper_io_set_userdata(struct hyper_io *io, void *data);
+void hyper_io_set_userdata(struct hyper_io *io,
+                           void *data,
+                           hyper_io_userdata_drop_callback drop_func);
 
 /*
  Get the user data pointer for this IO value.

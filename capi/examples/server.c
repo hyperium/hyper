@@ -18,6 +18,7 @@ static const int MAX_EVENTS = 128;
 
 typedef struct conn_data_s {
     int fd;
+    int epoll_fd;
     hyper_waker *read_waker;
     hyper_waker *write_waker;
 } conn_data;
@@ -173,25 +174,18 @@ static conn_data *create_conn_data(int epoll, int fd) {
     }
 
     conn->fd = fd;
+    conn->epoll_fd = epoll;
     conn->read_waker = NULL;
     conn->write_waker = NULL;
 
     return conn;
 }
 
-static hyper_io *create_io(conn_data *conn) {
-    // Hookup the IO
-    hyper_io *io = hyper_io_new();
-    hyper_io_set_userdata(io, (void *)conn);
-    hyper_io_set_read(io, read_cb);
-    hyper_io_set_write(io, write_cb);
+static void free_conn_data(void *userdata) {
+    conn_data* conn = (conn_data*)userdata;
 
-    return io;
-}
-
-static void free_conn_data(int epoll, conn_data *conn) {
     // Disassociate with the epoll
-    if (epoll_ctl(epoll, EPOLL_CTL_DEL, conn->fd, NULL) < 0) {
+    if (epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL) < 0) {
         perror("epoll_ctl (transport, delete)");
     }
 
@@ -210,6 +204,16 @@ static void free_conn_data(int epoll, conn_data *conn) {
 
     // ...and clean up
     free(conn);
+}
+
+static hyper_io *create_io(conn_data *conn) {
+    // Hookup the IO
+    hyper_io *io = hyper_io_new();
+    hyper_io_set_userdata(io, (void *)conn, free_conn_data);
+    hyper_io_set_read(io, read_cb);
+    hyper_io_set_write(io, write_cb);
+
+    return io;
 }
 
 static int print_each_header(
@@ -345,10 +349,6 @@ int main(int argc, char *argv[]) {
                 hyper_error_free(err);
 
                 // clean up the task
-                conn_data *conn = hyper_task_userdata(task);
-                if (conn) {
-                    free_conn_data(epoll, conn);
-                }
                 hyper_task_free(task);
 
                 continue;
@@ -358,7 +358,6 @@ int main(int argc, char *argv[]) {
                 conn_data *conn = hyper_task_userdata(task);
                 if (conn) {
                     printf("server connection complete\n");
-                    free_conn_data(epoll, conn);
                 } else {
                     printf("internal hyper task complete\n");
                 }
