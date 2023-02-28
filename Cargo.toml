@@ -70,12 +70,7 @@ url = "2.2"
 default = []
 
 # Easily turn it all on
-full = [
-    "client",
-    "http1",
-    "http2",
-    "server",
-]
+full = ["client", "http1", "http2", "server"]
 
 # HTTP versions
 http1 = []

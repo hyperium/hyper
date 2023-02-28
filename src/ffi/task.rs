@@ -92,6 +92,8 @@ pub enum hyper_task_return_type {
     HYPER_TASK_RESPONSE,
     /// The value of this task is `hyper_buf *`.
     HYPER_TASK_BUF,
+    /// The value of this task is null (the task was a server-side connection task)
+    HYPER_TASK_SERVERCONN,
 }
 
 pub(super) unsafe trait AsTaskType {

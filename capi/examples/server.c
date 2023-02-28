@@ -216,6 +216,20 @@ static hyper_io *create_io(conn_data *conn) {
     return io;
 }
 
+typedef struct service_userdata_s {
+  char host[128];
+  char port[8];
+} service_userdata;
+
+static service_userdata* create_service_userdata() {
+  return (service_userdata*)calloc(1, sizeof(service_userdata));
+}
+
+static void free_service_userdata(void* userdata) {
+  service_userdata* cast_userdata = (service_userdata*)userdata;
+  free(cast_userdata);
+}
+
 static int print_each_header(
     void *userdata, const uint8_t *name, size_t name_len, const uint8_t *value, size_t value_len
 ) {
@@ -226,6 +240,9 @@ static int print_each_header(
 static void server_callback(
     void *userdata, hyper_request *request, hyper_response_channel *channel
 ) {
+    service_userdata* service_data = (service_userdata*)userdata;
+    printf("Request from %s:%s\n", service_data->host, service_data->port);
+
     // Print out various properties of the request.
     unsigned char scheme[16];
     size_t scheme_len = sizeof(scheme);
@@ -336,8 +353,9 @@ int main(int argc, char *argv[]) {
             if (!task) {
                 break;
             }
+
             if (hyper_task_type(task) == HYPER_TASK_ERROR) {
-                printf("handshake error!\n");
+                printf("hyper task failed with error!\n");
 
                 hyper_error* err = hyper_task_value(task);
                 printf("error code: %d\n", hyper_error_code(err));
@@ -355,12 +373,14 @@ int main(int argc, char *argv[]) {
             }
 
             if (hyper_task_type(task) == HYPER_TASK_EMPTY) {
-                conn_data *conn = hyper_task_userdata(task);
-                if (conn) {
-                    printf("server connection complete\n");
-                } else {
-                    printf("internal hyper task complete\n");
-                }
+                printf("internal hyper task complete\n");
+                hyper_task_free(task);
+
+                continue;
+            }
+
+            if (hyper_task_type(task) == HYPER_TASK_SERVERCONN) {
+                printf("server connection task complete\n");
                 hyper_task_free(task);
 
                 continue;
@@ -391,21 +411,20 @@ int main(int argc, char *argv[]) {
                 while ((new_fd = accept(
                             listen_fd, (struct sockaddr *)&remote_addr_storage, &remote_addr_len
                         )) >= 0) {
-                    char remote_host[128];
-                    char remote_port[8];
+                    service_userdata *userdata = create_service_userdata();
                     if (getnameinfo(
                             remote_addr,
                             remote_addr_len,
-                            remote_host,
-                            sizeof(remote_host),
-                            remote_port,
-                            sizeof(remote_port),
+                            userdata->host,
+                            sizeof(userdata->host),
+                            userdata->port,
+                            sizeof(userdata->port),
                             NI_NUMERICHOST | NI_NUMERICSERV
                         ) < 0) {
                         perror("getnameinfo");
                         printf("New incoming connection from (unknown)\n");
                     } else {
-                        printf("New incoming connection from (%s:%s)\n", remote_host, remote_port);
+                        printf("New incoming connection from (%s:%s)\n", userdata->host, userdata->port);
                     }
 
                     // Set non-blocking
@@ -426,9 +445,9 @@ int main(int argc, char *argv[]) {
 
                     // Ask hyper to drive this connection
                     hyper_service *service = hyper_service_new(server_callback);
+                    hyper_service_set_userdata(service, userdata, free_service_userdata);
                     hyper_task *serverconn =
                         hyper_serve_httpX_connection(http1_opts, http2_opts, io, service);
-                    hyper_task_set_userdata(serverconn, conn);
                     hyper_executor_push(exec, serverconn);
                 }
 

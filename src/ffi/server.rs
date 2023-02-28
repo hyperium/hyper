@@ -21,6 +21,7 @@ pub struct hyper_http2_serverconn_options(http2::Builder<WeakExec>);
 pub struct hyper_service {
     service_fn: hyper_service_callback,
     userdata: UserDataPointer,
+    userdata_drop: Option<hyper_service_userdata_drop_callback>,
 }
 
 /// A channel on which to send back a response to complete a transaction for a service.
@@ -41,6 +42,12 @@ pub struct hyper_response_channel(futures_channel::oneshot::Sender<Box<hyper_res
 /// async operations have completed).
 pub type hyper_service_callback =
     extern "C" fn(*mut c_void, *mut hyper_request, *mut hyper_response_channel);
+
+/// Since a hyper_service owns the userdata passed to it the calling code can register a cleanup
+/// function to be called when the service is dropped.  This function may be omitted/a no-op if
+/// the calling code wants to manage memory lifetimes itself (e.g. if the userdata is a static
+/// global)
+type hyper_service_userdata_drop_callback = extern "C" fn(*mut c_void);
 
 // ===== impl http1_serverconn_options =====
 
@@ -396,18 +403,35 @@ ffi_fn! {
         Box::into_raw(Box::new(hyper_service {
             service_fn: service_fn,
             userdata: UserDataPointer(ptr::null_mut()),
+            userdata_drop: None,
         }))
     } ?= ptr::null_mut()
 }
 
 ffi_fn! {
-    /// Register opaque userdata with the `hyper_service`.
+    /// Register opaque userdata with the `hyper_service`.  This userdata must be `Send` in a rust
+    /// sense (i.e. can be passed between threads) though it doesn't have to be thread-safe (it
+    /// won't be accessed from multiple thread concurrently).
     ///
-    /// The service borrows the userdata until the service is driven on a connection and the
-    /// associated task completes.
-    fn hyper_service_set_userdata(service: *mut hyper_service, userdata: *mut c_void){
-        let s = non_null!{ &mut *service ?= () };
+    /// The service takes ownership of the userdata and will call the `drop_userdata` callback when
+    /// the service task is complete.  If the `drop_userdata` callback is `NULL` then the service
+    /// will instead forget the userdata when the associated task is completed and the calling code
+    /// is responsible for cleaning up the userdata through some other mechanism.
+    fn hyper_service_set_userdata(service: *mut hyper_service, userdata: *mut c_void, drop_func: hyper_service_userdata_drop_callback) {
+        let s = non_null! { &mut *service ?= () };
         s.userdata = UserDataPointer(userdata);
+        s.userdata_drop = if (drop_func as *const c_void).is_null() {
+            None
+        } else {
+            Some(drop_func)
+        }
+    }
+}
+
+ffi_fn! {
+    /// Frees a hyper_service object if no longer needed
+    fn hyper_service_free(service: *mut hyper_service) {
+        drop(non_null! { Box::from_raw(service) ?= () });
     }
 }
 
@@ -521,6 +545,14 @@ impl crate::service::Service<crate::Request<IncomingBody>> for hyper_service {
     }
 }
 
+impl Drop for hyper_service {
+    fn drop(&mut self) {
+        if let Some(drop_func) = self.userdata_drop {
+            drop_func(self.userdata.0);
+        }
+    }
+}
+
 enum AutoConnection<IO, Serv, Exec>
 where
     Serv: crate::service::HttpService<IncomingBody>,
@@ -531,16 +563,27 @@ where
     H2(http2::Connection<crate::common::io::Rewind<IO>, Serv, Exec>),
 }
 
+// Marker type so the `hyper_task` can be distinguished from internal timer/h2 tasks.
+struct ServerConn;
+
+unsafe impl crate::ffi::task::AsTaskType for ServerConn {
+    fn as_task_type(&self) -> crate::ffi::task::hyper_task_return_type {
+        crate::ffi::task::hyper_task_return_type::HYPER_TASK_SERVERCONN
+    }
+}
+
 impl<IO, Serv, Exec> std::future::Future for AutoConnection<IO, Serv, Exec>
 where
     IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
     Serv: crate::service::HttpService<IncomingBody, ResBody = IncomingBody>,
-    Exec: crate::rt::Executor<crate::proto::h2::server::H2Stream<Serv::Future, IncomingBody>> + Unpin + Clone,
+    Exec: crate::rt::Executor<crate::proto::h2::server::H2Stream<Serv::Future, IncomingBody>>
+        + Unpin
+        + Clone,
     http1::Connection<IO, Serv>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,
     http2::Connection<crate::common::io::Rewind<IO>, Serv, Exec>:
         std::future::Future<Output = Result<(), crate::Error>> + Unpin,
 {
-    type Output = crate::Result<()>;
+    type Output = crate::Result<ServerConn>;
 
     fn poll(
         self: std::pin::Pin<&mut Self>,
@@ -550,7 +593,7 @@ where
         let (h1, h2) = match zelf {
             AutoConnection::H1(inner) => {
                 match ready!(std::pin::Pin::new(&mut inner.as_mut().unwrap().0).poll(cx)) {
-                    Ok(()) => return std::task::Poll::Ready(Ok(())),
+                    Ok(()) => return std::task::Poll::Ready(Ok(ServerConn)),
                     Err(e) => {
                         let kind = e.kind();
                         if matches!(
@@ -571,7 +614,7 @@ where
                 }
             }
             AutoConnection::H2(h2) => match ready!(std::pin::Pin::new(h2).poll(cx)) {
-                Ok(()) => return std::task::Poll::Ready(Ok(())),
+                Ok(()) => return std::task::Poll::Ready(Ok(ServerConn)),
                 Err(e) => return std::task::Poll::Ready(Err(e)),
             },
         };

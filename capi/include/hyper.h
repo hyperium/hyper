@@ -134,6 +134,10 @@ typedef enum hyper_task_return_type {
    The value of this task is `hyper_buf *`.
    */
   HYPER_TASK_BUF,
+  /*
+   The value of this task is null (the task was a server-side connection task)
+   */
+  HYPER_TASK_SERVERCONN,
 } hyper_task_return_type;
 
 /*
@@ -247,6 +251,14 @@ typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyp
  async operations have completed).
  */
 typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response_channel*);
+
+/*
+ Since a hyper_service owns the userdata passed to it the calling code can register a cleanup
+ function to be called when the service is dropped.  This function may be omitted/a no-op if
+ the calling code wants to manage memory lifetimes itself (e.g. if the userdata is a static
+ global)
+ */
+typedef void (*hyper_service_userdata_drop_callback)(void*);
 
 typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
 
@@ -641,12 +653,23 @@ enum hyper_code hyper_http2_serverconn_options_max_header_list_size(struct hyper
 struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
 
 /*
- Register opaque userdata with the `hyper_service`.
+ Register opaque userdata with the `hyper_service`.  This userdata must be `Send` in a rust
+ sense (i.e. can be passed between threads) though it doesn't have to be thread-safe (it
+ won't be accessed from multiple thread concurrently).
 
- The service borrows the userdata until the service is driven on a connection and the
- associated task completes.
+ The service takes ownership of the userdata and will call the `drop_userdata` callback when
+ the service task is complete.  If the `drop_userdata` callback is `NULL` then the service
+ will instead forget the userdata when the associated task is completed and the calling code
+ is responsible for cleaning up the userdata through some other mechanism.
  */
-void hyper_service_set_userdata(struct hyper_service *service, void *userdata);
+void hyper_service_set_userdata(struct hyper_service *service,
+                                void *userdata,
+                                hyper_service_userdata_drop_callback drop_func);
+
+/*
+ Frees a hyper_service object if no longer needed
+ */
+void hyper_service_free(struct hyper_service *service);
 
 /*
  Serve the provided `hyper_service *` as an HTTP/1 endpoint over the provided `hyper_io *`
