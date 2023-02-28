@@ -25,6 +25,7 @@ jobs:
       - ffi-header
       - doc
       - check-external-types
+      - clippy
     steps:
       - run: exit 0
 
@@ -234,3 +235,18 @@ jobs:
 
       - name: check-external-types
         run: cargo check-external-types --config .github/workflows/external-types.toml
+
+  clippy:
+    name: Run clippy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Run check
+        run: cargo clippy -- -Aclippy::all -Dclippy::self_named_module_files
