@@ -2246,6 +2246,130 @@ mod conn {
         future::join(server, client).await;
     }
 
+    #[cfg(feature = "backports")]
+    mod backports {
+        use super::*;
+        #[tokio::test]
+        async fn get() {
+            let _ = ::pretty_env_logger::try_init();
+            let listener = TkTcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+                .await
+                .unwrap();
+            let addr = listener.local_addr().unwrap();
+
+            let server = async move {
+                let mut sock = listener.accept().await.unwrap().0;
+                let mut buf = [0; 4096];
+                let n = sock.read(&mut buf).await.expect("read 1");
+
+                // Notably:
+                // - Just a path, since just a path was set
+                // - No host, since no host was set
+                let expected = "GET /a HTTP/1.1\r\n\r\n";
+                assert_eq!(s(&buf[..n]), expected);
+
+                sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .await
+                    .unwrap();
+            };
+
+            let client = async move {
+                let tcp = tcp_connect(&addr).await.expect("connect");
+                let (mut client, conn) = conn::http1::handshake(tcp).await.expect("handshake");
+
+                tokio::task::spawn(async move {
+                    conn.await.expect("http conn");
+                });
+
+                let req: Request<Body> = Request::builder()
+                    .uri("/a")
+                    .body(Default::default())
+                    .unwrap();
+                let mut res = client.send_request(req).await.expect("send_request");
+                assert_eq!(res.status(), hyper::StatusCode::OK);
+                assert!(res.body_mut().next().await.is_none());
+            };
+
+            future::join(server, client).await;
+        }
+
+        #[tokio::test]
+        async fn http2_detect_conn_eof() {
+            use futures_util::future;
+            use hyper::service::{make_service_fn, service_fn};
+            use hyper::{Response, Server};
+
+            let _ = pretty_env_logger::try_init();
+
+            let server = Server::bind(&([127, 0, 0, 1], 0).into())
+                .http2_only(true)
+                .serve(make_service_fn(|_| async move {
+                    Ok::<_, hyper::Error>(service_fn(|_req| {
+                        future::ok::<_, hyper::Error>(Response::new(Body::empty()))
+                    }))
+                }));
+            let addr = server.local_addr();
+            let (shdn_tx, shdn_rx) = oneshot::channel();
+            tokio::task::spawn(async move {
+                server
+                    .with_graceful_shutdown(async move {
+                        let _ = shdn_rx.await;
+                    })
+                    .await
+                    .expect("server")
+            });
+
+            struct TokioExec;
+            impl<F> hyper::rt::Executor<F> for TokioExec
+            where
+                F: std::future::Future + Send + 'static,
+                F::Output: Send + 'static,
+            {
+                fn execute(&self, fut: F) {
+                    tokio::spawn(fut);
+                }
+            }
+
+            let io = tcp_connect(&addr).await.expect("tcp connect");
+            let (mut client, conn) = conn::http2::Builder::new(TokioExec)
+                .handshake::<_, Body>(io)
+                .await
+                .expect("http handshake");
+
+            tokio::task::spawn(async move {
+                conn.await.expect("client conn");
+            });
+
+            // Sanity check that client is ready
+            future::poll_fn(|ctx| client.poll_ready(ctx))
+                .await
+                .expect("client poll ready sanity");
+
+            let req = Request::builder()
+                .uri(format!("http://{}/", addr))
+                .body(Body::empty())
+                .expect("request builder");
+
+            client.send_request(req).await.expect("req1 send");
+
+            // Sanity check that client is STILL ready
+            future::poll_fn(|ctx| client.poll_ready(ctx))
+                .await
+                .expect("client poll ready after");
+
+            // Trigger the server shutdown...
+            let _ = shdn_tx.send(());
+
+            // Allow time for graceful shutdown roundtrips...
+            tokio::time::sleep(Duration::from_millis(100)).await;
+
+            // After graceful shutdown roundtrips, the client should be closed...
+            future::poll_fn(|ctx| client.poll_ready(ctx))
+                .await
+                .expect_err("client should be closed");
+        }
+    }
+
     #[tokio::test]
     async fn get_obsolete_line_folding() {
         let _ = ::pretty_env_logger::try_init();

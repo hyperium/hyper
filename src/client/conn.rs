@@ -54,6 +54,11 @@
 //! # }
 //! ```
 
+#[cfg(all(feature = "backports", feature = "http1"))]
+pub mod http1;
+#[cfg(all(feature = "backports", feature = "http2"))]
+pub mod http2;
+
 use std::error::Error as StdError;
 use std::fmt;
 #[cfg(not(all(feature = "http1", feature = "http2")))]
