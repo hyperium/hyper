@@ -90,7 +90,7 @@ impl<B> SendRequest<B> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
-    pub(super) fn is_ready(&self) -> bool {
+    pub fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
 
