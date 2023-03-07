@@ -547,7 +547,7 @@ where
 #[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<T, B> Future for Connection<T, B>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send,
     B: HttpBody + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
