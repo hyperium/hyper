@@ -33,6 +33,7 @@ use super::HttpConnector;
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Client<C, B = Body> {
     config: Config,
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     conn_builder: conn::Builder,
     connector: C,
     pool: Pool<PoolClient<B>>,
@@ -327,12 +328,14 @@ where
                 drop(delayed_tx);
             });
 
+            #[cfg_attr(feature = "deprecated", allow(deprecated))]
             self.conn_builder.exec.execute(on_idle);
         } else {
             // There's no body to delay, but the connection isn't
             // ready yet. Only re-insert when it's ready
             let on_idle = future::poll_fn(move |cx| pooled.poll_ready(cx)).map(|_| ());
 
+            #[cfg_attr(feature = "deprecated", allow(deprecated))]
             self.conn_builder.exec.execute(on_idle);
         }
 
@@ -386,6 +389,7 @@ where
                         });
                     // An execute error here isn't important, we're just trying
                     // to prevent a waste of a socket...
+                    #[cfg_attr(feature = "deprecated", allow(deprecated))]
                     self.conn_builder.exec.execute(bg);
                 }
                 Ok(checked_out)
@@ -430,6 +434,7 @@ where
         &self,
         pool_key: PoolKey,
     ) -> impl Lazy<Output = crate::Result<Pooled<PoolClient<B>>>> + Unpin {
+        #[cfg_attr(feature = "deprecated", allow(deprecated))]
         let executor = self.conn_builder.exec.clone();
         let pool = self.pool.clone();
         #[cfg(not(feature = "http2"))]
@@ -629,6 +634,7 @@ struct PoolClient<B> {
 }
 
 enum PoolTx<B> {
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     Http1(conn::SendRequest<B>),
     #[cfg(feature = "http2")]
     Http2(conn::Http2SendRequest<B>),
@@ -905,6 +911,7 @@ fn is_schema_secure(uri: &Uri) -> bool {
 #[derive(Clone)]
 pub struct Builder {
     client_config: Config,
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     conn_builder: conn::Builder,
     pool_config: pool::Config,
 }
@@ -917,6 +924,7 @@ impl Default for Builder {
                 set_host: true,
                 ver: Ver::Auto,
             },
+            #[cfg_attr(feature = "deprecated", allow(deprecated))]
             conn_builder: conn::Builder::new(),
             pool_config: pool::Config {
                 idle_timeout: Some(Duration::from_secs(90)),
@@ -1381,6 +1389,7 @@ impl Builder {
         B: HttpBody + Send,
         B::Data: Send,
     {
+        #[cfg_attr(feature = "deprecated", allow(deprecated))]
         Client {
             config: self.client_config,
             conn_builder: self.conn_builder.clone(),

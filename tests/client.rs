@@ -2181,6 +2181,7 @@ mod dispatch_impl {
     }
 }
 
+#[allow(deprecated)]
 mod conn {
     use std::io::{self, Read, Write};
     use std::net::{SocketAddr, TcpListener};
@@ -2246,6 +2247,7 @@ mod conn {
         future::join(server, client).await;
     }
 
+    #[deny(deprecated)]
     #[cfg(feature = "backports")]
     mod backports {
         use super::*;
