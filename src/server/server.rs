@@ -20,6 +20,7 @@ use crate::common::exec::{ConnStreamExec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 use super::conn::{Connection, Http as Http_, UpgradeableConnection};
 use super::shutdown::{Graceful, GracefulWatcher};
 use crate::service::{HttpService, MakeServiceRef};
@@ -46,6 +47,7 @@ pin_project! {
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
 pub struct Builder<I, E = Exec> {
     incoming: I,
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     protocol: Http_<E>,
 }
 
@@ -57,6 +59,7 @@ impl<I> Server<I, ()> {
     pub fn builder(incoming: I) -> Builder<I> {
         Builder {
             incoming,
+            #[cfg_attr(feature = "deprecated", allow(deprecated))]
             protocol: Http_::new(),
         }
     }
@@ -237,6 +240,7 @@ impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
 // ===== impl Builder =====
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I, E> Builder<I, E> {
     /// Start a new builder, wrapping an incoming stream and low-level options.
     ///
