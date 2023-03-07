@@ -2536,6 +2536,7 @@ async fn http2_keep_alive_with_responsive_client() {
     });
 
     let tcp = connect_async(addr).await;
+    #[allow(deprecated)]
     let (mut client, conn) = hyper::client::conn::Builder::new()
         .http2_only(true)
         .handshake::<_, Body>(tcp)

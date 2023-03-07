@@ -112,6 +112,9 @@ ffi = ["libc"]
 # enable 1.0 backports
 backports = []
 
+# whether or not to display deprecation warnings
+deprecated = []
+
 # internal features used in CI
 nightly = []
 __internal_happy_eyeballs_tests = []
