@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.14.23"
+version = "0.14.24"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -108,6 +108,12 @@ tcp = [
 
 # C-API support (currently unstable (no semver))
 ffi = ["libc"]
+
+# enable 1.0 backports
+backports = []
+
+# whether or not to display deprecation warnings
+deprecated = []
 
 # internal features used in CI
 nightly = []

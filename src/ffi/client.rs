@@ -93,6 +93,7 @@ unsafe impl AsTaskType for hyper_clientconn {
 ffi_fn! {
     /// Creates a new set of HTTP clientconn options to be used in a handshake.
     fn hyper_clientconn_options_new() -> *mut hyper_clientconn_options {
+        #[allow(deprecated)]
         let builder = conn::Builder::new();
 
         Box::into_raw(Box::new(hyper_clientconn_options {

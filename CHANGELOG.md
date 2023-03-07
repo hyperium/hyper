@@ -1,3 +1,17 @@
+### v0.14.24 (2023-02-02)
+
+
+#### Bug Fixes
+
+* **body:** set an internal max to reserve in `to_bytes` ([4d89adce](https://github.com/hyperium/hyper/commit/4d89adce6122af1650165337d9d814314e7ee409))
+* **server:** prevent sending 100-continue if user drops request body (#3138) ([92443d7e](https://github.com/hyperium/hyper/commit/92443d7ef57ed474f0add7dd1f114c81a3faa8fe))
+
+
+#### Features
+
+* **http2:** add `http2_max_header_list_size` to `hyper::server::Builder` (#3006) ([031425f0](https://github.com/hyperium/hyper/commit/031425f087219f02a87eea3d01b14e75e35a5209))
+
+
 ### v0.14.23 (2022-11-07)
 
 

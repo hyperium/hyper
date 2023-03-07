@@ -62,11 +62,11 @@ jobs:
 
         include:
           - rust: stable
-            features: "--features full"
+            features: "--features full,backports"
           - rust: beta
-            features: "--features full"
+            features: "--features full,backports"
           - rust: nightly
-            features: "--features full,nightly"
+            features: "--features full,nightly,backports"
             benches: true
 
     runs-on: ${{ matrix.os }}
