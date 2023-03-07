@@ -8,6 +8,7 @@ use std::marker::PhantomData;
 
 use tracing::debug;
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 use super::conn::{Builder, SendRequest};
 use crate::{
     body::HttpBody,
@@ -23,6 +24,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Connect<C, B, T> {
     inner: C,
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     builder: Builder,
     _pd: PhantomData<fn(T, B)>,
 }
@@ -30,6 +32,7 @@ pub struct Connect<C, B, T> {
 impl<C, B, T> Connect<C, B, T> {
     /// Create a new `Connect` with some inner connector `C` and a connection
     /// builder.
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub fn new(inner: C, builder: Builder) -> Self {
         Self {
             inner,
@@ -49,6 +52,7 @@ where
     B::Data: Send + Unpin,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     type Response = SendRequest<B>;
     type Error = crate::Error;
     type Future =
@@ -68,6 +72,7 @@ where
             match io.await {
                 Ok(io) => match builder.handshake(io).await {
                     Ok((sr, conn)) => {
+                        #[cfg_attr(feature = "deprecated", allow(deprecated))]
                         builder.exec.execute(async move {
                             if let Err(e) = conn.await {
                                 debug!("connection error: {:?}", e);

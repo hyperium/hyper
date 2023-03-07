@@ -773,10 +773,6 @@ where
     /// but it is not desired to actually shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>>
-    where
-        S: Unpin,
-        S::Future: Unpin,
-        B: Unpin,
     {
         loop {
             match *self.conn.as_mut().unwrap() {
@@ -814,10 +810,6 @@ where
     ///
     /// This errors if the underlying connection protocol is not HTTP/1.
     pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>>
-    where
-        S: Unpin,
-        S::Future: Unpin,
-        B: Unpin,
     {
         let mut conn = Some(self);
         futures_util::future::poll_fn(move |cx| {
@@ -870,7 +862,7 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin + 'static,
+    I: AsyncRead + AsyncWrite + Unpin,
     B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<S::Future, B>,
