@@ -90,6 +90,17 @@ impl<B> SendRequest<B> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
+    /// Checks if the connection is currently ready to send a request.
+    ///
+    /// # Note
+    ///
+    /// This is mostly a hint. Due to inherent latency of networks, it is
+    /// possible that even after checking this is ready, sending a request
+    /// may still fail because the connection was closed in the meantime.
+    pub fn is_ready(&self) -> bool {
+        self.dispatch.is_ready()
+    }
+
     pub fn is_ready(&self) -> bool {
         self.dispatch.is_ready()
     }
