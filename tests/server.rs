@@ -1,5 +1,6 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
+#![cfg_attr(feature = "deprecated", allow(deprecated))]
 
 use std::convert::TryInto;
 use std::future::Future;
@@ -2643,6 +2644,7 @@ async fn http2_keep_alive_count_server_pings() {
 
 // Tests for backported 1.0 APIs
 #[deny(deprecated)]
+#[cfg(feature = "backports")]
 mod backports {
     use super::*;
     use hyper::server::conn::{http1, http2};

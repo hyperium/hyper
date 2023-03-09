@@ -18,6 +18,7 @@ jobs:
       - msrv
       - miri
       - features
+      - deprecated
       - ffi
       - ffi-header
       - doc
@@ -62,7 +63,7 @@ jobs:
 
         include:
           - rust: stable
-            features: "--features full,backports"
+            features: "--features full,backports,deprecated"
           - rust: beta
             features: "--features full,backports"
           - rust: nightly
@@ -166,6 +167,34 @@ jobs:
 
       - name: check --feature-powerset
         run: cargo hack check --feature-powerset --depth 2 --skip ffi -Z avoid-dev-deps
+
+  deprecated:
+    name: Check deprecated on ${{ matrix.rust }}
+    needs: [style]
+    strategy:
+      matrix:
+        rust:
+          - stable
+          - beta
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v1
+
+      - name: Install Rust (${{ matrix.rust }})
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: ${{ matrix.rust }}
+          override: true
+
+      - name: Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --features full,backports,deprecated
 
   ffi:
     name: Test C API (FFI)

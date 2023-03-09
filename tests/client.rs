@@ -1,5 +1,6 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
+#![cfg_attr(feature = "deprecated", allow(deprecated))]
 
 #[macro_use]
 extern crate matches;
