@@ -46,21 +46,21 @@ pin_project! {
 /// A builder for a [`Server`](Server).
 #[derive(Debug)]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub struct Builder<I, E = Exec> {
     incoming: I,
-    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     protocol: Http_<E>,
 }
 
 // ===== impl Server =====
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I> Server<I, ()> {
     /// Starts a [`Builder`](Builder) with the provided incoming stream.
     pub fn builder(incoming: I) -> Builder<I> {
         Builder {
             incoming,
-            #[cfg_attr(feature = "deprecated", allow(deprecated))]
             protocol: Http_::new(),
         }
     }
@@ -109,6 +109,7 @@ impl<S, E> Server<AddrIncoming, S, E> {
 }
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
     I: Accept<Conn = IO, Error = IE>,
@@ -190,7 +191,6 @@ where
         }
     }
 
-    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub(super) fn poll_watch<W>(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
@@ -212,6 +212,7 @@ where
 }
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
     I: Accept<Conn = IO, Error = IE>,
@@ -777,6 +778,7 @@ pin_project! {
     #[must_use = "futures do nothing unless polled"]
     #[derive(Debug)]
     #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub struct Connecting<I, F, E = Exec> {
         #[pin]
         future: F,
