@@ -113,6 +113,11 @@ path = "examples/client.rs"
 required-features = ["full"]
 
 [[example]]
+name = "client_single_thread"
+path = "examples/client_http2_single_threaded.rs"
+required-features = ["full"]
+
+[[example]]
 name = "client_json"
 path = "examples/client_json.rs"
 required-features = ["full"]
