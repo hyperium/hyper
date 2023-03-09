@@ -132,23 +132,10 @@ where
     pub fn send_request(
         &mut self,
         req: Request<B>,
-    ) -> impl Future<Output = crate::Result<Response<IncomingBody>>> {
-        let sent = self.dispatch.send(req);
-
-        async move {
-            match sent {
-                Ok(rx) => match rx.await {
-                    Ok(Ok(resp)) => Ok(resp),
-                    Ok(Err(err)) => Err(err),
-                    // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_canceled) => panic!("dispatch dropped without returning error"),
-                },
-                Err(_req) => {
-                    tracing::debug!("connection was not ready");
-
-                    Err(crate::Error::new_canceled().with("connection was not ready"))
-                }
-            }
+    ) -> SendRequestFuture {
+        match self.dispatch.send(req) {
+            Ok(sent) => SendRequestFuture { sent: Ok(sent) },
+            Err(_req) => SendRequestFuture { sent: Err(()) },
         }
     }
 
@@ -186,6 +173,41 @@ impl<B> fmt::Debug for SendRequest<B> {
         f.debug_struct("SendRequest").finish()
     }
 }
+
+/// Future for [`SendRequest::send_request`].
+#[derive(Debug)]
+pub struct SendRequestFuture {
+    sent: Result<tokio::sync::oneshot::Receiver<Result<Response<IncomingBody>, crate::Error>>,()>,
+}
+
+impl Future for SendRequestFuture {
+    type Output = crate::Result<Response<IncomingBody>>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        match &mut self.sent {
+            Ok(sent) => {
+                match futures_core::ready!(Pin::new(sent).poll(cx)) {
+                    Ok(result) => {
+                        Poll::Ready(result)
+                    }
+                    Err(_canceled) => {
+                        panic!("dispatch dropped without returning error")
+                    }
+                }
+            }
+            Err(()) => {
+                tracing::debug!("connection was not ready");
+                Poll::Ready(Err(crate::Error::new_canceled().with("connection was not ready")))
+            }
+        }
+    }
+}
+
+#[allow(dead_code)]
+fn send_future_is_send()
+where
+    SendRequestFuture: Send
+{}
 
 // ===== impl Connection
 
