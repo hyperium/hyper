@@ -34,6 +34,7 @@ pin_project! {
     /// handlers. It is built using the [`Builder`](Builder), and the future
     /// completes when the server has been shutdown. It should be run by an
     /// `Executor`.
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub struct Server<I, S, E = Exec> {
         #[pin]
         incoming: I,
@@ -189,6 +190,7 @@ where
         }
     }
 
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub(super) fn poll_watch<W>(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
