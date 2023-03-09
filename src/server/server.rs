@@ -20,6 +20,7 @@ use crate::common::exec::{ConnStreamExec, NewSvcExec};
 use crate::common::{task, Future, Pin, Poll, Unpin};
 // Renamed `Http` as `Http_` for now so that people upgrading don't see an
 // error that `hyper::server::Http` is private...
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 use super::conn::{Connection, Http as Http_, UpgradeableConnection};
 use super::shutdown::{Graceful, GracefulWatcher};
 use crate::service::{HttpService, MakeServiceRef};
@@ -33,6 +34,7 @@ pin_project! {
     /// handlers. It is built using the [`Builder`](Builder), and the future
     /// completes when the server has been shutdown. It should be run by an
     /// `Executor`.
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub struct Server<I, S, E = Exec> {
         #[pin]
         incoming: I,
@@ -44,6 +46,7 @@ pin_project! {
 /// A builder for a [`Server`](Server).
 #[derive(Debug)]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub struct Builder<I, E = Exec> {
     incoming: I,
     protocol: Http_<E>,
@@ -52,6 +55,7 @@ pub struct Builder<I, E = Exec> {
 // ===== impl Server =====
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I> Server<I, ()> {
     /// Starts a [`Builder`](Builder) with the provided incoming stream.
     pub fn builder(incoming: I) -> Builder<I> {
@@ -105,6 +109,7 @@ impl<S, E> Server<AddrIncoming, S, E> {
 }
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I, IO, IE, S, E, B> Server<I, S, E>
 where
     I: Accept<Conn = IO, Error = IE>,
@@ -207,6 +212,7 @@ where
 }
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I, IO, IE, S, B, E> Future for Server<I, S, E>
 where
     I: Accept<Conn = IO, Error = IE>,
@@ -237,6 +243,7 @@ impl<I: fmt::Debug, S: fmt::Debug> fmt::Debug for Server<I, S> {
 // ===== impl Builder =====
 
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<I, E> Builder<I, E> {
     /// Start a new builder, wrapping an incoming stream and low-level options.
     ///
@@ -771,6 +778,7 @@ pin_project! {
     #[must_use = "futures do nothing unless polled"]
     #[derive(Debug)]
     #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub struct Connecting<I, F, E = Exec> {
         #[pin]
         future: F,

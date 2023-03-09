@@ -2642,6 +2642,7 @@ async fn http2_keep_alive_count_server_pings() {
 }
 
 // Tests for backported 1.0 APIs
+#[deny(deprecated)]
 mod backports {
     use super::*;
     use hyper::server::conn::{http1, http2};
