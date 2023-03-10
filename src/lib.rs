@@ -53,6 +53,8 @@
 //!   connectors and acceptors for TCP, and a default executor.
 //! - `tcp`: Enables convenient implementations over TCP (using tokio).
 //! - `stream`: Provides `futures::Stream` capabilities.
+//! - `backports`: 1.0 functionality backported to 0.14.
+//! - `deprecated`: opt-in to deprecation warnings to prepare you for 1.0.
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 
