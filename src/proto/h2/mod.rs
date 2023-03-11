@@ -126,19 +126,28 @@ where
 
             if me.body_tx.capacity() == 0 {
                 loop {
-                    match ready!(me.body_tx.poll_capacity(cx)) {
-                        Some(Ok(0)) => {}
-                        Some(Ok(_)) => break,
-                        Some(Err(e)) => {
+                    match me.body_tx.poll_capacity(cx) {
+                        Poll::Ready(Some(Ok(0))) => {}
+                        Poll::Ready(Some(Ok(_))) => break,
+                        Poll::Ready(Some(Err(e))) => {
                             return Poll::Ready(Err(crate::Error::new_body_write(e)))
                         }
-                        None => {
+                        Poll::Ready(None) => {
                             // None means the stream is no longer in a
                             // streaming state, we either finished it
                             // somehow, or the remote reset us.
                             return Poll::Ready(Err(crate::Error::new_body_write(
                                 "send stream capacity unexpectedly closed",
                             )));
+                        }
+                        Poll::Pending => {
+                            // If we're not able to make progress, check if the body is healthy
+                            me.stream
+                                .as_mut()
+                                .poll_healthy(cx)
+                                .map_err(|e| me.body_tx.on_user_err(e))?;
+
+                            return Poll::Pending;
                         }
                     }
                 }
@@ -148,9 +157,7 @@ where
                 .map_err(crate::Error::new_body_write)?
             {
                 debug!("stream received RST_STREAM: {:?}", reason);
-                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
-                    reason,
-                ))));
+                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
             }
 
             match ready!(me.stream.as_mut().poll_frame(cx)) {
@@ -365,14 +372,12 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
         if self.send_stream.write(&[], true).is_ok() {
-            return Poll::Ready(Ok(()))
+            return Poll::Ready(Ok(()));
         }
 
         Poll::Ready(Err(h2_to_io_error(
             match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) => {
-                    return Poll::Ready(Ok(()))
-                }
+                Ok(Reason::NO_ERROR) => return Poll::Ready(Ok(())),
                 Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
                     return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
                 }

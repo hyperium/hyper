@@ -1737,6 +1737,151 @@ async fn http_connect_new() {
     assert_eq!(s(&vec), "bar=foo");
 }
 
+struct UnhealthyBody {
+    rx: oneshot::Receiver<()>,
+    tx: Option<oneshot::Sender<()>>,
+}
+
+impl Body for UnhealthyBody {
+    type Data = Bytes;
+
+    type Error = &'static str;
+
+    fn poll_frame(
+        self: Pin<&mut Self>,
+        _cx: &mut Context<'_>,
+    ) -> Poll<Option<Result<http_body::Frame<Self::Data>, Self::Error>>> {
+        Poll::Ready(Some(Ok(http_body::Frame::data(Bytes::from_static(
+            &[0; 1024],
+        )))))
+    }
+
+    fn poll_healthy(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Result<(), Self::Error> {
+        if Pin::new(&mut self.rx).poll(cx).is_pending() {
+            return Ok(());
+        }
+
+        let _ = self.tx.take().unwrap().send(());
+        Err("blammo")
+    }
+}
+
+#[tokio::test]
+async fn h1_unhealthy_body() {
+    let (listener, addr) = setup_tcp_listener();
+    let (unhealthy_tx, unhealthy_rx) = oneshot::channel();
+    let (read_body_tx, read_body_rx) = oneshot::channel();
+
+    let client = tokio::spawn(async move {
+        let mut tcp = connect_async(addr).await;
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            \r\n\
+            Host: localhost\r\n\
+            \r\n
+        ",
+        )
+        .await
+        .expect("write 1");
+
+        let mut buf = [0; 1024];
+        loop {
+            let nread = tcp.read(&mut buf).await.expect("read 1");
+            if buf[..nread].contains(&0) {
+                break;
+            }
+        }
+
+        read_body_tx.send(()).unwrap();
+        unhealthy_rx.await.expect("rx");
+
+        while tcp.read(&mut buf).await.expect("read") > 0 {}
+    });
+
+    let mut read_body_rx = Some(read_body_rx);
+    let mut unhealthy_tx = Some(unhealthy_tx);
+    let svc = service_fn(move |_: Request<IncomingBody>| {
+        future::ok::<_, &'static str>(
+            Response::builder()
+                .status(200)
+                .body(UnhealthyBody {
+                    rx: read_body_rx.take().unwrap(),
+                    tx: unhealthy_tx.take(),
+                })
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let err = http1::Builder::new()
+        .serve_connection(socket, svc)
+        .await
+        .err()
+        .unwrap();
+    assert!(err.to_string().contains("blammo"));
+
+    client.await.unwrap();
+}
+
+#[tokio::test]
+async fn h2_unhealthy_body() {
+    let (listener, addr) = setup_tcp_listener();
+    let (unhealthy_tx, unhealthy_rx) = oneshot::channel();
+    let (read_body_tx, read_body_rx) = oneshot::channel();
+
+    let client = tokio::spawn(async move {
+        let tcp = connect_async(addr).await;
+        let (h2, connection) = h2::client::handshake(tcp).await.unwrap();
+        tokio::spawn(async move {
+            connection.await.unwrap();
+        });
+        let mut h2 = h2.ready().await.unwrap();
+
+        let request = Request::get("/").body(()).unwrap();
+        let (response, _) = h2.send_request(request, true).unwrap();
+
+        let mut body = response.await.unwrap().into_body();
+
+        let bytes = body.data().await.unwrap().unwrap();
+        let _ = body.flow_control().release_capacity(bytes.len());
+
+        read_body_tx.send(()).unwrap();
+        unhealthy_rx.await.unwrap();
+
+        loop {
+            let bytes = match body.data().await.transpose() {
+                Ok(Some(bytes)) => bytes,
+                Ok(None) => panic!(),
+                Err(_) => break,
+            };
+            let _ = body.flow_control().release_capacity(bytes.len());
+        }
+    });
+
+    let mut read_body_rx = Some(read_body_rx);
+    let mut unhealthy_tx = Some(unhealthy_tx);
+    let svc = service_fn(move |_: Request<IncomingBody>| {
+        future::ok::<_, &'static str>(
+            Response::builder()
+                .status(200)
+                .body(UnhealthyBody {
+                    rx: read_body_rx.take().unwrap(),
+                    tx: unhealthy_tx.take(),
+                })
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await
+        .unwrap();
+
+    client.await.unwrap();
+}
+
 #[tokio::test]
 async fn h2_connect() {
     let (listener, addr) = setup_tcp_listener();

@@ -219,3 +219,6 @@ required-features = ["full"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["full"]
+
+[patch.crates-io]
+http-body = { git = "https://github.com/sfackler/http-body", branch = "body-poll-alive" }
