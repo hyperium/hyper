@@ -6,9 +6,9 @@
 //! to plug in other runtimes.
 
 pub mod bounds;
-pub mod timer;
+mod timer;
 
-pub use timer::*;
+pub use timer::{Sleep, Timer};
 
 /// An executor of futures.
 ///

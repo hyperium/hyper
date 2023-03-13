@@ -10,7 +10,7 @@
 //!
 //! use futures_util::Future;
 //! use pin_project_lite::pin_project;
-//! use hyper::rt::timer::{Timer, Sleep};
+//! use hyper::rt::{Timer, Sleep};
 //!
 //! #[derive(Clone, Debug)]
 //! pub struct TokioTimer;
