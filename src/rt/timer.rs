@@ -77,7 +77,7 @@ pub trait Timer {
 /// A future returned by a `Timer`.
 pub trait Sleep: Send + Sync + Future<Output = ()> {
     #[doc(hidden)]
-    /// This method is private and should not be implemented by downstream crate
+    /// This method is private and can not be implemented by downstream crate
     fn __type_id(&self, _: private::Sealed) -> TypeId
     where
         Self: 'static,
