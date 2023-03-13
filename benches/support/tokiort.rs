@@ -41,6 +41,12 @@ impl Timer for TokioTimer {
             inner: tokio::time::sleep_until(deadline.into()),
         })
     }
+
+    fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
+        if sleep.downcast_ref::<TokioSleep>().is_some() {
+            *sleep = self.sleep_until(new_deadline);
+        }
+    }
 }
 
 struct TokioTimeout<T> {
