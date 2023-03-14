@@ -5,7 +5,8 @@ use std::ffi::c_void;
 use super::body::hyper_body;
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
-use super::{UserDataPointer, HYPER_ITER_CONTINUE};
+use super::HYPER_ITER_CONTINUE;
+use super::userdata::{Userdata, hyper_userdata_drop};
 use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::header::{HeaderName, HeaderValue};
@@ -28,7 +29,7 @@ pub struct hyper_headers {
 
 pub(crate) struct OnInformational {
     func: hyper_request_on_informational_callback,
-    data: UserDataPointer,
+    userdata: Userdata,
 }
 
 type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut hyper_response);
@@ -337,10 +338,10 @@ ffi_fn! {
     /// NOTE: The `hyper_response *` is just borrowed data, and will not
     /// be valid after the callback finishes. You must copy any data you wish
     /// to persist.
-    fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
+    fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void, drop: hyper_userdata_drop) -> hyper_code {
         let ext = OnInformational {
             func: callback,
-            data: UserDataPointer(data),
+            userdata: Userdata::new(data, drop),
         };
         let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
         req.0.extensions_mut().insert(ext);
@@ -724,7 +725,7 @@ unsafe fn raw_name_value(
 impl OnInformational {
     pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
         let mut resp = hyper_response::from(resp);
-        (self.func)(self.data.0, &mut resp);
+        (self.func)(self.userdata.as_ptr(), &mut resp);
     }
 }
 

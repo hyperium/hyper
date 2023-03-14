@@ -233,6 +233,20 @@ typedef struct hyper_waker hyper_waker;
 
 typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
+/*
+ Many hyper entites can be given userdata to allow user callbacks to corellate work together.
+ Since much of hyper is asychronous it's often useful to treat these userdata objects as "owned"
+ by the hyper entity (and hence to be cleaned up when that entity is dropped).
+
+ To acheive this a `hyepr_userdata_drop` callback is passed by calling code alongside the
+ userdata to register a cleanup function.
+
+ This function may be provided as NULL if the calling code wants to manage memory lifetimes
+ itself, in which case the hyper object will logically consider the userdata "borrowed" until
+ the hyper entity is dropped.
+ */
+typedef void (*hyper_userdata_drop)(void*);
+
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
 /*
@@ -252,19 +266,9 @@ typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyp
  */
 typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response_channel*);
 
-/*
- Since a hyper_service owns the userdata passed to it the calling code can register a cleanup
- function to be called when the service is dropped.  This function may be omitted/a no-op if
- the calling code wants to manage memory lifetimes itself (e.g. if the userdata is a static
- global)
- */
-typedef void (*hyper_service_userdata_drop_callback)(void*);
-
 typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
 
 typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
-
-typedef void (*hyper_io_userdata_drop_callback)(void*);
 
 typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
 
@@ -319,12 +323,13 @@ struct hyper_task *hyper_body_data(struct hyper_body *body);
  */
 struct hyper_task *hyper_body_foreach(struct hyper_body *body,
                                       hyper_body_foreach_callback func,
-                                      void *userdata);
+                                      void *userdata,
+                                      hyper_userdata_drop drop);
 
 /*
  Set userdata on this body, which will be passed to callback functions.
  */
-void hyper_body_set_userdata(struct hyper_body *body, void *userdata);
+void hyper_body_set_userdata(struct hyper_body *body, void *userdata, hyper_userdata_drop drop);
 
 /*
  Set the data callback for this body.
@@ -659,12 +664,13 @@ struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
 
  The service takes ownership of the userdata and will call the `drop_userdata` callback when
  the service task is complete.  If the `drop_userdata` callback is `NULL` then the service
- will instead forget the userdata when the associated task is completed and the calling code
- is responsible for cleaning up the userdata through some other mechanism.
+ will instead borrow the userdata and forget it when the associated task is completed and
+ thus the calling code is responsible for cleaning up the userdata through some other
+ mechanism.
  */
 void hyper_service_set_userdata(struct hyper_service *service,
                                 void *userdata,
-                                hyper_service_userdata_drop_callback drop_func);
+                                hyper_userdata_drop drop);
 
 /*
  Frees a hyper_service object if no longer needed
@@ -896,7 +902,8 @@ struct hyper_body *hyper_request_body(struct hyper_request *req);
  */
 enum hyper_code hyper_request_on_informational(struct hyper_request *req,
                                                hyper_request_on_informational_callback callback,
-                                               void *data);
+                                               void *data,
+                                               hyper_userdata_drop drop);
 
 /*
  Construct a new HTTP 200 Ok response
@@ -1047,9 +1054,7 @@ void hyper_io_free(struct hyper_io *io);
  `hyper_io` is destroyed (either explicitely by `hyper_io_free` or
  implicitely by an associated hyper task completing).
  */
-void hyper_io_set_userdata(struct hyper_io *io,
-                           void *data,
-                           hyper_io_userdata_drop_callback drop_func);
+void hyper_io_set_userdata(struct hyper_io *io, void *data, hyper_userdata_drop drop_func);
 
 /*
  Get the user data pointer for this IO value.
@@ -1161,7 +1166,7 @@ enum hyper_task_return_type hyper_task_type(struct hyper_task *task);
  This value will be passed to task callbacks, and can be checked later
  with `hyper_task_userdata`.
  */
-void hyper_task_set_userdata(struct hyper_task *task, void *userdata);
+void hyper_task_set_userdata(struct hyper_task *task, void *userdata, hyper_userdata_drop drop);
 
 /*
  Retrieve the userdata that has been set via `hyper_task_set_userdata`.

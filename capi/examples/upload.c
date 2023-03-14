@@ -224,7 +224,7 @@ int main(int argc, char *argv[]) {
     hyper_clientconn_options_exec(opts, exec);
 
     hyper_task *handshake = hyper_clientconn_handshake(io, opts);
-    hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE);
+    hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE, NULL);
 
     // Let's wait for the handshake to finish...
     hyper_executor_push(exec, handshake);
@@ -274,17 +274,17 @@ int main(int argc, char *argv[]) {
                 // the body is sent immediately. This will just print if any
                 // informational headers are received.
                 printf("    with expect-continue ...\n");
-                hyper_request_on_informational(req, print_informational, NULL);
+                hyper_request_on_informational(req, print_informational, NULL, NULL);
 
                 // Prepare the req body
                 hyper_body *body = hyper_body_new();
-                hyper_body_set_userdata(body, &upload);
+                hyper_body_set_userdata(body, &upload, NULL);
                 hyper_body_set_data_func(body, poll_req_upload);
                 hyper_request_set_body(req, body);
 
                 // Send it!
                 hyper_task *send = hyper_clientconn_send(client, req);
-                hyper_task_set_userdata(send, (void *)EXAMPLE_SEND);
+                hyper_task_set_userdata(send, (void *)EXAMPLE_SEND, NULL);
                 printf("sending ...\n");
                 hyper_executor_push(exec, send);
 
@@ -315,7 +315,7 @@ int main(int argc, char *argv[]) {
 
                 // Set us up to peel data from the body a chunk at a time
                 hyper_task *body_data = hyper_body_data(resp_body);
-                hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY);
+                hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY, NULL);
                 hyper_executor_push(exec, body_data);
 
                 // No longer need the response
@@ -335,7 +335,7 @@ int main(int argc, char *argv[]) {
                     hyper_task_free(task);
 
                     hyper_task *body_data = hyper_body_data(resp_body);
-                    hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY);
+                    hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY, NULL);
                     hyper_executor_push(exec, body_data);
 
                     break;

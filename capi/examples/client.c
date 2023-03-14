@@ -184,7 +184,7 @@ int main(int argc, char *argv[]) {
     hyper_clientconn_options_exec(opts, exec);
 
     hyper_task *handshake = hyper_clientconn_handshake(io, opts);
-    hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE);
+    hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE, NULL);
 
     // Let's wait for the handshake to finish...
     hyper_executor_push(exec, handshake);
@@ -230,7 +230,7 @@ int main(int argc, char *argv[]) {
 
                 // Send it!
                 hyper_task *send = hyper_clientconn_send(client, req);
-                hyper_task_set_userdata(send, (void *)EXAMPLE_SEND);
+                hyper_task_set_userdata(send, (void *)EXAMPLE_SEND, NULL);
                 printf("sending ...\n");
                 hyper_executor_push(exec, send);
 
@@ -261,8 +261,8 @@ int main(int argc, char *argv[]) {
                 printf("\n");
 
                 hyper_body *resp_body = hyper_response_body(resp);
-                hyper_task *foreach = hyper_body_foreach(resp_body, print_each_chunk, NULL);
-                hyper_task_set_userdata(foreach, (void *)EXAMPLE_RESP_BODY);
+                hyper_task *foreach = hyper_body_foreach(resp_body, print_each_chunk, NULL, NULL);
+                hyper_task_set_userdata(foreach, (void *)EXAMPLE_RESP_BODY, NULL);
                 hyper_executor_push(exec, foreach);
 
                 // No longer need the response

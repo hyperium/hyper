@@ -6,6 +6,7 @@ use libc::size_t;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::task::hyper_context;
+use super::userdata::Userdata;
 
 /// Sentinel value to return from a read or write callback that the operation
 /// is pending.
@@ -18,14 +19,12 @@ type hyper_io_read_callback =
     extern "C" fn(*mut c_void, *mut hyper_context<'_>, *mut u8, size_t) -> size_t;
 type hyper_io_write_callback =
     extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
-type hyper_io_userdata_drop_callback = extern "C" fn(*mut c_void);
 
 /// An IO object used to represent a socket or similar concept.
 pub struct hyper_io {
     read: hyper_io_read_callback,
     write: hyper_io_write_callback,
-    userdata: *mut c_void,
-    userdata_drop: Option<hyper_io_userdata_drop_callback>,
+    userdata: Userdata,
 }
 
 ffi_fn! {
@@ -37,8 +36,7 @@ ffi_fn! {
         Box::into_raw(Box::new(hyper_io {
             read: read_noop,
             write: write_noop,
-            userdata: std::ptr::null_mut(),
-            userdata_drop: None,
+            userdata: Userdata::default(),
         }))
     } ?= std::ptr::null_mut()
 }
@@ -64,15 +62,10 @@ ffi_fn! {
     fn hyper_io_set_userdata(
         io: *mut hyper_io,
         data: *mut c_void,
-        drop_func: hyper_io_userdata_drop_callback,
+        drop_func: super::userdata::hyper_userdata_drop,
     ) {
         let io = non_null!(&mut *io? = ());
-        io.userdata = data;
-        io.userdata_drop = if (drop_func as *const c_void).is_null() {
-            None
-        } else {
-            Some(drop_func)
-        }
+        io.userdata = Userdata::new(data, drop_func);
     }
 }
 
@@ -83,7 +76,7 @@ ffi_fn! {
     ///
     /// Returns NULL if no userdata has been set.
     fn hyper_io_get_userdata(io: *mut hyper_io) -> *mut c_void {
-        non_null!(&mut *io ?= std::ptr::null_mut()).userdata
+        non_null!(&mut *io ?= std::ptr::null_mut()).userdata.as_ptr()
     }
 }
 
@@ -148,14 +141,6 @@ extern "C" fn write_noop(
     0
 }
 
-impl Drop for hyper_io {
-    fn drop(&mut self) {
-        if let Some(drop_fn) = self.userdata_drop {
-            drop_fn(self.userdata)
-        }
-    }
-}
-
 impl AsyncRead for hyper_io {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -165,7 +150,7 @@ impl AsyncRead for hyper_io {
         let buf_ptr = unsafe { buf.unfilled_mut() }.as_mut_ptr() as *mut u8;
         let buf_len = buf.remaining();
 
-        match (self.read)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
+        match (self.read)(self.userdata.as_ptr(), hyper_context::wrap(cx), buf_ptr, buf_len) {
             HYPER_IO_PENDING => Poll::Pending,
             HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -191,7 +176,7 @@ impl AsyncWrite for hyper_io {
         let buf_ptr = buf.as_ptr();
         let buf_len = buf.len();
 
-        match (self.write)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
+        match (self.write)(self.userdata.as_ptr(), hyper_context::wrap(cx), buf_ptr, buf_len) {
             HYPER_IO_PENDING => Poll::Pending,
             HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Other,

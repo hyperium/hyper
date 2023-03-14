@@ -7,7 +7,7 @@ use crate::ffi::error::hyper_code;
 use crate::ffi::http_types::{hyper_request, hyper_response};
 use crate::ffi::io::hyper_io;
 use crate::ffi::task::{hyper_executor, hyper_task, WeakExec};
-use crate::ffi::UserDataPointer;
+use crate::ffi::userdata::{Userdata, hyper_userdata_drop};
 use crate::server::conn::http1;
 use crate::server::conn::http2;
 
@@ -20,8 +20,7 @@ pub struct hyper_http2_serverconn_options(http2::Builder<WeakExec>);
 /// A service that can serve a single server connection.
 pub struct hyper_service {
     service_fn: hyper_service_callback,
-    userdata: UserDataPointer,
-    userdata_drop: Option<hyper_service_userdata_drop_callback>,
+    userdata: Userdata,
 }
 
 /// A channel on which to send back a response to complete a transaction for a service.
@@ -42,12 +41,6 @@ pub struct hyper_response_channel(futures_channel::oneshot::Sender<Box<hyper_res
 /// async operations have completed).
 pub type hyper_service_callback =
     extern "C" fn(*mut c_void, *mut hyper_request, *mut hyper_response_channel);
-
-/// Since a hyper_service owns the userdata passed to it the calling code can register a cleanup
-/// function to be called when the service is dropped.  This function may be omitted/a no-op if
-/// the calling code wants to manage memory lifetimes itself (e.g. if the userdata is a static
-/// global)
-type hyper_service_userdata_drop_callback = extern "C" fn(*mut c_void);
 
 // ===== impl http1_serverconn_options =====
 
@@ -402,8 +395,7 @@ ffi_fn! {
     fn hyper_service_new(service_fn: hyper_service_callback) -> *mut hyper_service {
         Box::into_raw(Box::new(hyper_service {
             service_fn: service_fn,
-            userdata: UserDataPointer(ptr::null_mut()),
-            userdata_drop: None,
+            userdata: Userdata::default(),
         }))
     } ?= ptr::null_mut()
 }
@@ -415,16 +407,12 @@ ffi_fn! {
     ///
     /// The service takes ownership of the userdata and will call the `drop_userdata` callback when
     /// the service task is complete.  If the `drop_userdata` callback is `NULL` then the service
-    /// will instead forget the userdata when the associated task is completed and the calling code
-    /// is responsible for cleaning up the userdata through some other mechanism.
-    fn hyper_service_set_userdata(service: *mut hyper_service, userdata: *mut c_void, drop_func: hyper_service_userdata_drop_callback) {
+    /// will instead borrow the userdata and forget it when the associated task is completed and
+    /// thus the calling code is responsible for cleaning up the userdata through some other
+    /// mechanism.
+    fn hyper_service_set_userdata(service: *mut hyper_service, userdata: *mut c_void, drop: hyper_userdata_drop) {
         let s = non_null! { &mut *service ?= () };
-        s.userdata = UserDataPointer(userdata);
-        s.userdata_drop = if (drop_func as *const c_void).is_null() {
-            None
-        } else {
-            Some(drop_func)
-        }
+        s.userdata = Userdata::new(userdata, drop);
     }
 }
 
@@ -536,20 +524,12 @@ impl crate::service::Service<crate::Request<IncomingBody>> for hyper_service {
         let (tx, rx) = futures_channel::oneshot::channel();
         let rsp_channel = Box::into_raw(Box::new(hyper_response_channel(tx)));
 
-        (self.service_fn)(self.userdata.0, req_ptr, rsp_channel);
+        (self.service_fn)(self.userdata.as_ptr(), req_ptr, rsp_channel);
 
         Box::pin(async move {
             let rsp = rx.await.expect("Channel closed?");
             Ok(rsp.finalize())
         })
-    }
-}
-
-impl Drop for hyper_service {
-    fn drop(&mut self) {
-        if let Some(drop_func) = self.userdata_drop {
-            drop_func(self.userdata.0);
-        }
     }
 }
 

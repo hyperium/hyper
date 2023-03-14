@@ -45,6 +45,7 @@ mod http_types;
 mod io;
 mod task;
 mod time;
+mod userdata;
 
 pub use self::body::*;
 pub use self::client::*;
@@ -57,7 +58,6 @@ pub use self::task::*;
 /// Return in iter functions to continue iterating.
 pub const HYPER_ITER_CONTINUE: libc::c_int = 0;
 /// Return in iter functions to stop iterating.
-#[allow(unused)]
 pub const HYPER_ITER_BREAK: libc::c_int = 1;
 
 /// An HTTP Version that is unspecified.
@@ -68,14 +68,6 @@ pub const HYPER_HTTP_VERSION_1_0: libc::c_int = 10;
 pub const HYPER_HTTP_VERSION_1_1: libc::c_int = 11;
 /// The HTTP/2 version.
 pub const HYPER_HTTP_VERSION_2: libc::c_int = 20;
-
-#[derive(Clone, Copy)]
-struct UserDataPointer(*mut std::ffi::c_void);
-
-// We don't actually know anything about this pointer, it's up to the user
-// to do the right thing.
-unsafe impl Send for UserDataPointer {}
-unsafe impl Sync for UserDataPointer {}
 
 /// cbindgen:ignore
 static VERSION_CSTR: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");

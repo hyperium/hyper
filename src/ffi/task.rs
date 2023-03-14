@@ -12,7 +12,7 @@ use futures_util::stream::{FuturesUnordered, Stream};
 use libc::c_int;
 
 use super::error::hyper_code;
-use super::UserDataPointer;
+use super::userdata::{Userdata, hyper_userdata_drop};
 
 use crate::proto::h2::server::H2Stream;
 
@@ -64,7 +64,7 @@ struct ExecWaker(AtomicBool);
 pub struct hyper_task {
     future: BoxFuture<BoxAny>,
     output: Option<BoxAny>,
-    userdata: UserDataPointer,
+    userdata: Userdata,
 }
 
 struct TaskFuture {
@@ -295,7 +295,7 @@ impl hyper_task {
         Box::new(hyper_task {
             future: Box::pin(async move { fut.await.into_dyn_task_type() }),
             output: None,
-            userdata: UserDataPointer(ptr::null_mut()),
+            userdata: Userdata::default(),
         })
     }
 
@@ -367,19 +367,16 @@ ffi_fn! {
     ///
     /// This value will be passed to task callbacks, and can be checked later
     /// with `hyper_task_userdata`.
-    fn hyper_task_set_userdata(task: *mut hyper_task, userdata: *mut c_void) {
-        if task.is_null() {
-            return;
-        }
-
-        unsafe { (*task).userdata = UserDataPointer(userdata) };
+    fn hyper_task_set_userdata(task: *mut hyper_task, userdata: *mut c_void, drop: hyper_userdata_drop) {
+        let task = non_null!(&mut*task ?= ());
+        task.userdata = Userdata::new(userdata, drop);
     }
 }
 
 ffi_fn! {
     /// Retrieve the userdata that has been set via `hyper_task_set_userdata`.
     fn hyper_task_userdata(task: *mut hyper_task) -> *mut c_void {
-        non_null!(&*task ?= ptr::null_mut()).userdata.0
+        non_null!(&*task ?= ptr::null_mut()).userdata.as_ptr()
     } ?= ptr::null_mut()
 }
 
