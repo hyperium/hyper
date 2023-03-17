@@ -94,26 +94,23 @@ jobs:
           args: --benches ${{ matrix.features }}
 
   msrv:
-    name: Check MSRV (${{ matrix.rust }})
+    name: Check MSRV
     needs: [style]
-    strategy:
-      matrix:
-        rust:
-          - 1.56 # keep in sync with MSRV.md dev doc
 
-        os:
-          - ubuntu-latest
-
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v3
 
-      - name: Install Rust (${{ matrix.rust }})
+      - name: Get MSRV from package metadata
+        id: msrv
+        run: grep rust-version Cargo.toml | cut -d'"' -f2 | sed 's/^/version=/' >> $GITHUB_OUTPUT
+
+      - name: Install Rust (${{ steps.msrv.outputs.version }})
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: ${{ steps.msrv.outputs.version }}
 
       - name: Check
         uses: actions-rs/cargo@v1
