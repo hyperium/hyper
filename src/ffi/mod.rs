@@ -54,6 +54,7 @@ pub use self::http_types::*;
 pub use self::io::*;
 pub use self::server::*;
 pub use self::task::*;
+pub use self::userdata::hyper_userdata_drop;
 
 /// Return in iter functions to continue iterating.
 pub const HYPER_ITER_CONTINUE: libc::c_int = 0;
