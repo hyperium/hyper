@@ -168,6 +168,12 @@ impl Error {
         matches!(self.inner.kind, Kind::User(User::BodyWriteAborted))
     }
 
+    /// Returns true if error occurred while reading a body from connection.
+    #[cfg(any(feature = "http1", feature = "http2"))]
+    pub fn is_body_read(&self) -> bool {
+        matches!(self.inner.kind, Kind::Body)
+    }
+
     /// Returns true if the error was caused by a timeout.
     pub fn is_timeout(&self) -> bool {
         self.find_source::<TimedOut>().is_some()
