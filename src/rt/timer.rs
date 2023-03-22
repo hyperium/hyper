@@ -29,8 +29,8 @@
 //!     }
 //!
 //!     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
-//!         if sleep.downcast_ref::<TokioSleep>().is_some() {
-//!             *sleep = self.sleep_until(new_deadline);
+//!         if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<TokioSleep>() {
+//!             sleep.reset(new_deadline.into())
 //!         }
 //!     }
 //! }
@@ -51,6 +51,12 @@
 //! }
 //!
 //! impl Sleep for TokioSleep {}
+//!
+//! impl TokioSleep {
+//!     pub fn reset(self: Pin<&mut Self>, deadline: Instant) {
+//!         self.project().inner.as_mut().reset(deadline.into());
+//!     }
+//! }
 //! ````
 
 use std::{
@@ -97,25 +103,18 @@ impl dyn Sleep {
         self.__type_id(private::Sealed {}) == TypeId::of::<T>()
     }
 
-    /// Downcast the Sleep object to its original type
-    pub fn downcast_ref<T>(&self) -> Option<&T>
+    /// Downcast a pinned &mut Sleep object to its original type
+    pub fn downcast_mut_pin<T>(self: Pin<&mut Self>) -> Option<Pin<&'static mut T>>
     where
         T: Sleep + 'static,
     {
         if self.is::<T>() {
-            unsafe { Some(&*(self as *const dyn Sleep as *const T)) }
-        } else {
-            None
-        }
-    }
-
-    /// Similar to `downcast_ref` but returns a mutable version instead
-    pub fn downcast_mut<T>(&mut self) -> Option<&mut T>
-    where
-        T: Sleep + 'static,
-    {
-        if self.is::<T>() {
-            unsafe { Some(&mut *(self as *mut dyn Sleep as *mut T)) }
+            unsafe {
+                let inner = Pin::into_inner_unchecked(self);
+                Some(Pin::new_unchecked(
+                    &mut *(&mut *inner as *mut dyn Sleep as *mut T),
+                ))
+            }
         } else {
             None
         }
