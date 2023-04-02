@@ -66,6 +66,7 @@ struct TaskFuture {
 }
 
 /// An async context for a task that contains the related waker.
+#[repr(transparent)]
 pub struct hyper_context<'a>(Context<'a>);
 
 /// A waker that is saved and used to waken a pending task.
@@ -378,7 +379,7 @@ where
 
 impl hyper_context<'_> {
     pub(crate) fn wrap<'a, 'b>(cx: &'a mut Context<'b>) -> &'a mut hyper_context<'b> {
-        // A struct with only one field has the same layout as that field.
+        // A repr(transparent) struct with only one field has the same layout as that field.
         unsafe { std::mem::transmute::<&mut Context<'_>, &mut hyper_context<'_>>(cx) }
     }
 }
