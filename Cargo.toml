@@ -39,7 +39,7 @@ want = "0.3"
 # Optional
 
 libc = { version = "0.2", optional = true }
-socket2 = { version = "0.4.7", optional = true, features = ["all"] }
+socket2 = { version = "0.5.1", optional = true, features = ["all"] }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
