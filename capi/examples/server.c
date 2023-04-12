@@ -19,6 +19,7 @@ static const int MAX_EVENTS = 128;
 typedef struct conn_data_s {
     int fd;
     int epoll_fd;
+    uint32_t event_mask;
     hyper_waker *read_waker;
     hyper_waker *write_waker;
 } conn_data;
@@ -62,6 +63,7 @@ static int listen_on(const char *host, const char *port) {
         if (bind(sock, resp->ai_addr, resp->ai_addrlen) == 0) {
             break;
         }
+        perror("bind");
 
         // Failed, tidy up
         close(sock);
@@ -108,12 +110,26 @@ static int register_signal_handler() {
         perror("signalfd");
         return 1;
     }
+    sigaddset(&mask, SIGPIPE);
     if (sigprocmask(SIG_BLOCK, &mask, NULL) < 0) {
         perror("sigprocmask");
         return 1;
     }
 
     return signal_fd;
+}
+
+// Register connection FD with epoll, associated with this `conn`
+static bool update_conn_data_registrations(conn_data* conn, bool create) {
+    struct epoll_event transport_event;
+    transport_event.events = conn->event_mask;
+    transport_event.data.ptr = conn;
+    if (epoll_ctl(conn->epoll_fd, create ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, conn->fd, &transport_event) < 0) {
+        perror("epoll_ctl (transport)");
+        return false;
+    } else {
+        return true;
+    }
 }
 
 static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t buf_len) {
@@ -134,6 +150,14 @@ static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t b
     if (conn->read_waker != NULL) {
         hyper_waker_free(conn->read_waker);
     }
+
+    if (!(conn->event_mask & EPOLLIN)) {
+      conn->event_mask |= EPOLLIN;
+      if (!update_conn_data_registrations(conn, false)) {
+        return HYPER_IO_ERROR;
+      }
+    }
+
     conn->read_waker = hyper_context_waker(ctx);
     return HYPER_IO_PENDING;
 }
@@ -156,27 +180,30 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
     if (conn->write_waker != NULL) {
         hyper_waker_free(conn->write_waker);
     }
+
+    if (!(conn->event_mask & EPOLLOUT)) {
+      conn->event_mask |= EPOLLOUT;
+      if (!update_conn_data_registrations(conn, false)) {
+        return HYPER_IO_ERROR;
+      }
+    }
+
     conn->write_waker = hyper_context_waker(ctx);
     return HYPER_IO_PENDING;
 }
 
 static conn_data *create_conn_data(int epoll, int fd) {
     conn_data *conn = malloc(sizeof(conn_data));
-
-    // Add fd to epoll set, associated with this `conn`
-    struct epoll_event transport_event;
-    transport_event.events = EPOLLIN;
-    transport_event.data.ptr = conn;
-    if (epoll_ctl(epoll, EPOLL_CTL_ADD, fd, &transport_event) < 0) {
-        perror("epoll_ctl (transport, add)");
-        free(conn);
-        return NULL;
-    }
-
     conn->fd = fd;
     conn->epoll_fd = epoll;
+    conn->event_mask = 0;
     conn->read_waker = NULL;
     conn->write_waker = NULL;
+
+    if (!update_conn_data_registrations(conn, true)) {
+      free(conn);
+      return NULL;
+    }
 
     return conn;
 }
@@ -477,13 +504,27 @@ int main(int argc, char *argv[]) {
             } else {
                 // Existing transport socket, poke the wakers or close the socket
                 conn_data *conn = events[n].data.ptr;
-                if ((events[n].events & EPOLLIN) && conn->read_waker) {
+                if (events[n].events & EPOLLIN) {
+                  if (conn->read_waker) {
                     hyper_waker_wake(conn->read_waker);
                     conn->read_waker = NULL;
+                  } else {
+                    conn->event_mask &= ~EPOLLIN;
+                    if (!update_conn_data_registrations(conn, false)) {
+                      epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
+                    }
+                  }
                 }
-                if ((events[n].events & EPOLLOUT) && conn->write_waker) {
-                    hyper_waker_wake(conn->write_waker);
-                    conn->write_waker = NULL;
+                if (events[n].events & EPOLLOUT) {
+                  if (conn->read_waker) {
+                    hyper_waker_wake(conn->read_waker);
+                    conn->read_waker = NULL;
+                  } else {
+                    conn->event_mask &= ~EPOLLOUT;
+                    if (!update_conn_data_registrations(conn, false)) {
+                      epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
+                    }
+                  }
                 }
             }
         }
