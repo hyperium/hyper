@@ -246,6 +246,7 @@ static hyper_io *create_io(conn_data *conn) {
 typedef struct service_userdata_s {
   char host[128];
   char port[8];
+  const hyper_executor* executor;
 } service_userdata;
 
 static service_userdata* create_service_userdata() {
@@ -262,6 +263,26 @@ static int print_each_header(
 ) {
     printf("%.*s: %.*s\n", (int)name_len, name, (int)value_len, value);
     return HYPER_ITER_CONTINUE;
+}
+
+static int print_body_chunk(void *userdata, const hyper_buf *chunk) {
+    const uint8_t *buf = hyper_buf_bytes(chunk);
+    size_t len = hyper_buf_len(chunk);
+    write(1, buf, len);
+    return HYPER_ITER_CONTINUE;
+}
+
+static int send_each_body_chunk(void* userdata, hyper_context* ctx, hyper_buf **chunk) {
+  int* chunk_count = (int*)userdata;
+  if (*chunk_count > 0) {
+    unsigned char data[4096];
+    memset(data, '0' + (*chunk_count % 10), sizeof(data));
+    *chunk = hyper_buf_copy(data, sizeof(data));
+    (*chunk_count)--;
+  } else {
+    *chunk = NULL;
+  }
+  return HYPER_POLL_READY;
 }
 
 static void server_callback(
@@ -301,11 +322,20 @@ static void server_callback(
     // Print out all the headers from the request
     hyper_headers *req_headers = hyper_request_headers(request);
     hyper_headers_foreach(req_headers, print_each_header, NULL);
+
+    if (!strcmp((char*)method, "POST") || !strcmp((char*)method, "PUT")) {
+        // ...consume the request body
+        hyper_body* body = hyper_request_body(request);
+        hyper_task* task = hyper_body_foreach(body, print_body_chunk, NULL, NULL);
+        hyper_executor_push(service_data->executor, task);
+    }
+
+    // Tidy up
     hyper_request_free(request);
 
     // Build a response
     hyper_response *response = hyper_response_new();
-    hyper_response_set_status(response, 404);
+    hyper_response_set_status(response, 200);
     hyper_headers* rsp_headers = hyper_response_headers(response);
     hyper_headers_set(
         rsp_headers,
@@ -315,7 +345,17 @@ static void server_callback(
         8
     );
 
-    // And send the response, completing the transaction
+    if (!strcmp((char*)method, "GET")) {
+        // ...add a body
+        hyper_body* body = hyper_body_new();
+        hyper_body_set_data_func(body, send_each_body_chunk);
+        int* chunk_count = (int*)malloc(sizeof(int));
+        *chunk_count = 1000;
+        hyper_body_set_userdata(body, (void*)chunk_count, free);
+        hyper_response_set_body(response, body);
+    }
+
+    // ...and send the response, completing the transaction
     hyper_response_channel_send(channel, response);
 }
 
@@ -439,6 +479,7 @@ int main(int argc, char *argv[]) {
                             listen_fd, (struct sockaddr *)&remote_addr_storage, &remote_addr_len
                         )) >= 0) {
                     service_userdata *userdata = create_service_userdata();
+                    userdata->executor = exec;
                     if (getnameinfo(
                             remote_addr,
                             remote_addr_len,
@@ -516,9 +557,9 @@ int main(int argc, char *argv[]) {
                   }
                 }
                 if (events[n].events & EPOLLOUT) {
-                  if (conn->read_waker) {
-                    hyper_waker_wake(conn->read_waker);
-                    conn->read_waker = NULL;
+                  if (conn->write_waker) {
+                    hyper_waker_wake(conn->write_waker);
+                    conn->write_waker = NULL;
                   } else {
                     conn->event_mask &= ~EPOLLOUT;
                     if (!update_conn_data_registrations(conn, false)) {
