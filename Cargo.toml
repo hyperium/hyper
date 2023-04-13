@@ -13,10 +13,10 @@ categories = ["network-programming", "web-programming::http-client", "web-progra
 edition = "2018"
 
 include = [
-    "Cargo.toml",
-    "LICENSE",
-    "src/**/*",
-    #"build.rs",
+  "Cargo.toml",
+  "LICENSE",
+  "src/**/*",
+  #"build.rs",
 ]
 
 [dependencies]
