@@ -1,3 +1,11 @@
+### v0.14.26 (2023-04-13)
+
+
+#### Features
+
+* **http2:** add `max_pending_accept_reset_streams` configuration option (#3201) ([a6f7571a](https://github.com/hyperium/hyper/commit/a6f7571a5299793aef8f1aa4194574438b9df64c))
+
+
 ### v0.14.25 (2023-03-10)
 
 
