@@ -396,7 +396,8 @@ impl<E> Http<E> {
 
     /// Configures the maximum number of pending reset streams allowed before a GOAWAY will be sent.
     ///
-    /// This will default to whatever the default in h2 is. As of v0.3.17, it is 20.
+    /// This will default to the default value set by the [`h2` crate](https://crates.io/crates/h2).
+    /// As of v0.3.17, it is 20.
     ///
     /// See <https://github.com/hyperium/hyper/issues/2877> for more information.
     #[cfg(feature = "http2")]
