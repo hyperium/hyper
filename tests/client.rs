@@ -1359,7 +1359,8 @@ mod dispatch_impl {
     }
 
     #[tokio::test]
-    async fn http2_connection_waiters_are_not_canceled_when_outstanding_connecting_task_is_canceled() {
+    async fn http2_connection_waiters_are_not_canceled_when_outstanding_connecting_task_is_canceled(
+    ) {
         let _ = pretty_env_logger::try_init();
 
         let server = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -1385,7 +1386,7 @@ mod dispatch_impl {
 
         let client = Client::builder().http2_only(true).build(SlowConnector);
 
-        // This first request starts the connecting task 
+        // This first request starts the connecting task
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
             .body(Body::empty())
