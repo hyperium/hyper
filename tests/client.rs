@@ -1359,6 +1359,69 @@ mod dispatch_impl {
     }
 
     #[tokio::test]
+    async fn http2_connection_waiters_are_not_canceled_when_outstanding_connecting_task_is_canceled() {
+        let _ = pretty_env_logger::try_init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+
+        #[derive(Clone)]
+        struct SlowConnector;
+
+        impl hyper::service::Service<Uri> for SlowConnector {
+            type Response = TcpStream;
+            type Error = hyper::Error;
+            type Future = future::Pending<Result<TcpStream, hyper::Error>>;
+
+            fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+                Poll::Ready(Ok(()))
+            }
+
+            fn call(&mut self, _dst: Uri) -> Self::Future {
+                // A connector that takes a long time to resolve
+                future::pending()
+            }
+        }
+
+        let client = Client::builder().http2_only(true).build(SlowConnector);
+
+        // This first request starts the connecting task 
+        let req = Request::builder()
+            .uri(&*format!("http://{}/a", addr))
+            .body(Body::empty())
+            .unwrap();
+        let mut res1 = client.request(req).map(|_| unreachable!());
+
+        // This second request waits for the connecting task to finish
+        // instead of starting a new connecting task
+        let req = Request::builder()
+            .uri(&*format!("http://{}/a", addr))
+            .body(Body::empty())
+            .unwrap();
+        let mut res2 = client
+            .request(req)
+            .map(|r| unreachable!("res2 should had never resolved, but resulted in {:?}", r));
+
+        // Prime the requests
+        assert!(
+            future::poll_fn(|ctx| Poll::Ready(Pin::new(&mut res1).poll(ctx).is_pending())).await
+        );
+        assert!(
+            future::poll_fn(|ctx| Poll::Ready(Pin::new(&mut res2).poll(ctx).is_pending())).await
+        );
+
+        // The `ResponseFuture` that drives the connecting task is dropped, but
+        // the connecting task should finish in the background
+        drop(res1);
+
+        assert!(
+            // The second response has not been canceled and it is still waiting for the connection
+            // that will never arrive
+            future::poll_fn(|ctx| Poll::Ready(Pin::new(&mut res2).poll(ctx).is_pending())).await
+        );
+    }
+
+    #[tokio::test]
     async fn drop_response_body_closes_in_progress_connection() {
         let _ = pretty_env_logger::try_init();
 
