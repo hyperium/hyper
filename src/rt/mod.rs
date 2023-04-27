@@ -22,6 +22,7 @@ use std::{
 /// ```
 /// # use hyper::rt::Executor;
 /// # use std::future::Future;
+/// #[derive(Clone)]
 /// struct TokioExecutor;
 ///
 /// impl<F> Executor<F> for TokioExecutor
