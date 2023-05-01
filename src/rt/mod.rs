@@ -15,7 +15,7 @@ use std::{
 
 /// An executor of futures.
 ///
-/// This trait should be implemented for any future.
+/// This trait allows Hyper to abstract over async runtimes. Implement this trait for your own type.
 ///
 /// # Example
 ///
