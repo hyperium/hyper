@@ -1122,12 +1122,14 @@ mod dispatch_impl {
     use http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
+    use tokio::sync::Notify;
     use tokio_test::block_on;
 
     use super::support;
     use hyper::body::HttpBody;
     use hyper::client::connect::{capture_connection, Connected, Connection, HttpConnector};
-    use hyper::Client;
+    use hyper::service::{make_service_fn, service_fn};
+    use hyper::{Client, Response, Server};
 
     #[test]
     fn drop_body_before_eof_closes_connection() {
@@ -1363,35 +1365,59 @@ mod dispatch_impl {
     ) {
         let _ = pretty_env_logger::try_init();
 
-        let server = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = server.local_addr().unwrap();
+        let server = Server::bind(&([127, 0, 0, 1], 0).into())
+            .http2_only(true)
+            .serve(make_service_fn(|_| async move {
+                Ok::<_, hyper::Error>(service_fn(|_req| {
+                    future::ok::<_, hyper::Error>(Response::new(Body::empty()))
+                }))
+            }));
+        let addr = server.local_addr();
+        let (shdn_tx, shdn_rx) = oneshot::channel();
+        tokio::task::spawn(async move {
+            server
+                .with_graceful_shutdown(async move {
+                    let _ = shdn_rx.await;
+                })
+                .await
+                .expect("server")
+        });
+        let first_req_cancelled = Arc::new(Notify::new());
 
         #[derive(Clone)]
-        struct SlowConnector;
+        struct SlowConnector(Arc<Notify>);
 
         impl hyper::service::Service<Uri> for SlowConnector {
             type Response = TcpStream;
-            type Error = hyper::Error;
-            type Future = future::Pending<Result<TcpStream, hyper::Error>>;
+            type Error = io::Error;
+            type Future = Pin<Box<dyn Future<Output = Result<TcpStream, io::Error>> + Send>>;
 
             fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
                 Poll::Ready(Ok(()))
             }
 
-            fn call(&mut self, _dst: Uri) -> Self::Future {
-                // A connector that takes a long time to resolve
-                future::pending()
+            fn call(&mut self, dst: Uri) -> Self::Future {
+                // A connector that connects after the first request has been cancelled
+                let first_req_cancelled_rx = self.0.clone();
+                Box::pin(async move {
+                    first_req_cancelled_rx.notified().await;
+                    tcp_connect(&dst.authority().unwrap().to_string().parse().unwrap()).await
+                })
             }
         }
 
-        let client = Client::builder().http2_only(true).build(SlowConnector);
+        let client = Client::builder()
+            .http2_only(true)
+            .build(SlowConnector(first_req_cancelled.clone()));
 
         // This first request starts the connecting task
         let req = Request::builder()
             .uri(&*format!("http://{}/a", addr))
             .body(Body::empty())
             .unwrap();
-        let mut res1 = client.request(req).map(|_| unreachable!());
+        let mut res1 = client.request(req).inspect(|_| {
+            unreachable!("first request should be cancelled before connection is stablished")
+        });
 
         // This second request waits for the connecting task to finish
         // instead of starting a new connecting task
@@ -1399,9 +1425,7 @@ mod dispatch_impl {
             .uri(&*format!("http://{}/a", addr))
             .body(Body::empty())
             .unwrap();
-        let mut res2 = client
-            .request(req)
-            .map(|r| unreachable!("res2 should had never resolved, but resulted in {:?}", r));
+        let mut res2 = client.request(req);
 
         // Prime the requests
         assert!(
@@ -1414,12 +1438,14 @@ mod dispatch_impl {
         // The `ResponseFuture` that drives the connecting task is dropped, but
         // the connecting task should finish in the background
         drop(res1);
+        first_req_cancelled.notify_one();
 
-        assert!(
-            // The second response has not been canceled and it is still waiting for the connection
-            // that will never arrive
-            future::poll_fn(|ctx| Poll::Ready(Pin::new(&mut res2).poll(ctx).is_pending())).await
-        );
+        // The second response has not been canceled and finishes successfully
+        tokio::time::timeout(Duration::from_millis(100), res2)
+            .await
+            .expect("response to second request should resolve within 100ms")
+            .expect("response to second request should resolve successfully");
+        let _ = shdn_tx.send(());
     }
 
     #[tokio::test]
