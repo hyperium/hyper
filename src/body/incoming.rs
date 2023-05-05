@@ -3,7 +3,7 @@ use std::fmt;
 use bytes::Bytes;
 use futures_channel::mpsc;
 use futures_channel::oneshot;
-use futures_core::{FusedStream, Stream}; // for mpsc::Receiver
+use futures_util::{stream::FusedStream, Stream}; // for mpsc::Receiver
 use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
 
