@@ -29,7 +29,7 @@ use crate::{Request, Response};
 /// ```
 pub fn service_fn<F, R, S>(f: F) -> ServiceFn<F, R>
 where
-    F: FnMut(Request<R>) -> S,
+    F: Fn(Request<R>) -> S,
     S: Future,
 {
     ServiceFn {
@@ -46,7 +46,7 @@ pub struct ServiceFn<F, R> {
 
 impl<F, ReqBody, Ret, ResBody, E> Service<Request<ReqBody>> for ServiceFn<F, ReqBody>
 where
-    F: FnMut(Request<ReqBody>) -> Ret,
+    F: Fn(Request<ReqBody>) -> Ret,
     ReqBody: Body,
     Ret: Future<Output = Result<Response<ResBody>, E>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
@@ -56,7 +56,7 @@ where
     type Error = E;
     type Future = Ret;
 
-    fn call(&mut self, req: Request<ReqBody>) -> Self::Future {
+    fn call(&self, req: Request<ReqBody>) -> Self::Future {
         (self.f)(req)
     }
 }

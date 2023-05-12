@@ -8,6 +8,7 @@ use tokio::net::TcpListener;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
+use std::sync::Mutex;
 
 type Counter = i32;
 
@@ -23,7 +24,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, Svc { counter: 81818 })
+                .serve_connection(
+                    stream,
+                    Svc {
+                        counter: Mutex::new(81818),
+                    },
+                )
                 .await
             {
                 println!("Failed to serve connection: {:?}", err);
@@ -33,7 +39,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 }
 
 struct Svc {
-    counter: Counter,
+    counter: Mutex<Counter>,
 }
 
 impl Service<Request<IncomingBody>> for Svc {
@@ -41,7 +47,7 @@ impl Service<Request<IncomingBody>> for Svc {
     type Error = hyper::Error;
     type Future = Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send>>;
 
-    fn call(&mut self, req: Request<IncomingBody>) -> Self::Future {
+    fn call(&self, req: Request<IncomingBody>) -> Self::Future {
         fn mk_response(s: String) -> Result<Response<Full<Bytes>>, hyper::Error> {
             Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
         }
@@ -58,7 +64,7 @@ impl Service<Request<IncomingBody>> for Svc {
         };
 
         if req.uri().path() != "/favicon.ico" {
-            self.counter += 1;
+            *self.counter.lock().expect("lock poisoned") += 1;
         }
 
         Box::pin(async { res })
