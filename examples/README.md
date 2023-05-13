@@ -4,7 +4,7 @@ These examples show how to do common tasks using `hyper`. You may also find the 
 
 If you checkout this repository, you can run any of the examples with the command:
 
- `cargo run --example {example_name}`
+ `cargo run --example {example_name} --features="full"`
 
 ### Dependencies
 
