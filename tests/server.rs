@@ -2656,7 +2656,7 @@ impl Service<Request<IncomingBody>> for TestService {
     type Error = BoxError;
     type Future = BoxFuture;
 
-    fn call(&mut self, mut req: Request<IncomingBody>) -> Self::Future {
+    fn call(&self, mut req: Request<IncomingBody>) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
 
@@ -2722,7 +2722,7 @@ impl Service<Request<IncomingBody>> for HelloWorld {
     type Error = hyper::Error;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn call(&mut self, _req: Request<IncomingBody>) -> Self::Future {
+    fn call(&self, _req: Request<IncomingBody>) -> Self::Future {
         let response = Response::new(Full::new(HELLO.into()));
         future::ok(response)
     }
