@@ -11,6 +11,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
+use crate::common::exec::ExecutorClient;
 use crate::common::time::Time;
 use crate::common::{
     exec::{BoxSendFuture, Exec},
@@ -26,7 +27,9 @@ pub struct SendRequest<B> {
 
 impl<B> Clone for SendRequest<B> {
     fn clone(&self) -> SendRequest<B> {
-        SendRequest { dispatch: self.dispatch.clone() }
+        SendRequest {
+            dispatch: self.dispatch.clone(),
+        }
     }
 }
 
@@ -35,20 +38,25 @@ impl<B> Clone for SendRequest<B> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection<T, B>
+pub struct Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Send + 'static,
+    T: AsyncRead + AsyncWrite + Send + 'static + Unpin,
     B: Body + 'static,
+    E: ExecutorClient<B, T> + Unpin,
+    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
-    inner: (PhantomData<T>, proto::h2::ClientTask<B>),
+    inner: (PhantomData<T>, proto::h2::ClientTask<B, E, T>),
 }
 
 /// A builder to configure an HTTP connection.
 ///
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
-pub struct Builder {
-    pub(super) exec: Exec,
+pub struct Builder<Ex>
+where
+    Ex: Executor<BoxSendFuture> + Send + Sync + 'static + Clone,
+{
+    pub(super) exec: Ex,
     pub(super) timer: Time,
     h2_builder: proto::h2::client::Config,
 }
@@ -60,13 +68,15 @@ pub struct Builder {
 pub async fn handshake<E, T, B>(
     exec: E,
     io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
     E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    E: ExecutorClient<B, T> + Unpin + Clone,
+    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     Builder::new(exec).handshake(io).await
 }
@@ -189,12 +199,14 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 // ===== impl Connection
 
-impl<T, B> Connection<T, B>
+impl<T, B, E> Connection<T, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + Unpin + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    E: ExecutorClient<B, T> + Unpin,
+    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
     ///
@@ -210,22 +222,27 @@ where
     }
 }
 
-impl<T, B> fmt::Debug for Connection<T, B>
+impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
+    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static+ Unpin,
     B: Body + 'static,
+    E: ExecutorClient<B, T> + Unpin,
+    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
     }
 }
 
-impl<T, B> Future for Connection<T, B>
+impl<T, B, E> Future for Connection<T, B, E>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Body + Send + 'static,
+    B: Body + 'static + Unpin,
     B::Data: Send,
+    E: Unpin,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
+    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     type Output = crate::Result<()>;
 
@@ -240,22 +257,22 @@ where
 
 // ===== impl Builder
 
-impl Builder {
+impl<Ex> Builder<Ex>
+where
+    Ex: Executor<BoxSendFuture> + Send + Sync + 'static + Clone,
+{
     /// Creates a new connection builder.
     #[inline]
-    pub fn new<E>(exec: E) -> Builder 
-    where
-        E: Executor<BoxSendFuture> + Send + Sync + 'static,
-    {
+    pub fn new(exec: Ex) -> Builder<Ex> {
         Builder {
-            exec: Exec::new(exec),
+            exec,
             timer: Time::Empty,
             h2_builder: Default::default(),
         }
     }
 
     /// Provide a timer to execute background HTTP2 tasks.
-    pub fn timer<M>(&mut self, timer: M) -> &mut Builder
+    pub fn timer<M>(&mut self, timer: M) -> &mut Builder<Ex>
     where
         M: Timer + Send + Sync + 'static,
     {
@@ -284,10 +301,7 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn initial_connection_window_size(
-        &mut self,
-        sz: impl Into<Option<u32>>,
-    ) -> &mut Self {
+    pub fn initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
@@ -329,10 +343,7 @@ impl Builder {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    pub fn keep_alive_interval(
-        &mut self,
-        interval: impl Into<Option<Duration>>,
-    ) -> &mut Self {
+    pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
     }
@@ -395,12 +406,14 @@ impl Builder {
     pub fn handshake<T, B>(
         &self,
         io: T,
-    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
+    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>> + '_
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        Ex: ExecutorClient<B, T> + Unpin,
+        <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
     {
         let opts = self.clone();
 

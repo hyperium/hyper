@@ -85,7 +85,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
 // body adapters used by both Client and Server
 
 pin_project! {
-    struct PipeToSendStream<S>
+    pub(crate) struct PipeToSendStream<S>
     where
         S: Body,
     {

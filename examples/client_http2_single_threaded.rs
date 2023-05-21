@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use http_body_util::{BodyExt, Empty};
+use http_body_util::BodyExt;
 use hyper::body::{Body as HttpBody, Frame};
 use hyper::Error;
 use hyper::Request;

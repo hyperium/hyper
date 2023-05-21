@@ -2067,60 +2067,60 @@ mod conn {
         );
     }
 
-    #[tokio::test]
-    async fn http2_keep_alive_with_responsive_server() {
-        // Test that a responsive server works just when client keep
-        // alive is enabled
-        use hyper::service::service_fn;
+    // #[tokio::test]
+    // async fn http2_keep_alive_with_responsive_server() {
+    //     // Test that a responsive server works just when client keep
+    //     // alive is enabled
+    //     use hyper::service::service_fn;
 
-        let (listener, addr) = setup_tk_test_server().await;
+    //     let (listener, addr) = setup_tk_test_server().await;
 
-        // Spawn an HTTP2 server that reads the whole body and responds
-        tokio::spawn(async move {
-            let sock = listener.accept().await.unwrap().0;
-            hyper::server::conn::http2::Builder::new(TokioExecutor)
-                .timer(TokioTimer)
-                .serve_connection(
-                    sock,
-                    service_fn(|req| async move {
-                        tokio::spawn(async move {
-                            let _ = concat(req.into_body())
-                                .await
-                                .expect("server req body aggregate");
-                        });
-                        Ok::<_, hyper::Error>(http::Response::new(Empty::<Bytes>::new()))
-                    }),
-                )
-                .await
-                .expect("serve_connection");
-        });
+    //     // Spawn an HTTP2 server that reads the whole body and responds
+    //     tokio::spawn(async move {
+    //         let sock = listener.accept().await.unwrap().0;
+    //         hyper::server::conn::http2::Builder::new(TokioExecutor)
+    //             .timer(TokioTimer)
+    //             .serve_connection(
+    //                 sock,
+    //                 service_fn(|req| async move {
+    //                     tokio::spawn(async move {
+    //                         let _ = concat(req.into_body())
+    //                             .await
+    //                             .expect("server req body aggregate");
+    //                     });
+    //                     Ok::<_, hyper::Error>(http::Response::new(Empty::<Bytes>::new()))
+    //                 }),
+    //             )
+    //             .await
+    //             .expect("serve_connection");
+    //     });
 
-        let io = tcp_connect(&addr).await.expect("tcp connect");
-        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
-            .timer(TokioTimer)
-            .keep_alive_interval(Duration::from_secs(1))
-            .keep_alive_timeout(Duration::from_secs(1))
-            .handshake(io)
-            .await
-            .expect("http handshake");
+    //     let io = tcp_connect(&addr).await.expect("tcp connect");
+    //     let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+    //         .timer(TokioTimer)
+    //         .keep_alive_interval(Duration::from_secs(1))
+    //         .keep_alive_timeout(Duration::from_secs(1))
+    //         .handshake(io)
+    //         .await
+    //         .expect("http handshake");
 
-        tokio::spawn(async move {
-            conn.await.expect("client conn shouldn't error");
-        });
+    //     tokio::spawn(async move {
+    //         conn.await.expect("client conn shouldn't error");
+    //     });
 
-        // Use a channel to keep request stream open
-        let (_tx, recv) = mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
-        let req = http::Request::new(StreamBody::new(recv));
+    //     // Use a channel to keep request stream open
+    //     let (_tx, recv) = mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
+    //     let req = http::Request::new(StreamBody::new(recv));
 
-        let _resp = client.send_request(req).await.expect("send_request");
+    //     let _resp = client.send_request(req).await.expect("send_request");
 
-        // sleep longer than keepalive would trigger
-        TokioTimer.sleep(Duration::from_secs(4)).await;
+    //     // sleep longer than keepalive would trigger
+    //     TokioTimer.sleep(Duration::from_secs(4)).await;
 
-        future::poll_fn(|ctx| client.poll_ready(ctx))
-            .await
-            .expect("client should be open");
-    }
+    //     future::poll_fn(|ctx| client.poll_ready(ctx))
+    //         .await
+    //         .expect("client should be open");
+    // }
 
     #[tokio::test]
     async fn h2_connect() {

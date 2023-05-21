@@ -3,6 +3,9 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+use tokio::io::{AsyncRead, AsyncWrite};
+
+use crate::proto::h2::client::H2ClientFuture;
 use crate::rt::Executor;
 
 pub(crate) type BoxSendFuture = Pin<Box<dyn Future<Output = ()> + Send>>;
@@ -32,6 +35,28 @@ impl Exec {
 impl fmt::Debug for Exec {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Exec").finish()
+    }
+}
+
+pub trait ExecutorClient<B, T>
+where
+    B: http_body::Body,
+    B::Error: std::error::Error + Send + Sync + 'static,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    fn execute_h2_future(&mut self, future: H2ClientFuture<B, T>);
+}
+
+impl<E, B, T> ExecutorClient<B, T> for E
+where
+    E: Executor<H2ClientFuture<B, T>>,
+    B: http_body::Body + 'static,
+    B::Error: std::error::Error + Send + Sync + 'static,
+    H2ClientFuture<B, T>: Future<Output = ()>,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    fn execute_h2_future(&mut self, future: H2ClientFuture<B, T>) {
+        self.execute(future)
     }
 }
 
