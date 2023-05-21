@@ -28,7 +28,7 @@ libraries and applications.
 
 If you are looking for a convenient HTTP client, then you may wish to consider
 [reqwest](https://github.com/seanmonstar/reqwest).
-If you are not sure what HTTP server to choose, then you may want to consider [axum](https://github.com/tokio-rs/axum) or [warp] (https://github.com/seanmonstar/warp), the latter taking a more functional approach.
+If you are not sure what HTTP server to choose, then you may want to consider [axum](https://github.com/tokio-rs/axum) or [warp](https://github.com/seanmonstar/warp), the latter taking a more functional approach.
 Both are built on top of this library.
 
 ## Contributing
