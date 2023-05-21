@@ -28,7 +28,8 @@ pub(crate) trait Dispatch {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()>;
+    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>)
+        -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -81,7 +82,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
-        if self.conn.is_write_closed() {
+
+        // If keep alive has been disabled and no read or write has been seen on
+        // the connection yet, we must be in a state where the server is being asked to
+        // shut down before any data has been seen on the connection
+        if self.conn.is_write_closed() || self.conn.has_initial_read_write_state() {
             self.close();
         }
     }
@@ -249,7 +254,8 @@ where
                 let body = match body_len {
                     DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) = IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) =
+                            IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
