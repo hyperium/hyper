@@ -19,7 +19,7 @@ A **fast** and **correct** HTTP implementation for Rust.
 - Extensive production use
 - Client and Server APIs
 
-**Get started** by looking over the [guides](https://hyper.rs/guides).
+**Get started** by looking over the [guides](https://hyper.rs/guides/1/).
 
 ## "Low-level"
 
