@@ -31,6 +31,7 @@ use hyper::body::{Body, Incoming as IncomingBody};
 use hyper::server::conn::{http1, http2};
 use hyper::service::{service_fn, Service};
 use hyper::{Method, Request, Response, StatusCode, Uri, Version};
+use tokio::pin;
 
 mod support;
 
@@ -1139,11 +1140,17 @@ async fn disable_keep_alive_mid_request() {
     let child = thread::spawn(move || {
         let mut req = connect(&addr);
         req.write_all(b"GET / HTTP/1.1\r\n").unwrap();
+        thread::sleep(Duration::from_millis(10));
         tx1.send(()).unwrap();
         rx2.recv().unwrap();
         req.write_all(b"Host: localhost\r\n\r\n").unwrap();
         let mut buf = vec![];
         req.read_to_end(&mut buf).unwrap();
+        assert!(
+            buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
+            "should receive OK response, but buf: {:?}",
+            buf,
+        );
     });
 
     let (socket, _) = listener.accept().await.unwrap();
@@ -2150,6 +2157,31 @@ async fn max_buf_size() {
         .serve_connection(socket, HelloWorld)
         .await
         .expect_err("should TooLarge error");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn graceful_shutdown_before_first_request_no_block() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let socket = listener.accept().await.unwrap().0;
+
+        let future = http1::Builder::new().serve_connection(socket, HelloWorld);
+        pin!(future);
+        future.as_mut().graceful_shutdown();
+
+        future.await.unwrap();
+    });
+
+    let mut stream = TkTcpStream::connect(addr).await.unwrap();
+
+    let mut buf = vec![];
+
+    tokio::time::timeout(Duration::from_secs(5), stream.read_to_end(&mut buf))
+        .await
+        .expect("timed out waiting for graceful shutdown")
+        .expect("error receiving response");
 }
 
 #[test]

@@ -175,6 +175,13 @@ where
         }
     }
 
+    #[cfg(feature = "server")]
+    pub(crate) fn has_initial_read_write_state(&self) -> bool {
+        matches!(self.state.reading, Reading::Init)
+            && matches!(self.state.writing, Writing::Init)
+            && self.io.read_buf().is_empty()
+    }
+
     fn should_error_on_eof(&self) -> bool {
         // If we're idle, it's probably just the connection closing gracefully.
         T::should_error_on_parse_eof() && !self.state.is_idle()
