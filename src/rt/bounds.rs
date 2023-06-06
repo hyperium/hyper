@@ -15,7 +15,7 @@ mod h2_client {
     use futures_core::Future;
     use tokio::io::{AsyncRead, AsyncWrite};
 
-    use crate::{rt::Executor, proto::h2::client::H2ClientFuture};
+    use crate::{proto::h2::client::H2ClientFuture, rt::Executor};
 
     /// TODO
     pub trait ExecutorClient<B, T>
