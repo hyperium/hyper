@@ -12,7 +12,7 @@ pub use self::h2_client::ExecutorClient;
 #[cfg(all(feature = "client", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "server", feature = "http2"))))]
 mod h2_client {
-    use futures_core::Future;
+    use std::future::Future;
     use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::{proto::h2::client::H2ClientFuture, rt::Executor};
