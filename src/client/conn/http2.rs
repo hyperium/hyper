@@ -50,8 +50,7 @@ where
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
 pub struct Builder<Ex>
-where
-    Ex: Clone,
+
 {
     pub(super) exec: Ex,
     pub(super) timer: Time,
