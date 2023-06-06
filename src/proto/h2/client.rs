@@ -6,7 +6,7 @@ use std::time::Duration;
 use bytes::Bytes;
 use futures_channel::mpsc::{Receiver, Sender};
 use futures_channel::{mpsc, oneshot};
-use futures_util::future::{self, Either, FutureExt as _, Select, TryFutureExt as _};
+use futures_util::future::{self, Either, FutureExt as _, Select};
 use futures_util::stream::{StreamExt as _, StreamFuture};
 use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
@@ -19,13 +19,13 @@ use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::client::dispatch::{Callback, SendWhen};
-use crate::common::exec::ExecutorClient;
 use crate::common::time::Time;
-use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
+use crate::common::{task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
+use crate::rt::bounds::ExecutorClient;
 use crate::upgrade::Upgraded;
 use crate::{Request, Response};
 use h2::client::ResponseFuture;
@@ -274,10 +274,10 @@ where
         let mut this = self.project();
 
         if let Some(conn) = this.conn {
-            conn.poll_unpin(cx).map(|d| ())
+            conn.poll_unpin(cx).map(|_| ())
         } else {
             match ready!(this.select.poll_unpin(cx)) {
-                Either::Left((a, _)) => {
+                Either::Left((_, _)) => {
                     // ok or err, the `conn` has finished
                     return Poll::Ready(());
                 }
@@ -328,7 +328,7 @@ where
         self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Self::Output> {
-        let mut this = self.project();
+        let this = self.project();
 
         match this {
             H2ClientFutureProject::Pipe { pipe } => pipe.poll(cx),

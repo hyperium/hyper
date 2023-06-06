@@ -11,14 +11,11 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::exec::ExecutorClient;
 use crate::common::time::Time;
-use crate::common::{
-    exec::{BoxSendFuture, Exec},
-    task, Future, Pin, Poll,
-};
+use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
-use crate::rt::{Executor, Timer};
+use crate::rt::bounds::ExecutorClient;
+use crate::rt::Timer;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
@@ -54,7 +51,7 @@ where
 #[derive(Clone, Debug)]
 pub struct Builder<Ex>
 where
-    Ex: Executor<BoxSendFuture> + Send + Sync + 'static + Clone,
+    Ex: Clone,
 {
     pub(super) exec: Ex,
     pub(super) timer: Time,
@@ -70,13 +67,11 @@ pub async fn handshake<E, T, B>(
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
-    E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync + 'static,
     E: ExecutorClient<B, T> + Unpin + Clone,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     Builder::new(exec).handshake(io).await
 }
@@ -224,7 +219,7 @@ where
 
 impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static+ Unpin,
+    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
     <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
@@ -259,7 +254,7 @@ where
 
 impl<Ex> Builder<Ex>
 where
-    Ex: Executor<BoxSendFuture> + Send + Sync + 'static + Clone,
+    Ex: Clone,
 {
     /// Creates a new connection builder.
     #[inline]
@@ -406,7 +401,7 @@ where
     pub fn handshake<T, B>(
         &self,
         io: T,
-    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>> + '_
+    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>> +
     where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Body + 'static,

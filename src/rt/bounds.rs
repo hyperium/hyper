@@ -6,10 +6,46 @@
 #[cfg(all(feature = "server", feature = "http2"))]
 pub use self::h2::Http2ConnExec;
 
+#[cfg(all(feature = "client", feature = "http2"))]
+pub use self::h2_client::ExecutorClient;
+
+#[cfg(all(feature = "client", feature = "http2"))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "server", feature = "http2"))))]
+mod h2_client {
+    use futures_core::Future;
+    use tokio::io::{AsyncRead, AsyncWrite};
+
+    use crate::{rt::Executor, proto::h2::client::H2ClientFuture};
+
+    /// TODO
+    pub trait ExecutorClient<B, T>
+    where
+        B: http_body::Body,
+        B::Error: std::error::Error + Send + Sync + 'static,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
+        #[doc(hidden)]
+        fn execute_h2_future(&mut self, future: H2ClientFuture<B, T>);
+    }
+
+    impl<E, B, T> ExecutorClient<B, T> for E
+    where
+        E: Executor<H2ClientFuture<B, T>>,
+        B: http_body::Body + 'static,
+        B::Error: std::error::Error + Send + Sync + 'static,
+        H2ClientFuture<B, T>: Future<Output = ()>,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
+        fn execute_h2_future(&mut self, future: H2ClientFuture<B, T>) {
+            self.execute(future)
+        }
+    }
+}
+
 #[cfg(all(feature = "server", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "server", feature = "http2"))))]
 mod h2 {
-    use crate::{common::exec::Exec, proto::h2::server::H2Stream, rt::Executor};
+    use crate::{proto::h2::server::H2Stream, rt::Executor};
     use http_body::Body;
     use std::future::Future;
 
@@ -24,23 +60,6 @@ mod h2 {
     pub trait Http2ConnExec<F, B: Body>: sealed::Sealed<(F, B)> + Clone {
         #[doc(hidden)]
         fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
-    }
-
-    impl<F, B> Http2ConnExec<F, B> for Exec
-    where
-        H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-        B: Body,
-    {
-        fn execute_h2stream(&mut self, fut: H2Stream<F, B>) {
-            self.execute(fut)
-        }
-    }
-
-    impl<F, B> sealed::Sealed<(F, B)> for Exec
-    where
-        H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-        B: Body,
-    {
     }
 
     #[doc(hidden)]

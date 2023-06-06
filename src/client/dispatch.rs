@@ -274,38 +274,6 @@ impl<T, U> Callback<T, U> {
             }
         }
     }
-
-    #[cfg(feature = "http2")]
-    pub(crate) async fn send_when(
-        self,
-        mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
-    ) {
-        use futures_util::future;
-        use tracing::trace;
-
-        let mut cb: Option<Callback<T, U>> = Some(self);
-
-        // "select" on this callback being canceled, and the future completing
-        future::poll_fn(move |cx| {
-            match Pin::new(&mut when).poll(cx) {
-                Poll::Ready(Ok(res)) => {
-                    cb.take().expect("polled after complete").send(Ok(res));
-                    Poll::Ready(())
-                }
-                Poll::Pending => {
-                    // check if the callback is canceled
-                    ready!(cb.as_mut().unwrap().poll_canceled(cx));
-                    trace!("send_when canceled");
-                    Poll::Ready(())
-                }
-                Poll::Ready(Err(err)) => {
-                    cb.take().expect("polled after complete").send(Err(err));
-                    Poll::Ready(())
-                }
-            }
-        })
-        .await
-    }
 }
 
 #[pin_project]
@@ -337,7 +305,7 @@ where
             }
             Poll::Pending => {
                 // check if the callback is canceled
-                match (call_back.poll_canceled(cx)) {
+                match call_back.poll_canceled(cx) {
                     Poll::Ready(v) => v,
                     Poll::Pending => {
                         // Move call_back back to struct before return
