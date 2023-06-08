@@ -6,6 +6,7 @@ extern crate matches;
 
 use std::convert::Infallible;
 use std::fmt;
+use std::future::Future;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
@@ -20,8 +21,7 @@ use hyper::{Method, Request, StatusCode, Uri, Version};
 
 use bytes::Bytes;
 use futures_channel::oneshot;
-use futures_core::{Future, TryFuture};
-use futures_util::future::{self, FutureExt, TryFutureExt};
+use futures_util::future::{self, FutureExt, TryFuture, TryFutureExt};
 use tokio::net::TcpStream;
 mod support;
 

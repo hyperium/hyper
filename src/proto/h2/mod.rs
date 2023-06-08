@@ -29,21 +29,21 @@ cfg_server! {
 /// Default initial stream window size defined in HTTP2 spec.
 pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 
-fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
-    // List of connection headers from:
-    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
-    //
-    // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
-    // tested separately.
-    let connection_headers = [
-        HeaderName::from_lowercase(b"keep-alive").unwrap(),
-        HeaderName::from_lowercase(b"proxy-connection").unwrap(),
-        TRAILER,
-        TRANSFER_ENCODING,
-        UPGRADE,
-    ];
+// List of connection headers from:
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+//
+// TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
+// tested separately.
+const CONNECTION_HEADERS: [HeaderName; 5] = [
+    HeaderName::from_static("keep-alive"),
+    HeaderName::from_static("proxy-connection"),
+    TRAILER,
+    TRANSFER_ENCODING,
+    UPGRADE,
+];
 
-    for header in connection_headers.iter() {
+fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
+    for header in &CONNECTION_HEADERS {
         if headers.remove(header).is_some() {
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
         }
