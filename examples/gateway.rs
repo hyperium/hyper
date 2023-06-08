@@ -60,7 +60,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .serve_connection(stream, service)
                 .await
             {
-                println!("Failed to servce connection: {:?}", err);
+                println!("Failed to serve the connection: {:?}", err);
             }
         });
     }

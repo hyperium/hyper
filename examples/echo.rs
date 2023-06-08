@@ -18,7 +18,7 @@ async fn echo(
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => Ok(Response::new(full(
-            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d 'hello world'`",
+            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d \"hello world\"`",
         ))),
 
         // Simply echo the body back to the client.
