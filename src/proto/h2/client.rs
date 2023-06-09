@@ -1,4 +1,3 @@
-use std::error::Error as StdError;
 use std::marker::PhantomData;
 
 use std::time::Duration;
@@ -116,7 +115,7 @@ where
     B: Body + 'static,
     B::Data: Send + 'static,
     E: ExecutorClient<B, T> + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     let (h2_tx, mut conn) = new_builder(config)
         .handshake::<_, SendBuf<B::Data>>(io)
@@ -383,7 +382,7 @@ impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: AsyncRead + AsyncWrite + Unpin,
 {
     pub(crate) fn is_extended_connect_protocol_enabled(&self) -> bool {
@@ -437,9 +436,8 @@ impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static + Unpin,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ExecutorClient<B, T> + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: AsyncRead + AsyncWrite + Unpin,
 {
     fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut task::Context<'_>) {
@@ -573,9 +571,8 @@ impl<B, E, T> Future for ClientTask<B, E, T>
 where
     B: Body + 'static + Unpin,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin,
 {
     type Output = crate::Result<Dispatched>;

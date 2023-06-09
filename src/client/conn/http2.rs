@@ -1,6 +1,6 @@
 //! HTTP/2 client connections
 
-use std::error::Error as StdError;
+use std::error::Error;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
@@ -40,7 +40,7 @@ where
     T: AsyncRead + AsyncWrite + Send + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     inner: (PhantomData<T>, proto::h2::ClientTask<B, E, T>),
 }
@@ -198,9 +198,8 @@ where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + Unpin + Send + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
     E: ExecutorClient<B, T> + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
     ///
@@ -234,9 +233,8 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     E: Unpin,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
     E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
 {
     type Output = crate::Result<()>;
 
@@ -405,9 +403,8 @@ where
         T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
         B: Body + 'static,
         B::Data: Send,
-        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        B::Error: Into<Box<dyn Error + Send + Sync>>,
         Ex: ExecutorClient<B, T> + Unpin,
-        <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
     {
         let opts = self.clone();
 

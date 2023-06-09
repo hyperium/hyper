@@ -12,7 +12,7 @@ pub use self::h2_client::ExecutorClient;
 #[cfg(all(feature = "client", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "server", feature = "http2"))))]
 mod h2_client {
-    use std::future::Future;
+    use std::{error::Error, future::Future};
     use tokio::io::{AsyncRead, AsyncWrite};
 
     use crate::{proto::h2::client::H2ClientFuture, rt::Executor};
@@ -21,7 +21,7 @@ mod h2_client {
     pub trait ExecutorClient<B, T>
     where
         B: http_body::Body,
-        B::Error: std::error::Error + Send + Sync + 'static,
+        B::Error: Into<Box<dyn Error + Send + Sync>>,
         T: AsyncRead + AsyncWrite + Unpin,
     {
         #[doc(hidden)]
