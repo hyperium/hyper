@@ -17,8 +17,15 @@ mod h2_client {
 
     use crate::{proto::h2::client::H2ClientFuture, rt::Executor};
 
-    /// TODO
-    pub trait ExecutorClient<B, T>
+    /// An executor to spawn http2 futures for the client.
+    ///
+    /// This trait is implemented for any type that implements [`Executor`]
+    /// trait for any future.
+    ///
+    /// This trait is sealed and cannot be implemented for types outside this crate.
+    ///
+    /// [`Executor`]: crate::rt::Executor
+    pub trait ExecutorClient<B, T>: sealed_client::Sealed<(B, T)>
     where
         B: http_body::Body,
         B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -39,6 +46,20 @@ mod h2_client {
         fn execute_h2_future(&mut self, future: H2ClientFuture<B, T>) {
             self.execute(future)
         }
+    }
+
+    impl<E, B, T> sealed_client::Sealed<(B, T)> for E
+    where
+        E: Executor<H2ClientFuture<B, T>>,
+        B: http_body::Body + 'static,
+        B::Error: std::error::Error + Send + Sync + 'static,
+        H2ClientFuture<B, T>: Future<Output = ()>,
+        T: AsyncRead + AsyncWrite + Unpin,
+    {
+    }
+
+    mod sealed_client {
+        pub trait Sealed<X> {}
     }
 }
 
