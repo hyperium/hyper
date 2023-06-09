@@ -32,7 +32,6 @@ h2 = { version = "0.3.9", optional = true }
 itoa = "1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
-pin-project = "1.0.12"
 tokio = { version = "1", features = ["sync"] }
 want = "0.3"
 

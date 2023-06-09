@@ -3,7 +3,7 @@ use std::future::Future;
 
 use http::{Request, Response};
 use http_body::Body;
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::sync::{mpsc, oneshot};
 use tracing::trace;
 
@@ -276,15 +276,17 @@ impl<T, U> Callback<T, U> {
 }
 
 #[cfg(feature = "http2")]
-#[pin_project]
-pub struct SendWhen<B>
-where
-    B: Body + 'static,
-{
-    #[pin]
-    pub(crate) when: ResponseFutMap<B>,
-    #[pin]
-    pub(crate) call_back: Option<Callback<Request<B>, Response<Incoming>>>,
+pin_project! {
+    pub struct SendWhen<B>
+    where
+        B: Body,
+        B: 'static,
+    {
+        #[pin]
+        pub(crate) when: ResponseFutMap<B>,
+        #[pin]
+        pub(crate) call_back: Option<Callback<Request<B>, Response<Incoming>>>,
+    }
 }
 
 #[cfg(feature = "http2")]

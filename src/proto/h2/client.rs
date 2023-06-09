@@ -11,7 +11,7 @@ use futures_util::stream::{StreamExt as _, StreamFuture};
 use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
 use http::{Method, StatusCode};
-use pin_project::pin_project;
+use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
@@ -161,15 +161,16 @@ where
     })
 }
 
-#[pin_project]
-struct Conn<T, B>
-where
-    B: Body,
-{
-    #[pin]
-    ponger: Ponger,
-    #[pin]
-    conn: Connection<T, SendBuf<<B as Body>::Data>>,
+pin_project! {
+    struct Conn<T, B>
+    where
+        B: Body,
+    {
+        #[pin]
+        ponger: Ponger,
+        #[pin]
+        conn: Connection<T, SendBuf<<B as Body>::Data>>,
+    }
 }
 
 impl<T, B> Conn<T, B>
@@ -207,14 +208,17 @@ where
     }
 }
 
-#[pin_project]
-struct ConnMapErr<T, B>
-where
-    B: Body,
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    #[pin]
-    conn: Either<Conn<T, B>, Connection<T, SendBuf<<B as Body>::Data>>>,
+pin_project! {
+    struct ConnMapErr<T, B>
+    where
+        B: Body,
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+    {
+        #[pin]
+        conn: Either<Conn<T, B>, Connection<T, SendBuf<<B as Body>::Data>>>,
+    }
 }
 
 impl<T, B> Future for ConnMapErr<T, B>
@@ -232,17 +236,20 @@ where
     }
 }
 
-#[pin_project]
-pub struct ConnTask<T, B>
-where
-    B: Body,
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    #[pin]
-    select: Select<ConnMapErr<T, B>, StreamFuture<Receiver<Never>>>,
-    #[pin]
-    cancel_tx: Option<oneshot::Sender<Never>>,
-    conn: Option<ConnMapErr<T, B>>,
+pin_project! {
+    pub struct ConnTask<T, B>
+    where
+        B: Body,
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+    {
+        #[pin]
+        select: Select<ConnMapErr<T, B>, StreamFuture<Receiver<Never>>>,
+        #[pin]
+        cancel_tx: Option<oneshot::Sender<Never>>,
+        conn: Option<ConnMapErr<T, B>>,
+    }
 }
 
 impl<T, B> ConnTask<T, B>
@@ -295,25 +302,30 @@ where
     }
 }
 
-#[pin_project(project = H2ClientFutureProject)]
-pub enum H2ClientFuture<B, T>
-where
-    B: http_body::Body + 'static,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    T: AsyncRead + AsyncWrite + Unpin,
-{
-    Pipe {
-        #[pin]
-        pipe: PipeMap<B>,
-    },
-    Send {
-        #[pin]
-        send_when: SendWhen<B>,
-    },
-    Task {
-        #[pin]
-        task: ConnTask<T, B>,
-    },
+pin_project! {
+    #[project = H2ClientFutureProject]
+    pub enum H2ClientFuture<B, T>
+    where
+        B: http_body::Body,
+        B: 'static,
+        B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+    {
+        Pipe {
+            #[pin]
+            pipe: PipeMap<B>,
+        },
+        Send {
+            #[pin]
+            send_when: SendWhen<B>,
+        },
+        Task {
+            #[pin]
+            task: ConnTask<T, B>,
+        },
+    }
 }
 
 impl<B, T> Future for H2ClientFuture<B, T>
@@ -379,17 +391,18 @@ where
     }
 }
 
-#[pin_project]
-pub struct PipeMap<S>
-where
-    S: Body,
-{
-    #[pin]
-    pipe: PipeToSendStream<S>,
-    #[pin]
-    conn_drop_ref: Option<Sender<Never>>,
-    #[pin]
-    ping: Option<Recorder>,
+pin_project! {
+    pub struct PipeMap<S>
+    where
+        S: Body,
+    {
+        #[pin]
+        pipe: PipeToSendStream<S>,
+        #[pin]
+        conn_drop_ref: Option<Sender<Never>>,
+        #[pin]
+        ping: Option<Recorder>,
+    }
 }
 
 impl<B> Future for PipeMap<B>
@@ -477,17 +490,19 @@ where
     }
 }
 
-#[pin_project]
-pub(crate) struct ResponseFutMap<B>
-where
-    B: Body + 'static,
-{
-    #[pin]
-    fut: ResponseFuture,
-    #[pin]
-    ping: Option<Recorder>,
-    #[pin]
-    send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
+pin_project! {
+    pub(crate) struct ResponseFutMap<B>
+    where
+        B: Body,
+        B: 'static,
+    {
+        #[pin]
+        fut: ResponseFuture,
+        #[pin]
+        ping: Option<Recorder>,
+        #[pin]
+        send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
+    }
 }
 
 impl<B> Future for ResponseFutMap<B>
