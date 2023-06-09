@@ -111,7 +111,7 @@ pub(crate) async fn handshake<T, B, E>(
     timer: Time,
 ) -> crate::Result<ClientTask<B, E, T>>
 where
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send + 'static,
     E: ExecutorClient<B, T> + Unpin,

@@ -37,7 +37,7 @@ impl<B> Clone for SendRequest<B> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Send + 'static + Unpin,
+    T: AsyncRead + AsyncWrite + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -66,7 +66,7 @@ pub async fn handshake<E, T, B>(
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: std::error::Error + Send + Sync + 'static,
@@ -195,7 +195,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 impl<T, B, E> Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + Unpin + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -217,7 +217,7 @@ where
 
 impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static + Unpin,
+    T: AsyncRead + AsyncWrite + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
     <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
@@ -229,7 +229,7 @@ where
 
 impl<T, B, E> Future for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static + Unpin,
     B::Data: Send,
     E: Unpin,
@@ -400,7 +400,7 @@ where
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>> +
     where
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: AsyncRead + AsyncWrite + Unpin + 'static,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn Error + Send + Sync>>,

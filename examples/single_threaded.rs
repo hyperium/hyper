@@ -5,6 +5,7 @@ use hyper::server::conn::http2;
 use std::cell::Cell;
 use std::net::SocketAddr;
 use std::rc::Rc;
+use tokio::io::{AsyncRead, AsyncWrite};
 use tokio::net::TcpListener;
 
 use hyper::body::{Body as HttpBody, Bytes, Frame};
@@ -111,11 +112,61 @@ async fn server() -> Result<(), Box<dyn std::error::Error>> {
     }
 }
 
+struct IOTypeNotSend {
+    _marker: PhantomData<*const ()>,
+    stream: TcpStream,
+}
+
+impl IOTypeNotSend {
+    fn new(stream: TcpStream) -> Self {
+        Self {
+            _marker: PhantomData,
+            stream,
+        }
+    }
+}
+
+impl AsyncWrite for IOTypeNotSend {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &[u8],
+    ) -> Poll<Result<usize, std::io::Error>> {
+        Pin::new(&mut self.stream).poll_write(cx, buf)
+    }
+
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.stream).poll_flush(cx)
+    }
+
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
+        Pin::new(&mut self.stream).poll_shutdown(cx)
+    }
+}
+
+impl AsyncRead for IOTypeNotSend {
+    fn poll_read(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        buf: &mut tokio::io::ReadBuf<'_>,
+    ) -> Poll<std::io::Result<()>> {
+        Pin::new(&mut self.stream).poll_read(cx, buf)
+    }
+}
+
 async fn client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>> {
     let host = url.host().expect("uri has no host");
     let port = url.port_u16().unwrap_or(80);
     let addr = format!("{}:{}", host, port);
     let stream = TcpStream::connect(addr).await?;
+
+    let stream = IOTypeNotSend::new(stream);
 
     let (mut sender, conn) = hyper::client::conn::http2::handshake(LocalExec, stream).await?;
 
