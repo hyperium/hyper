@@ -16,6 +16,7 @@ use crate::common::{
     exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, task, Future, Lazy, Pin,
     Poll,
 };
+use crate::ext::Protocol;
 use crate::rt::Executor;
 
 use super::conn;
@@ -276,6 +277,10 @@ where
                 absolute_form(req.uri_mut());
             } else {
                 origin_form(req.uri_mut());
+            }
+        } else if req.method() == Method::CONNECT {
+            if req.extensions().get::<Protocol>().is_none() {
+                authority_form(req.uri_mut());
             }
         }
 
