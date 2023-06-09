@@ -277,8 +277,6 @@ where
             } else {
                 origin_form(req.uri_mut());
             }
-        } else if req.method() == Method::CONNECT {
-            authority_form(req.uri_mut());
         }
 
         let mut res = match pooled.send_request_retryable(req).await {
