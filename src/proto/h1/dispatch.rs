@@ -28,7 +28,8 @@ pub(crate) trait Dispatch {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()>;
+    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>)
+        -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -249,7 +250,8 @@ where
                 let body = match body_len {
                     DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) = IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) =
+                            IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
@@ -317,7 +319,19 @@ where
                     return Poll::Ready(Ok(()));
                 }
             } else if !self.conn.can_buffer_body() {
-                ready!(self.poll_flush(cx))?;
+                if self.poll_flush(cx)?.is_pending() {
+                    // If we're not able to make progress, check the body health
+                    if let (Some(body), clear_body) =
+                        OptGuard::new(self.body_rx.as_mut()).guard_mut()
+                    {
+                        body.poll_healthy(cx).map_err(|e| {
+                            *clear_body = true;
+                            crate::Error::new_user_body(e)
+                        })?;
+                    }
+
+                    return Poll::Pending;
+                }
             } else {
                 // A new scope is needed :(
                 if let (Some(mut body), clear_body) =
