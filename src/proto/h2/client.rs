@@ -292,7 +292,7 @@ where
                     // the connection some more should start shutdown
                     // and then close
                     trace!("send_request dropped, starting conn shutdown");
-                    drop(this.cancel_tx.take().expect("TODO: Error message"));
+                    drop(this.cancel_tx.take().expect("Future polled twice"));
                     this.conn = &mut Some(b);
                     return Poll::Pending;
                 }
@@ -422,8 +422,8 @@ where
                 if let Err(e) = result {
                     debug!("client request body error: {}", e);
                 }
-                drop(this.conn_drop_ref.take().expect("Call only one"));
-                drop(this.ping.take().expect("Call only one"));
+                drop(this.conn_drop_ref.take().expect("Future polled twice"));
+                drop(this.ping.take().expect("Future polled twice"));
                 return Poll::Ready(());
             }
             Poll::Pending => (),
@@ -514,8 +514,8 @@ where
 
         let result = ready!(this.fut.poll(cx));
 
-        let ping = this.ping.take().expect("Todo: Error message");
-        let send_stream = this.send_stream.take().expect("Todo: Error message");
+        let ping = this.ping.take().expect("Future polled twice");
+        let send_stream = this.send_stream.take().expect("Future polled twice");
 
         match result {
             Ok(res) => {
