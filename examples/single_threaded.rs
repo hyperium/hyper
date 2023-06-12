@@ -5,7 +5,7 @@ use hyper::server::conn::http2;
 use std::cell::Cell;
 use std::net::SocketAddr;
 use std::rc::Rc;
-use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::io::{AsyncRead, AsyncWrite, self, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use hyper::body::{Body as HttpBody, Bytes, Frame};
@@ -82,12 +82,19 @@ fn main() {
 }
 
 async fn server() -> Result<(), Box<dyn std::error::Error>> {
+    let mut stdout = io::stdout();
+
+
+
     let addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
     // Using a !Send request counter is fine on 1 thread...
     let counter = Rc::new(Cell::new(0));
 
     let listener = TcpListener::bind(addr).await?;
-    println!("Listening on http://{}", addr);
+
+    stdout.write_all(format!("Listening on http://{}",addr).as_bytes()).await.unwrap();
+    stdout.flush().await.unwrap();
+
     loop {
         let (stream, _) = listener.accept().await?;
 
@@ -106,7 +113,10 @@ async fn server() -> Result<(), Box<dyn std::error::Error>> {
                 .serve_connection(stream, service)
                 .await
             {
-                println!("Error serving connection: {:?}", err);
+                let mut stdout = io::stdout();
+                stdout.write_all(format!("Error serving connection: {:?}", err).as_bytes()).await.unwrap();
+                stdout.flush().await.unwrap();
+
             }
         });
     }
@@ -172,7 +182,9 @@ async fn client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>> {
 
     tokio::task::spawn_local(async move {
         if let Err(err) = conn.await {
-            println!("Connection failed: {:?}", err);
+            let mut stdout = io::stdout();
+            stdout.write_all(format!("Connection failed: {:?}", err).as_bytes()).await.unwrap();
+            stdout.flush().await.unwrap();
         }
     });
 
@@ -186,17 +198,21 @@ async fn client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>> {
             .body(Body::from("test".to_string()))?;
 
         let mut res = sender.send_request(req).await?;
-
-        println!("Response: {}", res.status());
-        println!("Headers: {:#?}\n", res.headers());
+        
+        let mut stdout = io::stdout();
+        stdout.write_all(format!("Response: {}\n", res.status()).as_bytes()).await.unwrap();
+        stdout.write_all(format!("Headers: {:#?}\n", res.headers()).as_bytes()).await.unwrap();
+        stdout.flush().await.unwrap();
 
         // Print the response body
         while let Some(next) = res.frame().await {
             let frame = next?;
             if let Some(chunk) = frame.data_ref() {
-                println!("data {:#?}", chunk)
+                stdout.write_all(&chunk).await.unwrap();
             }
         }
+        stdout.write_all(b"\n-----------------\n").await.unwrap();
+        stdout.flush().await.unwrap();
     }
     Ok(())
 }
