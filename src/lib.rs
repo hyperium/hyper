@@ -1,5 +1,7 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
+#![deny(clippy::missing_safety_doc, clippy::undocumented_unsafe_blocks)]
+#![allow(clippy::type_complexity, clippy::manual_non_exhaustive, clippy::new_without_default)]
 #![cfg_attr(test, deny(rust_2018_idioms))]
 #![cfg_attr(all(test, feature = "full"), deny(unreachable_pub))]
 #![cfg_attr(all(test, feature = "full"), deny(warnings))]

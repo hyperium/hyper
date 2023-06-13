@@ -11,7 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let in_addr: SocketAddr = ([127, 0, 0, 1], 3001).into();
     let out_addr: SocketAddr = ([127, 0, 0, 1], 3000).into();
 
-    let out_addr_clone = out_addr.clone();
+    let out_addr_clone = out_addr;
 
     let listener = TcpListener::bind(in_addr).await?;
 

@@ -949,11 +949,7 @@ impl State {
     }
 
     fn wants_keep_alive(&self) -> bool {
-        if let KA::Disabled = self.keep_alive.status() {
-            false
-        } else {
-            true
-        }
+        !matches!(self.keep_alive.status(), KA::Disabled)
     }
 
     fn try_keep_alive<T: Http1Transaction>(&mut self) {
