@@ -64,7 +64,7 @@ pub struct Builder<Ex>
 pub async fn handshake<E, T, B>(
     exec: E,
     io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
@@ -255,7 +255,10 @@ where
 {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new(exec: Ex) -> Builder<Ex> {
+    pub fn new<E>(exec: E) -> Builder 
+    where
+        E: Executor<BoxSendFuture> + Send + Sync + 'static,
+    {
         Builder {
             exec,
             timer: Time::Empty,

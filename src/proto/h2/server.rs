@@ -13,7 +13,6 @@ use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::rt::bounds::Http2ConnExec;
 use crate::common::time::Time;
 use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
@@ -21,10 +20,11 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
+use crate::rt::bounds::Http2ConnExec;
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
-use crate::{Response};
+use crate::Response;
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting

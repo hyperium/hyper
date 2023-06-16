@@ -17,7 +17,7 @@ use tracing::{debug, trace, warn};
 use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::client::dispatch::{Callback, SendWhen};
+use crate::client::dispatch::Callback;
 use crate::common::time::Time;
 use crate::common::{task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
