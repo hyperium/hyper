@@ -49,9 +49,7 @@ where
 ///
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
-pub struct Builder<Ex>
-
-{
+pub struct Builder<Ex> {
     pub(super) exec: Ex,
     pub(super) timer: Time,
     h2_builder: proto::h2::client::Config,
@@ -64,7 +62,7 @@ pub struct Builder<Ex>
 pub async fn handshake<E, T, B>(
     exec: E,
     io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
@@ -255,10 +253,7 @@ where
 {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new<E>(exec: E) -> Builder 
-    where
-        E: Executor<BoxSendFuture> + Send + Sync + 'static,
-    {
+    pub fn new(exec: Ex) -> Builder<Ex> {
         Builder {
             exec,
             timer: Time::Empty,
@@ -401,7 +396,7 @@ where
     pub fn handshake<T, B>(
         &self,
         io: T,
-    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>> +
+    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>>
     where
         T: AsyncRead + AsyncWrite + Unpin + 'static,
         B: Body + 'static,
