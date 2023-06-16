@@ -53,15 +53,15 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
                         return None;
                     }
                 } else {
-                    return None
+                    return None;
                 }
             }
         } else {
-            return None
+            return None;
         }
     }
 
-    return content_length
+    return content_length;
 }
 
 fn from_digits(bytes: &[u8]) -> Option<u64> {
@@ -80,7 +80,7 @@ fn from_digits(bytes: &[u8]) -> Option<u64> {
             b'0'..=b'9' => {
                 result = result.checked_mul(RADIX)?;
                 result = result.checked_add((b - b'0') as u64)?;
-            },
+            }
             _ => {
                 // not a DIGIT, get outta here!
                 return None;
