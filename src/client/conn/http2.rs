@@ -67,7 +67,7 @@ where
     T: AsyncRead + AsyncWrite + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
-    B::Error: std::error::Error + Send + Sync + 'static,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
     E: ExecutorClient<B, T> + Unpin + Clone,
 {
     Builder::new(exec).handshake(io).await
@@ -218,7 +218,7 @@ where
     T: AsyncRead + AsyncWrite + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
-    <B as http_body::Body>::Error: std::error::Error + Send + Sync + 'static,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()

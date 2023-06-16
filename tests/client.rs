@@ -1327,7 +1327,6 @@ test! {
 
 mod conn {
     use std::error::Error;
-    use std::fmt::Display;
     use std::io::{self, Read, Write};
     use std::net::{SocketAddr, TcpListener};
     use std::pin::Pin;
@@ -2110,7 +2109,7 @@ mod conn {
         });
 
         // Use a channel to keep request stream open
-        let (_tx, recv) = mpsc::channel::<Result<Frame<Bytes>, TestError>>(0);
+        let (_tx, recv) = mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(0);
         let req = http::Request::new(StreamBody::new(recv));
 
         let _resp = client.send_request(req).await.expect("send_request");
@@ -2122,17 +2121,6 @@ mod conn {
             .await
             .expect("client should be open");
     }
-
-    #[derive(Debug)]
-    struct TestError;
-
-    impl Display for TestError {
-        fn fmt(&self, _f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            unimplemented!()
-        }
-    }
-
-    impl std::error::Error for TestError {}
 
     #[tokio::test]
     async fn h2_connect() {

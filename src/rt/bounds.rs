@@ -39,7 +39,7 @@ mod h2_client {
     where
         E: Executor<H2ClientFuture<B, T>>,
         B: http_body::Body + 'static,
-        B::Error: std::error::Error + Send + Sync + 'static,
+        B::Error: Into<Box<dyn Error + Send + Sync>>,
         H2ClientFuture<B, T>: Future<Output = ()>,
         T: AsyncRead + AsyncWrite + Unpin,
     {
@@ -52,7 +52,7 @@ mod h2_client {
     where
         E: Executor<H2ClientFuture<B, T>>,
         B: http_body::Body + 'static,
-        B::Error: std::error::Error + Send + Sync + 'static,
+        B::Error: Into<Box<dyn Error + Send + Sync>>,
         H2ClientFuture<B, T>: Future<Output = ()>,
         T: AsyncRead + AsyncWrite + Unpin,
     {
