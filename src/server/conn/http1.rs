@@ -10,13 +10,16 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::{common::time::Time, rt::Timer};
 use crate::proto;
 use crate::service::HttpService;
+use crate::{common::time::Time, rt::Timer};
 
-type Http1Dispatcher<T, B, S> =
-    proto::h1::Dispatcher<proto::h1::dispatch::Server<S, IncomingBody>, B, T, proto::ServerTransaction>;
-
+type Http1Dispatcher<T, B, S> = proto::h1::Dispatcher<
+    proto::h1::dispatch::Server<S, IncomingBody>,
+    B,
+    T,
+    proto::ServerTransaction,
+>;
 
 pin_project_lite::pin_project! {
     /// A future binding an http1 connection with a Service.
@@ -30,7 +33,6 @@ pin_project_lite::pin_project! {
         conn: Http1Dispatcher<T, S::ResBody, S>,
     }
 }
-
 
 /// A configuration builder for HTTP/1 server connections.
 #[derive(Clone, Debug)]
@@ -151,9 +153,7 @@ where
         let mut zelf = Some(self);
         futures_util::future::poll_fn(move |cx| {
             ready!(zelf.as_mut().unwrap().conn.poll_without_shutdown(cx))?;
-            Poll::Ready(
-                Ok(zelf.take().unwrap().into_parts())
-            )
+            Poll::Ready(Ok(zelf.take().unwrap().into_parts()))
         })
     }
 
@@ -167,7 +167,6 @@ where
         upgrades::UpgradeableConnection { inner: Some(self) }
     }
 }
-
 
 impl<I, B, S> Future for Connection<I, S>
 where
@@ -194,7 +193,7 @@ where
                 };
                 return Poll::Ready(Ok(()));
             }
-            Err(e) =>  Poll::Ready(Err(e)),
+            Err(e) => Poll::Ready(Err(e)),
         }
     }
 }
@@ -389,9 +388,7 @@ impl Builder {
         }
         let sd = proto::h1::dispatch::Server::new(service);
         let proto = proto::h1::Dispatcher::new(sd, conn);
-        Connection {
-            conn: proto,
-        }
+        Connection { conn: proto }
     }
 }
 
