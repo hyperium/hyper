@@ -282,6 +282,7 @@ impl dyn Io + Send {
     fn __hyper_downcast<T: Io>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
         if self.__hyper_is::<T>() {
             // Taken from `std::error::Error::downcast()`.
+            // SAFETY: downcasting requires unsafe, but is checked with __hyper_is to be safe.
             unsafe {
                 let raw: *mut dyn Io = Box::into_raw(self);
                 Ok(Box::from_raw(raw as *mut T))

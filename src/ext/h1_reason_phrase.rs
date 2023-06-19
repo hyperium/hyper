@@ -52,8 +52,10 @@ impl ReasonPhrase {
 
     /// Converts a `Bytes` directly into a `ReasonPhrase` without validating.
     ///
+    /// ## Safety
+    ///
     /// Use with care; invalid bytes in a reason phrase can cause serious security problems if
-    /// emitted in a response.
+    /// emitted in a response. The caller must make sure that `reason` is valid UTF-8.
     pub unsafe fn from_bytes_unchecked(reason: Bytes) -> Self {
         Self(reason)
     }

@@ -210,3 +210,15 @@ jobs:
 
       - name: cargo doc
         run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+
+
+  clippy_check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Find undocumented unsafe with clippy
+        run: cargo clippy --all-targets --features full -p hyper -- -A clippy::all -D clippy::undocumented_unsafe_blocks -D clippy::missing_safety_doc
+
+      - name: Run Clippy on hyper (but do not block CI)
+        run: cargo clippy --all-targets --features full -p hyper || true

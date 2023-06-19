@@ -106,7 +106,7 @@ async fn proxy(
 }
 
 fn host_addr(uri: &http::Uri) -> Option<String> {
-    uri.authority().and_then(|auth| Some(auth.to_string()))
+    uri.authority().map(|auth| auth.to_string())
 }
 
 fn empty() -> BoxBody<Bytes, hyper::Error> {

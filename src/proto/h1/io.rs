@@ -249,16 +249,17 @@ where
         }
 
         let dst = self.read_buf.chunk_mut();
+        // Safety: treat the chunk as array of MaybeUninit bytes
         let dst = unsafe { &mut *(dst as *mut _ as *mut [MaybeUninit<u8>]) };
         let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, &mut buf) {
             Poll::Ready(Ok(_)) => {
                 let n = buf.filled().len();
                 trace!("received {} bytes", n);
+                // Safety: we just read that many bytes into the
+                // uninitialized part of the buffer, so this is okay.
+                // @tokio pls give me back `poll_read_buf` thanks
                 unsafe {
-                    // Safety: we just read that many bytes into the
-                    // uninitialized part of the buffer, so this is okay.
-                    // @tokio pls give me back `poll_read_buf` thanks
                     self.read_buf.advance_mut(n);
                 }
                 self.read_buf_strategy.record(n);

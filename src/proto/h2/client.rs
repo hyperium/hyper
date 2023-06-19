@@ -128,7 +128,7 @@ where
         }
     });
 
-    let ping_config = new_ping_config(&config);
+    let ping_config = new_ping_config(config);
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
@@ -340,14 +340,11 @@ where
                 }
             };
 
-            match self.fut_ctx.take() {
+            if let Some(f) = self.fut_ctx.take() {
                 // If we were waiting on pending open
                 // continue where we left off.
-                Some(f) => {
-                    self.poll_pipe(f, cx);
-                    continue;
-                }
-                None => (),
+                self.poll_pipe(f, cx);
+                continue;
             }
 
             match self.req_rx.poll_recv(cx) {

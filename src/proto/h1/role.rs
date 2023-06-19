@@ -43,6 +43,8 @@ macro_rules! header_name {
 macro_rules! header_value {
     ($bytes:expr) => {{
         {
+            // SAFETY: this should be checked in previous places.
+            #[allow(clippy::undocumented_unsafe_blocks)]
             unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};
@@ -132,7 +134,7 @@ impl Http1Transaction for Server {
         let len;
         let headers_len;
 
-        // Unsafe: both headers_indices and headers are using uninitialized memory,
+        // SAFETY: both headers_indices and headers are using uninitialized memory,
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
@@ -141,8 +143,8 @@ impl Http1Transaction for Server {
             MaybeUninit::uninit().assume_init()
         };
         {
-            /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
             let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
+                // SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit
                 unsafe { MaybeUninit::uninit().assume_init() };
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
@@ -169,7 +171,7 @@ impl Http1Transaction for Server {
                         Version::HTTP_10
                     };
 
-                    record_header_indices(bytes, &req.headers, &mut headers_indices)?;
+                    record_header_indices(bytes, req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
@@ -452,9 +454,10 @@ impl Http1Transaction for Server {
         };
 
         debug!("sending automatic response ({}) for parse error", status);
-        let mut msg = MessageHead::default();
-        msg.subject = status;
-        Some(msg)
+        Some(MessageHead {
+            subject: status,
+            ..Default::default()
+        })
     }
 
     fn is_server() -> bool {
@@ -479,10 +482,7 @@ impl Server {
         } else if status.is_informational() {
             false
         } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
@@ -490,10 +490,7 @@ impl Server {
         if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
             false
         } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
@@ -933,14 +930,14 @@ impl Http1Transaction for Client {
 
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            // Unsafe: see comment in Server Http1Transaction, above.
+            // SAFETY: see comment in Server Http1Transaction, above.
             let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
                 // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
                 MaybeUninit::uninit().assume_init()
             };
             let (len, status, reason, version, headers_len) = {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
                 let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
+                    // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
                     unsafe { MaybeUninit::uninit().assume_init() };
                 trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
