@@ -62,7 +62,7 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = { version = "0.7", features = ["codec"] }
-tower = { version = "0.4", features = ["make", "util"] }
+tower = { version = "0.4", default-features = false, features = ["make", "util"] }
 url = "2.2"
 
 [target.'cfg(any(target_os = "linux", target_os = "macos"))'.dev-dependencies]
