@@ -368,7 +368,12 @@ where
                         self.conn.end_body()?;
                     }
                 } else {
-                    return Poll::Pending;
+                    // If there's no body_rx, end the body
+                    if self.conn.can_write_body() {
+                        self.conn.end_body()?;
+                    } else {
+                        return Poll::Pending;
+                    }
                 }
             }
         }
