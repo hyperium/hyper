@@ -1,3 +1,18 @@
+### v0.14.27 (2023-06-26)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * send error on Incoming body when connection errors (#3256) ([b107655f](https://github.com/hyperium/hyper/commit/b107655ff8557d001bb8e558752f5f2247381e98), closes [#3253](https://github.com/hyperium/hyper/issues/3253))
+  * properly end chunked bodies when it was known to be empty (#3254) ([32422c47](https://github.com/hyperium/hyper/commit/32422c47ec35e7405873277c87de14c18dbb98bd), closes [#3252](https://github.com/hyperium/hyper/issues/3252))
+
+
+#### Features
+
+* **client:** include connection info in `Client::send_request` errors (#2749)
+
+
 ### v0.14.26 (2023-04-13)
 
 
