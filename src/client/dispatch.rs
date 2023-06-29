@@ -1,11 +1,18 @@
 #[cfg(feature = "http2")]
 use std::future::Future;
 
+use http::{Request, Response};
+use http_body::Body;
+use pin_project_lite::pin_project;
 use tokio::sync::{mpsc, oneshot};
+use tracing::trace;
 
+use crate::{
+    body::Incoming,
+    common::{task, Poll},
+};
 #[cfg(feature = "http2")]
-use crate::common::Pin;
-use crate::common::{task, Poll};
+use crate::{common::Pin, proto::h2::client::ResponseFutMap};
 
 #[cfg(test)]
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
@@ -266,37 +273,57 @@ impl<T, U> Callback<T, U> {
             }
         }
     }
+}
 
-    #[cfg(feature = "http2")]
-    pub(crate) async fn send_when(
-        self,
-        mut when: impl Future<Output = Result<U, (crate::Error, Option<T>)>> + Unpin,
-    ) {
-        use futures_util::future;
-        use tracing::trace;
+#[cfg(feature = "http2")]
+pin_project! {
+    pub struct SendWhen<B>
+    where
+        B: Body,
+        B: 'static,
+    {
+        #[pin]
+        pub(crate) when: ResponseFutMap<B>,
+        #[pin]
+        pub(crate) call_back: Option<Callback<Request<B>, Response<Incoming>>>,
+    }
+}
 
-        let mut cb = Some(self);
+#[cfg(feature = "http2")]
+impl<B> Future for SendWhen<B>
+where
+    B: Body + 'static,
+{
+    type Output = ();
 
-        // "select" on this callback being canceled, and the future completing
-        future::poll_fn(move |cx| {
-            match Pin::new(&mut when).poll(cx) {
-                Poll::Ready(Ok(res)) => {
-                    cb.take().expect("polled after complete").send(Ok(res));
-                    Poll::Ready(())
-                }
-                Poll::Pending => {
-                    // check if the callback is canceled
-                    ready!(cb.as_mut().unwrap().poll_canceled(cx));
-                    trace!("send_when canceled");
-                    Poll::Ready(())
-                }
-                Poll::Ready(Err(err)) => {
-                    cb.take().expect("polled after complete").send(Err(err));
-                    Poll::Ready(())
-                }
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+
+        let mut call_back = this.call_back.take().expect("polled after complete");
+
+        match Pin::new(&mut this.when).poll(cx) {
+            Poll::Ready(Ok(res)) => {
+                call_back.send(Ok(res));
+                Poll::Ready(())
             }
-        })
-        .await
+            Poll::Pending => {
+                // check if the callback is canceled
+                match call_back.poll_canceled(cx) {
+                    Poll::Ready(v) => v,
+                    Poll::Pending => {
+                        // Move call_back back to struct before return
+                        this.call_back.set(Some(call_back));
+                        return std::task::Poll::Pending;
+                    }
+                };
+                trace!("send_when canceled");
+                Poll::Ready(())
+            }
+            Poll::Ready(Err(err)) => {
+                call_back.send(Err(err));
+                Poll::Ready(())
+            }
+        }
     }
 }
 

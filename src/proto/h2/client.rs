@@ -1,25 +1,30 @@
-use std::error::Error as StdError;
+use std::marker::PhantomData;
+
 use std::time::Duration;
 
 use bytes::Bytes;
+use futures_channel::mpsc::{Receiver, Sender};
 use futures_channel::{mpsc, oneshot};
-use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
-use futures_util::stream::StreamExt as _;
-use h2::client::{Builder, SendRequest};
+use futures_util::future::{self, Either, FutureExt as _, Select};
+use futures_util::stream::{StreamExt as _, StreamFuture};
+use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
 use http::{Method, StatusCode};
+use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, trace, warn};
 
+use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::client::dispatch::Callback;
+use crate::client::dispatch::{Callback, SendWhen};
 use crate::common::time::Time;
-use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
+use crate::common::{task, Future, Never, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
+use crate::rt::bounds::ExecutorClient;
 use crate::upgrade::Upgraded;
 use crate::{Request, Response};
 use h2::client::ResponseFuture;
@@ -98,17 +103,19 @@ fn new_ping_config(config: &Config) -> ping::Config {
     }
 }
 
-pub(crate) async fn handshake<T, B>(
+pub(crate) async fn handshake<T, B, E>(
     io: T,
     req_rx: ClientRx<B>,
     config: &Config,
-    exec: Exec,
+    mut exec: E,
     timer: Time,
-) -> crate::Result<ClientTask<B>>
+) -> crate::Result<ClientTask<B, E, T>>
 where
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
-    B: Body,
+    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    B: Body + 'static,
     B::Data: Send + 'static,
+    E: ExecutorClient<B, T> + Unpin,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     let (h2_tx, mut conn) = new_builder(config)
         .handshake::<_, SendBuf<B::Data>>(io)
@@ -122,40 +129,24 @@ where
     let (conn_drop_ref, rx) = mpsc::channel(1);
     let (cancel_tx, conn_eof) = oneshot::channel();
 
-    let conn_drop_rx = rx.into_future().map(|(item, _rx)| {
-        if let Some(never) = item {
-            match never {}
-        }
-    });
+    let conn_drop_rx = rx.into_future();
 
     let ping_config = new_ping_config(&config);
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
-        let (recorder, mut ponger) = ping::channel(pp, ping_config, timer);
+        let (recorder, ponger) = ping::channel(pp, ping_config, timer);
 
-        let conn = future::poll_fn(move |cx| {
-            match ponger.poll(cx) {
-                Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
-                    conn.set_target_window_size(wnd);
-                    conn.set_initial_window_size(wnd)?;
-                }
-                Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
-                    debug!("connection keep-alive timed out");
-                    return Poll::Ready(Ok(()));
-                }
-                Poll::Pending => {}
-            }
-
-            Pin::new(&mut conn).poll(cx)
-        });
+        let conn: Conn<_, B> = Conn::new(ponger, conn);
         (Either::Left(conn), recorder)
     } else {
         (Either::Right(conn), ping::disabled())
     };
-    let conn = conn.map_err(|e| debug!("connection error: {}", e));
+    let conn: ConnMapErr<T, B> = ConnMapErr { conn };
 
-    exec.execute(conn_task(conn, conn_drop_rx, cancel_tx));
+    exec.execute_h2_future(H2ClientFuture::Task {
+        task: ConnTask::new(conn, conn_drop_rx, cancel_tx),
+    });
 
     Ok(ClientTask {
         ping,
@@ -165,25 +156,195 @@ where
         h2_tx,
         req_rx,
         fut_ctx: None,
+        marker: PhantomData,
     })
 }
 
-async fn conn_task<C, D>(conn: C, drop_rx: D, cancel_tx: oneshot::Sender<Never>)
+pin_project! {
+    struct Conn<T, B>
+    where
+        B: Body,
+    {
+        #[pin]
+        ponger: Ponger,
+        #[pin]
+        conn: Connection<T, SendBuf<<B as Body>::Data>>,
+    }
+}
+
+impl<T, B> Conn<T, B>
 where
-    C: Future + Unpin,
-    D: Future<Output = ()> + Unpin,
+    B: Body,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
-    match future::select(conn, drop_rx).await {
-        Either::Left(_) => {
-            // ok or err, the `conn` has finished
+    fn new(ponger: Ponger, conn: Connection<T, SendBuf<<B as Body>::Data>>) -> Self {
+        Conn { ponger, conn }
+    }
+}
+
+impl<T, B> Future for Conn<T, B>
+where
+    B: Body,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = Result<(), h2::Error>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+        match this.ponger.poll(cx) {
+            Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
+                this.conn.set_target_window_size(wnd);
+                this.conn.set_initial_window_size(wnd)?;
+            }
+            Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
+                debug!("connection keep-alive timed out");
+                return Poll::Ready(Ok(()));
+            }
+            Poll::Pending => {}
         }
-        Either::Right(((), conn)) => {
-            // mpsc has been dropped, hopefully polling
-            // the connection some more should start shutdown
-            // and then close
-            trace!("send_request dropped, starting conn shutdown");
-            drop(cancel_tx);
-            let _ = conn.await;
+
+        Pin::new(&mut this.conn).poll(cx)
+    }
+}
+
+pin_project! {
+    struct ConnMapErr<T, B>
+    where
+        B: Body,
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+    {
+        #[pin]
+        conn: Either<Conn<T, B>, Connection<T, SendBuf<<B as Body>::Data>>>,
+    }
+}
+
+impl<T, B> Future for ConnMapErr<T, B>
+where
+    B: Body,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = Result<(), ()>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        self.project()
+            .conn
+            .poll(cx)
+            .map_err(|e| debug!("connection error: {}", e))
+    }
+}
+
+pin_project! {
+    pub struct ConnTask<T, B>
+    where
+        B: Body,
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+    {
+        #[pin]
+        select: Select<ConnMapErr<T, B>, StreamFuture<Receiver<Never>>>,
+        #[pin]
+        cancel_tx: Option<oneshot::Sender<Never>>,
+        conn: Option<ConnMapErr<T, B>>,
+    }
+}
+
+impl<T, B> ConnTask<T, B>
+where
+    B: Body,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    fn new(
+        conn: ConnMapErr<T, B>,
+        drop_rx: StreamFuture<Receiver<Never>>,
+        cancel_tx: oneshot::Sender<Never>,
+    ) -> Self {
+        Self {
+            select: future::select(conn, drop_rx),
+            cancel_tx: Some(cancel_tx),
+            conn: None,
+        }
+    }
+}
+
+impl<T, B> Future for ConnTask<T, B>
+where
+    B: Body,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = ();
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+
+        if let Some(conn) = this.conn {
+            conn.poll_unpin(cx).map(|_| ())
+        } else {
+            match ready!(this.select.poll_unpin(cx)) {
+                Either::Left((_, _)) => {
+                    // ok or err, the `conn` has finished
+                    return Poll::Ready(());
+                }
+                Either::Right((_, b)) => {
+                    // mpsc has been dropped, hopefully polling
+                    // the connection some more should start shutdown
+                    // and then close
+                    trace!("send_request dropped, starting conn shutdown");
+                    drop(this.cancel_tx.take().expect("Future polled twice"));
+                    this.conn = &mut Some(b);
+                    return Poll::Pending;
+                }
+            }
+        }
+    }
+}
+
+pin_project! {
+    #[project = H2ClientFutureProject]
+    pub enum H2ClientFuture<B, T>
+    where
+        B: http_body::Body,
+        B: 'static,
+        B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+        T: AsyncRead,
+        T: AsyncWrite,
+        T: Unpin,
+    {
+        Pipe {
+            #[pin]
+            pipe: PipeMap<B>,
+        },
+        Send {
+            #[pin]
+            send_when: SendWhen<B>,
+        },
+        Task {
+            #[pin]
+            task: ConnTask<T, B>,
+        },
+    }
+}
+
+impl<B, T> Future for H2ClientFuture<B, T>
+where
+    B: http_body::Body + 'static,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    T: AsyncRead + AsyncWrite + Unpin,
+{
+    type Output = ();
+
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let this = self.project();
+
+        match this {
+            H2ClientFutureProject::Pipe { pipe } => pipe.poll(cx),
+            H2ClientFutureProject::Send { send_when } => send_when.poll(cx),
+            H2ClientFutureProject::Task { task } => task.poll(cx),
         }
     }
 }
@@ -202,43 +363,89 @@ where
 
 impl<B: Body> Unpin for FutCtx<B> {}
 
-pub(crate) struct ClientTask<B>
+pub(crate) struct ClientTask<B, E, T>
 where
     B: Body,
+    E: Unpin,
 {
     ping: ping::Recorder,
     conn_drop_ref: ConnDropRef,
     conn_eof: ConnEof,
-    executor: Exec,
+    executor: E,
     h2_tx: SendRequest<SendBuf<B::Data>>,
     req_rx: ClientRx<B>,
     fut_ctx: Option<FutCtx<B>>,
+    marker: PhantomData<T>,
 }
 
-impl<B> ClientTask<B>
+impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static,
+    E: ExecutorClient<B, T> + Unpin,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     pub(crate) fn is_extended_connect_protocol_enabled(&self) -> bool {
         self.h2_tx.is_extended_connect_protocol_enabled()
     }
 }
 
-impl<B> ClientTask<B>
+pin_project! {
+    pub struct PipeMap<S>
+    where
+        S: Body,
+    {
+        #[pin]
+        pipe: PipeToSendStream<S>,
+        #[pin]
+        conn_drop_ref: Option<Sender<Never>>,
+        #[pin]
+        ping: Option<Recorder>,
+    }
+}
+
+impl<B> Future for PipeMap<B>
 where
-    B: Body + Send + 'static,
+    B: http_body::Body,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    type Output = ();
+
+    fn poll(
+        self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<Self::Output> {
+        let mut this = self.project();
+
+        match this.pipe.poll_unpin(cx) {
+            Poll::Ready(result) => {
+                if let Err(e) = result {
+                    debug!("client request body error: {}", e);
+                }
+                drop(this.conn_drop_ref.take().expect("Future polled twice"));
+                drop(this.ping.take().expect("Future polled twice"));
+                return Poll::Ready(());
+            }
+            Poll::Pending => (),
+        };
+        Poll::Pending
+    }
+}
+
+impl<B, E, T> ClientTask<B, E, T>
+where
+    B: Body + 'static + Unpin,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    E: ExecutorClient<B, T> + Unpin,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut task::Context<'_>) {
         let ping = self.ping.clone();
+
         let send_stream = if !f.is_connect {
             if !f.eos {
-                let mut pipe = Box::pin(PipeToSendStream::new(f.body, f.body_tx)).map(|res| {
-                    if let Err(e) = res {
-                        debug!("client request body error: {}", e);
-                    }
-                });
+                let mut pipe = PipeToSendStream::new(f.body, f.body_tx);
 
                 // eagerly see if the body pipe is ready and
                 // can thus skip allocating in the executor
@@ -250,13 +457,15 @@ where
                         // "open stream" alive while this body is
                         // still sending...
                         let ping = ping.clone();
-                        let pipe = pipe.map(move |x| {
-                            drop(conn_drop_ref);
-                            drop(ping);
-                            x
-                        });
+
+                        let pipe = PipeMap {
+                            pipe,
+                            conn_drop_ref: Some(conn_drop_ref),
+                            ping: Some(ping),
+                        };
                         // Clear send task
-                        self.executor.execute(pipe);
+                        self.executor
+                            .execute_h2_future(H2ClientFuture::Pipe { pipe: pipe });
                     }
                 }
             }
@@ -266,7 +475,49 @@ where
             Some(f.body_tx)
         };
 
-        let fut = f.fut.map(move |result| match result {
+        self.executor.execute_h2_future(H2ClientFuture::Send {
+            send_when: SendWhen {
+                when: ResponseFutMap {
+                    fut: f.fut,
+                    ping: Some(ping),
+                    send_stream: Some(send_stream),
+                },
+                call_back: Some(f.cb),
+            },
+        });
+    }
+}
+
+pin_project! {
+    pub(crate) struct ResponseFutMap<B>
+    where
+        B: Body,
+        B: 'static,
+    {
+        #[pin]
+        fut: ResponseFuture,
+        #[pin]
+        ping: Option<Recorder>,
+        #[pin]
+        send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
+    }
+}
+
+impl<B> Future for ResponseFutMap<B>
+where
+    B: Body + 'static,
+{
+    type Output = Result<Response<crate::body::Incoming>, (crate::Error, Option<Request<B>>)>;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.project();
+
+        let result = ready!(this.fut.poll(cx));
+
+        let ping = this.ping.take().expect("Future polled twice");
+        let send_stream = this.send_stream.take().expect("Future polled twice");
+
+        match result {
             Ok(res) => {
                 // record that we got the response headers
                 ping.record_non_data();
@@ -277,17 +528,17 @@ where
                         warn!("h2 connect response with non-zero body not supported");
 
                         send_stream.send_reset(h2::Reason::INTERNAL_ERROR);
-                        return Err((
+                        return Poll::Ready(Err((
                             crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
-                            None,
-                        ));
+                            None::<Request<B>>,
+                        )));
                     }
                     let (parts, recv_stream) = res.into_parts();
                     let mut res = Response::from_parts(parts, IncomingBody::empty());
 
                     let (pending, on_upgrade) = crate::upgrade::pending();
                     let io = H2Upgraded {
-                        ping,
+                        ping: ping,
                         send_stream: unsafe { UpgradedSendStream::new(send_stream) },
                         recv_stream,
                         buf: Bytes::new(),
@@ -297,31 +548,32 @@ where
                     pending.fulfill(upgraded);
                     res.extensions_mut().insert(on_upgrade);
 
-                    Ok(res)
+                    Poll::Ready(Ok(res))
                 } else {
                     let res = res.map(|stream| {
                         let ping = ping.for_stream(&stream);
                         IncomingBody::h2(stream, content_length.into(), ping)
                     });
-                    Ok(res)
+                    Poll::Ready(Ok(res))
                 }
             }
             Err(err) => {
                 ping.ensure_not_timed_out().map_err(|e| (e, None))?;
 
                 debug!("client response error: {}", err);
-                Err((crate::Error::new_h2(err), None))
+                Poll::Ready(Err((crate::Error::new_h2(err), None::<Request<B>>)))
             }
-        });
-        self.executor.execute(f.cb.send_when(fut));
+        }
     }
 }
 
-impl<B> Future for ClientTask<B>
+impl<B, E, T> Future for ClientTask<B, E, T>
 where
-    B: Body + Send + 'static,
+    B: Body + 'static + Unpin,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
+    T: AsyncRead + AsyncWrite + Unpin,
 {
     type Output = crate::Result<Dispatched>;
 
