@@ -337,19 +337,17 @@ impl Sender {
             .map_err(|err| err.into_inner().expect("just sent Ok"))
     }
 
-    /// Aborts the body in an abnormal fashion.
     #[allow(unused)]
-    pub(crate) fn abort(self) {
+    pub(crate) fn abort(mut self) {
+        self.send_error(crate::Error::new_body_write_aborted());
+    }
+
+    pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self
             .data_tx
             // clone so the send works even if buffer is full
             .clone()
-            .try_send(Err(crate::Error::new_body_write_aborted()));
-    }
-
-    #[cfg(feature = "http1")]
-    pub(crate) fn send_error(&mut self, err: crate::Error) {
-        let _ = self.data_tx.try_send(Err(err));
+            .try_send(Err(err));
     }
 }
 
