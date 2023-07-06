@@ -93,6 +93,7 @@ mod response_body_lengths {
     }
 
     fn run_test(case: TestCase) {
+        let _ = pretty_env_logger::try_init();
         assert!(
             case.version == 0 || case.version == 1,
             "TestCase.version must 0 or 1"
@@ -156,18 +157,22 @@ mod response_body_lengths {
         let n = body.find("\r\n\r\n").unwrap() + 4;
 
         if case.expects_chunked {
-            let len = body.len();
-            assert_eq!(
-                &body[n + 1..n + 3],
-                "\r\n",
-                "expected body chunk size header"
-            );
-            assert_eq!(&body[n + 3..len - 7], body_str, "expected body");
-            assert_eq!(
-                &body[len - 7..],
-                "\r\n0\r\n\r\n",
-                "expected body final chunk size header"
-            );
+            if body_str.len() > 0 {
+                let len = body.len();
+                assert_eq!(
+                    &body[n + 1..n + 3],
+                    "\r\n",
+                    "expected body chunk size header"
+                );
+                assert_eq!(&body[n + 3..len - 7], body_str, "expected body");
+                assert_eq!(
+                    &body[len - 7..],
+                    "\r\n0\r\n\r\n",
+                    "expected body final chunk size header"
+                );
+            } else {
+                assert_eq!(&body[n..], "0\r\n\r\n");
+            }
         } else {
             assert_eq!(&body[n..], body_str, "expected body");
         }
@@ -214,6 +219,17 @@ mod response_body_lengths {
             // even though we know the length, don't strip user's TE header
             body: Bd::Known("foo bar baz"),
             expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    fn chunked_response_known_empty() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("transfer-encoding", "chunked")],
+            body: Bd::Known(""),
+            expects_chunked: true, // should still send chunked, and 0\r\n\r\n
             expects_con_len: false,
         });
     }
@@ -2682,7 +2698,7 @@ impl Service<Request<IncomingBody>> for TestService {
     type Error = BoxError;
     type Future = BoxFuture;
 
-    fn call(&mut self, mut req: Request<IncomingBody>) -> Self::Future {
+    fn call(&self, mut req: Request<IncomingBody>) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
 
@@ -2748,7 +2764,7 @@ impl Service<Request<IncomingBody>> for HelloWorld {
     type Error = hyper::Error;
     type Future = future::Ready<Result<Self::Response, Self::Error>>;
 
-    fn call(&mut self, _req: Request<IncomingBody>) -> Self::Future {
+    fn call(&self, _req: Request<IncomingBody>) -> Self::Future {
         let response = Response::new(Full::new(HELLO.into()));
         future::ok(response)
     }

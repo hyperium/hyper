@@ -1,25 +1,34 @@
 # Examples of using hyper
 
-These examples show of how to do common tasks using `hyper`. You may also find the [Guides](https://hyper.rs/guides) helpful.
+These examples show how to do common tasks using `hyper`. You may also find the [Guides](https://hyper.rs/guides/1/) helpful.
 
-If you checkout this repository, you can run any of the examples `cargo run --example example_name`.
+If you checkout this repository, you can run any of the examples with the command:
+
+ `cargo run --example {example_name} --features="full"`
 
 ### Dependencies
 
-Most of these examples use these dependencies:
+A complete list of dependencies used across these examples:
 
 ```toml
 [dependencies]
-hyper = { version = "0.14", features = ["full"] }
+hyper = { version = "1.0.0-rc.3", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 pretty_env_logger = "0.4"
+http-body-util = "0.1.0-rc.2"
+bytes = "1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+url = "2.2"
+http = "0.2"
+futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 ```
 
 ## Getting Started
 
 ### Clients
 
-* [`client`](client.rs) - A simple CLI http client that request the url passed in parameters and outputs the response content and details to the stdout, reading content chunk-by-chunk.
+* [`client`](client.rs) - A simple CLI http client that requests the url passed in parameters and outputs the response content and details to the stdout, reading content chunk-by-chunk.
 
 * [`client_json`](client_json.rs) - A simple program that GETs some json, reads the body asynchronously, parses it with serde and outputs the result.
 

@@ -28,5 +28,13 @@ pub trait Service<Request> {
     type Future: Future<Output = Result<Self::Response, Self::Error>>;
 
     /// Process the request and return the response asynchronously.
-    fn call(&mut self, req: Request) -> Self::Future;
+    /// call takes a &self instead of a mut &self because:
+    /// - It prepares the way for async fn,
+    ///   since then the future only borrows &self, and thus a Service can concurrently handle
+    ///   multiple outstanding requests at once.
+    /// - It's clearer that Services can likely be cloned
+    /// - To share state across clones you generally need Arc<Mutex<_>>
+    ///   that means you're not really using the &mut self and could do with a &self
+    /// To see the discussion on this see: https://github.com/hyperium/hyper/issues/3040
+    fn call(&self, req: Request) -> Self::Future;
 }

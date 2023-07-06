@@ -132,10 +132,7 @@ impl<E> Builder<E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn initial_connection_window_size(
-        &mut self,
-        sz: impl Into<Option<u32>>,
-    ) -> &mut Self {
+    pub fn initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
@@ -191,10 +188,7 @@ impl<E> Builder<E> {
     ///
     /// # Cargo Feature
     ///
-    pub fn keep_alive_interval(
-        &mut self,
-        interval: impl Into<Option<Duration>>,
-    ) -> &mut Self {
+    pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
     }
