@@ -29,21 +29,21 @@ cfg_server! {
 /// Default initial stream window size defined in HTTP2 spec.
 pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 
-fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
-    // List of connection headers from:
-    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
-    //
-    // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
-    // tested separately.
-    let connection_headers = [
-        HeaderName::from_lowercase(b"keep-alive").unwrap(),
-        HeaderName::from_lowercase(b"proxy-connection").unwrap(),
-        TRAILER,
-        TRANSFER_ENCODING,
-        UPGRADE,
-    ];
+// List of connection headers from:
+// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+//
+// TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
+// tested separately.
+const CONNECTION_HEADERS: [HeaderName; 5] = [
+    HeaderName::from_static("keep-alive"),
+    HeaderName::from_static("proxy-connection"),
+    TRAILER,
+    TRANSFER_ENCODING,
+    UPGRADE,
+];
 
-    for header in connection_headers.iter() {
+fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
+    for header in &CONNECTION_HEADERS {
         if headers.remove(header).is_some() {
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
         }
@@ -85,7 +85,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
 // body adapters used by both Client and Server
 
 pin_project! {
-    struct PipeToSendStream<S>
+    pub(crate) struct PipeToSendStream<S>
     where
         S: Body,
     {
@@ -129,9 +129,7 @@ where
                     match ready!(me.body_tx.poll_capacity(cx)) {
                         Some(Ok(0)) => {}
                         Some(Ok(_)) => break,
-                        Some(Err(e)) => {
-                            return Poll::Ready(Err(crate::Error::new_body_write(e)))
-                        }
+                        Some(Err(e)) => return Poll::Ready(Err(crate::Error::new_body_write(e))),
                         None => {
                             // None means the stream is no longer in a
                             // streaming state, we either finished it
@@ -148,9 +146,7 @@ where
                 .map_err(crate::Error::new_body_write)?
             {
                 debug!("stream received RST_STREAM: {:?}", reason);
-                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
-                    reason,
-                ))));
+                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
             }
 
             match ready!(me.stream.as_mut().poll_frame(cx)) {
@@ -365,14 +361,12 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
         if self.send_stream.write(&[], true).is_ok() {
-            return Poll::Ready(Ok(()))
+            return Poll::Ready(Ok(()));
         }
 
         Poll::Ready(Err(h2_to_io_error(
             match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) => {
-                    return Poll::Ready(Ok(()))
-                }
+                Ok(Reason::NO_ERROR) => return Poll::Ready(Ok(())),
                 Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
                     return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
                 }

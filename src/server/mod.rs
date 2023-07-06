@@ -7,4 +7,3 @@
 //! concerns itself with. After you have a connection, you can handle HTTP over
 //! it with the types in the [`conn`](conn) module.
 pub mod conn;
-

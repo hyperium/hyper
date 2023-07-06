@@ -28,7 +28,8 @@ pub(crate) trait Dispatch {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()>;
+    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>)
+        -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -116,6 +117,10 @@ where
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
         Poll::Ready(ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
+            // Be sure to alert a streaming body of the failure.
+            if let Some(mut body) = self.body_tx.take() {
+                body.send_error(crate::Error::new_body("connection error"));
+            }
             // An error means we're shutting down either way.
             // We just try to give the error to the user,
             // and close the connection with an Ok. If we
@@ -249,7 +254,8 @@ where
                 let body = match body_len {
                     DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) = IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) =
+                            IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
@@ -366,7 +372,12 @@ where
                         self.conn.end_body()?;
                     }
                 } else {
-                    return Poll::Pending;
+                    // If there's no body_rx, end the body
+                    if self.conn.can_write_body() {
+                        self.conn.end_body()?;
+                    } else {
+                        return Poll::Pending;
+                    }
                 }
             }
         }
