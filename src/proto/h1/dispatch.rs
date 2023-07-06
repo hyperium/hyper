@@ -82,7 +82,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
-        if self.conn.is_write_closed() {
+
+        // If keep alive has been disabled and no read or write has been seen on
+        // the connection yet, we must be in a state where the server is being asked to
+        // shut down before any data has been seen on the connection
+        if self.conn.is_write_closed() || self.conn.has_initial_read_write_state() {
             self.close();
         }
     }
