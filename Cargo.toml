@@ -25,7 +25,7 @@ futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "=1.0.0-rc.2"
-http-body-util = { version = "=0.1.0-rc.2", optional = true }
+http-body-util = { version = "=0.1.0-rc.3", optional = true }
 httpdate = "1.0"
 httparse = "1.8"
 h2 = { version = "0.3.9", optional = true }
@@ -41,7 +41,7 @@ libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-http-body-util = "=0.1.0-rc.2"
+http-body-util = "=0.1.0-rc.3"
 matches = "0.1"
 num_cpus = "1.0"
 pretty_env_logger = "0.4"
