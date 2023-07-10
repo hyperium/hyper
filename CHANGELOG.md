@@ -1,3 +1,40 @@
+### v1.0.0-rc.4 (2023-07-10)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * http1 server graceful shutdown fix (#3261) ([f4b51300](https://github.com/hyperium/hyper/commit/f4b513009d81083081d1c60c1981847bbb17dd5d))
+  * send error on Incoming body when connection errors (#3256) ([52f19259](https://github.com/hyperium/hyper/commit/52f192593fb9ebcf6d3894e0c85cbf710da4decd), closes [#3253](https://github.com/hyperium/hyper/issues/3253))
+  * properly end chunked bodies when it was known to be empty (#3254) ([fec64cf0](https://github.com/hyperium/hyper/commit/fec64cf0abdc678e30ca5f1b310c5118b2e01999), closes [#3252](https://github.com/hyperium/hyper/issues/3252))
+
+
+#### Features
+
+* **client:** Make clients able to use non-Send executor (#3184) ([d977f209](https://github.com/hyperium/hyper/commit/d977f209bc6068d8f878b22803fc42d90c887fcc), closes [#3017](https://github.com/hyperium/hyper/issues/3017))
+* **rt:**
+  * replace IO traits with hyper::rt ones (#3230) ([f9f65b7a](https://github.com/hyperium/hyper/commit/f9f65b7aa67fa3ec0267fe015945973726285bc2), closes [#3110](https://github.com/hyperium/hyper/issues/3110))
+  * add downcast on `Sleep` trait (#3125) ([d92d3917](https://github.com/hyperium/hyper/commit/d92d3917d950e4c61c37c2170f3ce273d2a0f7d1), closes [#3027](https://github.com/hyperium/hyper/issues/3027))
+* **service:** change Service::call to take &self (#3223) ([d894439e](https://github.com/hyperium/hyper/commit/d894439e009aa75103f6382a7ba98fb17da72f02), closes [#3040](https://github.com/hyperium/hyper/issues/3040))
+
+
+#### Breaking Changes
+
+* Any IO transport type provided must not implement `hyper::rt::{Read, Write}` instead of
+  `tokio::io` traits. You can grab a helper type from `hyper-util` to wrap Tokio types, or implement the traits yourself,
+  if it's a custom type.
+ ([f9f65b7a](https://github.com/hyperium/hyper/commit/f9f65b7aa67fa3ec0267fe015945973726285bc2))
+* `client::conn::http2` types now use another generic for an `Executor`.
+  Code that names `Connection` needs to include the additional generic parameter.
+ ([d977f209](https://github.com/hyperium/hyper/commit/d977f209bc6068d8f878b22803fc42d90c887fcc))
+* The Service::call function no longer takes a mutable reference to self.
+  The FnMut trait bound on the service::util::service_fn function and the trait bound
+  on the impl for the ServiceFn struct were changed from FnMut to Fn.
+
+ ([d894439e](https://github.com/hyperium/hyper/commit/d894439e009aa75103f6382a7ba98fb17da72f02))
+
+
+
 ### v1.0.0-rc.3 (2023-02-23)
 
 
