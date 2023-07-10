@@ -1,14 +1,18 @@
 //! Runtime components
 //!
-//! By default, hyper includes the [tokio](https://tokio.rs) runtime.
+//! The traits and types within this module are used to allow plugging in
+//! runtime types. These include:
 //!
-//! If the `runtime` feature is disabled, the types in this module can be used
-//! to plug in other runtimes.
+//! - Executors
+//! - Timers
+//! - IO transports
 
 pub mod bounds;
+mod io;
 mod timer;
 
-pub use timer::{Sleep, Timer};
+pub use self::io::{Read, ReadBuf, ReadBufCursor, Write};
+pub use self::timer::{Sleep, Timer};
 
 /// An executor of futures.
 ///

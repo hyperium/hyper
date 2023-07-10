@@ -4,11 +4,11 @@ use std::marker::PhantomData;
 #[cfg(feature = "server")]
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
-use tokio::io::{AsyncRead, AsyncWrite};
 use tracing::{debug, error, trace};
 
 use super::io::Buffered;
@@ -25,7 +25,7 @@ use crate::rt::Sleep;
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 /// This handles a connection, which will have been established over an
-/// `AsyncRead + AsyncWrite` (like a socket), and will likely include multiple
+/// `Read + Write` (like a socket), and will likely include multiple
 /// `Transaction`s over HTTP.
 ///
 /// The connection will determine when a message begins and ends as well as
@@ -39,7 +39,7 @@ pub(crate) struct Conn<I, B, T> {
 
 impl<I, B, T> Conn<I, B, T>
 where
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     B: Buf,
     T: Http1Transaction,
 {
@@ -1044,12 +1044,13 @@ mod tests {
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
         use super::*;
+        use crate::common::io::Compat;
         let s = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n";
         let len = s.len();
         b.bytes = len as u64;
 
         // an empty IO, we'll be skipping and using the read buffer anyways
-        let io = tokio_test::io::Builder::new().build();
+        let io = Compat(tokio_test::io::Builder::new().build());
         let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));

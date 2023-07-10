@@ -5,7 +5,7 @@ use hyper::server::conn::http2;
 use std::cell::Cell;
 use std::net::SocketAddr;
 use std::rc::Rc;
-use tokio::io::{self, AsyncRead, AsyncWrite, AsyncWriteExt};
+use tokio::io::{self, AsyncWriteExt};
 use tokio::net::TcpListener;
 
 use hyper::body::{Body as HttpBody, Bytes, Frame};
@@ -17,6 +17,10 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::thread;
 use tokio::net::TcpStream;
+
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
 
 struct Body {
     // Our Body type is !Send and !Sync:
@@ -98,6 +102,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         // For each connection, clone the counter to use in our service...
         let cnt = counter.clone();
@@ -111,7 +116,7 @@ async fn server() -> Result<(), Box<dyn std::error::Error>> {
 
         tokio::task::spawn_local(async move {
             if let Err(err) = http2::Builder::new(LocalExec)
-                .serve_connection(stream, service)
+                .serve_connection(io, service)
                 .await
             {
                 let mut stdout = io::stdout();
@@ -127,11 +132,11 @@ async fn server() -> Result<(), Box<dyn std::error::Error>> {
 
 struct IOTypeNotSend {
     _marker: PhantomData<*const ()>,
-    stream: TcpStream,
+    stream: TokioIo<TcpStream>,
 }
 
 impl IOTypeNotSend {
-    fn new(stream: TcpStream) -> Self {
+    fn new(stream: TokioIo<TcpStream>) -> Self {
         Self {
             _marker: PhantomData,
             stream,
@@ -139,7 +144,7 @@ impl IOTypeNotSend {
     }
 }
 
-impl AsyncWrite for IOTypeNotSend {
+impl hyper::rt::Write for IOTypeNotSend {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -163,11 +168,11 @@ impl AsyncWrite for IOTypeNotSend {
     }
 }
 
-impl AsyncRead for IOTypeNotSend {
+impl hyper::rt::Read for IOTypeNotSend {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
+        buf: hyper::rt::ReadBufCursor<'_>,
     ) -> Poll<std::io::Result<()>> {
         Pin::new(&mut self.stream).poll_read(cx, buf)
     }
@@ -179,7 +184,7 @@ async fn client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>> {
     let addr = format!("{}:{}", host, port);
     let stream = TcpStream::connect(addr).await?;
 
-    let stream = IOTypeNotSend::new(stream);
+    let stream = IOTypeNotSend::new(TokioIo::new(stream));
 
     let (mut sender, conn) = hyper::client::conn::http2::handshake(LocalExec, stream).await?;
 

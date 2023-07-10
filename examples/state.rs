@@ -12,6 +12,10 @@ use hyper::{server::conn::http1, service::service_fn};
 use hyper::{Error, Response};
 use tokio::net::TcpListener;
 
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     pretty_env_logger::init();
@@ -26,6 +30,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Listening on http://{}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         // Each connection could send multiple requests, so
         // the `Service` needs a clone to handle later requests.
@@ -46,10 +51,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         });
 
-        if let Err(err) = http1::Builder::new()
-            .serve_connection(stream, service)
-            .await
-        {
+        if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
             println!("Error serving connection: {:?}", err);
         }
     }

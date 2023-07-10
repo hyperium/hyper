@@ -22,6 +22,7 @@ use hyper::{Method, Request, StatusCode, Uri, Version};
 use bytes::Bytes;
 use futures_channel::oneshot;
 use futures_util::future::{self, FutureExt, TryFuture, TryFutureExt};
+use support::TokioIo;
 use tokio::net::TcpStream;
 mod support;
 
@@ -36,8 +37,8 @@ where
     b.collect().await.map(|c| c.to_bytes())
 }
 
-fn tcp_connect(addr: &SocketAddr) -> impl Future<Output = std::io::Result<TcpStream>> {
-    TcpStream::connect(*addr)
+async fn tcp_connect(addr: &SocketAddr) -> std::io::Result<TokioIo<TcpStream>> {
+    TcpStream::connect(*addr).await.map(TokioIo::new)
 }
 
 struct HttpInfo {
@@ -312,7 +313,7 @@ macro_rules! test {
                 req.headers_mut().append("Host", HeaderValue::from_str(&host).unwrap());
             }
 
-            let (mut sender, conn) = builder.handshake(stream).await?;
+            let (mut sender, conn) = builder.handshake(TokioIo::new(stream)).await?;
 
             tokio::task::spawn(async move {
                 if let Err(err) = conn.await {
@@ -1339,7 +1340,7 @@ mod conn {
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
     use http_body_util::{BodyExt, Empty, StreamBody};
     use hyper::rt::Timer;
-    use tokio::io::{AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf};
+    use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
     use hyper::body::{Body, Frame};
@@ -1349,7 +1350,7 @@ mod conn {
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
 
-    use support::{TokioExecutor, TokioTimer};
+    use support::{TokioExecutor, TokioIo, TokioTimer};
 
     fn setup_logger() {
         let _ = pretty_env_logger::try_init();
@@ -1773,7 +1774,7 @@ mod conn {
         }
 
         let parts = conn.into_parts();
-        let mut io = parts.io;
+        let io = parts.io;
         let buf = parts.read_buf;
 
         assert_eq!(buf, b"foobar=ready"[..]);
@@ -1785,6 +1786,7 @@ mod conn {
         }))
         .unwrap_err();
 
+        let mut io = io.tcp.inner();
         let mut vec = vec![];
         rt.block_on(io.write_all(b"foo=bar")).unwrap();
         rt.block_on(io.read_to_end(&mut vec)).unwrap();
@@ -1861,7 +1863,7 @@ mod conn {
         }
 
         let parts = conn.into_parts();
-        let mut io = parts.io;
+        let io = parts.io;
         let buf = parts.read_buf;
 
         assert_eq!(buf, b"foobar=ready"[..]);
@@ -1874,6 +1876,7 @@ mod conn {
         }))
         .unwrap_err();
 
+        let mut io = io.tcp.inner();
         let mut vec = vec![];
         rt.block_on(io.write_all(b"foo=bar")).unwrap();
         rt.block_on(io.read_to_end(&mut vec)).unwrap();
@@ -1895,6 +1898,7 @@ mod conn {
                 tokio::select! {
                     res = listener.accept() => {
                         let (stream, _) = res.unwrap();
+                        let stream = TokioIo::new(stream);
 
                         let service = service_fn(|_:Request<hyper::body::Incoming>| future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new())));
 
@@ -2077,7 +2081,7 @@ mod conn {
 
         // Spawn an HTTP2 server that reads the whole body and responds
         tokio::spawn(async move {
-            let sock = listener.accept().await.unwrap().0;
+            let sock = TokioIo::new(listener.accept().await.unwrap().0);
             hyper::server::conn::http2::Builder::new(TokioExecutor)
                 .timer(TokioTimer)
                 .serve_connection(
@@ -2166,7 +2170,7 @@ mod conn {
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), StatusCode::OK);
 
-        let mut upgraded = hyper::upgrade::on(res).await.unwrap();
+        let mut upgraded = TokioIo::new(hyper::upgrade::on(res).await.unwrap());
 
         let mut vec = vec![];
         upgraded.read_to_end(&mut vec).await.unwrap();
@@ -2264,7 +2268,7 @@ mod conn {
         );
     }
 
-    async fn drain_til_eof<T: AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {
+    async fn drain_til_eof<T: tokio::io::AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {
         let mut buf = [0u8; 1024];
         loop {
             let n = sock.read(&mut buf).await?;
@@ -2276,11 +2280,11 @@ mod conn {
     }
 
     struct DebugStream {
-        tcp: TcpStream,
+        tcp: TokioIo<TcpStream>,
         shutdown_called: bool,
     }
 
-    impl AsyncWrite for DebugStream {
+    impl hyper::rt::Write for DebugStream {
         fn poll_shutdown(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
@@ -2305,11 +2309,11 @@ mod conn {
         }
     }
 
-    impl AsyncRead for DebugStream {
+    impl hyper::rt::Read for DebugStream {
         fn poll_read(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-            buf: &mut ReadBuf<'_>,
+            buf: hyper::rt::ReadBufCursor<'_>,
         ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
         }

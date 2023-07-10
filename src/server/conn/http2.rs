@@ -5,8 +5,8 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
@@ -51,7 +51,7 @@ impl<I, B, S, E> Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ConnExec<S::Future, B>,
@@ -75,7 +75,7 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin + 'static,
+    I: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ConnExec<S::Future, B>,
@@ -255,7 +255,7 @@ impl<E> Builder<E> {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite + Unpin,
+        I: Read + Write + Unpin,
         E: Http2ConnExec<S::Future, Bd>,
     {
         let proto = proto::h2::Server::new(

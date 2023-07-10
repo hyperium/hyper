@@ -45,8 +45,8 @@ use std::fmt;
 use std::io;
 use std::marker::Unpin;
 
+use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::oneshot;
 #[cfg(any(feature = "http1", feature = "http2"))]
 use tracing::trace;
@@ -122,7 +122,7 @@ impl Upgraded {
     #[cfg(any(feature = "http1", feature = "http2", test))]
     pub(super) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: Read + Write + Unpin + Send + 'static,
     {
         Upgraded {
             io: Rewind::new_buffered(Box::new(io), read_buf),
@@ -133,7 +133,7 @@ impl Upgraded {
     ///
     /// On success, returns the downcasted parts. On error, returns the
     /// `Upgraded` back.
-    pub fn downcast<T: AsyncRead + AsyncWrite + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
+    pub fn downcast<T: Read + Write + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
         match io.__hyper_downcast() {
             Ok(t) => Ok(Parts {
@@ -148,17 +148,17 @@ impl Upgraded {
     }
 }
 
-impl AsyncRead for Upgraded {
+impl Read for Upgraded {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        buf: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
     }
 }
 
-impl AsyncWrite for Upgraded {
+impl Write for Upgraded {
     fn poll_write(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
@@ -265,13 +265,13 @@ impl StdError for UpgradeExpected {}
 
 // ===== impl Io =====
 
-pub(super) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
+pub(super) trait Io: Read + Write + Unpin + 'static {
     fn __hyper_type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for T {}
+impl<T: Read + Write + Unpin + 'static> Io for T {}
 
 impl dyn Io + Send {
     fn __hyper_is<T: Io>(&self) -> bool {
@@ -340,7 +340,9 @@ mod tests {
     fn upgraded_downcast() {
         let upgraded = Upgraded::new(Mock, Bytes::new());
 
-        let upgraded = upgraded.downcast::<std::io::Cursor<Vec<u8>>>().unwrap_err();
+        let upgraded = upgraded
+            .downcast::<crate::common::io::Compat<std::io::Cursor<Vec<u8>>>>()
+            .unwrap_err();
 
         upgraded.downcast::<Mock>().unwrap();
     }
@@ -348,17 +350,17 @@ mod tests {
     // TODO: replace with tokio_test::io when it can test write_buf
     struct Mock;
 
-    impl AsyncRead for Mock {
+    impl Read for Mock {
         fn poll_read(
             self: Pin<&mut Self>,
             _cx: &mut task::Context<'_>,
-            _buf: &mut ReadBuf<'_>,
+            _buf: ReadBufCursor<'_>,
         ) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_read")
         }
     }
 
-    impl AsyncWrite for Mock {
+    impl Write for Mock {
         fn poll_write(
             self: Pin<&mut Self>,
             _: &mut task::Context<'_>,

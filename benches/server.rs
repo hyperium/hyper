@@ -3,6 +3,8 @@
 
 extern crate test;
 
+mod support;
+
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::sync::mpsc;
@@ -38,10 +40,11 @@ macro_rules! bench_server {
                 rt.spawn(async move {
                     loop {
                         let (stream, _) = listener.accept().await.expect("accept");
+                        let io = support::TokioIo::new(stream);
 
                         http1::Builder::new()
                             .serve_connection(
-                                stream,
+                                io,
                                 service_fn(|_| async {
                                     Ok::<_, hyper::Error>(
                                         Response::builder()

@@ -22,8 +22,8 @@ use h2::{RecvStream, SendStream};
 use http::header::{HeaderName, HeaderValue};
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use hyper::rt::Timer;
-use support::{TokioExecutor, TokioTimer};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+use hyper::rt::{Read as AsyncRead, Write as AsyncWrite};
+use support::{TokioExecutor, TokioIo, TokioTimer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
 
@@ -975,6 +975,7 @@ async fn expect_continue_waits_for_body_poll() {
     });
 
     let (socket, _) = listener.accept().await.expect("accept");
+    let socket = TokioIo::new(socket);
 
     http1::Builder::new()
         .serve_connection(
@@ -1154,6 +1155,7 @@ async fn disable_keep_alive_mid_request() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     let srv = http1::Builder::new().serve_connection(socket, HelloWorld);
     future::try_select(srv, rx1)
         .then(|r| match r {
@@ -1201,7 +1203,7 @@ async fn disable_keep_alive_post_request() {
     let dropped2 = dropped.clone();
     let (socket, _) = listener.accept().await.unwrap();
     let transport = DebugStream {
-        stream: socket,
+        stream: TokioIo::new(socket),
         _debug: dropped2,
     };
     let server = http1::Builder::new().serve_connection(transport, HelloWorld);
@@ -1229,6 +1231,7 @@ async fn empty_parse_eof_does_not_return_error() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(socket, HelloWorld)
         .await
@@ -1245,6 +1248,7 @@ async fn nonempty_parse_eof_returns_error() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(socket, HelloWorld)
         .await
@@ -1268,6 +1272,7 @@ async fn http1_allow_half_close() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .half_close(true)
         .serve_connection(
@@ -1295,6 +1300,7 @@ async fn disconnect_after_reading_request_before_responding() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .half_close(false)
         .serve_connection(
@@ -1326,6 +1332,7 @@ async fn returning_1xx_response_is_error() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(
             socket,
@@ -1390,6 +1397,7 @@ async fn header_read_timeout_slow_writes() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     let conn = http1::Builder::new()
         .timer(TokioTimer)
         .header_read_timeout(Duration::from_secs(5))
@@ -1465,6 +1473,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     let conn = http1::Builder::new()
         .timer(TokioTimer)
         .header_read_timeout(Duration::from_secs(5))
@@ -1511,6 +1520,7 @@ async fn upgrades() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     let conn = http1::Builder::new().serve_connection(
         socket,
         service_fn(|_| {
@@ -1529,7 +1539,7 @@ async fn upgrades() {
     // wait so that we don't write until other side saw 101 response
     rx.await.unwrap();
 
-    let mut io = parts.io;
+    let mut io = parts.io.inner();
     io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
     io.read_to_end(&mut vec).await.unwrap();
@@ -1564,6 +1574,7 @@ async fn http_connect() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     let conn = http1::Builder::new().serve_connection(
         socket,
         service_fn(|_| {
@@ -1581,7 +1592,7 @@ async fn http_connect() {
     // wait so that we don't write until other side saw 101 response
     rx.await.unwrap();
 
-    let mut io = parts.io;
+    let mut io = parts.io.inner();
     io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
     io.read_to_end(&mut vec).await.unwrap();
@@ -1634,6 +1645,7 @@ async fn upgrades_new() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(socket, svc)
         .with_upgrades()
@@ -1646,10 +1658,10 @@ async fn upgrades_new() {
     read_101_rx.await.unwrap();
 
     let upgraded = on_upgrade.await.expect("on_upgrade");
-    let parts = upgraded.downcast::<TkTcpStream>().unwrap();
+    let parts = upgraded.downcast::<TokioIo<TkTcpStream>>().unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
-    let mut io = parts.io;
+    let mut io = parts.io.inner();
     io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
     io.read_to_end(&mut vec).await.unwrap();
@@ -1668,6 +1680,7 @@ async fn upgrades_ignored() {
 
         loop {
             let (socket, _) = listener.accept().await.unwrap();
+            let socket = TokioIo::new(socket);
             tokio::task::spawn(async move {
                 http1::Builder::new()
                     .serve_connection(socket, svc)
@@ -1738,6 +1751,7 @@ async fn http_connect_new() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(socket, svc)
         .with_upgrades()
@@ -1750,10 +1764,10 @@ async fn http_connect_new() {
     read_200_rx.await.unwrap();
 
     let upgraded = on_upgrade.await.expect("on_upgrade");
-    let parts = upgraded.downcast::<TkTcpStream>().unwrap();
+    let parts = upgraded.downcast::<TokioIo<TkTcpStream>>().unwrap();
     assert_eq!(parts.read_buf, "eagerly optimistic");
 
-    let mut io = parts.io;
+    let mut io = parts.io.inner();
     io.write_all(b"foo=bar").await.unwrap();
     let mut vec = vec![];
     io.read_to_end(&mut vec).await.unwrap();
@@ -1799,7 +1813,7 @@ async fn h2_connect() {
         let on_upgrade = hyper::upgrade::on(req);
 
         tokio::spawn(async move {
-            let mut upgraded = on_upgrade.await.expect("on_upgrade");
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
             upgraded.write_all(b"Bread?").await.unwrap();
 
             let mut vec = vec![];
@@ -1818,6 +1832,7 @@ async fn h2_connect() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http2::Builder::new(TokioExecutor)
         .serve_connection(socket, svc)
         //.with_upgrades()
@@ -1891,7 +1906,7 @@ async fn h2_connect_multiplex() {
                 assert!(upgrade_res.expect_err("upgrade cancelled").is_canceled());
                 return;
             }
-            let mut upgraded = upgrade_res.expect("upgrade successful");
+            let mut upgraded = TokioIo::new(upgrade_res.expect("upgrade successful"));
 
             upgraded.write_all(b"Bread?").await.unwrap();
 
@@ -1927,6 +1942,7 @@ async fn h2_connect_multiplex() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http2::Builder::new(TokioExecutor)
         .serve_connection(socket, svc)
         //.with_upgrades()
@@ -1978,7 +1994,7 @@ async fn h2_connect_large_body() {
         let on_upgrade = hyper::upgrade::on(req);
 
         tokio::spawn(async move {
-            let mut upgraded = on_upgrade.await.expect("on_upgrade");
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
             upgraded.write_all(b"Bread?").await.unwrap();
 
             let mut vec = vec![];
@@ -1999,6 +2015,7 @@ async fn h2_connect_large_body() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http2::Builder::new(TokioExecutor)
         .serve_connection(socket, svc)
         //.with_upgrades()
@@ -2049,7 +2066,7 @@ async fn h2_connect_empty_frames() {
         let on_upgrade = hyper::upgrade::on(req);
 
         tokio::spawn(async move {
-            let mut upgraded = on_upgrade.await.expect("on_upgrade");
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
             upgraded.write_all(b"Bread?").await.unwrap();
 
             let mut vec = vec![];
@@ -2068,6 +2085,7 @@ async fn h2_connect_empty_frames() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http2::Builder::new(TokioExecutor)
         .serve_connection(socket, svc)
         //.with_upgrades()
@@ -2090,6 +2108,7 @@ async fn parse_errors_send_4xx_response() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(socket, HelloWorld)
         .await
@@ -2112,6 +2131,7 @@ async fn illegal_request_length_returns_400_response() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .serve_connection(socket, HelloWorld)
         .await
@@ -2152,6 +2172,7 @@ async fn max_buf_size() {
     });
 
     let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
     http1::Builder::new()
         .max_buf_size(MAX)
         .serve_connection(socket, HelloWorld)
@@ -2166,6 +2187,7 @@ async fn graceful_shutdown_before_first_request_no_block() {
 
     tokio::spawn(async move {
         let socket = listener.accept().await.unwrap().0;
+        let socket = TokioIo::new(socket);
 
         let future = http1::Builder::new().serve_connection(socket, HelloWorld);
         pin!(future);
@@ -2407,6 +2429,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
     });
 
     let (socket, _) = listener.accept().await.expect("accept");
+    let socket = TokioIo::new(socket);
 
     let err = http2::Builder::new(TokioExecutor)
         .timer(TokioTimer)
@@ -2425,6 +2448,7 @@ async fn http2_keep_alive_with_responsive_client() {
 
     tokio::spawn(async move {
         let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
 
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
@@ -2435,7 +2459,7 @@ async fn http2_keep_alive_with_responsive_client() {
             .expect("serve_connection");
     });
 
-    let tcp = connect_async(addr).await;
+    let tcp = TokioIo::new(connect_async(addr).await);
     let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
         .handshake(tcp)
         .await
@@ -2488,6 +2512,7 @@ async fn http2_keep_alive_count_server_pings() {
 
     tokio::spawn(async move {
         let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
 
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
@@ -2871,6 +2896,7 @@ impl ServeOptions {
                         tokio::select! {
                             res = listener.accept() => {
                                 let (stream, _) = res.unwrap();
+                                let stream = TokioIo::new(stream);
 
                                 tokio::task::spawn(async move {
                                     let msg_tx = msg_tx.clone();
@@ -2922,7 +2948,7 @@ fn has_header(msg: &str, name: &str) -> bool {
     msg[..n].contains(name)
 }
 
-fn tcp_bind(addr: &SocketAddr) -> ::tokio::io::Result<TcpListener> {
+fn tcp_bind(addr: &SocketAddr) -> std::io::Result<TcpListener> {
     let std_listener = StdTcpListener::bind(addr).unwrap();
     std_listener.set_nonblocking(true).unwrap();
     TcpListener::from_std(std_listener)
@@ -3001,7 +3027,7 @@ impl<T: AsyncRead + Unpin, D: Unpin> AsyncRead for DebugStream<T, D> {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        buf: hyper::rt::ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.stream).poll_read(cx, buf)
     }
@@ -3058,9 +3084,11 @@ impl TestClient {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().expect("uri has no port");
 
-        let stream = TkTcpStream::connect(format!("{}:{}", host, port))
-            .await
-            .unwrap();
+        let stream = TokioIo::new(
+            TkTcpStream::connect(format!("{}:{}", host, port))
+                .await
+                .unwrap(),
+        );
 
         if self.http2_only {
             let (mut sender, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
