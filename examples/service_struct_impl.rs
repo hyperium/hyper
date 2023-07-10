@@ -10,6 +10,10 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Mutex;
 
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
 type Counter = i32;
 
 #[tokio::main]
@@ -21,11 +25,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
                 .serve_connection(
-                    stream,
+                    io,
                     Svc {
                         counter: Mutex::new(81818),
                     },

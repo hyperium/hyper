@@ -1,13 +1,13 @@
+use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::{Buf, Bytes};
 use h2::{Reason, RecvStream, SendStream};
 use http::header::{HeaderName, CONNECTION, TE, TRAILER, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
 use std::error::Error as StdError;
-use std::io::{self, Cursor, IoSlice};
+use std::io::{Cursor, IoSlice};
 use std::mem;
 use std::task::Context;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, trace, warn};
 
 use crate::body::Body;
@@ -271,15 +271,15 @@ where
     buf: Bytes,
 }
 
-impl<B> AsyncRead for H2Upgraded<B>
+impl<B> Read for H2Upgraded<B>
 where
     B: Buf,
 {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        read_buf: &mut ReadBuf<'_>,
-    ) -> Poll<Result<(), io::Error>> {
+        mut read_buf: ReadBufCursor<'_>,
+    ) -> Poll<Result<(), std::io::Error>> {
         if self.buf.is_empty() {
             self.buf = loop {
                 match ready!(self.recv_stream.poll_data(cx)) {
@@ -295,7 +295,7 @@ where
                         return Poll::Ready(match e.reason() {
                             Some(Reason::NO_ERROR) | Some(Reason::CANCEL) => Ok(()),
                             Some(Reason::STREAM_CLOSED) => {
-                                Err(io::Error::new(io::ErrorKind::BrokenPipe, e))
+                                Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, e))
                             }
                             _ => Err(h2_to_io_error(e)),
                         })
@@ -311,7 +311,7 @@ where
     }
 }
 
-impl<B> AsyncWrite for H2Upgraded<B>
+impl<B> Write for H2Upgraded<B>
 where
     B: Buf,
 {
@@ -319,7 +319,7 @@ where
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
         buf: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
+    ) -> Poll<Result<usize, std::io::Error>> {
         if buf.is_empty() {
             return Poll::Ready(Ok(0));
         }
@@ -344,7 +344,7 @@ where
         Poll::Ready(Err(h2_to_io_error(
             match ready!(self.send_stream.poll_reset(cx)) {
                 Ok(Reason::NO_ERROR) | Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
-                    return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
+                    return Poll::Ready(Err(std::io::ErrorKind::BrokenPipe.into()))
                 }
                 Ok(reason) => reason.into(),
                 Err(e) => e,
@@ -352,14 +352,14 @@ where
         )))
     }
 
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
         Poll::Ready(Ok(()))
     }
 
     fn poll_shutdown(
         mut self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
+    ) -> Poll<Result<(), std::io::Error>> {
         if self.send_stream.write(&[], true).is_ok() {
             return Poll::Ready(Ok(()));
         }
@@ -368,7 +368,7 @@ where
             match ready!(self.send_stream.poll_reset(cx)) {
                 Ok(Reason::NO_ERROR) => return Poll::Ready(Ok(())),
                 Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
-                    return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
+                    return Poll::Ready(Err(std::io::ErrorKind::BrokenPipe.into()))
                 }
                 Ok(reason) => reason.into(),
                 Err(e) => e,
@@ -377,11 +377,11 @@ where
     }
 }
 
-fn h2_to_io_error(e: h2::Error) -> io::Error {
+fn h2_to_io_error(e: h2::Error) -> std::io::Error {
     if e.is_io() {
         e.into_io().unwrap()
     } else {
-        io::Error::new(io::ErrorKind::Other, e)
+        std::io::Error::new(std::io::ErrorKind::Other, e)
     }
 }
 
@@ -408,7 +408,7 @@ where
         unsafe { self.as_inner_unchecked().poll_reset(cx) }
     }
 
-    fn write(&mut self, buf: &[u8], end_of_stream: bool) -> Result<(), io::Error> {
+    fn write(&mut self, buf: &[u8], end_of_stream: bool) -> Result<(), std::io::Error> {
         let send_buf = SendBuf::Cursor(Cursor::new(buf.into()));
         unsafe {
             self.as_inner_unchecked()

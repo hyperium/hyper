@@ -6,8 +6,8 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use http::{Request, Response};
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
@@ -37,7 +37,7 @@ impl<B> Clone for SendRequest<B> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + 'static + Unpin,
+    T: Read + Write + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -64,7 +64,7 @@ pub async fn handshake<E, T, B>(
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -193,7 +193,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 impl<T, B, E> Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + Unpin + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -215,7 +215,7 @@ where
 
 impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + 'static + Unpin,
+    T: Read + Write + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
     E: ExecutorClient<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -227,7 +227,7 @@ where
 
 impl<T, B, E> Future for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + 'static + Unpin,
     B::Data: Send,
     E: Unpin,
@@ -398,7 +398,7 @@ where
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>>
     where
-        T: AsyncRead + AsyncWrite + Unpin + 'static,
+        T: Read + Write + Unpin + 'static,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn Error + Send + Sync>>,

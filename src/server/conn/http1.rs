@@ -5,8 +5,8 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use bytes::Bytes;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
@@ -85,7 +85,7 @@ impl<I, B, S> Connection<I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -172,7 +172,7 @@ impl<I, B, S> Future for Connection<I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin + 'static,
+    I: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -333,10 +333,10 @@ impl Builder {
     /// # use hyper::{body::Incoming, Request, Response};
     /// # use hyper::service::Service;
     /// # use hyper::server::conn::http1::Builder;
-    /// # use tokio::io::{AsyncRead, AsyncWrite};
+    /// # use hyper::rt::{Read, Write};
     /// # async fn run<I, S>(some_io: I, some_service: S)
     /// # where
-    /// #     I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    /// #     I: Read + Write + Unpin + Send + 'static,
     /// #     S: Service<hyper::Request<Incoming>, Response=hyper::Response<Incoming>> + Send + 'static,
     /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     /// #     S::Future: Send,
@@ -356,7 +356,7 @@ impl Builder {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         S::ResBody: 'static,
         <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite + Unpin,
+        I: Read + Write + Unpin,
     {
         let mut conn = proto::Conn::new(io);
         conn.set_timer(self.timer.clone());
@@ -413,7 +413,7 @@ mod upgrades {
     where
         S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite + Unpin,
+        I: Read + Write + Unpin,
         B: Body + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {
@@ -430,7 +430,7 @@ mod upgrades {
     where
         S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        I: Read + Write + Unpin + Send + 'static,
         B: Body + 'static,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {

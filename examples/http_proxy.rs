@@ -12,6 +12,10 @@ use hyper::{Method, Request, Response};
 
 use tokio::net::{TcpListener, TcpStream};
 
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
 // To try this example:
 // 1. cargo run --example http_proxy
 // 2. config http_proxy in command line
@@ -28,12 +32,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
                 .preserve_header_case(true)
                 .title_case_headers(true)
-                .serve_connection(stream, service_fn(proxy))
+                .serve_connection(io, service_fn(proxy))
                 .with_upgrades()
                 .await
             {
@@ -88,11 +93,12 @@ async fn proxy(
         let addr = format!("{}:{}", host, port);
 
         let stream = TcpStream::connect(addr).await.unwrap();
+        let io = TokioIo::new(stream);
 
         let (mut sender, conn) = Builder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
-            .handshake(stream)
+            .handshake(io)
             .await?;
         tokio::task::spawn(async move {
             if let Err(err) = conn.await {
@@ -123,9 +129,10 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
-async fn tunnel(mut upgraded: Upgraded, addr: String) -> std::io::Result<()> {
+async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
     // Connect to remote server
     let mut server = TcpStream::connect(addr).await?;
+    let mut upgraded = TokioIo::new(upgraded);
 
     // Proxying data
     let (from_client, from_server) =
