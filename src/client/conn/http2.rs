@@ -34,6 +34,11 @@ impl<B> Clone for SendRequest<B> {
 ///
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
+///
+/// # Note
+///
+/// Attempting to poll a Connection after it has been dropped may lead
+/// to undefined behavior and is not recommended.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
@@ -236,10 +241,6 @@ where
 {
     type Output = crate::Result<()>;
 
-    /// # Note
-    ///
-    /// Attempting to poll a Connection after it has been dropped may lead
-    /// to undefined behavior and is not recommended
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.inner.1).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
