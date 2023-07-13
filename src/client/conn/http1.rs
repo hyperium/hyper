@@ -49,8 +49,9 @@ pub struct Parts<T> {
 ///
 /// # Note
 ///
-/// Attempting to poll a Connection after it has been dropped may lead
-/// to undefined behavior and is not recommended.
+/// If a [`Connection`] is dropped before `Connection::poll()` has returned
+/// `Poll:Ready()`, the socket will be abruptly closed in whatever state that
+/// it was in.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B>
 where

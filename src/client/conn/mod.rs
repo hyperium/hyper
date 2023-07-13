@@ -24,21 +24,29 @@
 //! # where
 //! #     I: Read + Write + Unpin + Send + 'static,
 //! # {
+//! //  Establishes an HTTP/1 handshake over the TCP stream, and retrieves the
+//! //  the associated SendRequest and Connection structs
 //! let (mut request_sender, connection) = conn::http1::handshake(tcp).await?;
 //!
-//! // spawn a task to poll the connection and drive the HTTP state
+//! // Spawns a task to poll the connection and drive the HTTP state
 //! tokio::spawn(async move {
+//!     // connection must be awaited or request_sender will not do anything
 //!     if let Err(e) = connection.await {
 //!         eprintln!("Error in connection: {}", e);
 //!     }
 //! });
 //!
+//! // Builds a Request
 //! let request = Request::builder()
 //!     // We need to manually add the host header because SendRequest does not
 //!     .header("Host", "example.com")
 //!     .method("GET")
 //!     .body(Empty::<Bytes>::new())?;
 //!
+//! // Sends a request and awaits a response
+//! // Might return an Error if connection was not ready
+//! // Also might return an Error if request_sender received an error while
+//! // waiting for a response
 //! let response = request_sender.send_request(request).await?;
 //! assert!(response.status() == StatusCode::OK);
 //!
