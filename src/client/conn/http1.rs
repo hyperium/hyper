@@ -255,6 +255,10 @@ where
 {
     type Output = crate::Result<()>;
 
+    /// # Note
+    ///
+    /// Attempting to poll a Connection after it has been dropped may lead
+    /// to undefined behavior and is not recommended
     fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
