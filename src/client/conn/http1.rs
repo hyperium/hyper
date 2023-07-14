@@ -249,7 +249,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: Read + Write + Unpin + Send + 'static,
-    B: Body + Send + 'static,
+    B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {

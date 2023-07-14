@@ -194,7 +194,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B, E> Connection<T, B, E>
 where
     T: Read + Write + Unpin + 'static,
-    B: Body + Unpin + Send + 'static,
+    B: Body + Unpin + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
     E: ExecutorClient<B, T> + Unpin,
