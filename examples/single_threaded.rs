@@ -324,7 +324,6 @@ where
     }
 }
 
-
 struct IOTypeNotSend {
     _marker: PhantomData<*const ()>,
     stream: TokioIo<TcpStream>,
