@@ -92,7 +92,7 @@ nightly = []
 
 [package.metadata.docs.rs]
 features = ["ffi", "full"]
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi"]
+rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi", "--generate-link-to-definition"]
 
 [package.metadata.playground]
 features = ["full"]
