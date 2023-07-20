@@ -468,8 +468,18 @@ ffi_fn! {
         let headers = non_null!(&mut *headers ?= hyper_code::HYPERE_INVALID_ARG);
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
-                headers.headers.insert(&name, value);
-                headers.orig_casing.insert(name.clone(), orig_name.clone());
+                match headers.headers.try_insert(&name, value) {
+                    Err(http::CapacityOverflow { .. }) => {
+                        return hyper_code::HYPERE_HEADERS_CAPACITY;
+                    }
+                    Ok(_) => {},
+                }
+                match headers.orig_casing.try_insert(name.clone(), orig_name.clone()) {
+                    Err(http::CapacityOverflow { .. }) => {
+                        return hyper_code::HYPERE_HEADERS_CAPACITY;
+                    }
+                    Ok(()) => {},
+                }
                 headers.orig_order.insert(name);
                 hyper_code::HYPERE_OK
             }
@@ -488,8 +498,18 @@ ffi_fn! {
 
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
-                headers.headers.append(&name, value);
-                headers.orig_casing.append(&name, orig_name.clone());
+                match headers.headers.try_append(&name, value) {
+                    Err(http::CapacityOverflow { .. }) => {
+                        return hyper_code::HYPERE_HEADERS_CAPACITY;
+                    }
+                    Ok(_) => {},
+                }
+                match headers.orig_casing.try_append(&name, orig_name.clone()) {
+                    Err(http::CapacityOverflow { .. }) => {
+                        return hyper_code::HYPERE_HEADERS_CAPACITY;
+                    }
+                    Ok(()) => {},
+                }
                 headers.orig_order.append(name);
                 hyper_code::HYPERE_OK
             }

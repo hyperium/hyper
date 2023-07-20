@@ -224,7 +224,7 @@ impl Http1Transaction for Server {
 
         let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
-        headers.reserve(headers_len);
+        headers_op!(headers.try_reserve(headers_len), capacity);
 
         for header in &headers_indices[..headers_len] {
             // SAFETY: array is valid up to `headers_len`
@@ -295,7 +295,7 @@ impl Http1Transaction for Server {
             }
 
             if let Some(ref mut header_case_map) = header_case_map {
-                header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                headers_op!(header_case_map.try_append(&name, slice.slice(header.name.0..header.name.1)), capacity);
             }
 
             #[cfg(feature = "ffi")]
@@ -303,7 +303,7 @@ impl Http1Transaction for Server {
                 header_order.append(&name);
             }
 
-            headers.append(name, value);
+            headers_op!(headers.try_append(name, value), capacity);
         }
 
         if is_te && !is_te_chunked {
@@ -1020,7 +1020,7 @@ impl Http1Transaction for Client {
                 None
             };
 
-            headers.reserve(headers_len);
+            headers_op!(headers.try_reserve(headers_len), capacity);
             for header in &headers_indices[..headers_len] {
                 // SAFETY: array is valid up to `headers_len`
                 let header = unsafe { &*header.as_ptr() };
@@ -1039,7 +1039,7 @@ impl Http1Transaction for Client {
                 }
 
                 if let Some(ref mut header_case_map) = header_case_map {
-                    header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                    headers_op!(header_case_map.try_append(&name, slice.slice(header.name.0..header.name.1)), capacity);
                 }
 
                 #[cfg(feature = "ffi")]
@@ -1047,7 +1047,12 @@ impl Http1Transaction for Client {
                     header_order.append(&name);
                 }
 
-                headers.append(name, value);
+                match headers.try_append(name.clone(), value) {
+                    Err(http::CapacityOverflow { .. }) =>  {
+                        return Err(Parse::TooLarge);
+                    },
+                    Ok(_) => {}
+                }
             }
 
             let mut extensions = http::Extensions::default();
@@ -1152,7 +1157,7 @@ impl Http1Transaction for Client {
         extend(dst, b"\r\n");
         msg.head.headers.clear(); //TODO: remove when switching to drain()
 
-        Ok(body)
+        body
     }
 
     fn on_error(_err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
@@ -1233,12 +1238,12 @@ impl Client {
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
         }
     }
-    fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
+    fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> crate::Result<Encoder> {
         let body = if let Some(body) = body {
             body
         } else {
             head.headers.remove(header::TRANSFER_ENCODING);
-            return Encoder::length(0);
+            return Ok(Encoder::length(0));
         };
 
         // HTTP/1.0 doesn't know about chunked
@@ -1262,19 +1267,19 @@ impl Client {
             }
 
             return if let Some(len) = existing_con_len {
-                Encoder::length(len)
+                Ok(Encoder::length(len))
             } else if let BodyLength::Known(len) = body {
-                set_content_length(headers, len)
+                Ok(headers_op!(set_content_length(headers, len), error))
             } else {
                 // HTTP/1.0 client requests without a content-length
                 // cannot have any body at all.
-                Encoder::length(0)
+                Ok(Encoder::length(0))
             };
         }
 
         // If the user set a transfer-encoding, respect that. Let's just
         // make sure `chunked` is the final encoding.
-        let encoder = match headers.entry(header::TRANSFER_ENCODING) {
+        let encoder = match headers_op!(headers.try_entry(header::TRANSFER_ENCODING), error) {
             Entry::Occupied(te) => {
                 should_remove_con_len = true;
                 if headers::is_chunked(te.iter()) {
@@ -1314,7 +1319,7 @@ impl Client {
                     match head.subject.0 {
                         Method::GET | Method::HEAD | Method::CONNECT => Some(Encoder::length(0)),
                         _ => {
-                            te.insert(HeaderValue::from_static("chunked"));
+                            headers_op!(te.try_insert(HeaderValue::from_static("chunked")), capacity);
                             Some(Encoder::chunked())
                         }
                     }
@@ -1330,7 +1335,7 @@ impl Client {
             if should_remove_con_len && existing_con_len.is_some() {
                 headers.remove(header::CONTENT_LENGTH);
             }
-            return encoder;
+            return Ok(encoder);
         }
 
         // User didn't set transfer-encoding, AND we know body length,
@@ -1342,11 +1347,11 @@ impl Client {
             unreachable!("BodyLength::Unknown would set chunked");
         };
 
-        set_content_length(headers, len)
+        Ok(headers_op!(set_content_length(headers, len), error))
     }
 }
 
-fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
+fn set_content_length(headers: &mut HeaderMap, len: u64) -> Result<Encoder, http::Error> {
     // At this point, there should not be a valid Content-Length
     // header. However, since we'll be indexing in anyways, we can
     // warn the user if there was an existing illegal header.
@@ -1355,7 +1360,7 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
     // so perhaps only do that while the user is developing/testing.
 
     if cfg!(debug_assertions) {
-        match headers.entry(header::CONTENT_LENGTH) {
+        match headers.try_entry(header::CONTENT_LENGTH)? {
             Entry::Occupied(mut cl) => {
                 // Internal sanity check, we should have already determined
                 // that the header was illegal before calling this function.
@@ -1366,16 +1371,16 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
                 error!("user provided content-length header was invalid");
 
                 cl.insert(HeaderValue::from(len));
-                Encoder::length(len)
+                Ok(Encoder::length(len))
             }
             Entry::Vacant(cl) => {
-                cl.insert(HeaderValue::from(len));
-                Encoder::length(len)
+                cl.try_insert(HeaderValue::from(len))?;
+                Ok(Encoder::length(len))
             }
         }
     } else {
-        headers.insert(header::CONTENT_LENGTH, HeaderValue::from(len));
-        Encoder::length(len)
+        headers.try_insert(header::CONTENT_LENGTH, HeaderValue::from(len))?;
+        Ok(Encoder::length(len))
     }
 }
 
@@ -2391,10 +2396,10 @@ mod tests {
 
         let mut head = MessageHead::default();
         head.headers
-            .insert("content-length", HeaderValue::from_static("10"));
+            .try_insert("content-length", HeaderValue::from_static("10")).unwrap();
         head.headers
-            .insert("content-type", HeaderValue::from_static("application/json"));
-        head.headers.insert("*-*", HeaderValue::from_static("o_o"));
+            .try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
+        head.headers.try_insert("*-*", HeaderValue::from_static("o_o")).unwrap();
 
         let mut vec = Vec::new();
         Client::encode(
@@ -2419,12 +2424,12 @@ mod tests {
 
         let mut head = MessageHead::default();
         head.headers
-            .insert("content-length", HeaderValue::from_static("10"));
+            .try_insert("content-length", HeaderValue::from_static("10")).unwrap();
         head.headers
-            .insert("content-type", HeaderValue::from_static("application/json"));
+            .try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        orig_headers.try_insert(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap();
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2453,12 +2458,12 @@ mod tests {
 
         let mut head = MessageHead::default();
         head.headers
-            .insert("content-length", HeaderValue::from_static("10"));
+            .try_insert("content-length", HeaderValue::from_static("10")).unwrap();
         head.headers
-            .insert("content-type", HeaderValue::from_static("application/json"));
+            .try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        orig_headers.try_insert(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap();
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2508,11 +2513,11 @@ mod tests {
 
         let mut head = MessageHead::default();
         head.headers
-            .insert("content-length", HeaderValue::from_static("10"));
+            .try_insert("content-length", HeaderValue::from_static("10")).unwrap();
         head.headers
-            .insert("content-type", HeaderValue::from_static("application/json"));
+            .try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
         head.headers
-            .insert("weird--header", HeaderValue::from_static(""));
+            .try_insert("weird--header", HeaderValue::from_static("")).unwrap();
 
         let mut vec = Vec::new();
         Server::encode(
@@ -2540,12 +2545,12 @@ mod tests {
 
         let mut head = MessageHead::default();
         head.headers
-            .insert("content-length", HeaderValue::from_static("10"));
+            .try_insert("content-length", HeaderValue::from_static("10")).unwrap();
         head.headers
-            .insert("content-type", HeaderValue::from_static("application/json"));
+            .try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        orig_headers.try_insert(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap();
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2574,12 +2579,12 @@ mod tests {
 
         let mut head = MessageHead::default();
         head.headers
-            .insert("content-length", HeaderValue::from_static("10"));
+            .try_insert("content-length", HeaderValue::from_static("10")).unwrap();
         head.headers
-            .insert("content-type", HeaderValue::from_static("application/json"));
+            .try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        orig_headers.try_insert(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap();
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2636,9 +2641,9 @@ mod tests {
     fn test_write_headers_orig_case_empty_value() {
         let mut headers = HeaderMap::new();
         let name = http::header::HeaderName::from_static("x-empty");
-        headers.insert(&name, "".parse().expect("parse empty"));
+        headers.try_insert(&name, "".parse().expect("parse empty")).unwrap();
         let mut orig_cases = HeaderCaseMap::default();
-        orig_cases.insert(name, Bytes::from_static(b"X-EmptY"));
+        orig_cases.try_insert(name, Bytes::from_static(b"X-EmptY")).unwrap();
 
         let mut dst = Vec::new();
         super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
@@ -2653,12 +2658,12 @@ mod tests {
     fn test_write_headers_orig_case_multiple_entries() {
         let mut headers = HeaderMap::new();
         let name = http::header::HeaderName::from_static("x-empty");
-        headers.insert(&name, "a".parse().unwrap());
-        headers.append(&name, "b".parse().unwrap());
+        headers.try_insert(&name, "a".parse().unwrap()).unwrap();
+        headers.try_append(&name, "b".parse().unwrap()).unwrap();
 
         let mut orig_cases = HeaderCaseMap::default();
-        orig_cases.insert(name.clone(), Bytes::from_static(b"X-Empty"));
-        orig_cases.append(name, Bytes::from_static(b"X-EMPTY"));
+        orig_cases.try_insert(name.clone(), Bytes::from_static(b"X-Empty")).unwrap();
+        orig_cases.try_append(name, Bytes::from_static(b"X-EMPTY")).unwrap();
 
         let mut dst = Vec::new();
         super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
@@ -2793,8 +2798,8 @@ mod tests {
 
         let mut head = MessageHead::default();
         let mut headers = HeaderMap::new();
-        headers.insert("content-length", HeaderValue::from_static("10"));
-        headers.insert("content-type", HeaderValue::from_static("application/json"));
+        headers.try_insert("content-length", HeaderValue::from_static("10")).unwrap();
+        headers.try_insert("content-type", HeaderValue::from_static("application/json")).unwrap();
 
         b.iter(|| {
             let mut vec = Vec::new();

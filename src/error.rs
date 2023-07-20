@@ -65,6 +65,9 @@ pub(super) enum Kind {
     /// A general error from h2.
     #[cfg(feature = "http2")]
     Http2,
+
+    /// Error with HTTP request or response
+    Http(http::Error),
 }
 
 #[derive(Debug)]
@@ -518,6 +521,7 @@ impl Error {
             Kind::User(User::DispatchGone) => "dispatch task is gone",
             #[cfg(feature = "ffi")]
             Kind::User(User::AbortedByCallback) => "operation aborted by an application callback",
+            Kind::Http(ref _e) => "FIXME: HTTP request or response building error"
         }
     }
 }
@@ -556,6 +560,20 @@ impl StdError for Error {
 impl From<Parse> for Error {
     fn from(err: Parse) -> Error {
         Error::new(Kind::Parse(err))
+    }
+}
+
+#[doc(hidden)]
+impl From<http::CapacityOverflow> for Error {
+    fn from(err: http::CapacityOverflow) -> Error {
+        Error::new(Kind::Http(err.into()))
+    }
+}
+
+#[doc(hidden)]
+impl From<http::Error> for Error {
+    fn from(err: http::Error) -> Error {
+        Error::new(Kind::Http(err))
     }
 }
 
@@ -627,6 +645,34 @@ impl fmt::Display for TimedOut {
 }
 
 impl StdError for TimedOut {}
+
+macro_rules! headers_op {
+    ($op:expr, capacity) => {
+        match $op {
+            Err(http::CapacityOverflow { .. }) =>  {
+                return Err(crate::error::Parse::TooLarge.into());
+            },
+            Ok(r) => r,
+        }
+    };
+    ($op:expr, error) => {
+        match $op {
+            Err(e) if e.is::<http::CapacityOverflow>() =>  {
+                return Err(crate::error::Parse::TooLarge.into());
+            },
+            Err(e) if e.is::<http::header::InvalidHeaderName>() =>  {
+                // FIXME!
+                return Err(crate::error::Parse::Internal.into());
+            },
+            Err(_e) =>  {
+                // FIXME!
+                return Err(crate::error::Parse::Internal.into());
+            },
+            Ok(r) => r,
+        }
+    };
+}
+
 
 #[cfg(test)]
 mod tests {
