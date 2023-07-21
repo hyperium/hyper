@@ -1,5 +1,15 @@
 #![deny(warnings)]
-
+/// This example shows how to use hyper with a single-threaded runtime.
+/// This example exists also to test if the code compiles when `Body` is not `Send`.
+///
+/// This Example includes HTTP/1 and HTTP/2 server and client.
+///
+/// In HTTP/1 it is possible to use a `!Send` `Body`type.
+/// In HTTP/2 it is possible to use a `!Send` `Body` and `IO` type.
+///
+/// The `Body` and `IOTypeNotSend` structs in this example are `!Send`
+///
+/// For HTTP/2 this only works if the `Executor` trait is implemented without the `Send` bound.
 use http_body_util::BodyExt;
 use hyper::server::conn::http2;
 use std::cell::Cell;
