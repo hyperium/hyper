@@ -277,7 +277,7 @@ where
     ///
     /// If not set, hyper will use a default.
     ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;

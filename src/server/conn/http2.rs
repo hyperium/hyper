@@ -118,7 +118,7 @@ impl<E> Builder<E> {
     ///
     /// If not set, hyper will use a default.
     ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
@@ -173,7 +173,7 @@ impl<E> Builder<E> {
     ///
     /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
+    /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
         self.h2_builder.max_concurrent_streams = max.into();
         self
