@@ -203,13 +203,13 @@ impl Body for Incoming {
                         }
                         Some(Err(e)) => {
                             return match e.reason() {
-                                // These reasons should cause stop of body reading, but don't fail it.
+                                // These reasons should cause the body reading to stop, but not fail it.
                                 // The same logic as for `Read for H2Upgraded` is applied here.
                                 Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => {
                                     Poll::Ready(None)
                                 }
                                 _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
-                            }
+                            };
                         }
                         None => {
                             *data_done = true;
