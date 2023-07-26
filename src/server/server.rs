@@ -629,6 +629,14 @@ impl<E> Builder<AddrIncoming, E> {
         self.incoming.set_sleep_on_errors(val);
         self
     }
+
+    /// Returns the local address that the server will be bound to.
+    ///
+    /// This might be useful when knowing the address is required before calling `Builder::serve`,
+    /// but the address is not otherwise available (for e.g. when binding to port 0).
+    pub fn local_addr(&self) -> SocketAddr {
+        self.incoming.local_addr()
+    }
 }
 
 // Used by `Server` to optionally watch a `Connection` future.
