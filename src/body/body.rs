@@ -323,7 +323,12 @@ impl Body {
                     ping.record_data(bytes.len());
                     Poll::Ready(Some(Ok(bytes)))
                 }
-                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                Some(Err(e)) => match e.reason() {
+                    // These reasons should cause stop of body reading, but nor fail it.
+                    // The same logic as for `AsyncRead for H2Upgraded` is applied here.
+                    Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => Poll::Ready(None),
+                    _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                },
                 None => Poll::Ready(None),
             },
 
