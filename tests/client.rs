@@ -1122,12 +1122,14 @@ mod dispatch_impl {
     use http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
+    use tokio::sync::Notify;
     use tokio_test::block_on;
 
     use super::support;
     use hyper::body::HttpBody;
     use hyper::client::connect::{capture_connection, Connected, Connection, HttpConnector};
-    use hyper::Client;
+    use hyper::service::{make_service_fn, service_fn};
+    use hyper::{Client, Response, Server};
 
     #[test]
     fn drop_body_before_eof_closes_connection() {
@@ -1356,6 +1358,94 @@ mod dispatch_impl {
         futures_util::pin_mut!(t);
         let close = closes.into_future().map(|(opt, _)| opt.expect("closes"));
         future::select(t, close).await;
+    }
+
+    #[tokio::test]
+    async fn http2_connection_waiters_are_not_canceled_when_outstanding_connecting_task_is_canceled(
+    ) {
+        let _ = pretty_env_logger::try_init();
+
+        let server = Server::bind(&([127, 0, 0, 1], 0).into())
+            .http2_only(true)
+            .serve(make_service_fn(|_| async move {
+                Ok::<_, hyper::Error>(service_fn(|_req| {
+                    future::ok::<_, hyper::Error>(Response::new(Body::empty()))
+                }))
+            }));
+        let addr = server.local_addr();
+        let (shdn_tx, shdn_rx) = oneshot::channel();
+        tokio::task::spawn(async move {
+            server
+                .with_graceful_shutdown(async move {
+                    let _ = shdn_rx.await;
+                })
+                .await
+                .expect("server")
+        });
+        let first_req_cancelled = Arc::new(Notify::new());
+
+        #[derive(Clone)]
+        struct SlowConnector(Arc<Notify>);
+
+        impl hyper::service::Service<Uri> for SlowConnector {
+            type Response = TcpStream;
+            type Error = io::Error;
+            type Future = Pin<Box<dyn Future<Output = Result<TcpStream, io::Error>> + Send>>;
+
+            fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
+                Poll::Ready(Ok(()))
+            }
+
+            fn call(&mut self, dst: Uri) -> Self::Future {
+                // A connector that connects after the first request has been cancelled
+                let first_req_cancelled_rx = self.0.clone();
+                Box::pin(async move {
+                    first_req_cancelled_rx.notified().await;
+                    tcp_connect(&dst.authority().unwrap().to_string().parse().unwrap()).await
+                })
+            }
+        }
+
+        let client = Client::builder()
+            .http2_only(true)
+            .build(SlowConnector(first_req_cancelled.clone()));
+
+        // This first request starts the connecting task
+        let req = Request::builder()
+            .uri(&*format!("http://{}/a", addr))
+            .body(Body::empty())
+            .unwrap();
+        let mut res1 = client.request(req).inspect(|_| {
+            unreachable!("first request should be cancelled before connection is stablished")
+        });
+
+        // This second request waits for the connecting task to finish
+        // instead of starting a new connecting task
+        let req = Request::builder()
+            .uri(&*format!("http://{}/a", addr))
+            .body(Body::empty())
+            .unwrap();
+        let mut res2 = client.request(req);
+
+        // Prime the requests
+        assert!(
+            future::poll_fn(|ctx| Poll::Ready(Pin::new(&mut res1).poll(ctx).is_pending())).await
+        );
+        assert!(
+            future::poll_fn(|ctx| Poll::Ready(Pin::new(&mut res2).poll(ctx).is_pending())).await
+        );
+
+        // The `ResponseFuture` that drives the connecting task is dropped, but
+        // the connecting task should finish in the background
+        drop(res1);
+        first_req_cancelled.notify_one();
+
+        // The second response has not been canceled and finishes successfully
+        tokio::time::timeout(Duration::from_millis(100), res2)
+            .await
+            .expect("response to second request should resolve within 100ms")
+            .expect("response to second request should resolve successfully");
+        let _ = shdn_tx.send(());
     }
 
     #[tokio::test]
