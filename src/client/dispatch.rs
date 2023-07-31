@@ -1,10 +1,10 @@
 #[cfg(feature = "http2")]
 use std::future::Future;
 
+use futures_channel::{mpsc, oneshot};
 use http::{Request, Response};
 use http_body::Body;
 use pin_project_lite::pin_project;
-use tokio::sync::{mpsc, oneshot};
 use tracing::trace;
 
 use crate::{
@@ -19,7 +19,7 @@ pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, 
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
 
 pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
-    let (tx, rx) = mpsc::unbounded_channel();
+    let (tx, rx) = mpsc::unbounded();
     let (giver, taker) = want::new();
     let tx = Sender {
         buffered_once: false,
@@ -94,9 +94,9 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
+            .unbounded_send(Envelope(Some((val, Callback::Retry(Some(tx))))))
             .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
 
     pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
@@ -105,9 +105,9 @@ impl<T, U> Sender<T, U> {
         }
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
+            .unbounded_send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
             .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
 
     #[cfg(feature = "http2")]
@@ -133,17 +133,17 @@ impl<T, U> UnboundedSender<T, U> {
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
+            .unbounded_send(Envelope(Some((val, Callback::Retry(Some(tx))))))
             .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
 
     pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
-            .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
+            .unbounded_send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
             .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
     }
 }
 
@@ -167,7 +167,8 @@ impl<T, U> Receiver<T, U> {
         &mut self,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<(T, Callback<T, U>)>> {
-        match self.inner.poll_recv(cx) {
+        use futures_util::Stream;
+        match std::pin::Pin::new(&mut self.inner).poll_next(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
@@ -186,9 +187,8 @@ impl<T, U> Receiver<T, U> {
 
     #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        use futures_util::FutureExt;
-        match self.inner.recv().now_or_never() {
-            Some(Some(mut env)) => env.0.take(),
+        match self.inner.try_next() {
+            Ok(Some(mut env)) => env.0.take(),
             _ => None,
         }
     }
@@ -249,16 +249,16 @@ impl<T, U> Callback<T, U> {
     #[cfg(feature = "http2")]
     pub(crate) fn is_canceled(&self) -> bool {
         match *self {
-            Callback::Retry(Some(ref tx)) => tx.is_closed(),
-            Callback::NoRetry(Some(ref tx)) => tx.is_closed(),
+            Callback::Retry(Some(ref tx)) => tx.is_canceled(),
+            Callback::NoRetry(Some(ref tx)) => tx.is_canceled(),
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn poll_canceled(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
         match *self {
-            Callback::Retry(Some(ref mut tx)) => tx.poll_closed(cx),
-            Callback::NoRetry(Some(ref mut tx)) => tx.poll_closed(cx),
+            Callback::Retry(Some(ref mut tx)) => tx.poll_canceled(cx),
+            Callback::NoRetry(Some(ref mut tx)) => tx.poll_canceled(cx),
             _ => unreachable!(),
         }
     }

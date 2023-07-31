@@ -47,7 +47,7 @@ use std::marker::Unpin;
 
 use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
-use tokio::sync::oneshot;
+use futures_channel::oneshot;
 #[cfg(any(feature = "http1", feature = "http2"))]
 use tracing::trace;
 
