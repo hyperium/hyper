@@ -16,6 +16,8 @@ use crate::common::{
     exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, task, Future, Lazy, Pin,
     Poll,
 };
+#[cfg(feature = "http2")]
+use crate::ext::Protocol;
 use crate::rt::Executor;
 
 use super::conn;
@@ -278,7 +280,13 @@ where
                 origin_form(req.uri_mut());
             }
         } else if req.method() == Method::CONNECT {
+            #[cfg(not(feature = "http2"))]
             authority_form(req.uri_mut());
+
+            #[cfg(feature = "http2")]
+            if req.extensions().get::<Protocol>().is_none() {
+                authority_form(req.uri_mut());
+            }
         }
 
         let mut res = match pooled.send_request_retryable(req).await {

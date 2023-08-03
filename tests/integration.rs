@@ -306,6 +306,48 @@ t! {
 }
 
 t! {
+    h2_connect_authority_form,
+    client:
+        request:
+            method: "CONNECT",
+            // http2 should strip scheme and path from URI (authority-form)
+            uri: "/connect_normal",
+            ;
+        response:
+            ;
+    server:
+        request:
+            method: "CONNECT",
+            // path should be stripped
+            uri: "",
+            ;
+        response:
+            ;
+}
+
+t! {
+    h2_only;
+    h2_extended_connect_full_uri,
+    client:
+        request:
+            method: "CONNECT",
+            // http2 should not strip scheme and path from URI for extended CONNECT requests
+            uri: "/connect_extended",
+            protocol: "the-bread-protocol",
+            ;
+        response:
+            ;
+    server:
+        request:
+            method: "CONNECT",
+            // path should not be stripped
+            uri: "/connect_extended",
+            ;
+        response:
+            ;
+}
+
+t! {
     get_2,
     client:
         request:
