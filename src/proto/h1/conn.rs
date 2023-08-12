@@ -75,6 +75,8 @@ where
                 // We assume a modern world where the remote speaks HTTP/1.1.
                 // If they tell us otherwise, we'll downgrade in `read_head`.
                 version: Version::HTTP_11,
+                #[cfg(feature = "client")]
+                awaiting_100_continue: false,
             },
             _marker: PhantomData,
         }
@@ -101,6 +103,18 @@ where
     #[cfg(feature = "client")]
     pub(crate) fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.io.set_read_buf_exact_size(sz);
+    }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn set_awaiting_100_continue(&mut self, awaiting: bool) {
+        self.state.awaiting_100_continue = awaiting;
+    }
+
+    pub(crate) fn is_awaiting_100_continue(&self) -> bool {
+        #[cfg(feature = "client")]
+        return self.state.awaiting_100_continue;
+        #[cfg(not(feature = "client"))]
+        return false;
     }
 
     pub(crate) fn set_write_strategy_flatten(&mut self) {
@@ -219,6 +233,8 @@ where
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
+                #[cfg(feature = "client")]
+                awaiting_100_continue: &mut self.state.awaiting_100_continue,
             }
         )) {
             Ok(msg) => msg,
@@ -842,6 +858,8 @@ struct State {
     upgrade: Option<crate::upgrade::Pending>,
     /// Either HTTP/1.0 or 1.1 connection
     version: Version,
+    #[cfg(feature = "client")]
+    awaiting_100_continue: bool,
 }
 
 #[derive(Debug)]
