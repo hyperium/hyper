@@ -6,7 +6,7 @@ use crate::rt::{Read, Write};
 use bytes::Bytes;
 use futures_channel::mpsc::{Receiver, Sender};
 use futures_channel::{mpsc, oneshot};
-use futures_util::future::{Either, Fuse, FutureExt as _};
+use futures_util::future::{Either, FusedFuture, FutureExt as _};
 use futures_util::stream::{StreamExt as _, StreamFuture};
 use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
@@ -143,7 +143,10 @@ where
     } else {
         (Either::Right(conn), ping::disabled())
     };
-    let conn: ConnMapErr<T, B> = ConnMapErr { conn };
+    let conn: ConnMapErr<T, B> = ConnMapErr {
+        conn,
+        is_terminated: false,
+    };
 
     exec.execute_h2_future(H2ClientFuture::Task {
         task: ConnTask::new(conn, conn_drop_rx, cancel_tx),
@@ -218,6 +221,8 @@ pin_project! {
     {
         #[pin]
         conn: Either<Conn<T, B>, Connection<Compat<T>, SendBuf<<B as Body>::Data>>>,
+        #[pin]
+        is_terminated: bool,
     }
 }
 
@@ -229,10 +234,26 @@ where
     type Output = Result<(), ()>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
-        self.project()
-            .conn
-            .poll(cx)
-            .map_err(|e| debug!("connection error: {}", e))
+        let mut this = self.project();
+
+        if *this.is_terminated {
+            return Poll::Pending;
+        }
+        let polled = this.conn.poll(cx);
+        if polled.is_ready() {
+            *this.is_terminated = true;
+        }
+        polled.map_err(|e| debug!("connection error: {}", e))
+    }
+}
+
+impl<T, B> FusedFuture for ConnMapErr<T, B>
+where
+    B: Body,
+    T: Read + Write + Unpin,
+{
+    fn is_terminated(&self) -> bool {
+        self.is_terminated
     }
 }
 
@@ -245,11 +266,11 @@ pin_project! {
         T: Unpin,
     {
         #[pin]
-        drop_rx: Fuse<StreamFuture<Receiver<Never>>>,
+        drop_rx: StreamFuture<Receiver<Never>>,
         #[pin]
         cancel_tx: Option<oneshot::Sender<Never>>,
         #[pin]
-        conn: Fuse<ConnMapErr<T, B>>,
+        conn: ConnMapErr<T, B>,
     }
 }
 
@@ -264,9 +285,9 @@ where
         cancel_tx: oneshot::Sender<Never>,
     ) -> Self {
         Self {
-            drop_rx: drop_rx.fuse(),
+            drop_rx,
             cancel_tx: Some(cancel_tx),
-            conn: conn.fuse(),
+            conn,
         }
     }
 }
@@ -281,17 +302,21 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
-        if let Poll::Ready(_) = this.conn.poll_unpin(cx) {
-            // ok or err, the `conn` has finished.
-            return Poll::Ready(());
-        };
+        if !this.conn.is_terminated() {
+            if let Poll::Ready(_) = this.conn.poll_unpin(cx) {
+                // ok or err, the `conn` has finished.
+                return Poll::Ready(());
+            };
+        }
 
-        if let Poll::Ready(_) = this.drop_rx.poll_unpin(cx) {
-            // mpsc has been dropped, hopefully polling
-            // the connection some more should start shutdown
-            // and then close.
-            trace!("send_request dropped, starting conn shutdown");
-            drop(this.cancel_tx.take().expect("ConnTask Future polled twice"));
+        if !this.drop_rx.is_terminated() {
+            if let Poll::Ready(_) = this.drop_rx.poll_unpin(cx) {
+                // mpsc has been dropped, hopefully polling
+                // the connection some more should start shutdown
+                // and then close.
+                trace!("send_request dropped, starting conn shutdown");
+                drop(this.cancel_tx.take().expect("ConnTask Future polled twice"));
+            }
         };
 
         Poll::Pending
