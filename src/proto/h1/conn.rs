@@ -297,7 +297,7 @@ where
                         let (reading, chunk) = if decoder.is_eof() {
                             debug!("incoming body completed");
                             (
-                                Reading::KeepAlive,
+                                Reading::Closed,
                                 if !slice.is_empty() {
                                     Some(Ok(slice))
                                 } else {
