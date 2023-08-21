@@ -6,4 +6,4 @@ hyper. It is possible that an older compiler can work, but that is not
 guaranteed. We try to increase the MSRV responsibly, only when a significant
 new feature is needed.
 
-The current MSRV is: **1.56**.
+The current MSRV is: **1.63**.
