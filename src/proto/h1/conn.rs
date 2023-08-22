@@ -257,7 +257,7 @@ where
             if !T::should_read_first() {
                 self.try_keep_alive(cx);
             }
-        } else if msg.expect_continue {
+        } else if msg.expect_continue && msg.head.version.gt(&Version::HTTP_10) {
             self.state.reading = Reading::Continue(Decoder::new(msg.decode));
             wants = wants.add(Wants::EXPECT);
         } else {
