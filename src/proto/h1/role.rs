@@ -1059,7 +1059,7 @@ impl Http1Transaction for Client {
             if let Some(reason) = reason {
                 // Safety: httparse ensures that only valid reason phrase bytes are present in this
                 // field.
-                let reason = unsafe { crate::ext::ReasonPhrase::from_bytes_unchecked(reason) };
+                let reason = crate::ext::ReasonPhrase::from_bytes_unchecked(reason);
                 extensions.insert(reason);
             }
 
