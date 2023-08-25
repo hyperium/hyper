@@ -74,6 +74,7 @@ impl Server<AddrIncoming, ()> {
     ///
     /// This method will panic if binding to the address fails. For a method
     /// to bind to an address and return a `Result`, see `Server::try_bind`.
+    #[cfg(not(target_os = "wasi"))]
     pub fn bind(addr: &SocketAddr) -> Builder<AddrIncoming> {
         let incoming = AddrIncoming::new(addr).unwrap_or_else(|e| {
             panic!("error binding to {}: {}", addr, e);
@@ -82,6 +83,7 @@ impl Server<AddrIncoming, ()> {
     }
 
     /// Tries to bind to the provided address, and returns a [`Builder`](Builder).
+    #[cfg(not(target_os = "wasi"))]
     pub fn try_bind(addr: &SocketAddr) -> crate::Result<Builder<AddrIncoming>> {
         AddrIncoming::new(addr).map(Server::builder)
     }
