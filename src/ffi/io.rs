@@ -31,6 +31,9 @@ ffi_fn! {
     ///
     /// The read and write functions of this transport should be set with
     /// `hyper_io_set_read` and `hyper_io_set_write`.
+    ///
+    /// To avoid a memory leak, the IO handle must eventually be consumed by
+    /// `hyper_io_free` or `hyper_clientconn_handshake`.
     fn hyper_io_new() -> *mut hyper_io {
         Box::into_raw(Box::new(hyper_io {
             read: read_noop,
@@ -41,10 +44,10 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Free an unused `hyper_io *`.
+    /// Free an IO handle.
     ///
-    /// This is typically only useful if you aren't going to pass ownership
-    /// of the IO handle to hyper, such as with `hyper_clientconn_handshake()`.
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_clientconn_handshake`.
     fn hyper_io_free(io: *mut hyper_io) {
         drop(non_null!(Box::from_raw(io) ?= ()));
     }

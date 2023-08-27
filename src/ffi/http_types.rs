@@ -37,13 +37,19 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 
 ffi_fn! {
     /// Construct a new HTTP request.
+    ///
+    /// To avoid a memory leak, the request must eventually be consumed by
+    /// `hyper_request_free` or `hyper_clientconn_send`.
     fn hyper_request_new() -> *mut hyper_request {
         Box::into_raw(Box::new(hyper_request(Request::new(IncomingBody::empty()))))
     } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
-    /// Free an HTTP request if not going to send it on a client.
+    /// Free an HTTP request.
+    ///
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_clientconn_send`.
     fn hyper_request_free(req: *mut hyper_request) {
         drop(non_null!(Box::from_raw(req) ?= ()));
     }
@@ -238,7 +244,9 @@ impl hyper_request {
 // ===== impl hyper_response =====
 
 ffi_fn! {
-    /// Free an HTTP response after using it.
+    /// Free an HTTP response.
+    ///
+    /// This should be used for any response once it is no longer needed.
     fn hyper_response_free(resp: *mut hyper_response) {
         drop(non_null!(Box::from_raw(resp) ?= ()));
     }
@@ -312,6 +320,9 @@ ffi_fn! {
     /// Take ownership of the body of this response.
     ///
     /// It is safe to free the response even after taking ownership of its body.
+    ///
+    /// To avoid a memory leak, the body must eventually be consumed by
+    /// `hyper_body_free`, `hyper_body_foreach`, or `hyper_request_set_body`.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
         let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), IncomingBody::empty());
         Box::into_raw(Box::new(hyper_body(body)))

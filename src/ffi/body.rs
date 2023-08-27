@@ -32,13 +32,19 @@ ffi_fn! {
     /// Create a new "empty" body.
     ///
     /// If not configured, this body acts as an empty payload.
+    ///
+    /// To avoid a memory leak, the body must eventually be consumed by
+    /// `hyper_body_free`, `hyper_body_foreach`, or `hyper_request_set_body`.
     fn hyper_body_new() -> *mut hyper_body {
         Box::into_raw(Box::new(hyper_body(IncomingBody::ffi())))
     } ?= ptr::null_mut()
 }
 
 ffi_fn! {
-    /// Free a `hyper_body *`.
+    /// Free a body.
+    ///
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_body_foreach` or `hyper_request_set_body`.
     fn hyper_body_free(body: *mut hyper_body) {
         drop(non_null!(Box::from_raw(body) ?= ()));
     }
@@ -52,6 +58,10 @@ ffi_fn! {
     /// - `HYPER_TASK_BUF`: Success, and more data was received.
     /// - `HYPER_TASK_ERROR`: An error retrieving the data.
     /// - `HYPER_TASK_EMPTY`: The body has finished streaming data.
+    ///
+    /// To avoid a memory leak, the task must eventually be consumed by
+    /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+    /// without subsequently being given back by `hyper_executor_poll`.
     ///
     /// This does not consume the `hyper_body *`, so it may be used to again.
     /// However, it MUST NOT be used or freed until the related task completes.
@@ -80,6 +90,10 @@ ffi_fn! {
 ffi_fn! {
     /// Return a task that will poll the body and execute the callback with each
     /// body chunk that is received.
+    ///
+    /// To avoid a memory leak, the task must eventually be consumed by
+    /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+    /// without subsequently being given back by `hyper_executor_poll`.
     ///
     /// The `hyper_buf` pointer is only a borrowed reference, it cannot live outside
     /// the execution of the callback. You must make a copy to retain it.
@@ -194,7 +208,10 @@ ffi_fn! {
     /// Create a new `hyper_buf *` by copying the provided bytes.
     ///
     /// This makes an owned copy of the bytes, so the `buf` argument can be
-    /// freed or changed afterwards.
+    /// freed (with `hyper_buf_free`) or changed afterwards.
+    ///
+    /// To avoid a memory leak, the copy must eventually be consumed by
+    /// `hyper_buf_free`.
     ///
     /// This returns `NULL` if allocating a new buffer fails.
     fn hyper_buf_copy(buf: *const u8, len: size_t) -> *mut hyper_buf {
@@ -227,6 +244,8 @@ ffi_fn! {
 
 ffi_fn! {
     /// Free this buffer.
+    ///
+    /// This should be used for any buffer once it is no longer needed.
     fn hyper_buf_free(buf: *mut hyper_buf) {
         drop(unsafe { Box::from_raw(buf) });
     }

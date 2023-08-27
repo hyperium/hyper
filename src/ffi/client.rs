@@ -44,9 +44,14 @@ ffi_fn! {
     /// and options.
     ///
     /// Both the `io` and the `options` are consumed in this function call.
+    /// They should not be used or freed afterwards.
     ///
-    /// The returned `hyper_task *` must be polled with an executor until the
-    /// handshake completes, at which point the value can be taken.
+    /// The returned task must be polled with an executor until the handshake
+    /// completes, at which point the value can be taken.
+    ///
+    /// To avoid a memory leak, the task must eventually be consumed by
+    /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+    /// without subsequently being given back by `hyper_executor_poll`.
     fn hyper_clientconn_handshake(io: *mut hyper_io, options: *mut hyper_clientconn_options) -> *mut hyper_task {
         let options = non_null! { Box::from_raw(options) ?= ptr::null_mut() };
         let io = non_null! { Box::from_raw(io) ?= ptr::null_mut() };
@@ -86,8 +91,15 @@ ffi_fn! {
 ffi_fn! {
     /// Send a request on the client connection.
     ///
+    /// This consumes the request. You should not use or free the request
+    /// afterwards.
+    ///
     /// Returns a task that needs to be polled until it is ready. When ready, the
     /// task yields a `hyper_response *`.
+    ///
+    /// To avoid a memory leak, the task must eventually be consumed by
+    /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+    /// without subsequently being given back by `hyper_executor_poll`.
     fn hyper_clientconn_send(conn: *mut hyper_clientconn, req: *mut hyper_request) -> *mut hyper_task {
         let mut req = non_null! { Box::from_raw(req) ?= ptr::null_mut() };
 
@@ -109,6 +121,8 @@ ffi_fn! {
 
 ffi_fn! {
     /// Free a `hyper_clientconn *`.
+    ///
+    /// This should be used for any connection once it is no longer needed.
     fn hyper_clientconn_free(conn: *mut hyper_clientconn) {
         drop(non_null! { Box::from_raw(conn) ?= () });
     }
@@ -124,6 +138,9 @@ unsafe impl AsTaskType for hyper_clientconn {
 
 ffi_fn! {
     /// Creates a new set of HTTP clientconn options to be used in a handshake.
+    ///
+    /// To avoid a memory leak, the options must eventually be consumed by
+    /// `hyper_clientconn_options_free` or `hyper_clientconn_handshake`.
     fn hyper_clientconn_options_new() -> *mut hyper_clientconn_options {
         Box::into_raw(Box::new(hyper_clientconn_options {
             http1_allow_obsolete_multiline_headers_in_responses: false,
@@ -156,7 +173,10 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Free a `hyper_clientconn_options *`.
+    /// Free a set of HTTP clientconn options.
+    ///
+    /// This should only be used if the options aren't consumed by
+    /// `hyper_clientconn_handshake`.
     fn hyper_clientconn_options_free(opts: *mut hyper_clientconn_options) {
         drop(non_null! { Box::from_raw(opts) ?= () });
     }
