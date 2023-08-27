@@ -229,11 +229,17 @@ const char *hyper_version(void);
  Create a new "empty" body.
 
  If not configured, this body acts as an empty payload.
+
+ To avoid a memory leak, the body must eventually be consumed by
+ `hyper_body_free`, `hyper_body_foreach`, or `hyper_request_set_body`.
  */
 struct hyper_body *hyper_body_new(void);
 
 /*
- Free a `hyper_body *`.
+ Free a body.
+
+ This should only be used if the request isn't consumed by
+ `hyper_body_foreach` or `hyper_request_set_body`.
  */
 void hyper_body_free(struct hyper_body *body);
 
@@ -246,6 +252,10 @@ void hyper_body_free(struct hyper_body *body);
  - `HYPER_TASK_ERROR`: An error retrieving the data.
  - `HYPER_TASK_EMPTY`: The body has finished streaming data.
 
+ To avoid a memory leak, the task must eventually be consumed by
+ `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+ without subsequently being given back by `hyper_executor_poll`.
+
  This does not consume the `hyper_body *`, so it may be used to again.
  However, it MUST NOT be used or freed until the related task completes.
  */
@@ -254,6 +264,10 @@ struct hyper_task *hyper_body_data(struct hyper_body *body);
 /*
  Return a task that will poll the body and execute the callback with each
  body chunk that is received.
+
+ To avoid a memory leak, the task must eventually be consumed by
+ `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+ without subsequently being given back by `hyper_executor_poll`.
 
  The `hyper_buf` pointer is only a borrowed reference, it cannot live outside
  the execution of the callback. You must make a copy to retain it.
@@ -299,7 +313,10 @@ void hyper_body_set_data_func(struct hyper_body *body, hyper_body_data_callback 
  Create a new `hyper_buf *` by copying the provided bytes.
 
  This makes an owned copy of the bytes, so the `buf` argument can be
- freed or changed afterwards.
+ freed (with `hyper_buf_free`) or changed afterwards.
+
+ To avoid a memory leak, the copy must eventually be consumed by
+ `hyper_buf_free`.
 
  This returns `NULL` if allocating a new buffer fails.
  */
@@ -323,6 +340,8 @@ size_t hyper_buf_len(const struct hyper_buf *buf);
 
 /*
  Free this buffer.
+
+ This should be used for any buffer once it is no longer needed.
  */
 void hyper_buf_free(struct hyper_buf *buf);
 
@@ -331,9 +350,14 @@ void hyper_buf_free(struct hyper_buf *buf);
  and options.
 
  Both the `io` and the `options` are consumed in this function call.
+ They should not be used or freed afterwards.
 
- The returned `hyper_task *` must be polled with an executor until the
- handshake completes, at which point the value can be taken.
+ The returned task must be polled with an executor until the handshake
+ completes, at which point the value can be taken.
+
+ To avoid a memory leak, the task must eventually be consumed by
+ `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+ without subsequently being given back by `hyper_executor_poll`.
  */
 struct hyper_task *hyper_clientconn_handshake(struct hyper_io *io,
                                               struct hyper_clientconn_options *options);
@@ -341,18 +365,30 @@ struct hyper_task *hyper_clientconn_handshake(struct hyper_io *io,
 /*
  Send a request on the client connection.
 
+ This consumes the request. You should not use or free the request
+ afterwards.
+
  Returns a task that needs to be polled until it is ready. When ready, the
  task yields a `hyper_response *`.
+
+ To avoid a memory leak, the task must eventually be consumed by
+ `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+ without subsequently being given back by `hyper_executor_poll`.
  */
 struct hyper_task *hyper_clientconn_send(struct hyper_clientconn *conn, struct hyper_request *req);
 
 /*
  Free a `hyper_clientconn *`.
+
+ This should be used for any connection once it is no longer needed.
  */
 void hyper_clientconn_free(struct hyper_clientconn *conn);
 
 /*
  Creates a new set of HTTP clientconn options to be used in a handshake.
+
+ To avoid a memory leak, the options must eventually be consumed by
+ `hyper_clientconn_options_free` or `hyper_clientconn_handshake`.
  */
 struct hyper_clientconn_options *hyper_clientconn_options_new(void);
 
@@ -373,7 +409,10 @@ void hyper_clientconn_options_set_preserve_header_order(struct hyper_clientconn_
                                                         int enabled);
 
 /*
- Free a `hyper_clientconn_options *`.
+ Free a set of HTTP clientconn options.
+
+ This should only be used if the options aren't consumed by
+ `hyper_clientconn_handshake`.
  */
 void hyper_clientconn_options_free(struct hyper_clientconn_options *opts);
 
@@ -404,6 +443,8 @@ enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hy
 
 /*
  Frees a `hyper_error`.
+
+ This should be used for any error once it is no longer needed.
  */
 void hyper_error_free(struct hyper_error *err);
 
@@ -424,11 +465,17 @@ size_t hyper_error_print(const struct hyper_error *err, uint8_t *dst, size_t dst
 
 /*
  Construct a new HTTP request.
+
+ To avoid a memory leak, the request must eventually be consumed by
+ `hyper_request_free` or `hyper_clientconn_send`.
  */
 struct hyper_request *hyper_request_new(void);
 
 /*
- Free an HTTP request if not going to send it on a client.
+ Free an HTTP request.
+
+ This should only be used if the request isn't consumed by
+ `hyper_clientconn_send`.
  */
 void hyper_request_free(struct hyper_request *req);
 
@@ -526,7 +573,9 @@ enum hyper_code hyper_request_on_informational(struct hyper_request *req,
                                                void *data);
 
 /*
- Free an HTTP response after using it.
+ Free an HTTP response.
+
+ This should be used for any response once it is no longer needed.
  */
 void hyper_response_free(struct hyper_response *resp);
 
@@ -581,6 +630,9 @@ struct hyper_headers *hyper_response_headers(struct hyper_response *resp);
  Take ownership of the body of this response.
 
  It is safe to free the response even after taking ownership of its body.
+
+ To avoid a memory leak, the body must eventually be consumed by
+ `hyper_body_free`, `hyper_body_foreach`, or `hyper_request_set_body`.
  */
 struct hyper_body *hyper_response_body(struct hyper_response *resp);
 
@@ -624,14 +676,17 @@ enum hyper_code hyper_headers_add(struct hyper_headers *headers,
 
  The read and write functions of this transport should be set with
  `hyper_io_set_read` and `hyper_io_set_write`.
+
+ To avoid a memory leak, the IO handle must eventually be consumed by
+ `hyper_io_free` or `hyper_clientconn_handshake`.
  */
 struct hyper_io *hyper_io_new(void);
 
 /*
- Free an unused `hyper_io *`.
+ Free an IO handle.
 
- This is typically only useful if you aren't going to pass ownership
- of the IO handle to hyper, such as with `hyper_clientconn_handshake()`.
+ This should only be used if the request isn't consumed by
+ `hyper_clientconn_handshake`.
  */
 void hyper_io_free(struct hyper_io *io);
 
@@ -681,18 +736,23 @@ void hyper_io_set_write(struct hyper_io *io, hyper_io_write_callback func);
 
 /*
  Creates a new task executor.
+
+ To avoid a memory leak, the executor must eventually be consumed by
+ `hyper_executor_free`.
  */
 const struct hyper_executor *hyper_executor_new(void);
 
 /*
  Frees an executor and any incomplete tasks still part of it.
+
+ This should be used for any executor once it is no longer needed.
  */
 void hyper_executor_free(const struct hyper_executor *exec);
 
 /*
  Push a task onto the executor.
 
- The executor takes ownership of the task, it should not be accessed
+ The executor takes ownership of the task, which should not be accessed
  again unless returned back to the user with `hyper_executor_poll`.
  */
 enum hyper_code hyper_executor_push(const struct hyper_executor *exec, struct hyper_task *task);
@@ -703,12 +763,20 @@ enum hyper_code hyper_executor_push(const struct hyper_executor *exec, struct hy
 
  If ready, returns a task from the executor that has completed.
 
+ To avoid a memory leak, the task must eventually be consumed by
+ `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+ without subsequently being given back by `hyper_executor_poll`.
+
  If there are no ready tasks, this returns `NULL`.
  */
 struct hyper_task *hyper_executor_poll(const struct hyper_executor *exec);
 
 /*
  Free a task.
+
+ This should only be used if the task isn't consumed by
+ `hyper_clientconn_handshake` or taken ownership of by
+ `hyper_executor_push`.
  */
 void hyper_task_free(struct hyper_task *task);
 
@@ -719,6 +787,11 @@ void hyper_task_free(struct hyper_task *task);
  this task.
 
  Use `hyper_task_type` to determine the type of the `void *` return value.
+
+ To avoid a memory leak, a non-empty return value must eventually be
+ consumed by a function appropriate for its type, one of
+ `hyper_error_free`, `hyper_clientconn_free`, `hyper_response_free`, or
+ `hyper_buf_free`.
  */
 void *hyper_task_value(struct hyper_task *task);
 
@@ -742,11 +815,17 @@ void *hyper_task_userdata(struct hyper_task *task);
 
 /*
  Copies a waker out of the task context.
+
+ To avoid a memory leak, the waker must eventually be consumed by
+ `hyper_waker_free` or `hyper_waker_wake`.
  */
 struct hyper_waker *hyper_context_waker(struct hyper_context *cx);
 
 /*
- Free a waker that hasn't been woken.
+ Free a waker.
+
+ This should only be used if the request isn't consumed by
+ `hyper_waker_wake`.
  */
 void hyper_waker_free(struct hyper_waker *waker);
 
