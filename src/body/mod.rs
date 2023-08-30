@@ -10,9 +10,14 @@
 //! - **The [`Body`](Body) trait** describes all possible bodies.
 //!   hyper allows any body type that implements `Body`, allowing
 //!   applications to have fine-grained control over their streaming.
-//! - **The [`Incoming`](Incoming) concrete type**, which is an implementation of
-//!   `Body`, and returned by hyper as a "receive stream" (so, for server
+//! - **The [`Incoming`](Incoming) concrete type**, which is an implementation
+//!   of `Body`, and returned by hyper as a "receive stream" (so, for server
 //!   requests and client responses).
+//!
+//! There are additional implementations available in [`http-body-util`][],
+//! such as a `Full` or `Empty` body.
+//!
+//! [`http-body-util`]: https://docs.rs/http-body-util
 
 pub use bytes::{Buf, Bytes};
 pub use http_body::Body;
