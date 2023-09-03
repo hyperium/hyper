@@ -42,6 +42,8 @@ futures-util = { version = "0.3", default-features = false, features = ["alloc"]
 
 * [`gateway`](gateway.rs) - A server gateway (reverse proxy) that proxies to the `hello` service above.
 
+* [`graceful_shutdown`](graceful_shutdown.rs) - A server that has a timeout for incoming connections and does graceful connection shutdown.
+
 * [`http_proxy`](http_proxy.rs) - A simple HTTP(S) proxy that handle and upgrade `CONNECT` requests and then proxy data between client and remote server.
 
 * [`multi_server`](multi_server.rs) - A server that listens to two different ports, a different `Service` per port.
