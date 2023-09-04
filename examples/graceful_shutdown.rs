@@ -37,7 +37,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     // Use a 5 second timeout for incoming connections to the server.
     // If a request is in progress when the 5 second timeout elapses,
-    // use a 2 second timeout to timeout processing the final request and graceful shutdown.
+    // use a 2 second timeout for processing the final request and graceful shutdown.
     let connection_timeouts = vec![Duration::from_secs(5), Duration::from_secs(2)];
 
     // Bind to the port and listen for incoming TCP connections
@@ -46,13 +46,8 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     loop {
         // When an incoming TCP connection is received grab a TCP stream for
         // client<->server communication.
-        //
-        // Note, this is a .await point, this loop will loop forever but is not a busy loop. The
-        // .await point allows the Tokio runtime to pull the task off of the thread until the task
-        // has work to do. In this case, a connection arrives on the port we are listening on and
-        // the task is woken up, at which point the task is then put back on a thread, and is
-        // driven forward by the runtime, eventually yielding a TCP stream.
         let (tcp, remote_address) = listener.accept().await?;
+
         // Use an adapter to access something implementing `tokio::io` traits as if they implement
         // `hyper::rt` IO traits.
         let io = TokioIo::new(tcp);
@@ -71,7 +66,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             let conn = http1::Builder::new().serve_connection(io, service_fn(hello));
             pin!(conn);
 
-            // Iterate through the timeouts.  Use tokio::select! to wait on the
+            // Iterate the timeouts.  Use tokio::select! to wait on the
             // result of polling the connection itself,
             // and also on tokio::time::sleep for the current timeout duration.
             for (iter, sleep_duration) in connection_timeouts_clone.iter().enumerate() {
@@ -79,16 +74,17 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 tokio::select! {
                     res = conn.as_mut() => {
                         // Polling the connection returned a result.
-                        // In this case print either the successful or error result for the connection.
+                        // In this case print either the successful or error result for the connection
+                        // and break out of the loop.
                         match res {
                             Ok(()) => println!("after polling conn, no error"),
                             Err(e) =>  println!("error serving connection: {:?}", e),
                         };
                         break;
                     }
-                    // tokio::time::sleep returned a result.
-                    // Call graceful_shutdown on the connection and continue the loop.
                     _ = tokio::time::sleep(*sleep_duration) => {
+                        // tokio::time::sleep returned a result.
+                        // Call graceful_shutdown on the connection and continue the loop.
                         println!("iter = {} got timeout_interval, calling conn.graceful_shutdown", iter);
                         conn.as_mut().graceful_shutdown();
                     }
