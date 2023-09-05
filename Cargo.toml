@@ -126,6 +126,11 @@ path = "examples/gateway.rs"
 required-features = ["full"]
 
 [[example]]
+name = "graceful_shutdown"
+path = "examples/graceful_shutdown.rs"
+required-features = ["full"]
+
+[[example]]
 name = "hello"
 path = "examples/hello.rs"
 required-features = ["full"]
