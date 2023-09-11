@@ -34,9 +34,6 @@ pub(super) enum Kind {
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[cfg(any(feature = "http1", feature = "http2"))]
     Io,
-    /// Error creating a TcpListener.
-    #[cfg(all(feature = "tcp", feature = "server"))]
-    Listen,
     /// User took too long to send headers
     #[cfg(all(feature = "http1", feature = "server"))]
     HeaderTimeout,
@@ -245,11 +242,6 @@ impl Error {
         Error::new(Kind::Io).with(cause)
     }
 
-    #[cfg(all(feature = "server", feature = "tcp"))]
-    pub(super) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
-        Error::new(Kind::Listen).with(cause)
-    }
-
     pub(super) fn new_closed() -> Error {
         Error::new(Kind::ChannelClosed)
     }
@@ -368,8 +360,6 @@ impl Error {
             Kind::UnexpectedMessage => "received unexpected message from connection",
             Kind::ChannelClosed => "channel closed",
             Kind::Canceled => "operation was canceled",
-            #[cfg(all(feature = "server", feature = "tcp"))]
-            Kind::Listen => "error creating server listener",
             #[cfg(all(feature = "http1", feature = "server"))]
             Kind::HeaderTimeout => "read header from client timeout",
             #[cfg(any(feature = "http1", feature = "http2"))]
