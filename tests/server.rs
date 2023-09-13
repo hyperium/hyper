@@ -523,6 +523,7 @@ fn post_with_chunked_body() {
 
 #[test]
 fn post_with_chunked_overflow() {
+    use std::error::Error as _;
     let server = serve();
     let mut req = connect(server.addr());
     req.write_all(
@@ -542,7 +543,7 @@ fn post_with_chunked_overflow() {
     .unwrap();
     req.read(&mut [0; 256]).unwrap();
 
-    let err = server.body_err().to_string();
+    let err = server.body_err().source().unwrap().to_string();
     assert!(
         err.contains("overflow"),
         "error should be overflow: {:?}",

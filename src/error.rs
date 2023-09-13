@@ -8,6 +8,18 @@ pub type Result<T> = std::result::Result<T, Error>;
 type Cause = Box<dyn StdError + Send + Sync>;
 
 /// Represents errors that can occur handling HTTP streams.
+///
+/// # Formatting
+///
+/// The `Display` implementation of this type will only print the details of
+/// this level of error, even though it may have been caused by another error
+/// and contain that error in its source. To print all the relevant
+/// information, including the source chain, using something like
+/// `std::error::Report`, or equivalent 3rd party types.
+///
+/// The contents of the formatted error message of this specific `Error` type
+/// is unspecified. **You must not depend on it.** The wording and details may
+/// change in any version, with the goal of improving error messages.
 pub struct Error {
     inner: Box<ErrorImpl>,
 }
@@ -170,11 +182,6 @@ impl Error {
         self.find_source::<TimedOut>().is_some()
     }
 
-    /// Consumes the error, returning its cause.
-    pub fn into_cause(self) -> Option<Box<dyn StdError + Send + Sync>> {
-        self.inner.cause
-    }
-
     pub(super) fn new(kind: Kind) -> Error {
         Error {
             inner: Box::new(ErrorImpl { kind, cause: None }),
@@ -324,11 +331,6 @@ impl Error {
         }
     }
 
-    /// The error's standalone message, without the message from the source.
-    pub fn message(&self) -> impl fmt::Display + '_ {
-        self.description()
-    }
-
     fn description(&self) -> &str {
         match self.inner.kind {
             Kind::Parse(Parse::Method) => "invalid HTTP method parsed",
@@ -410,11 +412,7 @@ impl fmt::Debug for Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        if let Some(ref cause) = self.inner.cause {
-            write!(f, "{}: {}", self.description(), cause)
-        } else {
-            f.write_str(self.description())
-        }
+        f.write_str(self.description())
     }
 }
 

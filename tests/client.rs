@@ -2318,10 +2318,6 @@ mod conn {
         let error = client.send_request(req).await.unwrap_err();
 
         assert!(error.is_user());
-        assert_eq!(
-            error.to_string(),
-            "dispatch task is gone: user code panicked"
-        );
     }
 
     async fn drain_til_eof<T: tokio::io::AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {
