@@ -1,9 +1,6 @@
 #![deny(warnings)]
 #![warn(rust_2018_idioms)]
 
-#[macro_use]
-extern crate matches;
-
 use std::convert::Infallible;
 use std::fmt;
 use std::future::Future;
@@ -1781,7 +1778,7 @@ mod conn {
         assert!(!io.shutdown_called, "upgrade shouldn't shutdown AsyncWrite");
         rt.block_on(poll_fn(|ctx| {
             let ready = client.poll_ready(ctx);
-            assert_matches!(ready, Poll::Ready(Err(_)));
+            assert!(matches!(ready, Poll::Ready(Err(_))));
             ready
         }))
         .unwrap_err();
@@ -1871,7 +1868,7 @@ mod conn {
 
         rt.block_on(poll_fn(|ctx| {
             let ready = client.poll_ready(ctx);
-            assert_matches!(ready, Poll::Ready(Err(_)));
+            assert!(matches!(ready, Poll::Ready(Err(_))));
             ready
         }))
         .unwrap_err();
