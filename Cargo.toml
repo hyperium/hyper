@@ -75,14 +75,14 @@ full = [
 
 # HTTP versions
 http1 = []
-http2 = ["h2"]
+http2 = ["dep:h2"]
 
 # Client/Server
 client = []
 server = []
 
 # C-API support (currently unstable (no semver))
-ffi = ["libc", "http-body-util"]
+ffi = ["dep:libc", "dep:http-body-util"]
 
 # internal features used in CI
 nightly = []
