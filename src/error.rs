@@ -20,6 +20,14 @@ type Cause = Box<dyn StdError + Send + Sync>;
 /// The contents of the formatted error message of this specific `Error` type
 /// is unspecified. **You must not depend on it.** The wording and details may
 /// change in any version, with the goal of improving error messages.
+///
+/// # Source
+///
+/// A `hyper::Error` may be caused by another error. To aid in debugging,
+/// those are exposed in `Error::source()` as erased types. While it is
+/// possible to check the exact type of the sources, they **can not be depended
+/// on**. They may come from private internal dependencies, and are subject to
+/// change at any moment.
 pub struct Error {
     inner: Box<ErrorImpl>,
 }
