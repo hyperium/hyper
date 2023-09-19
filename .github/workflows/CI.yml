@@ -24,6 +24,7 @@ jobs:
       - ffi
       - ffi-header
       - doc
+      - check-external-types
     steps:
       - run: exit 0
 
@@ -210,3 +211,26 @@ jobs:
 
       - name: cargo doc
         run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+
+  check-external-types:
+    name: Check exposed types
+    needs: [style, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2023-05-31  # Compatible version for cargo-check-external-types
+
+      - name: Install cargo-check-external-types
+        uses: actions-rs/install@v0.1
+        with:
+          crate: cargo-check-external-types
+          version: 0.1.7
+          use-tool-cache: true
+
+      - name: check-external-types
+        run: cargo check-external-types --config .github/workflows/external-types.toml
