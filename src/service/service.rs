@@ -35,6 +35,6 @@ pub trait Service<Request> {
     /// - It's clearer that Services can likely be cloned
     /// - To share state across clones you generally need Arc<Mutex<_>>
     ///   that means you're not really using the &mut self and could do with a &self
-    /// To see the discussion on this see: https://github.com/hyperium/hyper/issues/3040
+    /// To see the discussion on this see: <https://github.com/hyperium/hyper/issues/3040>
     fn call(&self, req: Request) -> Self::Future;
 }
