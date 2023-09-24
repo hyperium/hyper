@@ -16,9 +16,12 @@ use crate::service::HttpService;
 use crate::{common::time::Time, rt::Timer};
 
 pin_project! {
-    /// A future binding an HTTP/2 connection with a Service.
+    /// A [`Future`](core::future::Future) representing an HTTP/2 connection, bound to a
+    /// [`Service`](crate::service::Service), returned from
+    /// [`Builder::serve_connection`](struct.Builder.html#method.serve_connection).
     ///
-    /// Polling this future will drive HTTP forward.
+    /// To drive HTTP on this connection this future **must be polled**, typically with
+    /// `.await`. If it isn't polled, no progress will be made on this connection.
     #[must_use = "futures do nothing unless polled"]
     pub struct Connection<T, S, E>
     where
