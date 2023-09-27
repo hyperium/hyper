@@ -4,6 +4,7 @@ use std::io;
 use std::usize;
 
 use bytes::Bytes;
+#[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
 use crate::common::{task, Poll};
@@ -106,6 +107,7 @@ impl Decoder {
         cx: &mut task::Context<'_>,
         body: &mut R,
     ) -> Poll<Result<Bytes, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("decode; state={:?}", self.kind);
         match self.kind {
             Length(ref mut remaining) => {
@@ -134,6 +136,7 @@ impl Decoder {
                     // advances the chunked state
                     *state = ready!(state.step(cx, body, size, &mut buf))?;
                     if *state == ChunkedState::End {
+                        #[cfg(feature = "tracing")]
                         trace!("end of chunked");
                         return Poll::Ready(Ok(Bytes::new()));
                     }
@@ -211,6 +214,7 @@ impl ChunkedState {
         rdr: &mut R,
         size: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("Read chunk hex size");
 
         macro_rules! or_overflow {
@@ -255,6 +259,7 @@ impl ChunkedState {
         cx: &mut task::Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("read_size_lws");
         match byte!(rdr, cx) {
             // LWS can follow the chunk size, but no more digits can come
@@ -271,6 +276,7 @@ impl ChunkedState {
         cx: &mut task::Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("read_extension");
         // We don't care about extensions really at all. Just ignore them.
         // They "end" at the next CRLF.
@@ -292,12 +298,14 @@ impl ChunkedState {
         rdr: &mut R,
         size: u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("Chunk size is {:?}", size);
         match byte!(rdr, cx) {
             b'\n' => {
                 if size == 0 {
                     Poll::Ready(Ok(ChunkedState::EndCr))
                 } else {
+                    #[cfg(feature = "tracing")]
                     debug!("incoming chunked header: {0:#X} ({0} bytes)", size);
                     Poll::Ready(Ok(ChunkedState::Body))
                 }
@@ -315,6 +323,7 @@ impl ChunkedState {
         rem: &mut u64,
         buf: &mut Option<Bytes>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("Chunked read, remaining={:?}", rem);
 
         // cap remaining bytes at the max capacity of usize
@@ -372,6 +381,7 @@ impl ChunkedState {
         cx: &mut task::Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
+        #[cfg(feature = "tracing")]
         trace!("read_trailer");
         match byte!(rdr, cx) {
             b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),

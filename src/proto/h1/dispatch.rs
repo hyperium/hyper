@@ -3,6 +3,7 @@ use std::error::Error as StdError;
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use http::Request;
+#[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
@@ -182,6 +183,7 @@ where
             }
         }
 
+        #[cfg(feature = "tracing")]
         trace!("poll_loop yielding (self = {:p})", self);
 
         task::yield_now(cx).map(|never| match never {})
@@ -204,6 +206,7 @@ where
                         Poll::Ready(Err(_canceled)) => {
                             // user doesn't care about the body
                             // so we should stop reading
+                            #[cfg(feature = "tracing")]
                             trace!("body receiver dropped before eof, draining or closing");
                             self.conn.poll_drain_or_close_read(cx);
                             continue;
@@ -216,6 +219,7 @@ where
                             }
                             Err(_canceled) => {
                                 if self.conn.can_read_body() {
+                                    #[cfg(feature = "tracing")]
                                     trace!("body receiver dropped before eof, closing");
                                     self.conn.close_read();
                                 }
@@ -246,6 +250,7 @@ where
         match ready!(self.dispatch.poll_ready(cx)) {
             Ok(()) => (),
             Err(()) => {
+                #[cfg(feature = "tracing")]
                 trace!("dispatch no longer receiving messages");
                 self.close();
                 return Poll::Ready(Ok(()));
@@ -277,6 +282,7 @@ where
                 Poll::Ready(Ok(()))
             }
             Some(Err(err)) => {
+                #[cfg(feature = "tracing")]
                 debug!("read_head error: {}", err);
                 self.dispatch.recv_msg(Err(err))?;
                 // if here, the dispatcher gave the user the error
@@ -335,6 +341,7 @@ where
                 {
                     debug_assert!(!*clear_body, "opt guard defaults to keeping body");
                     if !self.conn.can_write_body() {
+                        #[cfg(feature = "tracing")]
                         trace!(
                             "no more write body allowed, user body is_end_stream = {}",
                             body.is_end_stream(),
@@ -352,6 +359,7 @@ where
                         let chunk = if let Ok(data) = frame.into_data() {
                             data
                         } else {
+                            #[cfg(feature = "tracing")]
                             trace!("discarding non-data frame");
                             continue;
                         };
@@ -359,6 +367,7 @@ where
                         if eos {
                             *clear_body = true;
                             if chunk.remaining() == 0 {
+                                #[cfg(feature = "tracing")]
                                 trace!("discarding empty chunk");
                                 self.conn.end_body()?;
                             } else {
@@ -366,6 +375,7 @@ where
                             }
                         } else {
                             if chunk.remaining() == 0 {
+                                #[cfg(feature = "tracing")]
                                 trace!("discarding empty chunk");
                                 continue;
                             }
@@ -389,6 +399,7 @@ where
 
     fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.conn.poll_flush(cx).map_err(|err| {
+            #[cfg(feature = "tracing")]
             debug!("error writing: {}", err);
             crate::Error::new_body_write(err)
         })
@@ -580,6 +591,7 @@ cfg_client! {
                     // check that future hasn't been canceled already
                     match cb.poll_canceled(cx) {
                         Poll::Ready(()) => {
+                            #[cfg(feature = "tracing")]
                             trace!("request canceled");
                             Poll::Ready(None)
                         }
@@ -598,6 +610,7 @@ cfg_client! {
                 }
                 Poll::Ready(None) => {
                     // user has dropped sender handle
+                    #[cfg(feature = "tracing")]
                     trace!("client tx closed");
                     this.rx_closed = true;
                     Poll::Ready(None)
@@ -627,6 +640,7 @@ cfg_client! {
                     } else if !self.rx_closed {
                         self.rx.close();
                         if let Some((req, cb)) = self.rx.try_recv() {
+                            #[cfg(feature = "tracing")]
                             trace!("canceling queued request with connection error: {}", err);
                             // in this case, the message was never even started, so it's safe to tell
                             // the user that the request was completely canceled
@@ -646,6 +660,7 @@ cfg_client! {
             match self.callback {
                 Some(ref mut cb) => match cb.poll_canceled(cx) {
                     Poll::Ready(()) => {
+                        #[cfg(feature = "tracing")]
                         trace!("callback receiver has dropped");
                         Poll::Ready(Err(()))
                     }

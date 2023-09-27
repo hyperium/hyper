@@ -9,6 +9,7 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
@@ -54,6 +55,7 @@ macro_rules! maybe_panic {
         if cfg!(debug_assertions) {
             panic!("{:?}", _err);
         } else {
+            #[cfg(feature = "tracing")]
             error!("Internal Hyper error, please report {:?}", _err);
             return Err(Parse::Internal)
         }
@@ -72,8 +74,11 @@ where
         return Ok(None);
     }
 
-    let span = trace_span!("parse_headers");
-    let _s = span.enter();
+    #[cfg(feature = "tracing")]
+    {
+        let span = trace_span!("parse_headers");
+        let _s = span.enter();
+    }
 
     #[cfg(feature = "server")]
     if !*ctx.h1_header_read_timeout_running {
@@ -82,10 +87,12 @@ where
             *ctx.h1_header_read_timeout_running = true;
             match ctx.h1_header_read_timeout_fut {
                 Some(h1_header_read_timeout_fut) => {
+                    #[cfg(feature = "tracing")]
                     debug!("resetting h1 header read timeout timer");
                     ctx.timer.reset(h1_header_read_timeout_fut, deadline);
                 }
                 None => {
+                    #[cfg(feature = "tracing")]
                     debug!("setting h1 header read timeout timer");
                     *ctx.h1_header_read_timeout_fut = Some(ctx.timer.sleep_until(deadline));
                 }
@@ -103,8 +110,11 @@ pub(super) fn encode_headers<T>(
 where
     T: Http1Transaction,
 {
-    let span = trace_span!("encode_headers");
-    let _s = span.enter();
+    #[cfg(feature = "tracing")]
+    {
+        let span = trace_span!("encode_headers");
+        let _s = span.enter();
+    }
     T::encode(enc, dst)
 }
 
@@ -144,11 +154,13 @@ impl Http1Transaction for Server {
             /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
             let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
                 unsafe { MaybeUninit::uninit().assume_init() };
+            #[cfg(feature = "tracing")]
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
             match req.parse_with_uninit_headers(bytes, &mut headers) {
                 Ok(httparse::Status::Complete(parsed_len)) => {
+                    #[cfg(feature = "tracing")]
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
                     let uri = req.path.unwrap();
@@ -238,6 +250,7 @@ impl Http1Transaction for Server {
                     // not the final encoding, and this is a Request, then it is
                     // malformed. A server should respond with 400 Bad Request.
                     if !is_http_11 {
+                        #[cfg(feature = "tracing")]
                         debug!("HTTP/1.0 cannot have Transfer-Encoding header");
                         return Err(Parse::transfer_encoding_unexpected());
                     }
@@ -257,6 +270,7 @@ impl Http1Transaction for Server {
                         .ok_or_else(Parse::content_length_invalid)?;
                     if let Some(prev) = con_len {
                         if prev != len {
+                            #[cfg(feature = "tracing")]
                             debug!(
                                 "multiple Content-Length headers with different values: [{}, {}]",
                                 prev, len,
@@ -306,6 +320,7 @@ impl Http1Transaction for Server {
         }
 
         if is_te && !is_te_chunked {
+            #[cfg(feature = "tracing")]
             debug!("request with transfer-encoding header, but not chunked, bad request");
             return Err(Parse::transfer_encoding_invalid());
         }
@@ -338,6 +353,7 @@ impl Http1Transaction for Server {
     }
 
     fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+        #[cfg(feature = "tracing")]
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
@@ -359,6 +375,7 @@ impl Http1Transaction for Server {
             wrote_len = true;
             (Ok(()), true)
         } else if msg.head.subject.is_informational() {
+            #[cfg(feature = "tracing")]
             warn!("response with 1xx status code not supported");
             *msg.head = MessageHead::default();
             msg.head.subject = StatusCode::INTERNAL_SERVER_ERROR;
@@ -388,6 +405,7 @@ impl Http1Transaction for Server {
                 Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
                 Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
                 Version::HTTP_2 => {
+                    #[cfg(feature = "tracing")]
                     debug!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
                 }
@@ -451,6 +469,7 @@ impl Http1Transaction for Server {
             _ => return None,
         };
 
+        #[cfg(feature = "tracing")]
         debug!("sending automatic response ({}) for parse error", status);
         let mut msg = MessageHead::default();
         msg.subject = status;
@@ -666,6 +685,7 @@ impl Server {
             match *name {
                 header::CONTENT_LENGTH => {
                     if wrote_len && !is_name_written {
+                        #[cfg(feature = "tracing")]
                         warn!("unexpected content-length found, canceling");
                         rewind(dst);
                         return Err(crate::Error::new_user_header());
@@ -713,6 +733,7 @@ impl Server {
                             if let Some(len) = headers::content_length_parse(&value) {
                                 if let Some(prev) = prev_con_len {
                                     if prev != len {
+                                        #[cfg(feature = "tracing")]
                                         warn!(
                                             "multiple Content-Length values found: [{}, {}]",
                                             prev, len
@@ -737,6 +758,7 @@ impl Server {
                                     continue 'headers;
                                 }
                             } else {
+                                #[cfg(feature = "tracing")]
                                 warn!("illegal Content-Length value: {:?}", value);
                                 rewind(dst);
                                 return Err(crate::Error::new_user_header());
@@ -753,6 +775,7 @@ impl Server {
                                 debug_assert_eq!(encoder, Encoder::length(0));
                             } else {
                                 if value.as_bytes() != b"0" {
+                                    #[cfg(feature = "tracing")]
                                     warn!(
                                         "content-length value found, but empty body provided: {:?}",
                                         value
@@ -766,6 +789,7 @@ impl Server {
                 }
                 header::TRANSFER_ENCODING => {
                     if wrote_len && !is_name_written {
+                        #[cfg(feature = "tracing")]
                         warn!("unexpected transfer-encoding found, canceling");
                         rewind(dst);
                         return Err(crate::Error::new_user_header());
@@ -883,6 +907,7 @@ impl Server {
         }
 
         if !Server::can_have_body(msg.req_method, msg.head.subject) {
+            #[cfg(feature = "tracing")]
             trace!(
                 "server body forced to 0; method={:?}, status={:?}",
                 msg.req_method,
@@ -942,6 +967,7 @@ impl Http1Transaction for Client {
                 // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
                 let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
                     unsafe { MaybeUninit::uninit().assume_init() };
+                #[cfg(feature = "tracing")]
                 trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
@@ -951,6 +977,7 @@ impl Http1Transaction for Client {
                     &mut headers,
                 ) {
                     Ok(httparse::Status::Complete(len)) => {
+                        #[cfg(feature = "tracing")]
                         trace!("Response.parse Complete({})", len);
                         let status = StatusCode::from_u16(res.code.unwrap())?;
 
@@ -975,6 +1002,7 @@ impl Http1Transaction for Client {
                     }
                     Ok(httparse::Status::Partial) => return Ok(None),
                     Err(httparse::Error::Version) if ctx.h09_responses => {
+                        #[cfg(feature = "tracing")]
                         trace!("Response.parse accepted HTTP/0.9 response");
 
                         (0, StatusCode::OK, None, Version::HTTP_09, 0)
@@ -1097,6 +1125,7 @@ impl Http1Transaction for Client {
     }
 
     fn encode(msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+        #[cfg(feature = "tracing")]
         trace!(
             "Client::encode method={:?}, body={:?}",
             msg.head.subject.0,
@@ -1119,6 +1148,7 @@ impl Http1Transaction for Client {
             Version::HTTP_10 => extend(dst, b"HTTP/1.0"),
             Version::HTTP_11 => extend(dst, b"HTTP/1.1"),
             Version::HTTP_2 => {
+                #[cfg(feature = "tracing")]
                 debug!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
             }
@@ -1178,6 +1208,7 @@ impl Client {
                 return Ok(Some((DecodedLength::ZERO, true)));
             }
             100 | 102..=199 => {
+                #[cfg(feature = "tracing")]
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
                 return Ok(None);
             }
@@ -1195,6 +1226,7 @@ impl Client {
             }
             Some(_) => {}
             None => {
+                #[cfg(feature = "tracing")]
                 trace!("Client::decoder is missing the Method");
             }
         }
@@ -1205,20 +1237,24 @@ impl Client {
             // not the final encoding, and this is a Request, then it is
             // malformed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
+                #[cfg(feature = "tracing")]
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
                 Err(Parse::transfer_encoding_unexpected())
             } else if headers::transfer_encoding_is_chunked(&inc.headers) {
                 Ok(Some((DecodedLength::CHUNKED, false)))
             } else {
+                #[cfg(feature = "tracing")]
                 trace!("not chunked, read till eof");
                 Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
             }
         } else if let Some(len) = headers::content_length_parse_all(&inc.headers) {
             Ok(Some((DecodedLength::checked_new(len)?, false)))
         } else if inc.headers.contains_key(header::CONTENT_LENGTH) {
+            #[cfg(feature = "tracing")]
             debug!("illegal Content-Length header");
             Err(Parse::content_length_invalid())
         } else {
+            #[cfg(feature = "tracing")]
             trace!("neither Transfer-Encoding nor Content-Length");
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
         }
@@ -1248,6 +1284,7 @@ impl Client {
         if !can_chunked {
             // Chunked isn't legal, so if it is set, we need to remove it.
             if headers.remove(header::TRANSFER_ENCODING).is_some() {
+                #[cfg(feature = "tracing")]
                 trace!("removing illegal transfer-encoding header");
             }
 
@@ -1270,6 +1307,7 @@ impl Client {
                 if headers::is_chunked(te.iter()) {
                     Some(Encoder::chunked())
                 } else {
+                    #[cfg(feature = "tracing")]
                     warn!("user provided transfer-encoding does not end in 'chunked'");
 
                     // There's a Transfer-Encoding, but it doesn't end in 'chunked'!
@@ -1412,6 +1450,7 @@ fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
                 // Uh oh, the user set `Content-Length` headers, but set bad ones.
                 // This would be an illegal message anyways, so let's try to repair
                 // with our known good length.
+                #[cfg(feature = "tracing")]
                 error!("user provided content-length header was invalid");
 
                 cl.insert(HeaderValue::from(len));
@@ -1443,6 +1482,7 @@ fn record_header_indices(
 
     for (header, indices) in headers.iter().zip(indices.iter_mut()) {
         if header.name.len() >= (1 << 16) {
+            #[cfg(feature = "tracing")]
             debug!("header name larger than 64kb: {:?}", header.name);
             return Err(crate::error::Parse::TooLarge);
         }

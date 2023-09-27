@@ -9,6 +9,7 @@ use bytes::{Buf, Bytes};
 use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
+#[cfg(feature = "tracing")]
 use tracing::{debug, error, trace};
 
 use super::io::Buffered;
@@ -197,6 +198,7 @@ where
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<crate::Result<(MessageHead<T::Incoming>, DecodedLength, Wants)>>> {
         debug_assert!(self.can_read_head());
+        #[cfg(feature = "tracing")]
         trace!("Conn::read_head");
 
         let msg = match ready!(self.io.parse::<T>(
@@ -228,6 +230,7 @@ where
         // Note: don't deconstruct `msg` into local variables, it appears
         // the optimizer doesn't remove the extra copies.
 
+        #[cfg(feature = "tracing")]
         debug!("incoming body is {}", msg.decode);
 
         // Prevent accepting HTTP/0.9 responses after the initial one, if any.
@@ -250,6 +253,7 @@ where
         };
 
         if msg.decode == DecodedLength::ZERO {
+            #[cfg(feature = "tracing")]
             if msg.expect_continue {
                 debug!("ignoring expect-continue since body is empty");
             }
@@ -277,6 +281,7 @@ where
         let was_mid_parse = e.is_parse() || !self.io.read_buf().is_empty();
         if was_mid_parse || must_error {
             // We check if the buf contains the h2 Preface
+            #[cfg(feature = "tracing")]
             debug!(
                 "parse error ({}) with {} bytes",
                 e,
@@ -287,6 +292,7 @@ where
                 Err(e) => Poll::Ready(Some(Err(e))),
             }
         } else {
+            #[cfg(feature = "tracing")]
             debug!("read eof");
             self.close_write();
             Poll::Ready(None)
@@ -304,6 +310,7 @@ where
                 match ready!(decoder.decode(cx, &mut self.io)) {
                     Ok(slice) => {
                         let (reading, chunk) = if decoder.is_eof() {
+                            #[cfg(feature = "tracing")]
                             debug!("incoming body completed");
                             (
                                 Reading::KeepAlive,
@@ -314,6 +321,7 @@ where
                                 },
                             )
                         } else if slice.is_empty() {
+                            #[cfg(feature = "tracing")]
                             error!("incoming body unexpectedly ended");
                             // This should be unreachable, since all 3 decoders
                             // either set eof=true or return an Err when reading
@@ -325,6 +333,7 @@ where
                         (reading, Poll::Ready(chunk))
                     }
                     Err(e) => {
+                        #[cfg(feature = "tracing")]
                         debug!("incoming body decode error: {}", e);
                         (Reading::Closed, Poll::Ready(Some(Err(e))))
                     }
@@ -333,6 +342,7 @@ where
             Reading::Continue(ref decoder) => {
                 // Write the 100 Continue if not already responded...
                 if let Writing::Init = self.state.writing {
+                    #[cfg(feature = "tracing")]
                     trace!("automatically sending 100 Continue");
                     let cont = b"HTTP/1.1 100 Continue\r\n\r\n";
                     self.io.headers_buf().extend_from_slice(cont);
@@ -388,6 +398,7 @@ where
         debug_assert!(T::is_client());
 
         if !self.io.read_buf().is_empty() {
+            #[cfg(feature = "tracing")]
             debug!("received an unexpected {} bytes", self.io.read_buf().len());
             return Poll::Ready(Err(crate::Error::new_unexpected_message()));
         }
@@ -396,9 +407,11 @@ where
 
         if num_read == 0 {
             let ret = if self.should_error_on_eof() {
+                #[cfg(feature = "tracing")]
                 trace!("found unexpected EOF on busy connection: {:?}", self.state);
                 Poll::Ready(Err(crate::Error::new_incomplete()))
             } else {
+                #[cfg(feature = "tracing")]
                 trace!("found EOF on idle connection, closing");
                 Poll::Ready(Ok(()))
             };
@@ -408,6 +421,7 @@ where
             return ret;
         }
 
+        #[cfg(feature = "tracing")]
         debug!(
             "received unexpected {} bytes on an idle connection",
             num_read
@@ -426,6 +440,7 @@ where
         let num_read = ready!(self.force_io_read(cx)).map_err(crate::Error::new_io)?;
 
         if num_read == 0 {
+            #[cfg(feature = "tracing")]
             trace!("found unexpected EOF on busy connection: {:?}", self.state);
             self.state.close_read();
             Poll::Ready(Err(crate::Error::new_incomplete()))
@@ -439,6 +454,7 @@ where
 
         let result = ready!(self.io.poll_read_from_io(cx));
         Poll::Ready(result.map_err(|e| {
+            #[cfg(feature = "tracing")]
             trace!("force_io_read; io error = {:?}", e);
             self.state.close();
             e
@@ -468,6 +484,7 @@ where
                 match self.io.poll_read_from_io(cx) {
                     Poll::Ready(Ok(n)) => {
                         if n == 0 {
+                            #[cfg(feature = "tracing")]
                             trace!("maybe_notify; read eof");
                             if self.state.is_idle() {
                                 self.state.close();
@@ -478,10 +495,12 @@ where
                         }
                     }
                     Poll::Pending => {
+                        #[cfg(feature = "tracing")]
                         trace!("maybe_notify; read_from_io blocked");
                         return;
                     }
                     Poll::Ready(Err(e)) => {
+                        #[cfg(feature = "tracing")]
                         trace!("maybe_notify; read_from_io error: {}", e);
                         self.state.close();
                         self.state.error = Some(crate::Error::new_io(e));
@@ -720,6 +739,7 @@ where
     pub(crate) fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
+        #[cfg(feature = "tracing")]
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
@@ -727,10 +747,12 @@ where
     pub(crate) fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
             Ok(()) => {
+                #[cfg(feature = "tracing")]
                 trace!("shut down IO complete");
                 Poll::Ready(Ok(()))
             }
             Err(e) => {
+                #[cfg(feature = "tracing")]
                 debug!("error shutting down IO: {}", e);
                 Poll::Ready(Err(e))
             }
@@ -749,7 +771,10 @@ where
 
         // If still in Reading::Body, just give up
         match self.state.reading {
-            Reading::Init | Reading::KeepAlive => trace!("body drained"),
+            Reading::Init | Reading::KeepAlive => {
+                #[cfg(feature = "tracing")]
+                trace!("body drained")
+            }
             _ => self.close_read(),
         }
     }
@@ -765,9 +790,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn disable_keep_alive(&mut self) {
         if self.state.is_idle() {
+            #[cfg(feature = "tracing")]
             trace!("disable_keep_alive; closing idle connection");
             self.state.close();
         } else {
+            #[cfg(feature = "tracing")]
             trace!("disable_keep_alive; in-progress connection");
             self.state.disable_keep_alive();
         }
@@ -782,6 +809,7 @@ where
     }
 
     pub(super) fn on_upgrade(&mut self) -> crate::upgrade::OnUpgrade {
+        #[cfg(feature = "tracing")]
         trace!("{}: prepare possible HTTP upgrade", T::LOG);
         self.state.prepare_upgrade()
     }
@@ -898,6 +926,7 @@ impl fmt::Debug for Writing {
 impl std::ops::BitAndAssign<bool> for KA {
     fn bitand_assign(&mut self, enabled: bool) {
         if !enabled {
+            #[cfg(feature = "tracing")]
             trace!("remote disabling keep-alive");
             *self = KA::Disabled;
         }
@@ -937,6 +966,7 @@ impl KA {
 
 impl State {
     fn close(&mut self) {
+        #[cfg(feature = "tracing")]
         trace!("State::close()");
         self.reading = Reading::Closed;
         self.writing = Writing::Closed;
@@ -944,12 +974,14 @@ impl State {
     }
 
     fn close_read(&mut self) {
+        #[cfg(feature = "tracing")]
         trace!("State::close_read()");
         self.reading = Reading::Closed;
         self.keep_alive.disable();
     }
 
     fn close_write(&mut self) {
+        #[cfg(feature = "tracing")]
         trace!("State::close_write()");
         self.writing = Writing::Closed;
         self.keep_alive.disable();
@@ -969,6 +1001,7 @@ impl State {
                 if let KA::Busy = self.keep_alive.status() {
                     self.idle::<T>();
                 } else {
+                    #[cfg(feature = "tracing")]
                     trace!(
                         "try_keep_alive({}): could keep-alive, but status = {:?}",
                         T::LOG,

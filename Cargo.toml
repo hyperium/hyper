@@ -30,7 +30,6 @@ httpdate = "1.0"
 httparse = "1.8"
 h2 = { version = "0.3.9", optional = true }
 itoa = "1"
-tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
 tokio = { version = "1", features = ["sync"] }
 want = "0.3"
@@ -38,6 +37,7 @@ want = "0.3"
 # Optional
 
 libc = { version = "0.2", optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
@@ -83,6 +83,9 @@ server = []
 
 # C-API support (currently unstable (no semver))
 ffi = ["dep:libc", "dep:http-body-util"]
+
+# Utilize tracing (currently unstable)
+tracing = ["dep:tracing"]
 
 # internal features used in CI
 nightly = []

@@ -8,6 +8,7 @@ use std::mem::MaybeUninit;
 
 use crate::rt::{Read, ReadBuf, Write};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
+#[cfg(feature = "tracing")]
 use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
@@ -200,6 +201,7 @@ where
                 },
             )? {
                 Some(msg) => {
+                    #[cfg(feature = "tracing")]
                     debug!("parsed {} headers", msg.head.headers.len());
 
                     #[cfg(feature = "server")]
@@ -212,6 +214,7 @@ where
                 None => {
                     let max = self.read_buf_strategy.max();
                     if self.read_buf.len() >= max {
+                        #[cfg(feature = "tracing")]
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
@@ -224,6 +227,7 @@ where
                             if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
                                 *parse_ctx.h1_header_read_timeout_running = false;
 
+                                #[cfg(feature = "tracing")]
                                 tracing::warn!("read header from client timeout");
                                 return Poll::Ready(Err(crate::Error::new_header_timeout()));
                             }
@@ -232,6 +236,7 @@ where
                 }
             }
             if ready!(self.poll_read_from_io(cx)).map_err(crate::Error::new_io)? == 0 {
+                #[cfg(feature = "tracing")]
                 trace!("parse eof");
                 return Poll::Ready(Err(crate::Error::new_incomplete()));
             }
@@ -254,6 +259,7 @@ where
         match Pin::new(&mut self.io).poll_read(cx, buf.unfilled()) {
             Poll::Ready(Ok(_)) => {
                 let n = buf.filled().len();
+                #[cfg(feature = "tracing")]
                 trace!("received {} bytes", n);
                 unsafe {
                     // Safety: we just read that many bytes into the
@@ -305,10 +311,12 @@ where
                 // `poll_write_buf` doesn't exist in Tokio 0.3 yet...when
                 // `poll_write_buf` comes back, the manual advance will need to leave!
                 self.write_buf.advance(n);
+                #[cfg(feature = "tracing")]
                 debug!("flushed {} bytes", n);
                 if self.write_buf.remaining() == 0 {
                     break;
                 } else if n == 0 {
+                    #[cfg(feature = "tracing")]
                     trace!(
                         "write returned zero, but {} bytes remaining",
                         self.write_buf.remaining()
@@ -327,12 +335,14 @@ where
     fn poll_flush_flattened(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
         loop {
             let n = ready!(Pin::new(&mut self.io).poll_write(cx, self.write_buf.headers.chunk()))?;
+            #[cfg(feature = "tracing")]
             debug!("flushed {} bytes", n);
             self.write_buf.headers.advance(n);
             if self.write_buf.headers.remaining() == 0 {
                 self.write_buf.headers.reset();
                 break;
             } else if n == 0 {
+                #[cfg(feature = "tracing")]
                 trace!(
                     "write returned zero, but {} bytes remaining",
                     self.write_buf.remaining()
@@ -562,6 +572,7 @@ where
                 let head = self.headers_mut();
 
                 head.maybe_unshift(buf.remaining());
+                #[cfg(feature = "tracing")]
                 trace!(
                     self.len = head.remaining(),
                     buf.len = buf.remaining(),
@@ -582,6 +593,7 @@ where
                 }
             }
             WriteStrategy::Queue => {
+                #[cfg(feature = "tracing")]
                 trace!(
                     self.len = self.remaining(),
                     buf.len = buf.remaining(),
