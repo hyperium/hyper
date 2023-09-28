@@ -70,7 +70,7 @@ where
     if bytes.is_empty() {
         return Ok(None);
     }
-    
+
     trace_span!("parse_headers");
 
     #[cfg(feature = "server")]

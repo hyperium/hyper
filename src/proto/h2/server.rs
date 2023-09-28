@@ -507,8 +507,8 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
-            if let Err(e) = res {
-                debug!("stream error: {}", e);
+            if let Err(_e) = res {
+                debug!("stream error: {}", _e);
             }
         })
     }

@@ -242,8 +242,8 @@ where
         if polled.is_ready() {
             *this.is_terminated = true;
         }
-        polled.map_err(|e| { 
-            debug!("connection error: {}", e)
+        polled.map_err(|_e| {
+            debug!("connection error: {}", _e)
         })
     }
 }
@@ -442,8 +442,8 @@ where
 
         match this.pipe.poll_unpin(cx) {
             Poll::Ready(result) => {
-                if let Err(e) = result {
-                    debug!("client request body error: {}", e);
+                if let Err(_e) = result {
+                    debug!("client request body error: {}", _e);
                 }
                 drop(this.conn_drop_ref.take().expect("Future polled twice"));
                 drop(this.ping.take().expect("Future polled twice"));
