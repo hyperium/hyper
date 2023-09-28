@@ -67,8 +67,11 @@ pub use crate::error::{Error, Result};
 
 #[macro_use]
 mod cfg;
+
 #[macro_use]
+#[cfg_attr(docsrs, doc(all(feature = "tracing"), hyper_unstable_tracing))]
 mod trace;
+
 #[macro_use]
 mod common;
 pub mod body;
