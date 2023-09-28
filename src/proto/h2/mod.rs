@@ -8,8 +8,6 @@ use std::error::Error as StdError;
 use std::io::{Cursor, IoSlice};
 use std::mem;
 use std::task::Context;
-#[cfg(feature = "tracing")]
-use tracing::{debug, trace, warn};
 
 use crate::body::Body;
 use crate::common::{task, Future, Pin, Poll};
@@ -46,7 +44,6 @@ const CONNECTION_HEADERS: [HeaderName; 5] = [
 fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     for header in &CONNECTION_HEADERS {
         if headers.remove(header).is_some() {
-            #[cfg(feature = "tracing")]
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
         }
     }
@@ -57,17 +54,14 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
             .map(|te_header| te_header != "trailers")
             .unwrap_or(false)
         {
-            #[cfg(feature = "tracing")]
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
             headers.remove(TE);
         }
     } else if headers.remove(TE).is_some() {
-        #[cfg(feature = "tracing")]
         warn!("TE headers illegal in HTTP/2 responses");
     }
 
     if let Some(header) = headers.remove(CONNECTION) {
-        #[cfg(feature = "tracing")]
         warn!(
             "Connection header illegal in HTTP/2: {}",
             CONNECTION.as_str()
@@ -150,7 +144,6 @@ where
                 .poll_reset(cx)
                 .map_err(crate::Error::new_body_write)?
             {
-                #[cfg(feature = "tracing")]
                 debug!("stream received RST_STREAM: {:?}", reason);
                 return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
             }
@@ -160,7 +153,6 @@ where
                     if frame.is_data() {
                         let chunk = frame.into_data().unwrap_or_else(|_| unreachable!());
                         let is_eos = me.stream.is_end_stream();
-                        #[cfg(feature = "tracing")]
                         trace!(
                             "send body chunk: {} bytes, eos={}",
                             chunk.remaining(),
@@ -183,7 +175,6 @@ where
                             .map_err(crate::Error::new_body_write)?;
                         return Poll::Ready(Ok(()));
                     } else {
-                        #[cfg(feature = "tracing")]
                         trace!("discarding unknown frame");
                         // loop again
                     }
@@ -213,14 +204,12 @@ impl<B: Buf> SendStreamExt for SendStream<SendBuf<B>> {
         E: Into<Box<dyn std::error::Error + Send + Sync>>,
     {
         let err = crate::Error::new_user_body(err);
-        #[cfg(feature = "tracing")]
         debug!("send body user stream error: {}", err);
         self.send_reset(err.h2_reason());
         err
     }
 
     fn send_eos_frame(&mut self) -> crate::Result<()> {
-        #[cfg(feature = "tracing")]
         trace!("send body eos");
         self.send_data(SendBuf::None, true)
             .map_err(crate::Error::new_body_write)

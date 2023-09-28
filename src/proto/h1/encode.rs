@@ -3,8 +3,6 @@ use std::io::IoSlice;
 
 use bytes::buf::{Chain, Take};
 use bytes::Buf;
-#[cfg(feature = "tracing")]
-use tracing::trace;
 
 use super::io::WriteBuf;
 
@@ -112,7 +110,6 @@ impl Encoder {
 
         let kind = match self.kind {
             Kind::Chunked => {
-                #[cfg(feature = "tracing")]
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
@@ -120,7 +117,6 @@ impl Encoder {
                 BufKind::Chunked(buf)
             }
             Kind::Length(ref mut remaining) => {
-                #[cfg(feature = "tracing")]
                 trace!("sized write, len = {}", len);
                 if len as u64 > *remaining {
                     let limit = *remaining as usize;
@@ -133,7 +129,6 @@ impl Encoder {
             }
             #[cfg(feature = "server")]
             Kind::CloseDelimited => {
-                #[cfg(feature = "tracing")]
                 trace!("close delimited write {}B", len);
                 BufKind::Exact(msg)
             }
@@ -150,7 +145,6 @@ impl Encoder {
 
         match self.kind {
             Kind::Chunked => {
-                #[cfg(feature = "tracing")]
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
@@ -161,7 +155,6 @@ impl Encoder {
             Kind::Length(remaining) => {
                 use std::cmp::Ordering;
 
-                #[cfg(feature = "tracing")]
                 trace!("sized write, len = {}", len);
                 match (len as u64).cmp(&remaining) {
                     Ordering::Equal => {
@@ -180,7 +173,6 @@ impl Encoder {
             }
             #[cfg(feature = "server")]
             Kind::CloseDelimited => {
-                #[cfg(feature = "tracing")]
                 trace!("close delimited write {}B", len);
                 dst.buffer(msg);
                 false

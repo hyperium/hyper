@@ -12,8 +12,6 @@ use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
 use http::{Method, StatusCode};
 use pin_project_lite::pin_project;
-#[cfg(feature = "tracing")]
-use tracing::{debug, trace, warn};
 
 use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
@@ -202,7 +200,6 @@ where
                 this.conn.set_initial_window_size(wnd)?;
             }
             Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
-                #[cfg(feature = "tracing")]
                 debug!("connection keep-alive timed out");
                 return Poll::Ready(Ok(()));
             }
@@ -245,8 +242,7 @@ where
         if polled.is_ready() {
             *this.is_terminated = true;
         }
-        polled.map_err(|e| {
-            #[cfg(feature = "tracing")]
+        polled.map_err(|e| { 
             debug!("connection error: {}", e)
         })
     }
@@ -319,7 +315,6 @@ where
                 // mpsc has been dropped, hopefully polling
                 // the connection some more should start shutdown
                 // and then close.
-                #[cfg(feature = "tracing")]
                 trace!("send_request dropped, starting conn shutdown");
                 drop(this.cancel_tx.take().expect("ConnTask Future polled twice"));
             }
@@ -448,7 +443,6 @@ where
         match this.pipe.poll_unpin(cx) {
             Poll::Ready(result) => {
                 if let Err(e) = result {
-                    #[cfg(feature = "tracing")]
                     debug!("client request body error: {}", e);
                 }
                 drop(this.conn_drop_ref.take().expect("Future polled twice"));
@@ -554,7 +548,6 @@ where
                 let content_length = headers::content_length_parse_all(res.headers());
                 if let (Some(mut send_stream), StatusCode::OK) = (send_stream, res.status()) {
                     if content_length.map_or(false, |len| len != 0) {
-                        #[cfg(feature = "tracing")]
                         warn!("h2 connect response with non-zero body not supported");
 
                         send_stream.send_reset(h2::Reason::INTERNAL_ERROR);
@@ -590,7 +583,6 @@ where
             Err(err) => {
                 ping.ensure_not_timed_out().map_err(|e| (e, None))?;
 
-                #[cfg(feature = "tracing")]
                 debug!("client response error: {}", err);
                 Poll::Ready(Err((crate::Error::new_h2(err), None::<Request<B>>)))
             }
@@ -615,7 +607,6 @@ where
                 Err(err) => {
                     self.ping.ensure_not_timed_out()?;
                     return if err.reason() == Some(::h2::Reason::NO_ERROR) {
-                        #[cfg(feature = "tracing")]
                         trace!("connection gracefully shutdown");
                         Poll::Ready(Ok(Dispatched::Shutdown))
                     } else {
@@ -638,7 +629,6 @@ where
                 Poll::Ready(Some((req, cb))) => {
                     // check that future hasn't been canceled already
                     if cb.is_canceled() {
-                        #[cfg(feature = "tracing")]
                         trace!("request callback is canceled");
                         continue;
                     }
@@ -658,7 +648,6 @@ where
                         if headers::content_length_parse_all(req.headers())
                             .map_or(false, |len| len != 0)
                         {
-                            #[cfg(feature = "tracing")]
                             warn!("h2 connect request with non-zero body not supported");
                             cb.send(Err((
                                 crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
@@ -675,7 +664,6 @@ where
                     let (fut, body_tx) = match self.h2_tx.send_request(req, !is_connect && eos) {
                         Ok(ok) => ok,
                         Err(err) => {
-                            #[cfg(feature = "tracing")]
                             debug!("client send request error: {}", err);
                             cb.send(Err((crate::Error::new_h2(err), None)));
                             continue;
@@ -711,7 +699,6 @@ where
                 }
 
                 Poll::Ready(None) => {
-                    #[cfg(feature = "tracing")]
                     trace!("client::dispatch::Sender dropped");
                     return Poll::Ready(Ok(Dispatched::Shutdown));
                 }
@@ -719,7 +706,6 @@ where
                 Poll::Pending => match ready!(Pin::new(&mut self.conn_eof).poll(cx)) {
                     Ok(never) => match never {},
                     Err(_conn_is_eof) => {
-                        #[cfg(feature = "tracing")]
                         trace!("connection task is closed, closing dispatch task");
                         return Poll::Ready(Ok(Dispatched::Shutdown));
                     }

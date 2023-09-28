@@ -5,8 +5,6 @@ use http::{Request, Response};
 use http_body::Body;
 use pin_project_lite::pin_project;
 use tokio::sync::{mpsc, oneshot};
-#[cfg(feature = "tracing")]
-use tracing::trace;
 
 use crate::{
     body::Incoming,
@@ -317,7 +315,6 @@ where
                         return std::task::Poll::Pending;
                     }
                 };
-                #[cfg(feature = "tracing")]
                 trace!("send_when canceled");
                 Poll::Ready(())
             }

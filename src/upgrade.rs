@@ -48,8 +48,6 @@ use std::marker::Unpin;
 use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
 use tokio::sync::oneshot;
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "tracing"))]
-use tracing::trace;
 
 use crate::common::io::Rewind;
 use crate::common::{task, Future, Pin, Poll};
@@ -233,7 +231,7 @@ impl fmt::Debug for OnUpgrade {
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl Pending {
     pub(super) fn fulfill(self, upgraded: Upgraded) {
-        #[cfg(feature = "tracing")]
+        #[cfg(any(feature = "http1", feature = "http2"))]
         trace!("pending upgrade fulfill");
         let _ = self.tx.send(Ok(upgraded));
     }
@@ -242,7 +240,7 @@ impl Pending {
     /// Don't fulfill the pending Upgrade, but instead signal that
     /// upgrades are handled manually.
     pub(super) fn manual(self) {
-        #[cfg(feature = "tracing")]
+        #[cfg(any(feature = "http1", feature = "http2"))]
         trace!("pending upgrade handled manually");
         let _ = self.tx.send(Err(crate::Error::new_user_manual_upgrade()));
     }

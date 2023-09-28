@@ -9,8 +9,6 @@ use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
 use http::{Method, Request};
 use pin_project_lite::pin_project;
-#[cfg(feature = "tracing")]
-use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
@@ -162,7 +160,6 @@ where
     }
 
     pub(crate) fn graceful_shutdown(&mut self) {
-        #[cfg(feature = "tracing")]
         trace!("graceful_shutdown");
         match self.state {
             State::Handshaking { .. } => {
@@ -250,7 +247,6 @@ where
 
                 match ready!(self.conn.poll_accept(cx)) {
                     Some(Ok((req, mut respond))) => {
-                        #[cfg(feature = "tracing")]
                         trace!("incoming request");
                         let content_length = headers::content_length_parse_all(req.headers());
                         let ping = self
@@ -274,7 +270,6 @@ where
                             )
                         } else {
                             if content_length.map_or(false, |len| len != 0) {
-                                #[cfg(feature = "tracing")]
                                 warn!("h2 connect request with non-zero body not supported");
                                 respond.send_reset(h2::Reason::INTERNAL_ERROR);
                                 return Poll::Ready(Ok(()));
@@ -308,7 +303,6 @@ where
                             ping.ensure_not_timed_out()?;
                         }
 
-                        #[cfg(feature = "tracing")]
                         trace!("incoming connection complete");
                         return Poll::Ready(Ok(()));
                     }
@@ -334,7 +328,6 @@ where
                     let _ = self.conn.set_initial_window_size(wnd);
                 }
                 Poll::Ready(ping::Ponged::KeepAliveTimedOut) => {
-                    #[cfg(feature = "tracing")]
                     debug!("keep-alive timed out, closing connection");
                     self.conn.abrupt_shutdown(h2::Reason::NO_ERROR);
                 }
@@ -401,7 +394,6 @@ macro_rules! reply {
         match $me.reply.send_response($res, $eos) {
             Ok(tx) => tx,
             Err(e) => {
-                #[cfg(feature = "tracing")]
                 debug!("send response error: {}", e);
                 $me.reply.send_reset(Reason::INTERNAL_ERROR);
                 return Poll::Ready(Err(crate::Error::new_h2(e)));
@@ -434,7 +426,6 @@ where
                             if let Poll::Ready(reason) =
                                 me.reply.poll_reset(cx).map_err(crate::Error::new_h2)?
                             {
-                                #[cfg(feature = "tracing")]
                                 debug!("stream received RST_STREAM: {:?}", reason);
                                 return Poll::Ready(Err(crate::Error::new_h2(reason.into())));
                             }
@@ -442,7 +433,6 @@ where
                         }
                         Poll::Ready(Err(e)) => {
                             let err = crate::Error::new_user_service(e);
-                            #[cfg(feature = "tracing")]
                             warn!("http2 service errored: {}", err);
                             me.reply.send_reset(err.h2_reason());
                             return Poll::Ready(Err(err));
@@ -463,7 +453,6 @@ where
                             if headers::content_length_parse_all(res.headers())
                                 .map_or(false, |len| len != 0)
                             {
-                                #[cfg(feature = "tracing")]
                                 warn!("h2 successful response to CONNECT request with body not supported");
                                 me.reply.send_reset(h2::Reason::INTERNAL_ERROR);
                                 return Poll::Ready(Err(crate::Error::new_user_header()));
@@ -519,7 +508,6 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
             if let Err(e) = res {
-                #[cfg(feature = "tracing")]
                 debug!("stream error: {}", e);
             }
         })

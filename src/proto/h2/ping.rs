@@ -26,8 +26,6 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
 use h2::{Ping, PingPong};
-#[cfg(feature = "tracing")]
-use tracing::{debug, trace};
 
 use crate::common::time::Time;
 use crate::rt::Sleep;
@@ -281,7 +279,6 @@ impl Ponger {
                     .expect("pong received implies ping_sent_at");
                 locked.ping_sent_at = None;
                 let rtt = now - start;
-                #[cfg(feature = "tracing")]
                 trace!("recv pong");
 
                 if let Some(ref mut ka) = self.keep_alive {
@@ -293,7 +290,6 @@ impl Ponger {
                 if let Some(ref mut bdp) = self.bdp {
                     let bytes = locked.bytes.expect("bdp enabled implies bytes");
                     locked.bytes = Some(0); // reset
-                    #[cfg(feature = "tracing")]
                     trace!("received BDP ack; bytes = {}, rtt = {:?}", bytes, rtt);
 
                     let update = bdp.calculate(bytes, rtt);
@@ -304,7 +300,6 @@ impl Ponger {
                 }
             }
             Poll::Ready(Err(e)) => {
-                #[cfg(feature = "tracing")]
                 debug!("pong error: {}", e);
             }
             Poll::Pending => {
@@ -334,11 +329,9 @@ impl Shared {
         match self.ping_pong.send_ping(Ping::opaque()) {
             Ok(()) => {
                 self.ping_sent_at = Some(Instant::now());
-                #[cfg(feature = "tracing")]
                 trace!("sent ping");
             }
             Err(err) => {
-                #[cfg(feature = "tracing")]
                 debug!("error sending ping: {}", err);
             }
         }
@@ -384,7 +377,6 @@ impl Bdp {
 
         // calculate the current bandwidth
         let bw = (bytes as f64) / (self.rtt * 1.5);
-        #[cfg(feature = "tracing")]
         trace!("current bandwidth = {:.1}B/s", bw);
 
         if bw < self.max_bandwidth {
@@ -399,7 +391,6 @@ impl Bdp {
         // bdp, increase to double the current sample.
         if bytes >= self.bdp as usize * 2 / 3 {
             self.bdp = (bytes * 2).min(BDP_LIMIT) as WindowSize;
-            #[cfg(feature = "tracing")]
             trace!("BDP increased to {}", self.bdp);
 
             self.stable_count = 0;
@@ -469,7 +460,6 @@ impl KeepAlive {
                     cx.waker().wake_by_ref(); // schedule us again
                     return;
                 }
-                #[cfg(feature = "tracing")]
                 trace!("keep-alive interval ({:?}) reached", self.interval);
                 shared.send_ping();
                 self.state = KeepAliveState::PingSent;
@@ -486,7 +476,6 @@ impl KeepAlive {
                 if Pin::new(&mut self.sleep).poll(cx).is_pending() {
                     return Ok(());
                 }
-                #[cfg(feature = "tracing")]
                 trace!("keep-alive timeout ({:?}) reached", self.timeout);
                 Err(KeepAliveTimedOut)
             }
