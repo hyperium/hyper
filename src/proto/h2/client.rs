@@ -243,7 +243,7 @@ where
             *this.is_terminated = true;
         }
         polled.map_err(|_e| {
-            debug!("connection error: {}", _e)
+            debug!("connection error: {}", _e);
         })
     }
 }
