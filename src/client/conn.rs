@@ -54,6 +54,11 @@
 //! # }
 //! ```
 
+#[cfg(all(feature = "backports", feature = "http1"))]
+pub mod http1;
+#[cfg(all(feature = "backports", feature = "http2"))]
+pub mod http2;
+
 use std::error::Error as StdError;
 use std::fmt;
 #[cfg(not(all(feature = "http1", feature = "http2")))]
@@ -118,16 +123,30 @@ pin_project! {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This function will be replaced with `client::conn::http1::handshake` and `client::conn::http2::handshake` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub async fn handshake<T>(
     io: T,
 ) -> crate::Result<(SendRequest<crate::Body>, Connection<T, crate::Body>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
 {
+    #[allow(deprecated)]
     Builder::new().handshake(io).await
 }
 
 /// The sender side of an established connection.
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This type will be replaced with `client::conn::http1::SendRequest` and `client::conn::http2::SendRequest` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
 pub struct SendRequest<B> {
     dispatch: dispatch::Sender<Request<B>, Response<Body>>,
 }
@@ -137,6 +156,12 @@ pub struct SendRequest<B> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 #[must_use = "futures do nothing unless polled"]
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This type will be replaced with `client::conn::http1::Connection` and `client::conn::http2::Connection` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
 pub struct Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Send + 'static,
@@ -149,6 +174,12 @@ where
 ///
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This type will be replaced with `client::conn::http1::Builder` and `client::conn::http2::Builder` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
 pub struct Builder {
     pub(super) exec: Exec,
     h09_responses: bool,
@@ -221,6 +252,7 @@ pub(super) struct Http2SendRequest<B> {
 
 // ===== impl SendRequest
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
@@ -254,6 +286,7 @@ impl<B> SendRequest<B> {
     }
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<B> SendRequest<B>
 where
     B: HttpBody + 'static,
@@ -339,6 +372,7 @@ where
     }
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<B> Service<Request<B>> for SendRequest<B>
 where
     B: HttpBody + 'static,
@@ -356,6 +390,7 @@ where
     }
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<B> fmt::Debug for SendRequest<B> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SendRequest").finish()
@@ -425,6 +460,7 @@ impl<B> Clone for Http2SendRequest<B> {
 
 // ===== impl Connection
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<T, B> Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -508,9 +544,10 @@ where
     }
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<T, B> Future for Connection<T, B>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: AsyncRead + AsyncWrite + Unpin + Send,
     B: HttpBody + Send + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -536,6 +573,7 @@ where
     }
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
@@ -548,6 +586,7 @@ where
 
 // ===== impl Builder
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 impl Builder {
     /// Creates a new connection builder.
     #[inline]
@@ -1085,9 +1124,11 @@ where
 trait AssertSend: Send {}
 trait AssertSendSync: Send + Sync {}
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 #[doc(hidden)]
 impl<B: Send> AssertSendSync for SendRequest<B> {}
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 #[doc(hidden)]
 impl<T: Send, B: Send> AssertSend for Connection<T, B>
 where
@@ -1097,6 +1138,7 @@ where
 {
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 #[doc(hidden)]
 impl<T: Send + Sync, B: Send + Sync> AssertSendSync for Connection<T, B>
 where
@@ -1106,6 +1148,7 @@ where
 {
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 #[doc(hidden)]
 impl AssertSendSync for Builder {}
 

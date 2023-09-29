@@ -1,3 +1,56 @@
+### v0.14.27 (2023-06-26)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * send error on Incoming body when connection errors (#3256) ([b107655f](https://github.com/hyperium/hyper/commit/b107655ff8557d001bb8e558752f5f2247381e98), closes [#3253](https://github.com/hyperium/hyper/issues/3253))
+  * properly end chunked bodies when it was known to be empty (#3254) ([32422c47](https://github.com/hyperium/hyper/commit/32422c47ec35e7405873277c87de14c18dbb98bd), closes [#3252](https://github.com/hyperium/hyper/issues/3252))
+
+
+#### Features
+
+* **client:** include connection info in `Client::send_request` errors (#2749)
+
+
+### v0.14.26 (2023-04-13)
+
+
+#### Features
+
+* **http2:** add `max_pending_accept_reset_streams` configuration option (#3201) ([a6f7571a](https://github.com/hyperium/hyper/commit/a6f7571a5299793aef8f1aa4194574438b9df64c))
+
+
+### v0.14.25 (2023-03-10)
+
+
+#### Features
+
+* **client:**
+  * deprecate `client::conn` types (#3156) ([0ced15d3](https://github.com/hyperium/hyper/commit/0ced15d3cc10ace477ebda13ead8e6857b51867e))
+  * add 1.0 compatible client conn API  (#3155) ([253cc74d](https://github.com/hyperium/hyper/commit/253cc74d86b082067aa884a0a63a089d7d19401d), closes [#3053](https://github.com/hyperium/hyper/issues/3053))
+  * add `client::connect::capture_connection()` (#3144) ([c8493399](https://github.com/hyperium/hyper/commit/c8493399b2929a86f3020ae77304a00e43cfd161))
+  * add `poison` to `Connected` (#3145) ([37ed5a2e](https://github.com/hyperium/hyper/commit/37ed5a2e3cab76a11092823a80afd8fe2f2a9693))
+* **server:**
+  * deprecate server conn structs (#3161) ([02fe20f2](https://github.com/hyperium/hyper/commit/02fe20f232a7c3cf24d505b121ce4d428a93254d))
+  * backport the split server conn modules from 1.0 (#3102) ([84881c9e](https://github.com/hyperium/hyper/commit/84881c9e5160167a89d18d30c0ef6856dc859839), closes [#3079](https://github.com/hyperium/hyper/issues/3079))
+  * remove some `Unpin` and `'static` constraints (#3119) ([0368a41a](https://github.com/hyperium/hyper/commit/0368a41a6cc1a5c6f1eada0d88e38b7dce261587))
+
+
+### v0.14.24 (2023-02-02)
+
+
+#### Bug Fixes
+
+* **body:** set an internal max to reserve in `to_bytes` ([4d89adce](https://github.com/hyperium/hyper/commit/4d89adce6122af1650165337d9d814314e7ee409))
+* **server:** prevent sending 100-continue if user drops request body (#3138) ([92443d7e](https://github.com/hyperium/hyper/commit/92443d7ef57ed474f0add7dd1f114c81a3faa8fe))
+
+
+#### Features
+
+* **http2:** add `http2_max_header_list_size` to `hyper::server::Builder` (#3006) ([031425f0](https://github.com/hyperium/hyper/commit/031425f087219f02a87eea3d01b14e75e35a5209))
+
+
 ### v0.14.23 (2022-11-07)
 
 

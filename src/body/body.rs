@@ -30,8 +30,8 @@ type TrailersSender = oneshot::Sender<HeaderMap>;
 /// A good default [`HttpBody`](crate::body::HttpBody) to use in many
 /// applications.
 ///
-/// Note: To read the full body, use [`body::to_bytes`](crate::body::to_bytes)
-/// or [`body::aggregate`](crate::body::aggregate).
+/// Note: To read the full body, use [`body::to_bytes`](crate::body::to_bytes())
+/// or [`body::aggregate`](crate::body::aggregate()).
 #[must_use = "streams do nothing unless polled"]
 pub struct Body {
     kind: Kind,
@@ -323,7 +323,12 @@ impl Body {
                     ping.record_data(bytes.len());
                     Poll::Ready(Some(Ok(bytes)))
                 }
-                Some(Err(e)) => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                Some(Err(e)) => match e.reason() {
+                    // These reasons should cause stop of body reading, but nor fail it.
+                    // The same logic as for `AsyncRead for H2Upgraded` is applied here.
+                    Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => Poll::Ready(None),
+                    _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                },
                 None => Poll::Ready(None),
             },
 
@@ -602,17 +607,16 @@ impl Sender {
     }
 
     /// Aborts the body in an abnormal fashion.
-    pub fn abort(self) {
+    pub fn abort(mut self) {
+        self.send_error(crate::Error::new_body_write_aborted());
+    }
+
+    pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self
             .data_tx
             // clone so the send works even if buffer is full
             .clone()
-            .try_send(Err(crate::Error::new_body_write_aborted()));
-    }
-
-    #[cfg(feature = "http1")]
-    pub(crate) fn send_error(&mut self, err: crate::Error) {
-        let _ = self.data_tx.try_send(Err(err));
+            .try_send(Err(err));
     }
 }
 

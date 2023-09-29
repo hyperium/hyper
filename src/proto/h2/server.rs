@@ -46,6 +46,7 @@ pub(crate) struct Config {
     pub(crate) max_frame_size: u32,
     pub(crate) enable_connect_protocol: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
+    pub(crate) max_pending_accept_reset_streams: Option<usize>,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
     #[cfg(feature = "runtime")]
@@ -63,6 +64,7 @@ impl Default for Config {
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             enable_connect_protocol: false,
             max_concurrent_streams: None,
+            max_pending_accept_reset_streams: None,
             #[cfg(feature = "runtime")]
             keep_alive_interval: None,
             #[cfg(feature = "runtime")]
@@ -124,6 +126,9 @@ where
             .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
+        }
+        if let Some(max) = config.max_pending_accept_reset_streams {
+            builder.max_pending_accept_reset_streams(max);
         }
         if config.enable_connect_protocol {
             builder.enable_connect_protocol();
@@ -502,7 +507,6 @@ where
                             return Poll::Ready(Ok(()));
                         }
                     }
-
 
                     if !body.is_end_stream() {
                         // automatically set Content-Length from body...

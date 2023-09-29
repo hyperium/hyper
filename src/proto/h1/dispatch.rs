@@ -118,6 +118,10 @@ where
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
         Poll::Ready(ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
+            // Be sure to alert a streaming body of the failure.
+            if let Some(mut body) = self.body_tx.take() {
+                body.send_error(crate::Error::new_body("connection error"));
+            }
             // An error means we're shutting down either way.
             // We just try to give the error to the user,
             // and close the connection with an Ok. If we
@@ -367,7 +371,12 @@ where
                         self.conn.end_body()?;
                     }
                 } else {
-                    return Poll::Pending;
+                    // If there's no body_rx, end the body
+                    if self.conn.can_write_body() {
+                        self.conn.end_body()?;
+                    } else {
+                        return Poll::Pending;
+                    }
                 }
             }
         }
