@@ -71,7 +71,7 @@ where
         return Ok(None);
     }
 
-    trace_span!("parse_headers");
+    let _entered = trace_span!("parse_headers");
 
     #[cfg(feature = "server")]
     if !*ctx.h1_header_read_timeout_running {
@@ -101,7 +101,7 @@ pub(super) fn encode_headers<T>(
 where
     T: Http1Transaction,
 {
-    trace_span!("encode_headers");
+    let _entered = trace_span!("encode_headers");
     T::encode(enc, dst)
 }
 

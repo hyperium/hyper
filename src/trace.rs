@@ -1,5 +1,5 @@
-// For completeness, wrappers around all of tracing's public macros are provided, even if they are
-// not used at the present time.
+// For completeness, wrappers around all of tracing's public logging and span macros are provided, 
+// even if they are not used at the present time.
 #![allow(unused_macros)]
 
 //! Internal Tracing macro module
@@ -29,35 +29,29 @@
 //! RUSTFLAGS="--cfg hyper_unstable_tracing" cargo rustc --features client,http1,http2,tracing --crate-type cdylib
 //! ```
 
+#[cfg(not(hyper_unstable_tracing))]
+compile_error!(
+    "\
+    The `tracing` feature is unstable, and requires the \
+    `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
+    "
+    );
+
 macro_rules! debug {
     ($($arg:tt)+) => {
         #[cfg(feature = "tracing")]
-        {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            tracing::debug!($($arg)+);
-        }
+        tracing::debug!($($arg)+);
     }
 }
 
 macro_rules! debug_span {
     ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
         {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            let span = tracing::debug_span!($($arg)+);
-            let _ = span.enter();
+            #[cfg(feature = "tracing")]
+            {
+                let _span = tracing::debug_span!($($arg)+);
+                _span.entered();
+            }
         }
     }
 }
@@ -65,32 +59,18 @@ macro_rules! debug_span {
 macro_rules! error {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
-        {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            tracing::error!($($arg)+);
-        }
+        tracing::error!($($arg)+);
     }
 }
 
 macro_rules! error_span {
     ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
         {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            let span = tracing::error_span!($($arg)+);
-            let _ = span.enter();
+            #[cfg(feature = "tracing")]
+            {
+                let _span = tracing::error_span!($($arg)+);
+                _span.entered();
+            }
         }
     }
 }
@@ -98,32 +78,18 @@ macro_rules! error_span {
 macro_rules! info {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
-        {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            tracing::info!($($arg)+);
-        }
+        tracing::info!($($arg)+);
     }
 }
 
 macro_rules! info_span {
     ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
         {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            let span = tracing::info_span!($($arg)+);
-            let _ = span.enter();
+            #[cfg(feature = "tracing")]
+            {
+                let _span = tracing::info_span!($($arg)+);
+                _span.entered();
+            }
         }
     }
 }
@@ -131,49 +97,30 @@ macro_rules! info_span {
 macro_rules! trace {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
-        {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            tracing::trace!($($arg)+);
-        }
+        tracing::trace!($($arg)+);
     }
 }
 
 macro_rules! trace_span {
     ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
         {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            let span = tracing::trace_span!($($arg)+);
-            let _ = span.enter();
+            #[cfg(feature = "tracing")]
+            {
+                let _span = tracing::trace_span!($($arg)+);
+                _span.entered();
+            }
         }
     }
 }
 
 macro_rules! span {
     ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
         {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            let span = tracing::span!($($arg)+);
-            let _ = span.enter();
+            #[cfg(feature = "tracing")]
+            {
+                let _span = tracing::span!($($arg)+);
+                _span.entered();
+            }
         }
     }
 }
@@ -181,32 +128,18 @@ macro_rules! span {
 macro_rules! warn {
     ($($arg:tt)*) => {
         #[cfg(feature = "tracing")]
-        {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            tracing::warn!($($arg)+);
-        }
+        tracing::warn!($($arg)+);
     }
 }
 
 macro_rules! warn_span {
     ($($arg:tt)*) => {
-        #[cfg(feature = "tracing")]
         {
-            #[cfg(not(hyper_unstable_tracing))]
-            compile_error!(
-                "\
-                The `tracing` feature is unstable, and requires the \
-                `RUSTFLAGS='--cfg hyper_unstable_tracing'` environment variable to be set.\
-            "
-            );
-            let span = tracing::warn_span!($($arg)+);
-            let _ = span.enter();
+            #[cfg(feature = "tracing")]
+            {
+                let _span = tracing::warn_span!($($arg)+);
+                _span.entered();
+            }
         }
     }
 }
