@@ -231,7 +231,6 @@ impl fmt::Debug for OnUpgrade {
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl Pending {
     pub(super) fn fulfill(self, upgraded: Upgraded) {
-        #[cfg(any(feature = "http1", feature = "http2"))]
         trace!("pending upgrade fulfill");
         let _ = self.tx.send(Ok(upgraded));
     }
