@@ -25,6 +25,7 @@ jobs:
       - ffi-header
       - doc
       - check-external-types
+      - udeps
     steps:
       - run: exit 0
 
@@ -232,3 +233,22 @@ jobs:
 
       - name: check-external-types
         run: cargo check-external-types --config .github/workflows/external-types.toml
+
+  udeps:
+    needs: [style]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-udeps
+        uses: taiki-e/install-action@cargo-udeps
+
+      - name: Check unused dependencies on default features
+        run: cargo udeps
+
+      - name: Check unused dependencies on full features
+        run: cargo udeps --features full
