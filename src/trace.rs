@@ -2,33 +2,6 @@
 // even if they are not used at the present time.
 #![allow(unused_macros)]
 
-//! Internal Tracing macro module
-//!
-//! The [`trace`][crate::trace] module is an internal module that contains wrapper macros encapsulating
-//! [`tracing`][tracing]'s macros. These macros allow for conditional expansion of
-//! [`tracing`][tracing] macros during compilation when the `tracing` feature is enabled, or trimming
-//! them when the feature is disabled, all in a concise manner.
-//!
-//! The macros from the [`trace`][crate::trace] module are declared by default and can be used throughout the
-//! crate. However, as the contents of these macros are conditionally compiled, they are effectively trimmed
-//! during inline expansion when the `tracing` feature is disabled.
-//!
-//! # Unstable
-//!
-//! The [`tracing`][tracing] module is currenty **unstable**, hence the existence of this module. As a
-//! result, hyper's [`tracing`][tracing] logs are only accessibe if `--cfg hyper_unstable_tracing` is
-//! passed to `rustc` when compiling. The easiest way to do that is through setting the `RUSTFLAGS`
-//! enviornment variable.
-//!
-//! # Building
-//!  
-//! Enabling [`trace`][crate::trace] logs, can be done with the following `cargo` command, as of
-//! version `1.64.0`:
-//!
-//! ```notrust
-//! RUSTFLAGS="--cfg hyper_unstable_tracing" cargo rustc --features client,http1,http2,tracing --crate-type cdylib
-//! ```
-
 #[cfg(not(hyper_unstable_tracing))]
 compile_error!(
     "\
