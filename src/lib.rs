@@ -49,8 +49,10 @@
 //! - `http2`: Enables HTTP/2 support.
 //! - `client`: Enables the HTTP `client`.
 //! - `server`: Enables the HTTP `server`.
+//! - `upgrade`: Enables [HTTP Upgrades].
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
+//! [Http Upgrades]: https://developer.mozilla.org/en-US/docs/Web/HTTP/Protocol_upgrade_mechanism
 //!
 //! # Unstable Features
 //! hyper includes a set of unstable optional features that can be enabled through the use of a
@@ -93,7 +95,6 @@ pub mod ext;
 mod mock;
 pub mod rt;
 pub mod service;
-pub mod upgrade;
 
 #[cfg(feature = "ffi")]
 #[cfg_attr(docsrs, doc(cfg(all(feature = "ffi", hyper_unstable_ffi))))]
@@ -114,4 +115,10 @@ cfg_feature! {
     #![feature = "server"]
 
     pub mod server;
+}
+
+cfg_feature! {
+    #![feature = "upgrade"]
+
+    pub mod upgrade;
 }

@@ -200,6 +200,7 @@ impl<'data> ReadBuf<'data> {
     }
 
     #[inline]
+    #[cfg(feature = "upgrade")]
     fn remaining(&self) -> usize {
         self.capacity() - self.filled
     }
@@ -244,11 +245,13 @@ impl<'data> ReadBufCursor<'data> {
     }
 
     #[inline]
+    #[cfg(feature = "upgrade")]
     pub(crate) fn remaining(&self) -> usize {
         self.buf.remaining()
     }
 
     #[inline]
+    #[cfg(feature = "upgrade")]
     pub(crate) fn put_slice(&mut self, buf: &[u8]) {
         assert!(
             self.buf.remaining() >= buf.len(),

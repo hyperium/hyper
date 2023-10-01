@@ -48,6 +48,7 @@ pub(super) enum Kind {
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     UnexpectedMessage,
     /// A pending item was dropped before ever being processed.
+    #[cfg(feature = "upgrade")]
     Canceled,
     /// Indicates a channel (client or body sender) is closed.
     ChannelClosed,
@@ -140,6 +141,7 @@ pub(super) enum User {
     UnsupportedStatusCode,
 
     /// User tried polling for an upgrade that doesn't exist.
+    #[cfg(feature = "upgrade")]
     NoUpgrade,
 
     /// User polled for an upgrade, but low-level API is not using upgrades.
@@ -186,6 +188,7 @@ impl Error {
     }
 
     /// Returns true if this was about a `Request` that was canceled.
+    #[cfg(feature = "upgrade")]
     pub fn is_canceled(&self) -> bool {
         matches!(self.inner.kind, Kind::Canceled)
     }
@@ -216,6 +219,7 @@ impl Error {
         }
     }
 
+    #[cfg(feature = "upgrade")]
     pub(super) fn with<C: Into<Cause>>(mut self, cause: C) -> Error {
         self.inner.cause = Some(cause.into());
         self
@@ -248,6 +252,7 @@ impl Error {
             .unwrap_or(h2::Reason::INTERNAL_ERROR)
     }
 
+    #[cfg(feature = "upgrade")]
     pub(super) fn new_canceled() -> Error {
         Error::new(Kind::Canceled)
     }
@@ -304,6 +309,7 @@ impl Error {
         Error::new(Kind::User(User::BodyWriteAborted))
     }
 
+    #[cfg(feature = "upgrade")]
     fn new_user(user: User) -> Error {
         Error::new(Kind::User(user))
     }
@@ -325,6 +331,7 @@ impl Error {
         Error::new_user(User::UnsupportedStatusCode)
     }
 
+    #[cfg(feature = "upgrade")]
     pub(super) fn new_user_no_upgrade() -> Error {
         Error::new_user(User::NoUpgrade)
     }
@@ -408,6 +415,7 @@ impl Error {
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::UnexpectedMessage => "received unexpected message from connection",
             Kind::ChannelClosed => "channel closed",
+            #[cfg(feature = "upgrade")]
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "http1", feature = "server"))]
             Kind::HeaderTimeout => "read header from client timeout",
@@ -450,6 +458,7 @@ impl Error {
             Kind::User(User::UnsupportedStatusCode) => {
                 "response has 1xx status code, not supported by server"
             }
+            #[cfg(feature = "upgrade")]
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",

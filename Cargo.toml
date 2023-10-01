@@ -26,7 +26,6 @@ futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "=1.0.0-rc.2"
 pin-project-lite = "0.2.4"
-tokio = { version = "1.13", features = ["sync"] }
 
 # Optional
 
@@ -36,6 +35,7 @@ httparse = { version = "1.8", optional = true }
 httpdate = { version = "1.0", optional = true }
 itoa = { version = "1", optional = true }
 libc = { version = "0.2", optional = true }
+tokio = { version = "1", features = ["sync"], optional = true }
 tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
 want = { version = "0.3", optional = true }
 
@@ -74,12 +74,15 @@ full = [
 ]
 
 # HTTP versions
-http1 = ["dep:httparse", "dep:itoa"]
-http2 = ["dep:h2"]
+http1 = ["upgrade", "dep:httparse", "dep:itoa"]
+http2 = ["upgrade", "dep:h2"]
 
 # Client/Server
 client = ["dep:want"]
 server = ["dep:httpdate"]
+
+# HTTP Upgrades
+upgrade = ["dep:tokio"]
 
 # C-API support (currently unstable (no semver))
 ffi = ["dep:libc", "dep:http-body-util"]
