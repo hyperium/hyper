@@ -226,11 +226,9 @@ jobs:
           toolchain: nightly-2023-05-31  # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
-        uses: actions-rs/install@v0.1
+        uses: taiki-e/cache-cargo-install-action@v1
         with:
-          crate: cargo-check-external-types
-          version: 0.1.7
-          use-tool-cache: true
+          tool: cargo-check-external-types@0.1.7
 
       - name: check-external-types
         run: cargo check-external-types --config .github/workflows/external-types.toml
