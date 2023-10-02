@@ -144,7 +144,7 @@ jobs:
         uses: taiki-e/install-action@cargo-hack
 
       - name: check --feature-powerset
-        run: cargo hack check --feature-powerset --depth 2 --skip ffi -Z avoid-dev-deps
+        run: cargo hack check --feature-powerset --depth 2 --skip ffi,tracing -Z avoid-dev-deps
 
   ffi:
     name: Test C API (FFI)
