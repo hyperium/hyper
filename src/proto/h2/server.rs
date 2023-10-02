@@ -9,7 +9,6 @@ use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
 use http::{Method, Request};
 use pin_project_lite::pin_project;
-use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
@@ -508,8 +507,8 @@ where
 
     fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
-            if let Err(e) = res {
-                debug!("stream error: {}", e);
+            if let Err(_e) = res {
+                debug!("stream error: {}", _e);
             }
         })
     }

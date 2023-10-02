@@ -191,8 +191,7 @@ where
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
-                    tracing::debug!("connection was not ready");
-
+                    debug!("connection was not ready");
                     Err(crate::Error::new_canceled().with("connection was not ready"))
                 }
             }
@@ -219,7 +218,7 @@ where
                 }))
             }
             Err(req) => {
-                tracing::debug!("connection was not ready");
+                debug!("connection was not ready");
                 let err = crate::Error::new_canceled().with("connection was not ready");
                 Either::Right(future::err((err, Some(req))))
             }
@@ -478,7 +477,7 @@ impl Builder {
         let opts = self.clone();
 
         async move {
-            tracing::trace!("client handshake HTTP/1");
+            trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
             let mut conn = proto::Conn::new(io);

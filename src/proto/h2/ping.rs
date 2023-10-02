@@ -26,7 +26,6 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
 use h2::{Ping, PingPong};
-use tracing::{debug, trace};
 
 use crate::common::time::Time;
 use crate::rt::Sleep;
@@ -300,8 +299,8 @@ impl Ponger {
                     }
                 }
             }
-            Poll::Ready(Err(e)) => {
-                debug!("pong error: {}", e);
+            Poll::Ready(Err(_e)) => {
+                debug!("pong error: {}", _e);
             }
             Poll::Pending => {
                 if let Some(ref mut ka) = self.keep_alive {
@@ -332,8 +331,8 @@ impl Shared {
                 self.ping_sent_at = Some(Instant::now());
                 trace!("sent ping");
             }
-            Err(err) => {
-                debug!("error sending ping: {}", err);
+            Err(_err) => {
+                debug!("error sending ping: {}", _err);
             }
         }
     }

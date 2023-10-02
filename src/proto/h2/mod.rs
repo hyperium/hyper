@@ -8,7 +8,6 @@ use std::error::Error as StdError;
 use std::io::{Cursor, IoSlice};
 use std::mem;
 use std::task::Context;
-use tracing::{debug, trace, warn};
 
 use crate::body::Body;
 use crate::common::{task, Future, Pin, Poll};

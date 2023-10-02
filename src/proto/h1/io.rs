@@ -8,7 +8,6 @@ use std::mem::MaybeUninit;
 
 use crate::rt::{Read, ReadBuf, Write};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use tracing::{debug, trace};
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;
@@ -224,7 +223,7 @@ where
                             if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
                                 *parse_ctx.h1_header_read_timeout_running = false;
 
-                                tracing::warn!("read header from client timeout");
+                                warn!("read header from client timeout");
                                 return Poll::Ready(Err(crate::Error::new_header_timeout()));
                             }
                         }

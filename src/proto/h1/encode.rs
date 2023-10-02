@@ -3,7 +3,6 @@ use std::io::IoSlice;
 
 use bytes::buf::{Chain, Take};
 use bytes::Buf;
-use tracing::trace;
 
 use super::io::WriteBuf;
 

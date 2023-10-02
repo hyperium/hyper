@@ -9,7 +9,6 @@ use bytes::{Buf, Bytes};
 use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
-use tracing::{debug, error, trace};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
@@ -439,7 +438,7 @@ where
 
         let result = ready!(self.io.poll_read_from_io(cx));
         Poll::Ready(result.map_err(|e| {
-            trace!("force_io_read; io error = {:?}", e);
+            trace!(error = %e, "force_io_read; io error");
             self.state.close();
             e
         }))
@@ -749,7 +748,9 @@ where
 
         // If still in Reading::Body, just give up
         match self.state.reading {
-            Reading::Init | Reading::KeepAlive => trace!("body drained"),
+            Reading::Init | Reading::KeepAlive => {
+                trace!("body drained")
+            }
             _ => self.close_read(),
         }
     }

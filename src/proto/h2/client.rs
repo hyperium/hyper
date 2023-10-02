@@ -12,7 +12,6 @@ use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
 use http::{Method, StatusCode};
 use pin_project_lite::pin_project;
-use tracing::{debug, trace, warn};
 
 use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
@@ -243,7 +242,9 @@ where
         if polled.is_ready() {
             *this.is_terminated = true;
         }
-        polled.map_err(|e| debug!("connection error: {}", e))
+        polled.map_err(|_e| {
+            debug!(error = %_e, "connection error");
+        })
     }
 }
 
@@ -441,8 +442,8 @@ where
 
         match this.pipe.poll_unpin(cx) {
             Poll::Ready(result) => {
-                if let Err(e) = result {
-                    debug!("client request body error: {}", e);
+                if let Err(_e) = result {
+                    debug!("client request body error: {}", _e);
                 }
                 drop(this.conn_drop_ref.take().expect("Future polled twice"));
                 drop(this.ping.take().expect("Future polled twice"));

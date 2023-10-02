@@ -3,7 +3,6 @@ use std::error::Error as StdError;
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use http::Request;
-use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};

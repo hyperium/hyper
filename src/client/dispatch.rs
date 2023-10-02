@@ -5,7 +5,6 @@ use http::{Request, Response};
 use http_body::Body;
 use pin_project_lite::pin_project;
 use tokio::sync::{mpsc, oneshot};
-use tracing::trace;
 
 use crate::{
     body::Incoming,
