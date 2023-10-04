@@ -1,6 +1,4 @@
-use std::marker::PhantomData;
-
-use std::time::Duration;
+use std::{convert::Infallible, marker::PhantomData, time::Duration};
 
 use crate::rt::{Read, Write};
 use bytes::Bytes;
@@ -19,7 +17,7 @@ use crate::body::{Body, Incoming as IncomingBody};
 use crate::client::dispatch::{Callback, SendWhen};
 use crate::common::io::Compat;
 use crate::common::time::Time;
-use crate::common::{task, Future, Never, Pin, Poll};
+use crate::common::{task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
@@ -33,11 +31,11 @@ type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Incomi
 
 ///// An mpsc channel is used to help notify the `Connection` task when *all*
 ///// other handles to it have been dropped, so that it can shutdown.
-type ConnDropRef = mpsc::Sender<Never>;
+type ConnDropRef = mpsc::Sender<Infallible>;
 
 ///// A oneshot channel watches the `Connection` task, and when it completes,
 ///// the "dispatch" task will be notified and can shutdown sooner.
-type ConnEof = oneshot::Receiver<Never>;
+type ConnEof = oneshot::Receiver<Infallible>;
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -267,9 +265,9 @@ pin_project! {
         T: Unpin,
     {
         #[pin]
-        drop_rx: StreamFuture<Receiver<Never>>,
+        drop_rx: StreamFuture<Receiver<Infallible>>,
         #[pin]
-        cancel_tx: Option<oneshot::Sender<Never>>,
+        cancel_tx: Option<oneshot::Sender<Infallible>>,
         #[pin]
         conn: ConnMapErr<T, B>,
     }
@@ -282,8 +280,8 @@ where
 {
     fn new(
         conn: ConnMapErr<T, B>,
-        drop_rx: StreamFuture<Receiver<Never>>,
-        cancel_tx: oneshot::Sender<Never>,
+        drop_rx: StreamFuture<Receiver<Infallible>>,
+        cancel_tx: oneshot::Sender<Infallible>,
     ) -> Self {
         Self {
             drop_rx,
@@ -421,7 +419,7 @@ pin_project! {
         #[pin]
         pipe: PipeToSendStream<S>,
         #[pin]
-        conn_drop_ref: Option<Sender<Never>>,
+        conn_drop_ref: Option<Sender<Infallible>>,
         #[pin]
         ping: Option<Recorder>,
     }
