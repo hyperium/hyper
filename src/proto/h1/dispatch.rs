@@ -549,6 +549,8 @@ cfg_server! {
 // ===== impl Client =====
 
 cfg_client! {
+    use std::convert::Infallible;
+
     impl<B> Client<B> {
         pub(crate) fn new(rx: ClientRx<B>) -> Client<B> {
             Client {
@@ -565,13 +567,13 @@ cfg_client! {
     {
         type PollItem = RequestHead;
         type PollBody = B;
-        type PollError = crate::common::Never;
+        type PollError = Infallible;
         type RecvItem = crate::proto::ResponseHead;
 
         fn poll_msg(
             mut self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
-        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), crate::common::Never>>> {
+        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Infallible>>> {
             let mut this = self.as_mut();
             debug_assert!(!this.rx_closed);
             match this.rx.poll_recv(cx) {
