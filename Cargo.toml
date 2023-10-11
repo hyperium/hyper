@@ -26,13 +26,13 @@ futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "=1.0.0-rc.2"
 http-body-util = { version = "=0.1.0-rc.3", optional = true }
-httparse = "1.8"
 h2 = { version = "0.3.9", optional = true }
 pin-project-lite = "0.2.4"
 tokio = { version = "1", features = ["sync"] }
 
 # Optional
 
+httparse = { version = "1.8", optional = true }
 httpdate = { version = "1.0", optional = true }
 itoa = { version = "1", optional = true }
 libc = { version = "0.2", optional = true }
@@ -74,7 +74,7 @@ full = [
 ]
 
 # HTTP versions
-http1 = ["dep:itoa"]
+http1 = ["dep:httparse", "dep:itoa"]
 http2 = ["dep:h2"]
 
 # Client/Server
