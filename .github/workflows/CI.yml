@@ -139,13 +139,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
       - name: check --feature-powerset
-        run: cargo hack check --feature-powerset --depth 2 --skip ffi,tracing -Z avoid-dev-deps
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi,tracing
 
   ffi:
     name: Test C API (FFI)
