@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 //! Various runtimes for hyper
 use std::{
+    future::Future,
     pin::Pin,
     task::{Context, Poll},
     time::{Duration, Instant},
 };
 
-use futures_util::Future;
 use hyper::rt::{Sleep, Timer};
 use pin_project_lite::pin_project;
 
