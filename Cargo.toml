@@ -25,13 +25,13 @@ futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "=1.0.0-rc.2"
-http-body-util = { version = "=0.1.0-rc.3", optional = true }
-h2 = { version = "0.3.9", optional = true }
 pin-project-lite = "0.2.4"
 tokio = { version = "1", features = ["sync"] }
 
 # Optional
 
+h2 = { version = "0.3.9", optional = true }
+http-body-util = { version = "=0.1.0-rc.3", optional = true }
 httparse = { version = "1.8", optional = true }
 httpdate = { version = "1.0", optional = true }
 itoa = { version = "1", optional = true }
