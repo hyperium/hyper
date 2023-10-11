@@ -456,6 +456,7 @@ impl Parse {
     }
 }
 
+#[cfg(feature = "http1")]
 impl From<httparse::Error> for Parse {
     fn from(err: httparse::Error) -> Parse {
         match err {
