@@ -23,7 +23,7 @@
 //! `cargo`, staring with `1.64.0`, it can be compiled with the following command:
 //!
 //! ```notrust
-//! RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --features client,http1,http2,ffi --crate-type cdylib
+//! RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --crate-type cdylib --features client,http1,http2,ffi
 //! ```
 
 #[cfg(not(hyper_unstable_ffi))]

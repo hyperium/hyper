@@ -24,6 +24,8 @@ jobs:
       - ffi
       - ffi-header
       - doc
+      - check-external-types
+      - udeps
     steps:
       - run: exit 0
 
@@ -32,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -40,10 +42,11 @@ jobs:
           components: rustfmt
 
       - name: cargo fmt --check
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: |
+          if ! rustfmt --check --edition 2021 $(git ls-files '*.rs'); then
+            printf "Please run \`rustfmt --edition 2021 \$(git ls-files '*.rs')\` to fix rustfmt errors.\nSee CONTRIBUTING.md for more details.\n" >&2
+            exit 1
+          fi
 
   test:
     name: Test ${{ matrix.rust }} on ${{ matrix.os }}
@@ -73,7 +76,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@master
@@ -81,17 +84,11 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: ${{ matrix.features }}
+        run: cargo test ${{ matrix.features }}
 
       - name: Test all benches
         if: matrix.benches
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --benches ${{ matrix.features }}
+        run: cargo test --benches ${{ matrix.features }}
 
   msrv:
     name: Check MSRV
@@ -101,7 +98,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Get MSRV from package metadata
         id: msrv
@@ -113,10 +110,7 @@ jobs:
           toolchain: ${{ steps.msrv.outputs.version }}
 
       - name: Check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features full
+        run: cargo check --features full
 
   miri:
     name: Test with Miri
@@ -125,7 +119,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
@@ -142,16 +136,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-hack
-        run: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
 
       - name: check --feature-powerset
-        run: cargo hack check --feature-powerset --depth 2 --skip ffi -Z avoid-dev-deps
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi,tracing
 
   ffi:
     name: Test C API (FFI)
@@ -159,59 +153,48 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build FFI
-        uses: actions-rs/cargo@v1
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        with:
-          command: rustc
-          args: --features ffi --crate-type cdylib --release
+        run: cargo rustc --features ffi --crate-type cdylib --release
 
       - name: Make Examples
         run: cd capi/examples && make
 
       - name: Run FFI unit tests
-        uses: actions-rs/cargo@v1
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        with:
-          command: test
-          args: --features ffi --lib
+        run: cargo test --features ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cbindgen
-        uses: actions-rs/cargo@v1
+        uses: taiki-e/cache-cargo-install-action@v1
         with:
-          command: install
-          args: cbindgen
+          tool: cbindgen
 
       - name: Install cargo-expand
-        uses: actions-rs/cargo@v1
+        uses: taiki-e/cache-cargo-install-action@v1
         with:
-          command: install
-          args: cargo-expand
+          tool: cargo-expand
 
       - name: Build FFI
-        uses: actions-rs/cargo@v1
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        with:
-          command: build
-          args: --features client,http1,http2,ffi
+        run: cargo build --features client,http1,http2,ffi
 
       - name: Ensure that hyper.h is up to date
         run: ./capi/gen_header.sh --verify
@@ -222,13 +205,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
 
       - name: cargo doc
-        uses: actions-rs/cargo@v1
+        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+
+  check-external-types:
+    name: Check exposed types
+    needs: [style, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
         with:
-          command: rustdoc
-          args: --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+          toolchain: nightly-2023-05-31  # Compatible version for cargo-check-external-types
+
+      - name: Install cargo-check-external-types
+        uses: taiki-e/cache-cargo-install-action@v1
+        with:
+          tool: cargo-check-external-types@0.1.7
+
+      - name: check-external-types
+        run: cargo check-external-types --config .github/workflows/external-types.toml
+
+  udeps:
+    needs: [style]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-udeps
+        uses: taiki-e/install-action@cargo-udeps
+
+      - name: Check unused dependencies on default features
+        run: cargo udeps
+
+      - name: Check unused dependencies on full features
+        run: cargo udeps --features full

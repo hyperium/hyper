@@ -11,6 +11,10 @@ use hyper::service::service_fn;
 use hyper::{Request, Response};
 use tokio::net::TcpListener;
 
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
 static INDEX1: &[u8] = b"The 1st service!";
 static INDEX2: &[u8] = b"The 2nd service!";
 
@@ -33,10 +37,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let listener = TcpListener::bind(addr1).await.unwrap();
         loop {
             let (stream, _) = listener.accept().await.unwrap();
+            let io = TokioIo::new(stream);
 
             tokio::task::spawn(async move {
                 if let Err(err) = http1::Builder::new()
-                    .serve_connection(stream, service_fn(index1))
+                    .serve_connection(io, service_fn(index1))
                     .await
                 {
                     println!("Error serving connection: {:?}", err);
@@ -49,10 +54,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let listener = TcpListener::bind(addr2).await.unwrap();
         loop {
             let (stream, _) = listener.accept().await.unwrap();
+            let io = TokioIo::new(stream);
 
             tokio::task::spawn(async move {
                 if let Err(err) = http1::Builder::new()
-                    .serve_connection(stream, service_fn(index2))
+                    .serve_connection(io, service_fn(index2))
                     .await
                 {
                     println!("Error serving connection: {:?}", err);

@@ -161,7 +161,7 @@ ffi_fn! {
     /// Setting this to true will force hyper to use queued strategy which may eliminate
     /// unnecessary cloning on some TLS backends.
     ///
-    /// Default is to automatically guess which mode to use, this function overrides the huristic.
+    /// Default is to automatically guess which mode to use, this function overrides the heuristic.
     fn hyper_http1_serverconn_options_writev(
         opts: *mut hyper_http1_serverconn_options,
         enabled: bool,
@@ -318,7 +318,7 @@ ffi_fn! {
 ffi_fn! {
     /// Sets an interval for HTTP/2 Ping frames should be sent to keep a connection alive.
     ///
-    /// Default is to not use keepalive pings.  Passing `0` will use this default.
+    /// Default is to not use keep-alive pings.  Passing `0` will use this default.
     fn hyper_http2_serverconn_options_keep_alive_interval(
         opts: *mut hyper_http2_serverconn_options,
         interval_seconds: u64,
@@ -518,7 +518,7 @@ impl crate::service::Service<crate::Request<IncomingBody>> for hyper_service {
         Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
     >;
 
-    fn call(&mut self, req: crate::Request<IncomingBody>) -> Self::Future {
+    fn call(&self, req: crate::Request<IncomingBody>) -> Self::Future {
         let req_ptr = Box::into_raw(Box::new(hyper_request::from(req)));
 
         let (tx, rx) = futures_channel::oneshot::channel();
@@ -554,7 +554,7 @@ unsafe impl crate::ffi::task::AsTaskType for ServerConn {
 
 impl<IO, Serv, Exec> std::future::Future for AutoConnection<IO, Serv, Exec>
 where
-    IO: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + 'static,
+    IO: crate::rt::Read + crate::rt::Write + Unpin + 'static,
     Serv: crate::service::HttpService<IncomingBody, ResBody = IncomingBody>,
     Exec: crate::rt::Executor<crate::proto::h2::server::H2Stream<Serv::Future, IncomingBody>>
         + Unpin

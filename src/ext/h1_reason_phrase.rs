@@ -42,7 +42,7 @@ impl ReasonPhrase {
     }
 
     /// Converts a static byte slice to a reason phrase.
-    pub fn from_static(reason: &'static [u8]) -> Self {
+    pub const fn from_static(reason: &'static [u8]) -> Self {
         // TODO: this can be made const once MSRV is >= 1.57.0
         if find_invalid_byte(reason).is_some() {
             panic!("invalid byte in static reason phrase");
@@ -50,11 +50,12 @@ impl ReasonPhrase {
         Self(Bytes::from_static(reason))
     }
 
+    // Not public on purpose.
     /// Converts a `Bytes` directly into a `ReasonPhrase` without validating.
     ///
     /// Use with care; invalid bytes in a reason phrase can cause serious security problems if
     /// emitted in a response.
-    pub unsafe fn from_bytes_unchecked(reason: Bytes) -> Self {
+    pub(crate) fn from_bytes_unchecked(reason: Bytes) -> Self {
         Self(reason)
     }
 }

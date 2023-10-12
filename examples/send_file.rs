@@ -10,6 +10,10 @@ use http_body_util::Full;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, Result, StatusCode};
 
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
 static INDEX: &str = "examples/send_file_index.html";
 static NOTFOUND: &[u8] = b"Not Found";
 
@@ -24,10 +28,11 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, service_fn(response_examples))
+                .serve_connection(io, service_fn(response_examples))
                 .await
             {
                 println!("Failed to serve connection: {:?}", err);

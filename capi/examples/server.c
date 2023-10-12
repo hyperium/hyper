@@ -345,7 +345,7 @@ static void server_callback(
         8
     );
 
-    if (!strcmp((char*)method, "GET")) {
+    if (!strncmp((char*)method, "GET", method_len)) {
         // ...add a body
         hyper_body* body = hyper_body_new();
         hyper_body_set_data_func(body, send_each_body_chunk);

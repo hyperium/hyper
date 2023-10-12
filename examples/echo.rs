@@ -10,6 +10,10 @@ use hyper::service::service_fn;
 use hyper::{body::Body, Method, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.
 async fn echo(
@@ -18,7 +22,7 @@ async fn echo(
     match (req.method(), req.uri().path()) {
         // Serve some instructions at /
         (&Method::GET, "/") => Ok(Response::new(full(
-            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d 'hello world'`",
+            "Try POSTing data to /echo such as: `curl localhost:3000/echo -XPOST -d \"hello world\"`",
         ))),
 
         // Simply echo the body back to the client.
@@ -92,10 +96,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     println!("Listening on http://{}", addr);
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
             if let Err(err) = http1::Builder::new()
-                .serve_connection(stream, service_fn(echo))
+                .serve_connection(io, service_fn(echo))
                 .await
             {
                 println!("Error serving connection: {:?}", err);

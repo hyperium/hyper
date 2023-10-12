@@ -5,8 +5,8 @@ use std::fmt;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::{task, Future, Pin, Poll, Unpin};
@@ -16,9 +16,12 @@ use crate::service::HttpService;
 use crate::{common::time::Time, rt::Timer};
 
 pin_project! {
-    /// A future binding an HTTP/2 connection with a Service.
+    /// A [`Future`](core::future::Future) representing an HTTP/2 connection, bound to a
+    /// [`Service`](crate::service::Service), returned from
+    /// [`Builder::serve_connection`](struct.Builder.html#method.serve_connection).
     ///
-    /// Polling this future will drive HTTP forward.
+    /// To drive HTTP on this connection this future **must be polled**, typically with
+    /// `.await`. If it isn't polled, no progress will be made on this connection.
     #[must_use = "futures do nothing unless polled"]
     pub struct Connection<T, S, E>
     where
@@ -51,7 +54,7 @@ impl<I, B, S, E> Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ConnExec<S::Future, B>,
@@ -75,7 +78,7 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin + 'static,
+    I: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ConnExec<S::Future, B>,
@@ -118,7 +121,7 @@ impl<E> Builder<E> {
     ///
     /// If not set, hyper will use a default.
     ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
@@ -132,10 +135,7 @@ impl<E> Builder<E> {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn initial_connection_window_size(
-        &mut self,
-        sz: impl Into<Option<u32>>,
-    ) -> &mut Self {
+    pub fn initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
@@ -176,7 +176,7 @@ impl<E> Builder<E> {
     ///
     /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
     ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_MAX_CONCURRENT_STREAMS
+    /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
         self.h2_builder.max_concurrent_streams = max.into();
         self
@@ -191,10 +191,7 @@ impl<E> Builder<E> {
     ///
     /// # Cargo Feature
     ///
-    pub fn keep_alive_interval(
-        &mut self,
-        interval: impl Into<Option<Duration>>,
-    ) -> &mut Self {
+    pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
     }
@@ -261,7 +258,7 @@ impl<E> Builder<E> {
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
-        I: AsyncRead + AsyncWrite + Unpin,
+        I: Read + Write + Unpin,
         E: Http2ConnExec<S::Future, Bd>,
     {
         let proto = proto::h2::Server::new(

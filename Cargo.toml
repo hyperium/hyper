@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -11,7 +11,7 @@ authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
 edition = "2018"
-rust-version = "1.56" # keep in sync with MSRV.md dev doc
+rust-version = "1.63" # keep in sync with MSRV.md dev doc
 
 include = [
   "Cargo.toml",
@@ -21,31 +21,28 @@ include = [
 
 [dependencies]
 bytes = "1"
-futures-core = { version = "0.3", default-features = false }
 futures-channel = "0.3"
 futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "=1.0.0-rc.2"
-http-body-util = { version = "=0.1.0-rc.2", optional = true }
-httpdate = "1.0"
-httparse = "1.8"
-h2 = { version = "0.3.9", optional = true }
-itoa = "1"
-tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
 tokio = { version = "1", features = ["sync"] }
-want = "0.3"
 
 # Optional
 
+h2 = { version = "0.3.9", optional = true }
+http-body-util = { version = "=0.1.0-rc.3", optional = true }
+httparse = { version = "1.8", optional = true }
+httpdate = { version = "1.0", optional = true }
+itoa = { version = "1", optional = true }
 libc = { version = "0.2", optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
+want = { version = "0.3", optional = true }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-http-body-util = "=0.1.0-rc.2"
-matches = "0.1"
-num_cpus = "1.0"
-pretty_env_logger = "0.4"
+http-body-util = "=0.1.0-rc.3"
+pretty_env_logger = "0.5"
 spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -62,7 +59,6 @@ tokio = { version = "1", features = [
     "test-util",
 ] }
 tokio-test = "0.4"
-tokio-util = { version = "0.7", features = ["codec"] }
 url = "2.2"
 
 [features]
@@ -73,22 +69,25 @@ default = []
 full = ["client", "http1", "http2", "server"]
 
 # HTTP versions
-http1 = []
-http2 = ["h2"]
+http1 = ["dep:httparse", "dep:itoa"]
+http2 = ["dep:h2"]
 
 # Client/Server
-client = []
-server = []
+client = ["dep:want"]
+server = ["dep:httpdate"]
 
 # C-API support (currently unstable (no semver))
-ffi = ["libc", "full", "http-body-util"]
+ffi = ["dep:libc", "full", "dep:http-body-util"]
+
+# Utilize tracing (currently unstable)
+tracing = ["dep:tracing"]
 
 # internal features used in CI
 nightly = []
 
 [package.metadata.docs.rs]
-features = ["ffi", "full"]
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi"]
+features = ["ffi", "full", "tracing"]
+rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
 
 [package.metadata.playground]
 features = ["full"]
@@ -119,6 +118,11 @@ required-features = ["full"]
 [[example]]
 name = "gateway"
 path = "examples/gateway.rs"
+required-features = ["full"]
+
+[[example]]
+name = "graceful_shutdown"
+path = "examples/graceful_shutdown.rs"
 required-features = ["full"]
 
 [[example]]

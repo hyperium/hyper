@@ -14,8 +14,6 @@ use libc::c_int;
 use super::error::hyper_code;
 use super::userdata::{Userdata, hyper_userdata_drop};
 
-use crate::proto::h2::server::H2Stream;
-
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
 
@@ -204,26 +202,23 @@ impl WeakExec {
     }
 }
 
-impl crate::rt::Executor<BoxFuture<()>> for WeakExec {
-    fn execute(&self, fut: BoxFuture<()>) {
+impl<F> crate::rt::Executor<F> for WeakExec
+where
+    F: Future + Send + 'static,
+    F::Output: Send + Sync + AsTaskType,
+{
+    fn execute(&self, fut: F) {
         if let Some(exec) = self.0.upgrade() {
             exec.spawn(hyper_task::boxed(fut));
         }
     }
 }
 
-impl<F, B> crate::rt::Executor<H2Stream<F, B>> for WeakExec
-where
-    H2Stream<F, B>: Future<Output = ()> + Send + 'static,
-    B: crate::body::Body,
-{
-    fn execute(&self, fut: H2Stream<F, B>) {
-        <Self as crate::rt::Executor<_>>::execute(&self, Box::pin(fut) as Pin<Box<_>>)
-    }
-}
-
 ffi_fn! {
     /// Creates a new task executor.
+    ///
+    /// To avoid a memory leak, the executor must eventually be consumed by
+    /// `hyper_executor_free`.
     fn hyper_executor_new() -> *const hyper_executor {
         Arc::into_raw(hyper_executor::new())
     } ?= ptr::null()
@@ -231,6 +226,8 @@ ffi_fn! {
 
 ffi_fn! {
     /// Frees an executor and any incomplete tasks still part of it.
+    ///
+    /// This should be used for any executor once it is no longer needed.
     fn hyper_executor_free(exec: *const hyper_executor) {
         drop(non_null!(Arc::from_raw(exec) ?= ()));
     }
@@ -239,7 +236,7 @@ ffi_fn! {
 ffi_fn! {
     /// Push a task onto the executor.
     ///
-    /// The executor takes ownership of the task, it should not be accessed
+    /// The executor takes ownership of the task, which should not be accessed
     /// again unless returned back to the user with `hyper_executor_poll`.
     fn hyper_executor_push(exec: *const hyper_executor, task: *mut hyper_task) -> hyper_code {
         let exec = non_null!(&*exec ?= hyper_code::HYPERE_INVALID_ARG);
@@ -254,6 +251,10 @@ ffi_fn! {
     /// that they are ready again.
     ///
     /// If ready, returns a task from the executor that has completed.
+    ///
+    /// To avoid a memory leak, the task must eventually be consumed by
+    /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
+    /// without subsequently being given back by `hyper_executor_poll`.
     ///
     /// If there are no ready tasks, this returns `NULL`.
     fn hyper_executor_poll(exec: *const hyper_executor) -> *mut hyper_task {
@@ -324,6 +325,10 @@ impl Future for TaskFuture {
 
 ffi_fn! {
     /// Free a task.
+    ///
+    /// This should only be used if the task isn't consumed by
+    /// `hyper_clientconn_handshake` or taken ownership of by
+    /// `hyper_executor_push`.
     fn hyper_task_free(task: *mut hyper_task) {
         drop(non_null!(Box::from_raw(task) ?= ()));
     }
@@ -336,6 +341,11 @@ ffi_fn! {
     /// this task.
     ///
     /// Use `hyper_task_type` to determine the type of the `void *` return value.
+    ///
+    /// To avoid a memory leak, a non-empty return value must eventually be
+    /// consumed by a function appropriate for its type, one of
+    /// `hyper_error_free`, `hyper_clientconn_free`, `hyper_response_free`, or
+    /// `hyper_buf_free`.
     fn hyper_task_value(task: *mut hyper_task) -> *mut c_void {
         let task = non_null!(&mut *task ?= ptr::null_mut());
 
@@ -438,6 +448,9 @@ impl hyper_context<'_> {
 
 ffi_fn! {
     /// Copies a waker out of the task context.
+    ///
+    /// To avoid a memory leak, the waker must eventually be consumed by
+    /// `hyper_waker_free` or `hyper_waker_wake`.
     fn hyper_context_waker(cx: *mut hyper_context<'_>) -> *mut hyper_waker {
         let waker = non_null!(&mut *cx ?= ptr::null_mut()).0.waker().clone();
         Box::into_raw(Box::new(hyper_waker { waker }))
@@ -447,7 +460,10 @@ ffi_fn! {
 // ===== impl hyper_waker =====
 
 ffi_fn! {
-    /// Free a waker that hasn't been woken.
+    /// Free a waker.
+    ///
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_waker_wake`.
     fn hyper_waker_free(waker: *mut hyper_waker) {
         drop(non_null!(Box::from_raw(waker) ?= ()));
     }

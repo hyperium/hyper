@@ -3,7 +3,7 @@ use std::fmt;
 use bytes::Bytes;
 use futures_channel::mpsc;
 use futures_channel::oneshot;
-use futures_core::{FusedStream, Stream}; // for mpsc::Receiver
+use futures_util::{stream::FusedStream, Stream}; // for mpsc::Receiver
 use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
 
@@ -201,7 +201,16 @@ impl Body for Incoming {
                             ping.record_data(bytes.len());
                             return Poll::Ready(Some(Ok(Frame::data(bytes))));
                         }
-                        Some(Err(e)) => return Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                        Some(Err(e)) => {
+                            return match e.reason() {
+                                // These reasons should cause the body reading to stop, but not fail it.
+                                // The same logic as for `Read for H2Upgraded` is applied here.
+                                Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => {
+                                    Poll::Ready(None)
+                                }
+                                _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                            };
+                        }
                         None => {
                             *data_done = true;
                             // fall through to trailers
@@ -337,19 +346,17 @@ impl Sender {
             .map_err(|err| err.into_inner().expect("just sent Ok"))
     }
 
-    /// Aborts the body in an abnormal fashion.
     #[allow(unused)]
-    pub(crate) fn abort(self) {
+    pub(crate) fn abort(mut self) {
+        self.send_error(crate::Error::new_body_write_aborted());
+    }
+
+    pub(crate) fn send_error(&mut self, err: crate::Error) {
         let _ = self
             .data_tx
             // clone so the send works even if buffer is full
             .clone()
-            .try_send(Err(crate::Error::new_body_write_aborted()));
-    }
-
-    #[cfg(feature = "http1")]
-    pub(crate) fn send_error(&mut self, err: crate::Error) {
-        let _ = self.data_tx.try_send(Err(err));
+            .try_send(Err(err));
     }
 }
 

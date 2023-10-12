@@ -9,7 +9,6 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
-use tracing::{debug, error, trace, trace_span, warn};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
@@ -72,8 +71,7 @@ where
         return Ok(None);
     }
 
-    let span = trace_span!("parse_headers");
-    let _s = span.enter();
+    let _entered = trace_span!("parse_headers");
 
     #[cfg(feature = "server")]
     if !*ctx.h1_header_read_timeout_running {
@@ -103,8 +101,7 @@ pub(super) fn encode_headers<T>(
 where
     T: Http1Transaction,
 {
-    let span = trace_span!("encode_headers");
-    let _s = span.enter();
+    let _entered = trace_span!("encode_headers");
     T::encode(enc, dst)
 }
 
@@ -1059,7 +1056,7 @@ impl Http1Transaction for Client {
             if let Some(reason) = reason {
                 // Safety: httparse ensures that only valid reason phrase bytes are present in this
                 // field.
-                let reason = unsafe { crate::ext::ReasonPhrase::from_bytes_unchecked(reason) };
+                let reason = crate::ext::ReasonPhrase::from_bytes_unchecked(reason);
                 extensions.insert(reason);
             }
 

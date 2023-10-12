@@ -2,9 +2,9 @@ use std::marker::Unpin;
 use std::{cmp, io};
 
 use bytes::{Buf, Bytes};
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 
 use crate::common::{task, Pin, Poll};
+use crate::rt::{Read, ReadBufCursor, Write};
 
 /// Combine a buffer with an IO, rewinding reads to use the buffer.
 #[derive(Debug)]
@@ -44,14 +44,14 @@ impl<T> Rewind<T> {
     // }
 }
 
-impl<T> AsyncRead for Rewind<T>
+impl<T> Read for Rewind<T>
 where
-    T: AsyncRead + Unpin,
+    T: Read + Unpin,
 {
     fn poll_read(
         mut self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        mut buf: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         if let Some(mut prefix) = self.pre.take() {
             // If there are no remaining bytes, let the bytes get dropped.
@@ -72,9 +72,9 @@ where
     }
 }
 
-impl<T> AsyncWrite for Rewind<T>
+impl<T> Write for Rewind<T>
 where
-    T: AsyncWrite + Unpin,
+    T: Write + Unpin,
 {
     fn poll_write(
         mut self: Pin<&mut Self>,
@@ -109,6 +109,7 @@ where
 mod tests {
     // FIXME: re-implement tests with `async/await`, this import should
     // trigger a warning to remind us
+    use super::super::compat;
     use super::Rewind;
     use bytes::Bytes;
     use tokio::io::AsyncReadExt;
@@ -120,14 +121,14 @@ mod tests {
 
         let mock = tokio_test::io::Builder::new().read(&underlying).build();
 
-        let mut stream = Rewind::new(mock);
+        let mut stream = compat(Rewind::new(compat(mock)));
 
         // Read off some bytes, ensure we filled o1
         let mut buf = [0; 2];
         stream.read_exact(&mut buf).await.expect("read1");
 
         // Rewind the stream so that it is as if we never read in the first place.
-        stream.rewind(Bytes::copy_from_slice(&buf[..]));
+        stream.0.rewind(Bytes::copy_from_slice(&buf[..]));
 
         let mut buf = [0; 5];
         stream.read_exact(&mut buf).await.expect("read1");
@@ -143,13 +144,13 @@ mod tests {
 
         let mock = tokio_test::io::Builder::new().read(&underlying).build();
 
-        let mut stream = Rewind::new(mock);
+        let mut stream = compat(Rewind::new(compat(mock)));
 
         let mut buf = [0; 5];
         stream.read_exact(&mut buf).await.expect("read1");
 
         // Rewind the stream so that it is as if we never read in the first place.
-        stream.rewind(Bytes::copy_from_slice(&buf[..]));
+        stream.0.rewind(Bytes::copy_from_slice(&buf[..]));
 
         let mut buf = [0; 5];
         stream.read_exact(&mut buf).await.expect("read1");

@@ -1,9 +1,8 @@
 use std::error::Error as StdError;
 
+use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use http::Request;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
@@ -28,7 +27,8 @@ pub(crate) trait Dispatch {
         self: Pin<&mut Self>,
         cx: &mut task::Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
-    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>) -> crate::Result<()>;
+    fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>)
+        -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -63,7 +63,7 @@ where
             RecvItem = MessageHead<T::Incoming>,
         > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
     Bs: Body + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -81,7 +81,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
-        if self.conn.is_write_closed() {
+
+        // If keep alive has been disabled and no read or write has been seen on
+        // the connection yet, we must be in a state where the server is being asked to
+        // shut down before any data has been seen on the connection
+        if self.conn.is_write_closed() || self.conn.has_initial_read_write_state() {
             self.close();
         }
     }
@@ -92,7 +96,7 @@ where
     }
 
     /// Run this dispatcher until HTTP says this connection is done,
-    /// but don't call `AsyncWrite::shutdown` on the underlying IO.
+    /// but don't call `Write::shutdown` on the underlying IO.
     ///
     /// This is useful for old-style HTTP upgrades, but ignores
     /// newer-style upgrade API.
@@ -116,6 +120,10 @@ where
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
         Poll::Ready(ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
+            // Be sure to alert a streaming body of the failure.
+            if let Some(mut body) = self.body_tx.take() {
+                body.send_error(crate::Error::new_body("connection error"));
+            }
             // An error means we're shutting down either way.
             // We just try to give the error to the user,
             // and close the connection with an Ok. If we
@@ -249,7 +257,8 @@ where
                 let body = match body_len {
                     DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) = IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) =
+                            IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
@@ -366,7 +375,12 @@ where
                         self.conn.end_body()?;
                     }
                 } else {
-                    return Poll::Pending;
+                    // If there's no body_rx, end the body
+                    if self.conn.can_write_body() {
+                        self.conn.end_body()?;
+                    } else {
+                        return Poll::Pending;
+                    }
                 }
             }
         }
@@ -411,7 +425,7 @@ where
             RecvItem = MessageHead<T::Incoming>,
         > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
     Bs: Body + 'static,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -535,6 +549,8 @@ cfg_server! {
 // ===== impl Client =====
 
 cfg_client! {
+    use std::convert::Infallible;
+
     impl<B> Client<B> {
         pub(crate) fn new(rx: ClientRx<B>) -> Client<B> {
             Client {
@@ -551,13 +567,13 @@ cfg_client! {
     {
         type PollItem = RequestHead;
         type PollBody = B;
-        type PollError = crate::common::Never;
+        type PollError = Infallible;
         type RecvItem = crate::proto::ResponseHead;
 
         fn poll_msg(
             mut self: Pin<&mut Self>,
             cx: &mut task::Context<'_>,
-        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), crate::common::Never>>> {
+        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Infallible>>> {
             let mut this = self.as_mut();
             debug_assert!(!this.rx_closed);
             match this.rx.poll_recv(cx) {
@@ -649,6 +665,7 @@ cfg_client! {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::io::compat;
     use crate::proto::h1::ClientTransaction;
     use std::time::Duration;
 
@@ -662,7 +679,7 @@ mod tests {
             // Block at 0 for now, but we will release this response before
             // the request is ready to write later...
             let (mut tx, rx) = crate::client::dispatch::channel();
-            let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
+            let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(compat(io));
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
             // First poll is needed to allow tx to send...
@@ -699,7 +716,7 @@ mod tests {
             .build_with_handle();
 
         let (mut tx, rx) = crate::client::dispatch::channel();
-        let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
+        let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(compat(io));
         conn.set_write_strategy_queue();
 
         let dispatcher = Dispatcher::new(Client::new(rx), conn);
@@ -730,7 +747,7 @@ mod tests {
             .build();
 
         let (mut tx, rx) = crate::client::dispatch::channel();
-        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
+        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(compat(io));
         let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn));
 
         // First poll is needed to allow tx to send...

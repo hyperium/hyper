@@ -3,16 +3,14 @@
 use std::error::Error as StdError;
 use std::fmt;
 
+use crate::rt::{Read, Write};
 use bytes::Bytes;
 use http::{Request, Response};
 use httparse::ParserConfig;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::{
-    task, Future, Pin, Poll,
-};
+use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
 use crate::upgrade::Upgraded;
 
@@ -51,7 +49,7 @@ pub struct Parts<T> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B>
 where
-    T: AsyncRead + AsyncWrite + Send + 'static,
+    T: Read + Write + Send + 'static,
     B: Body + 'static,
 {
     inner: Option<Dispatcher<T, B>>,
@@ -59,7 +57,7 @@ where
 
 impl<T, B> Connection<T, B>
 where
-    T: AsyncRead + AsyncWrite + Send + Unpin + 'static,
+    T: Read + Write + Send + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -116,7 +114,7 @@ pub struct Builder {
 /// See [`client::conn`](crate::client::conn) for more.
 pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: Read + Write + Unpin + Send + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -193,8 +191,7 @@ where
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
-                    tracing::debug!("connection was not ready");
-
+                    debug!("connection was not ready");
                     Err(crate::Error::new_canceled().with("connection was not ready"))
                 }
             }
@@ -221,7 +218,7 @@ where
                 }))
             }
             Err(req) => {
-                tracing::debug!("connection was not ready");
+                debug!("connection was not ready");
                 let err = crate::Error::new_canceled().with("connection was not ready");
                 Either::Right(future::err((err, Some(req))))
             }
@@ -240,7 +237,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 impl<T, B> fmt::Debug for Connection<T, B>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
+    T: Read + Write + fmt::Debug + Send + 'static,
     B: Body + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -250,8 +247,8 @@ where
 
 impl<T, B> Future for Connection<T, B>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Body + Send + 'static,
+    T: Read + Write + Unpin + Send + 'static,
+    B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -319,10 +316,7 @@ impl Builder {
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn allow_spaces_after_header_name_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn allow_spaces_after_header_name_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .allow_spaces_after_header_name_in_responses(enabled);
         self
@@ -360,10 +354,7 @@ impl Builder {
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn allow_obsolete_multiline_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn allow_obsolete_multiline_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .allow_obsolete_multiline_headers_in_responses(enabled);
         self
@@ -478,7 +469,7 @@ impl Builder {
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: Read + Write + Unpin + Send + 'static,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -486,7 +477,7 @@ impl Builder {
         let opts = self.clone();
 
         async move {
-            tracing::trace!("client handshake HTTP/1");
+            trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
             let mut conn = proto::Conn::new(io);

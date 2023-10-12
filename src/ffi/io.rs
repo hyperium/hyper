@@ -2,11 +2,11 @@ use std::ffi::c_void;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
+use crate::rt::{Read, Write};
 use libc::size_t;
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::task::hyper_context;
-use super::userdata::Userdata;
+use super::userdata::{Userdata, hyper_userdata_drop};
 
 /// Sentinel value to return from a read or write callback that the operation
 /// is pending.
@@ -32,6 +32,9 @@ ffi_fn! {
     ///
     /// The read and write functions of this transport should be set with
     /// `hyper_io_set_read` and `hyper_io_set_write`.
+    ///
+    /// To avoid a memory leak, the IO handle must eventually be consumed by
+    /// `hyper_io_free` or `hyper_clientconn_handshake`.
     fn hyper_io_new() -> *mut hyper_io {
         Box::into_raw(Box::new(hyper_io {
             read: read_noop,
@@ -42,10 +45,10 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Free an unused `hyper_io *`.
+    /// Free an IO handle.
     ///
-    /// This is typically only useful if you aren't going to pass ownership
-    /// of the IO handle to hyper, such as with `hyper_clientconn_handshake()`.
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_clientconn_handshake`.
     fn hyper_io_free(io: *mut hyper_io) {
         drop(non_null!(Box::from_raw(io) ?= ()));
     }
@@ -57,12 +60,12 @@ ffi_fn! {
     /// This value is passed as an argument to the read and write callbacks.
     ///
     /// If passed, the `drop_func` will be called on the `userdata` when the
-    /// `hyper_io` is destroyed (either explicitely by `hyper_io_free` or
-    /// implicitely by an associated hyper task completing).
+    /// `hyper_io` is destroyed (either explicitly by `hyper_io_free` or
+    /// implicitly by an associated hyper task completing).
     fn hyper_io_set_userdata(
         io: *mut hyper_io,
         data: *mut c_void,
-        drop_func: super::userdata::hyper_userdata_drop,
+        drop_func: hyper_userdata_drop,
     ) {
         let io = non_null!(&mut *io? = ());
         io.userdata = Userdata::new(data, drop_func);
@@ -141,13 +144,13 @@ extern "C" fn write_noop(
     0
 }
 
-impl AsyncRead for hyper_io {
+impl Read for hyper_io {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
+        mut buf: crate::rt::ReadBufCursor<'_>,
     ) -> Poll<std::io::Result<()>> {
-        let buf_ptr = unsafe { buf.unfilled_mut() }.as_mut_ptr() as *mut u8;
+        let buf_ptr = unsafe { buf.as_mut() }.as_mut_ptr() as *mut u8;
         let buf_len = buf.remaining();
 
         match (self.read)(self.userdata.as_ptr(), hyper_context::wrap(cx), buf_ptr, buf_len) {
@@ -159,15 +162,14 @@ impl AsyncRead for hyper_io {
             ok => {
                 // We have to trust that the user's read callback actually
                 // filled in that many bytes... :(
-                unsafe { buf.assume_init(ok) };
-                buf.advance(ok);
+                unsafe { buf.advance(ok) };
                 Poll::Ready(Ok(()))
             }
         }
     }
 }
 
-impl AsyncWrite for hyper_io {
+impl Write for hyper_io {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

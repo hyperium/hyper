@@ -4,8 +4,7 @@
 extern crate test;
 mod support;
 
-// TODO: Reimplement Opts::bench using hyper::server::conn and hyper::client::conn
-// (instead of Server and HttpClient).
+// TODO: Reimplement parallel for HTTP/1
 
 use std::convert::Infallible;
 use std::net::SocketAddr;
@@ -315,7 +314,8 @@ impl Opts {
 
         let mut client = rt.block_on(async {
             if self.http2 {
-                let io = tokio::net::TcpStream::connect(&addr).await.unwrap();
+                let tcp = tokio::net::TcpStream::connect(&addr).await.unwrap();
+                let io = support::TokioIo::new(tcp);
                 let (tx, conn) = hyper::client::conn::http2::Builder::new(support::TokioExecutor)
                     .initial_stream_window_size(self.http2_stream_window)
                     .initial_connection_window_size(self.http2_conn_window)
@@ -328,7 +328,8 @@ impl Opts {
             } else if self.parallel_cnt > 1 {
                 todo!("http/1 parallel >1");
             } else {
-                let io = tokio::net::TcpStream::connect(&addr).await.unwrap();
+                let tcp = tokio::net::TcpStream::connect(&addr).await.unwrap();
+                let io = support::TokioIo::new(tcp);
                 let (tx, conn) = hyper::client::conn::http1::Builder::new()
                     .handshake(io)
                     .await
@@ -414,6 +415,7 @@ fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
     let opts = opts.clone();
     rt.spawn(async move {
         while let Ok((sock, _)) = listener.accept().await {
+            let io = support::TokioIo::new(sock);
             if opts.http2 {
                 tokio::spawn(
                     hyper::server::conn::http2::Builder::new(support::TokioExecutor)
@@ -421,7 +423,7 @@ fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
                         .initial_connection_window_size(opts.http2_conn_window)
                         .adaptive_window(opts.http2_adaptive_window)
                         .serve_connection(
-                            sock,
+                            io,
                             service_fn(move |req: Request<hyper::body::Incoming>| async move {
                                 let mut req_body = req.into_body();
                                 while let Some(_chunk) = req_body.frame().await {}
@@ -433,7 +435,7 @@ fn spawn_server(rt: &tokio::runtime::Runtime, opts: &Opts) -> SocketAddr {
                 );
             } else {
                 tokio::spawn(hyper::server::conn::http1::Builder::new().serve_connection(
-                    sock,
+                    io,
                     service_fn(move |req: Request<hyper::body::Incoming>| async move {
                         let mut req_body = req.into_body();
                         while let Some(_chunk) = req_body.frame().await {}

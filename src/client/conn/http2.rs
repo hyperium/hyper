@@ -1,23 +1,21 @@
 //! HTTP/2 client connections
 
-use std::error::Error as StdError;
+use std::error::Error;
 use std::fmt;
 use std::marker::PhantomData;
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use http::{Request, Response};
-use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
-use crate::common::{
-    exec::{BoxSendFuture, Exec},
-    task, Future, Pin, Poll,
-};
+use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
-use crate::rt::{Executor, Timer};
+use crate::rt::bounds::ExecutorClient;
+use crate::rt::Timer;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
@@ -26,7 +24,9 @@ pub struct SendRequest<B> {
 
 impl<B> Clone for SendRequest<B> {
     fn clone(&self) -> SendRequest<B> {
-        SendRequest { dispatch: self.dispatch.clone() }
+        SendRequest {
+            dispatch: self.dispatch.clone(),
+        }
     }
 }
 
@@ -35,20 +35,22 @@ impl<B> Clone for SendRequest<B> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 #[must_use = "futures do nothing unless polled"]
-pub struct Connection<T, B>
+pub struct Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Send + 'static,
+    T: Read + Write + 'static + Unpin,
     B: Body + 'static,
+    E: ExecutorClient<B, T> + Unpin,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
-    inner: (PhantomData<T>, proto::h2::ClientTask<B>),
+    inner: (PhantomData<T>, proto::h2::ClientTask<B, E, T>),
 }
 
 /// A builder to configure an HTTP connection.
 ///
 /// After setting options, the builder is used to create a handshake future.
 #[derive(Clone, Debug)]
-pub struct Builder {
-    pub(super) exec: Exec,
+pub struct Builder<Ex> {
+    pub(super) exec: Ex,
     pub(super) timer: Time,
     h2_builder: proto::h2::client::Config,
 }
@@ -60,13 +62,13 @@ pub struct Builder {
 pub async fn handshake<E, T, B>(
     exec: E,
     io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
-    E: Executor<BoxSendFuture> + Send + Sync + 'static,
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    E: ExecutorClient<B, T> + Unpin + Clone,
 {
     Builder::new(exec).handshake(io).await
 }
@@ -144,7 +146,7 @@ where
                     Err(_canceled) => panic!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
-                    tracing::debug!("connection was not ready");
+                    debug!("connection was not ready");
 
                     Err(crate::Error::new_canceled().with("connection was not ready"))
                 }
@@ -172,7 +174,7 @@ where
                 }))
             }
             Err(req) => {
-                tracing::debug!("connection was not ready");
+                debug!("connection was not ready");
                 let err = crate::Error::new_canceled().with("connection was not ready");
                 Either::Right(future::err((err, Some(req))))
             }
@@ -189,12 +191,13 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 // ===== impl Connection
 
-impl<T, B> Connection<T, B>
+impl<T, B, E> Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Body + Unpin + Send + 'static,
+    T: Read + Write + Unpin + 'static,
+    B: Body + Unpin + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    E: ExecutorClient<B, T> + Unpin,
 {
     /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
     ///
@@ -210,22 +213,26 @@ where
     }
 }
 
-impl<T, B> fmt::Debug for Connection<T, B>
+impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + fmt::Debug + Send + 'static,
+    T: Read + Write + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
+    E: ExecutorClient<B, T> + Unpin,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
     }
 }
 
-impl<T, B> Future for Connection<T, B>
+impl<T, B, E> Future for Connection<T, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
-    B: Body + Send + 'static,
+    T: Read + Write + Unpin + 'static,
+    B: Body + 'static + Unpin,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    E: Unpin,
+    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
 {
     type Output = crate::Result<()>;
 
@@ -240,22 +247,22 @@ where
 
 // ===== impl Builder
 
-impl Builder {
+impl<Ex> Builder<Ex>
+where
+    Ex: Clone,
+{
     /// Creates a new connection builder.
     #[inline]
-    pub fn new<E>(exec: E) -> Builder 
-    where
-        E: Executor<BoxSendFuture> + Send + Sync + 'static,
-    {
+    pub fn new(exec: Ex) -> Builder<Ex> {
         Builder {
-            exec: Exec::new(exec),
+            exec,
             timer: Time::Empty,
             h2_builder: Default::default(),
         }
     }
 
     /// Provide a timer to execute background HTTP2 tasks.
-    pub fn timer<M>(&mut self, timer: M) -> &mut Builder
+    pub fn timer<M>(&mut self, timer: M) -> &mut Builder<Ex>
     where
         M: Timer + Send + Sync + 'static,
     {
@@ -270,7 +277,7 @@ impl Builder {
     ///
     /// If not set, hyper will use a default.
     ///
-    /// [spec]: https://http2.github.io/http2-spec/#SETTINGS_INITIAL_WINDOW_SIZE
+    /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_INITIAL_WINDOW_SIZE
     pub fn initial_stream_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
@@ -284,10 +291,7 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn initial_connection_window_size(
-        &mut self,
-        sz: impl Into<Option<u32>>,
-    ) -> &mut Self {
+    pub fn initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
@@ -329,10 +333,7 @@ impl Builder {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    pub fn keep_alive_interval(
-        &mut self,
-        interval: impl Into<Option<Duration>>,
-    ) -> &mut Self {
+    pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
     }
@@ -395,17 +396,18 @@ impl Builder {
     pub fn handshake<T, B>(
         &self,
         io: T,
-    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
+    ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>>
     where
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: Read + Write + Unpin + 'static,
         B: Body + 'static,
         B::Data: Send,
-        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        B::Error: Into<Box<dyn Error + Send + Sync>>,
+        Ex: ExecutorClient<B, T> + Unpin,
     {
         let opts = self.clone();
 
         async move {
-            tracing::trace!("client handshake HTTP/1");
+            trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
             let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
