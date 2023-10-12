@@ -21,10 +21,7 @@ pub(crate) struct Userdata {
 
 impl Userdata {
     pub(crate) fn new(data: *mut c_void, drop: hyper_userdata_drop) -> Self {
-        Self {
-            data,
-            drop,
-        }
+        Self { data, drop }
     }
 
     pub(crate) fn as_ptr(&self) -> *mut c_void {

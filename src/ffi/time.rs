@@ -1,8 +1,8 @@
+use std::collections::binary_heap::{BinaryHeap, PeekMut};
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll, Waker};
-use std::time::{Instant, Duration};
-use std::collections::binary_heap::{BinaryHeap, PeekMut};
+use std::time::{Duration, Instant};
 
 /// A heap of timer entries with their associated wakers, backing `TimerFuture` instances.
 pub(super) struct TimerHeap(BinaryHeap<TimerEntry>);

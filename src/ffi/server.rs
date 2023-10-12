@@ -7,7 +7,7 @@ use crate::ffi::error::hyper_code;
 use crate::ffi::http_types::{hyper_request, hyper_response};
 use crate::ffi::io::hyper_io;
 use crate::ffi::task::{hyper_executor, hyper_task, WeakExec};
-use crate::ffi::userdata::{Userdata, hyper_userdata_drop};
+use crate::ffi::userdata::{hyper_userdata_drop, Userdata};
 use crate::server::conn::http1;
 use crate::server::conn::http2;
 

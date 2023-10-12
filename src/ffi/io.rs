@@ -6,7 +6,7 @@ use crate::rt::{Read, Write};
 use libc::size_t;
 
 use super::task::hyper_context;
-use super::userdata::{Userdata, hyper_userdata_drop};
+use super::userdata::{hyper_userdata_drop, Userdata};
 
 /// Sentinel value to return from a read or write callback that the operation
 /// is pending.
@@ -153,7 +153,12 @@ impl Read for hyper_io {
         let buf_ptr = unsafe { buf.as_mut() }.as_mut_ptr() as *mut u8;
         let buf_len = buf.remaining();
 
-        match (self.read)(self.userdata.as_ptr(), hyper_context::wrap(cx), buf_ptr, buf_len) {
+        match (self.read)(
+            self.userdata.as_ptr(),
+            hyper_context::wrap(cx),
+            buf_ptr,
+            buf_len,
+        ) {
             HYPER_IO_PENDING => Poll::Pending,
             HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -178,7 +183,12 @@ impl Write for hyper_io {
         let buf_ptr = buf.as_ptr();
         let buf_len = buf.len();
 
-        match (self.write)(self.userdata.as_ptr(), hyper_context::wrap(cx), buf_ptr, buf_len) {
+        match (self.write)(
+            self.userdata.as_ptr(),
+            hyper_context::wrap(cx),
+            buf_ptr,
+            buf_len,
+        ) {
             HYPER_IO_PENDING => Poll::Pending,
             HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Other,

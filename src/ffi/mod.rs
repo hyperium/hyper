@@ -39,10 +39,10 @@ mod macros;
 
 mod body;
 mod client;
-mod server;
 mod error;
 mod http_types;
 mod io;
+mod server;
 mod task;
 mod time;
 mod userdata;

@@ -5,8 +5,8 @@ use std::ffi::c_void;
 use super::body::hyper_body;
 use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
+use super::userdata::{hyper_userdata_drop, Userdata};
 use super::HYPER_ITER_CONTINUE;
-use super::userdata::{Userdata, hyper_userdata_drop};
 use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::header::{HeaderName, HeaderValue};
@@ -573,7 +573,6 @@ impl From<Response<IncomingBody>> for hyper_response {
         hyper_response(rsp)
     }
 }
-
 
 unsafe impl AsTaskType for hyper_response {
     fn as_task_type(&self) -> hyper_task_return_type {

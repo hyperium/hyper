@@ -12,7 +12,7 @@ use futures_util::stream::{FuturesUnordered, Stream};
 use libc::c_int;
 
 use super::error::hyper_code;
-use super::userdata::{Userdata, hyper_userdata_drop};
+use super::userdata::{hyper_userdata_drop, Userdata};
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;

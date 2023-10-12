@@ -1,6 +1,6 @@
+use std::pin::Pin;
 use std::ptr;
 use std::sync::Arc;
-use std::pin::Pin;
 
 use libc::c_int;
 
