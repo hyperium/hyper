@@ -249,6 +249,14 @@ typedef void (*hyper_userdata_drop)(void*);
 
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
+typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
+
+typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
+
+typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
+
+typedef size_t (*hyper_io_write_callback)(void*, struct hyper_context*, const uint8_t*, size_t);
+
 /*
  The main definition of a service.  This callback will be invoked for each transaction on the
  connection.
@@ -265,14 +273,6 @@ typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyp
  async operations have completed).
  */
 typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response_channel*);
-
-typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
-
-typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, const uint8_t*, size_t);
-
-typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
-
-typedef size_t (*hyper_io_write_callback)(void*, struct hyper_context*, const uint8_t*, size_t);
 
 #ifdef __cplusplus
 extern "C" {
@@ -499,272 +499,6 @@ enum hyper_code hyper_clientconn_options_http2(struct hyper_clientconn_options *
  */
 enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hyper_clientconn_options *opts,
                                                                        int enabled);
-
-/*
- Create a new HTTP/1 serverconn options object.
- */
-struct hyper_http1_serverconn_options *hyper_http1_serverconn_options_new(const struct hyper_executor *exec);
-
-/*
- Free a `hyper_http1_serverconn_options*`.
- */
-void hyper_http1_serverconn_options_free(struct hyper_http1_serverconn_options *opts);
-
-/*
- Set whether HTTP/1 connections should support half-closures.
-
- Clients can chose to shutdown their write-side while waiting for the server to respond.
- Setting this to true will prevent closing the connection immediately if read detects an EOF
- in the middle of a request.
-
- Default is `false`
- */
-enum hyper_code hyper_http1_serverconn_options_half_close(struct hyper_http1_serverconn_options *opts,
-                                                          bool enabled);
-
-/*
- Enables or disables HTTP/1 keep-alive.
-
- Default is `true`.
- */
-enum hyper_code hyper_http1_serverconn_options_keep_alive(struct hyper_http1_serverconn_options *opts,
-                                                          bool enabled);
-
-/*
- Set whether HTTP/1 connections will write header names as title case at the socket level.
-
- Default is `false`.
- */
-enum hyper_code hyper_http1_serverconn_options_title_case_headers(struct hyper_http1_serverconn_options *opts,
-                                                                  bool enabled);
-
-/*
- Set whether to support preserving original header cases.
-
- Currently, this will record the original cases received, and store them in a private
- extension on the Request. It will also look for and use such an extension in any provided
- Response.
-
- Since the relevant extension is still private, there is no way to interact with the
- original cases. The only effect this can have now is to forward the cases in a proxy-like
- fashion.
-
- Default is `false`.
- */
-enum hyper_code hyper_http1_serverconn_options_preserve_header_case(struct hyper_http1_serverconn_options *opts,
-                                                                    bool enabled);
-
-/*
- Set a timeout for reading client request headers. If a client does not
- transmit the entire header within this time, the connection is closed.
-
- Default is to have no timeout.
- */
-enum hyper_code hyper_http1_serverconn_options_header_read_timeout(struct hyper_http1_serverconn_options *opts,
-                                                                   uint64_t millis);
-
-/*
- Set whether HTTP/1 connections should try to use vectored writes, or always flatten into a
- single buffer.
-
- Note that setting this to false may mean more copies of body data, but may also improve
- performance when an IO transport doesn’t support vectored writes well, such as most TLS
- implementations.
-
- Setting this to true will force hyper to use queued strategy which may eliminate
- unnecessary cloning on some TLS backends.
-
- Default is to automatically guess which mode to use, this function overrides the heuristic.
- */
-enum hyper_code hyper_http1_serverconn_options_writev(struct hyper_http1_serverconn_options *opts,
-                                                      bool enabled);
-
-/*
- Set the maximum buffer size for the HTTP/1 connection.  Must be no lower `8192`.
-
- Default is a sensible value.
- */
-enum hyper_code hyper_http1_serverconn_options_max_buf_size(struct hyper_http1_serverconn_options *opts,
-                                                            uintptr_t max_buf_size);
-
-/*
- Aggregates flushes to better support pipelined responses.
-
- Experimental, may have bugs.
-
- Default is `false`.
- */
-enum hyper_code hyper_http1_serverconn_options_pipeline_flush(struct hyper_http1_serverconn_options *opts,
-                                                              bool enabled);
-
-/*
- Create a new HTTP/2 serverconn options object bound to the provided executor.
- */
-struct hyper_http2_serverconn_options *hyper_http2_serverconn_options_new(const struct hyper_executor *exec);
-
-/*
- Free a `hyper_http2_serverconn_options*`.
- */
-void hyper_http2_serverconn_options_free(struct hyper_http2_serverconn_options *opts);
-
-/*
- Sets the `SETTINGS_INITIAL_WINDOW_SIZE` option for HTTP/2 stream-level flow control.
-
- Passing `0` instructs hyper to use a sensible default value.
- */
-enum hyper_code hyper_http2_serverconn_options_initial_stream_window_size(struct hyper_http2_serverconn_options *opts,
-                                                                          unsigned int window_size);
-
-/*
- Sets the max connection-level flow control for HTTP/2.
-
- Passing `0` instructs hyper to use a sensible default value.
- */
-enum hyper_code hyper_http2_serverconn_options_initial_connection_window_size(struct hyper_http2_serverconn_options *opts,
-                                                                              unsigned int window_size);
-
-/*
- Sets whether to use an adaptive flow control.
-
- Enabling this will override the limits set in http2_initial_stream_window_size and
- http2_initial_connection_window_size.
-
- Default is `false`.
- */
-enum hyper_code hyper_http2_serverconn_options_adaptive_window(struct hyper_http2_serverconn_options *opts,
-                                                               bool enabled);
-
-/*
- Sets the maximum frame size to use for HTTP/2.
-
- Passing `0` instructs hyper to use a sensible default value.
- */
-enum hyper_code hyper_http2_serverconn_options_max_frame_size(struct hyper_http2_serverconn_options *opts,
-                                                              unsigned int frame_size);
-
-/*
- Sets the `SETTINGS_MAX_CONCURRENT_STREAMS` option for HTTP2 connections.
-
- Default is no limit (`std::u32::MAX`). Passing `0` will use this default.
- */
-enum hyper_code hyper_http2_serverconn_options_max_concurrent_streams(struct hyper_http2_serverconn_options *opts,
-                                                                      unsigned int max_streams);
-
-/*
- Sets an interval for HTTP/2 Ping frames should be sent to keep a connection alive.
-
- Default is to not use keep-alive pings.  Passing `0` will use this default.
- */
-enum hyper_code hyper_http2_serverconn_options_keep_alive_interval(struct hyper_http2_serverconn_options *opts,
-                                                                   uint64_t interval_seconds);
-
-/*
- Sets a timeout for receiving an acknowledgement of the keep-alive ping.
-
- If the ping is not acknowledged within the timeout, the connection will be closed. Does
- nothing if `hyper_http2_serverconn_options_keep_alive_interval` is disabled.
-
- Default is 20 seconds.
- */
-enum hyper_code hyper_http2_serverconn_options_keep_alive_timeout(struct hyper_http2_serverconn_options *opts,
-                                                                  uint64_t timeout_seconds);
-
-/*
- Set the maximum write buffer size for each HTTP/2 stream.  Must be no larger than
- `u32::MAX`.
-
- Default is a sensible value.
- */
-enum hyper_code hyper_http2_serverconn_options_max_send_buf_size(struct hyper_http2_serverconn_options *opts,
-                                                                 uintptr_t max_buf_size);
-
-/*
- Enables the extended `CONNECT` protocol.
- */
-enum hyper_code hyper_http2_serverconn_options_enable_connect_protocol(struct hyper_http2_serverconn_options *opts);
-
-/*
- Sets the max size of received header frames.
-
- Default is a sensible value.
- */
-enum hyper_code hyper_http2_serverconn_options_max_header_list_size(struct hyper_http2_serverconn_options *opts,
-                                                                    uint32_t max);
-
-/*
- Create a service from a wrapped callback function.
- */
-struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
-
-/*
- Register opaque userdata with the `hyper_service`.  This userdata must be `Send` in a rust
- sense (i.e. can be passed between threads) though it doesn't have to be thread-safe (it
- won't be accessed from multiple thread concurrently).
-
- The service takes ownership of the userdata and will call the `drop_userdata` callback when
- the service task is complete.  If the `drop_userdata` callback is `NULL` then the service
- will instead borrow the userdata and forget it when the associated task is completed and
- thus the calling code is responsible for cleaning up the userdata through some other
- mechanism.
- */
-void hyper_service_set_userdata(struct hyper_service *service,
-                                void *userdata,
-                                hyper_userdata_drop drop);
-
-/*
- Frees a hyper_service object if no longer needed
- */
-void hyper_service_free(struct hyper_service *service);
-
-/*
- Serve the provided `hyper_service *` as an HTTP/1 endpoint over the provided `hyper_io *`
- and configured as per the `hyper_http1_serverconn_options *`.
-
- Returns a `hyper_task*` which must be given to an executor to make progress.
-
- This function consumes the IO and Service objects and thus they should not be accessed
- after this function is called.
- */
-struct hyper_task *hyper_serve_http1_connection(struct hyper_http1_serverconn_options *serverconn_options,
-                                                struct hyper_io *io,
-                                                struct hyper_service *service);
-
-/*
- Serve the provided `hyper_service *` as an HTTP/2 endpoint over the provided `hyper_io *`
- and configured as per the `hyper_http2_serverconn_options *`.
-
- Returns a `hyper_task*` which must be given to an executor to make progress.
-
- This function consumes the IO and Service objects and thus they should not be accessed
- after this function is called.
- */
-struct hyper_task *hyper_serve_http2_connection(struct hyper_http2_serverconn_options *serverconn_options,
-                                                struct hyper_io *io,
-                                                struct hyper_service *service);
-
-/*
- Serve the provided `hyper_service *` as either an HTTP/1 or HTTP/2 (depending on what the
- client requests) endpoint over the provided `hyper_io *` and configured as per the
- appropriate `hyper_httpX_serverconn_options *`.
-
- Returns a `hyper_task*` which must be given to an executor to make progress.
-
- This function consumes the IO and Service objects and thus they should not be accessed
- after this function is called.
- */
-struct hyper_task *hyper_serve_httpX_connection(struct hyper_http1_serverconn_options *http1_serverconn_options,
-                                                struct hyper_http2_serverconn_options *http2_serverconn_options,
-                                                struct hyper_io *io,
-                                                struct hyper_service *service);
-
-/*
- Sends a `hyper_response*` back to the client.  This function consumes the response and the
- channel.
-
- See [hyper_service_callback] for details.
- */
-void hyper_response_channel_send(struct hyper_response_channel *channel,
-                                 struct hyper_response *response);
 
 /*
  Frees a `hyper_error`.
@@ -1156,6 +890,272 @@ void hyper_io_set_read(struct hyper_io *io, hyper_io_read_callback func);
  should be the return value.
  */
 void hyper_io_set_write(struct hyper_io *io, hyper_io_write_callback func);
+
+/*
+ Create a new HTTP/1 serverconn options object.
+ */
+struct hyper_http1_serverconn_options *hyper_http1_serverconn_options_new(const struct hyper_executor *exec);
+
+/*
+ Free a `hyper_http1_serverconn_options*`.
+ */
+void hyper_http1_serverconn_options_free(struct hyper_http1_serverconn_options *opts);
+
+/*
+ Set whether HTTP/1 connections should support half-closures.
+
+ Clients can chose to shutdown their write-side while waiting for the server to respond.
+ Setting this to true will prevent closing the connection immediately if read detects an EOF
+ in the middle of a request.
+
+ Default is `false`
+ */
+enum hyper_code hyper_http1_serverconn_options_half_close(struct hyper_http1_serverconn_options *opts,
+                                                          bool enabled);
+
+/*
+ Enables or disables HTTP/1 keep-alive.
+
+ Default is `true`.
+ */
+enum hyper_code hyper_http1_serverconn_options_keep_alive(struct hyper_http1_serverconn_options *opts,
+                                                          bool enabled);
+
+/*
+ Set whether HTTP/1 connections will write header names as title case at the socket level.
+
+ Default is `false`.
+ */
+enum hyper_code hyper_http1_serverconn_options_title_case_headers(struct hyper_http1_serverconn_options *opts,
+                                                                  bool enabled);
+
+/*
+ Set whether to support preserving original header cases.
+
+ Currently, this will record the original cases received, and store them in a private
+ extension on the Request. It will also look for and use such an extension in any provided
+ Response.
+
+ Since the relevant extension is still private, there is no way to interact with the
+ original cases. The only effect this can have now is to forward the cases in a proxy-like
+ fashion.
+
+ Default is `false`.
+ */
+enum hyper_code hyper_http1_serverconn_options_preserve_header_case(struct hyper_http1_serverconn_options *opts,
+                                                                    bool enabled);
+
+/*
+ Set a timeout for reading client request headers. If a client does not
+ transmit the entire header within this time, the connection is closed.
+
+ Default is to have no timeout.
+ */
+enum hyper_code hyper_http1_serverconn_options_header_read_timeout(struct hyper_http1_serverconn_options *opts,
+                                                                   uint64_t millis);
+
+/*
+ Set whether HTTP/1 connections should try to use vectored writes, or always flatten into a
+ single buffer.
+
+ Note that setting this to false may mean more copies of body data, but may also improve
+ performance when an IO transport doesn’t support vectored writes well, such as most TLS
+ implementations.
+
+ Setting this to true will force hyper to use queued strategy which may eliminate
+ unnecessary cloning on some TLS backends.
+
+ Default is to automatically guess which mode to use, this function overrides the heuristic.
+ */
+enum hyper_code hyper_http1_serverconn_options_writev(struct hyper_http1_serverconn_options *opts,
+                                                      bool enabled);
+
+/*
+ Set the maximum buffer size for the HTTP/1 connection.  Must be no lower `8192`.
+
+ Default is a sensible value.
+ */
+enum hyper_code hyper_http1_serverconn_options_max_buf_size(struct hyper_http1_serverconn_options *opts,
+                                                            uintptr_t max_buf_size);
+
+/*
+ Aggregates flushes to better support pipelined responses.
+
+ Experimental, may have bugs.
+
+ Default is `false`.
+ */
+enum hyper_code hyper_http1_serverconn_options_pipeline_flush(struct hyper_http1_serverconn_options *opts,
+                                                              bool enabled);
+
+/*
+ Create a new HTTP/2 serverconn options object bound to the provided executor.
+ */
+struct hyper_http2_serverconn_options *hyper_http2_serverconn_options_new(const struct hyper_executor *exec);
+
+/*
+ Free a `hyper_http2_serverconn_options*`.
+ */
+void hyper_http2_serverconn_options_free(struct hyper_http2_serverconn_options *opts);
+
+/*
+ Sets the `SETTINGS_INITIAL_WINDOW_SIZE` option for HTTP/2 stream-level flow control.
+
+ Passing `0` instructs hyper to use a sensible default value.
+ */
+enum hyper_code hyper_http2_serverconn_options_initial_stream_window_size(struct hyper_http2_serverconn_options *opts,
+                                                                          unsigned int window_size);
+
+/*
+ Sets the max connection-level flow control for HTTP/2.
+
+ Passing `0` instructs hyper to use a sensible default value.
+ */
+enum hyper_code hyper_http2_serverconn_options_initial_connection_window_size(struct hyper_http2_serverconn_options *opts,
+                                                                              unsigned int window_size);
+
+/*
+ Sets whether to use an adaptive flow control.
+
+ Enabling this will override the limits set in http2_initial_stream_window_size and
+ http2_initial_connection_window_size.
+
+ Default is `false`.
+ */
+enum hyper_code hyper_http2_serverconn_options_adaptive_window(struct hyper_http2_serverconn_options *opts,
+                                                               bool enabled);
+
+/*
+ Sets the maximum frame size to use for HTTP/2.
+
+ Passing `0` instructs hyper to use a sensible default value.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_frame_size(struct hyper_http2_serverconn_options *opts,
+                                                              unsigned int frame_size);
+
+/*
+ Sets the `SETTINGS_MAX_CONCURRENT_STREAMS` option for HTTP2 connections.
+
+ Default is no limit (`std::u32::MAX`). Passing `0` will use this default.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_concurrent_streams(struct hyper_http2_serverconn_options *opts,
+                                                                      unsigned int max_streams);
+
+/*
+ Sets an interval for HTTP/2 Ping frames should be sent to keep a connection alive.
+
+ Default is to not use keep-alive pings.  Passing `0` will use this default.
+ */
+enum hyper_code hyper_http2_serverconn_options_keep_alive_interval(struct hyper_http2_serverconn_options *opts,
+                                                                   uint64_t interval_seconds);
+
+/*
+ Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+
+ If the ping is not acknowledged within the timeout, the connection will be closed. Does
+ nothing if `hyper_http2_serverconn_options_keep_alive_interval` is disabled.
+
+ Default is 20 seconds.
+ */
+enum hyper_code hyper_http2_serverconn_options_keep_alive_timeout(struct hyper_http2_serverconn_options *opts,
+                                                                  uint64_t timeout_seconds);
+
+/*
+ Set the maximum write buffer size for each HTTP/2 stream.  Must be no larger than
+ `u32::MAX`.
+
+ Default is a sensible value.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_send_buf_size(struct hyper_http2_serverconn_options *opts,
+                                                                 uintptr_t max_buf_size);
+
+/*
+ Enables the extended `CONNECT` protocol.
+ */
+enum hyper_code hyper_http2_serverconn_options_enable_connect_protocol(struct hyper_http2_serverconn_options *opts);
+
+/*
+ Sets the max size of received header frames.
+
+ Default is a sensible value.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_header_list_size(struct hyper_http2_serverconn_options *opts,
+                                                                    uint32_t max);
+
+/*
+ Create a service from a wrapped callback function.
+ */
+struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
+
+/*
+ Register opaque userdata with the `hyper_service`.  This userdata must be `Send` in a rust
+ sense (i.e. can be passed between threads) though it doesn't have to be thread-safe (it
+ won't be accessed from multiple thread concurrently).
+
+ The service takes ownership of the userdata and will call the `drop_userdata` callback when
+ the service task is complete.  If the `drop_userdata` callback is `NULL` then the service
+ will instead borrow the userdata and forget it when the associated task is completed and
+ thus the calling code is responsible for cleaning up the userdata through some other
+ mechanism.
+ */
+void hyper_service_set_userdata(struct hyper_service *service,
+                                void *userdata,
+                                hyper_userdata_drop drop);
+
+/*
+ Frees a hyper_service object if no longer needed
+ */
+void hyper_service_free(struct hyper_service *service);
+
+/*
+ Serve the provided `hyper_service *` as an HTTP/1 endpoint over the provided `hyper_io *`
+ and configured as per the `hyper_http1_serverconn_options *`.
+
+ Returns a `hyper_task*` which must be given to an executor to make progress.
+
+ This function consumes the IO and Service objects and thus they should not be accessed
+ after this function is called.
+ */
+struct hyper_task *hyper_serve_http1_connection(struct hyper_http1_serverconn_options *serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
+
+/*
+ Serve the provided `hyper_service *` as an HTTP/2 endpoint over the provided `hyper_io *`
+ and configured as per the `hyper_http2_serverconn_options *`.
+
+ Returns a `hyper_task*` which must be given to an executor to make progress.
+
+ This function consumes the IO and Service objects and thus they should not be accessed
+ after this function is called.
+ */
+struct hyper_task *hyper_serve_http2_connection(struct hyper_http2_serverconn_options *serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
+
+/*
+ Serve the provided `hyper_service *` as either an HTTP/1 or HTTP/2 (depending on what the
+ client requests) endpoint over the provided `hyper_io *` and configured as per the
+ appropriate `hyper_httpX_serverconn_options *`.
+
+ Returns a `hyper_task*` which must be given to an executor to make progress.
+
+ This function consumes the IO and Service objects and thus they should not be accessed
+ after this function is called.
+ */
+struct hyper_task *hyper_serve_httpX_connection(struct hyper_http1_serverconn_options *http1_serverconn_options,
+                                                struct hyper_http2_serverconn_options *http2_serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
+
+/*
+ Sends a `hyper_response*` back to the client.  This function consumes the response and the
+ channel.
+
+ See [hyper_service_callback] for details.
+ */
+void hyper_response_channel_send(struct hyper_response_channel *channel,
+                                 struct hyper_response *response);
 
 /*
  Creates a new task executor.
