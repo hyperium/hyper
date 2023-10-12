@@ -1,13 +1,17 @@
-use std::fmt::{self, Write};
-use std::mem::MaybeUninit;
+use std::{fmt, mem::MaybeUninit};
+
+#[cfg(feature = "client")]
+use std::fmt::Write;
 #[cfg(feature = "server")]
 use std::time::Instant;
 
 use bytes::Bytes;
 use bytes::BytesMut;
+#[cfg(feature = "client")]
+use http::header::Entry;
 #[cfg(feature = "server")]
 use http::header::ValueIter;
-use http::header::{self, Entry, HeaderName, HeaderValue};
+use http::header::{self, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
@@ -21,7 +25,9 @@ use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
 };
-use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
+#[cfg(feature = "client")]
+use crate::proto::RequestHead;
+use crate::proto::{BodyLength, MessageHead, RequestLine};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -1392,6 +1398,7 @@ impl Client {
     }
 }
 
+#[cfg(feature = "client")]
 fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
     // At this point, there should not be a valid Content-Length
     // header. However, since we'll be indexing in anyways, we can
@@ -1478,6 +1485,7 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     }
 }
 
+#[cfg(feature = "client")]
 fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         title_case(dst, name.as_str().as_bytes());
@@ -1487,6 +1495,7 @@ fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     }
 }
 
+#[cfg(feature = "client")]
 fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         extend(dst, name.as_str().as_bytes());
@@ -1497,6 +1506,7 @@ fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
 }
 
 #[cold]
+#[cfg(feature = "client")]
 fn write_headers_original_case(
     headers: &HeaderMap,
     orig_case: &HeaderCaseMap,

@@ -1,17 +1,17 @@
 #[cfg(feature = "http2")]
 use std::future::Future;
 
+#[cfg(feature = "http2")]
 use http::{Request, Response};
+#[cfg(feature = "http2")]
 use http_body::Body;
+#[cfg(feature = "http2")]
 use pin_project_lite::pin_project;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::{
-    body::Incoming,
-    common::{task, Poll},
-};
+use crate::common::{task, Poll};
 #[cfg(feature = "http2")]
-use crate::{common::Pin, proto::h2::client::ResponseFutMap};
+use crate::{body::Incoming, common::Pin, proto::h2::client::ResponseFutMap};
 
 #[cfg(test)]
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
@@ -21,6 +21,7 @@ pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::unbounded_channel();
     let (giver, taker) = want::new();
     let tx = Sender {
+        #[cfg(feature = "http1")]
         buffered_once: false,
         giver,
         inner: tx,
@@ -37,6 +38,7 @@ pub(crate) struct Sender<T, U> {
     /// One message is always allowed, even if the Receiver hasn't asked
     /// for it yet. This boolean keeps track of whether we've sent one
     /// without notice.
+    #[cfg(feature = "http1")]
     buffered_once: bool,
     /// The Giver helps watch that the the Receiver side has been polled
     /// when the queue is empty. This helps us know when a request and
@@ -59,20 +61,24 @@ pub(crate) struct UnboundedSender<T, U> {
 }
 
 impl<T, U> Sender<T, U> {
+    #[cfg(feature = "http1")]
     pub(crate) fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         self.giver
             .poll_want(cx)
             .map_err(|_| crate::Error::new_closed())
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn is_ready(&self) -> bool {
         self.giver.is_wanting()
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn is_closed(&self) -> bool {
         self.giver.is_canceled()
     }
 
+    #[cfg(feature = "http1")]
     fn can_send(&mut self) -> bool {
         if self.giver.give() || !self.buffered_once {
             // If the receiver is ready *now*, then of course we can send.
@@ -98,6 +104,7 @@ impl<T, U> Sender<T, U> {
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
         if !self.can_send() {
             return Err(val);

@@ -1,4 +1,4 @@
-use std::error::Error as StdError;
+use std::{error::Error as StdError, marker::Unpin};
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
@@ -6,7 +6,7 @@ use http::Request;
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
-use crate::common::{task, Future, Pin, Poll, Unpin};
+use crate::common::{task, Future, Pin, Poll};
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 

@@ -1,10 +1,13 @@
-#[cfg(feature = "http1")]
+#[cfg(all(feature = "client", feature = "http1"))]
 use bytes::BytesMut;
-use http::header::CONTENT_LENGTH;
-use http::header::{HeaderValue, ValueIter};
-use http::HeaderMap;
+use http::header::HeaderValue;
 #[cfg(all(feature = "http2", feature = "client"))]
 use http::Method;
+#[cfg(any(feature = "client", all(feature = "server", feature = "http2")))]
+use http::{
+    header::{ValueIter, CONTENT_LENGTH},
+    HeaderMap,
+};
 
 #[cfg(feature = "http1")]
 pub(super) fn connection_keep_alive(value: &HeaderValue) -> bool {
@@ -33,10 +36,12 @@ pub(super) fn content_length_parse(value: &HeaderValue) -> Option<u64> {
     from_digits(value.as_bytes())
 }
 
+#[cfg(any(feature = "client", all(feature = "server", feature = "http2")))]
 pub(super) fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
     content_length_parse_all_values(headers.get_all(CONTENT_LENGTH).into_iter())
 }
 
+#[cfg(any(feature = "client", all(feature = "server", feature = "http2")))]
 pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>) -> Option<u64> {
     // If multiple Content-Length headers were sent, everything can still
     // be alright if they all contain the same value, and all parse
@@ -106,12 +111,12 @@ pub(super) fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
         .or_insert_with(|| HeaderValue::from(len));
 }
 
-#[cfg(feature = "http1")]
+#[cfg(all(feature = "client", feature = "http1"))]
 pub(super) fn transfer_encoding_is_chunked(headers: &HeaderMap) -> bool {
     is_chunked(headers.get_all(http::header::TRANSFER_ENCODING).into_iter())
 }
 
-#[cfg(feature = "http1")]
+#[cfg(all(feature = "client", feature = "http1"))]
 pub(super) fn is_chunked(mut encodings: ValueIter<'_, HeaderValue>) -> bool {
     // chunked must always be the last encoding, according to spec
     if let Some(line) = encodings.next_back() {
@@ -133,7 +138,7 @@ pub(super) fn is_chunked_(value: &HeaderValue) -> bool {
     false
 }
 
-#[cfg(feature = "http1")]
+#[cfg(all(feature = "client", feature = "http1"))]
 pub(super) fn add_chunked(mut entry: http::header::OccupiedEntry<'_, HeaderValue>) {
     const CHUNKED: &str = "chunked";
 
