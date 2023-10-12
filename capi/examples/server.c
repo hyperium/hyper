@@ -120,11 +120,13 @@ static int register_signal_handler() {
 }
 
 // Register connection FD with epoll, associated with this `conn`
-static bool update_conn_data_registrations(conn_data* conn, bool create) {
+static bool update_conn_data_registrations(conn_data *conn, bool create) {
     struct epoll_event transport_event;
     transport_event.events = conn->event_mask;
     transport_event.data.ptr = conn;
-    if (epoll_ctl(conn->epoll_fd, create ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, conn->fd, &transport_event) < 0) {
+    if (epoll_ctl(
+            conn->epoll_fd, create ? EPOLL_CTL_ADD : EPOLL_CTL_MOD, conn->fd, &transport_event
+        ) < 0) {
         perror("epoll_ctl (transport)");
         return false;
     } else {
@@ -152,10 +154,10 @@ static size_t read_cb(void *userdata, hyper_context *ctx, uint8_t *buf, size_t b
     }
 
     if (!(conn->event_mask & EPOLLIN)) {
-      conn->event_mask |= EPOLLIN;
-      if (!update_conn_data_registrations(conn, false)) {
-        return HYPER_IO_ERROR;
-      }
+        conn->event_mask |= EPOLLIN;
+        if (!update_conn_data_registrations(conn, false)) {
+            return HYPER_IO_ERROR;
+        }
     }
 
     conn->read_waker = hyper_context_waker(ctx);
@@ -182,10 +184,10 @@ static size_t write_cb(void *userdata, hyper_context *ctx, const uint8_t *buf, s
     }
 
     if (!(conn->event_mask & EPOLLOUT)) {
-      conn->event_mask |= EPOLLOUT;
-      if (!update_conn_data_registrations(conn, false)) {
-        return HYPER_IO_ERROR;
-      }
+        conn->event_mask |= EPOLLOUT;
+        if (!update_conn_data_registrations(conn, false)) {
+            return HYPER_IO_ERROR;
+        }
     }
 
     conn->write_waker = hyper_context_waker(ctx);
@@ -201,15 +203,15 @@ static conn_data *create_conn_data(int epoll, int fd) {
     conn->write_waker = NULL;
 
     if (!update_conn_data_registrations(conn, true)) {
-      free(conn);
-      return NULL;
+        free(conn);
+        return NULL;
     }
 
     return conn;
 }
 
 static void free_conn_data(void *userdata) {
-    conn_data* conn = (conn_data*)userdata;
+    conn_data *conn = (conn_data *)userdata;
 
     // Disassociate with the epoll
     if (epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL) < 0) {
@@ -244,18 +246,18 @@ static hyper_io *create_io(conn_data *conn) {
 }
 
 typedef struct service_userdata_s {
-  char host[128];
-  char port[8];
-  const hyper_executor* executor;
+    char host[128];
+    char port[8];
+    const hyper_executor *executor;
 } service_userdata;
 
-static service_userdata* create_service_userdata() {
-  return (service_userdata*)calloc(1, sizeof(service_userdata));
+static service_userdata *create_service_userdata() {
+    return (service_userdata *)calloc(1, sizeof(service_userdata));
 }
 
-static void free_service_userdata(void* userdata) {
-  service_userdata* cast_userdata = (service_userdata*)userdata;
-  free(cast_userdata);
+static void free_service_userdata(void *userdata) {
+    service_userdata *cast_userdata = (service_userdata *)userdata;
+    free(cast_userdata);
 }
 
 static int print_each_header(
@@ -272,23 +274,23 @@ static int print_body_chunk(void *userdata, const hyper_buf *chunk) {
     return HYPER_ITER_CONTINUE;
 }
 
-static int send_each_body_chunk(void* userdata, hyper_context* ctx, hyper_buf **chunk) {
-  int* chunk_count = (int*)userdata;
-  if (*chunk_count > 0) {
-    unsigned char data[4096];
-    memset(data, '0' + (*chunk_count % 10), sizeof(data));
-    *chunk = hyper_buf_copy(data, sizeof(data));
-    (*chunk_count)--;
-  } else {
-    *chunk = NULL;
-  }
-  return HYPER_POLL_READY;
+static int send_each_body_chunk(void *userdata, hyper_context *ctx, hyper_buf **chunk) {
+    int *chunk_count = (int *)userdata;
+    if (*chunk_count > 0) {
+        unsigned char data[4096];
+        memset(data, '0' + (*chunk_count % 10), sizeof(data));
+        *chunk = hyper_buf_copy(data, sizeof(data));
+        (*chunk_count)--;
+    } else {
+        *chunk = NULL;
+    }
+    return HYPER_POLL_READY;
 }
 
 static void server_callback(
     void *userdata, hyper_request *request, hyper_response_channel *channel
 ) {
-    service_userdata* service_data = (service_userdata*)userdata;
+    service_userdata *service_data = (service_userdata *)userdata;
     printf("Request from %s:%s\n", service_data->host, service_data->port);
 
     // Print out various properties of the request.
@@ -323,10 +325,10 @@ static void server_callback(
     hyper_headers *req_headers = hyper_request_headers(request);
     hyper_headers_foreach(req_headers, print_each_header, NULL);
 
-    if (!strcmp((char*)method, "POST") || !strcmp((char*)method, "PUT")) {
+    if (!strcmp((char *)method, "POST") || !strcmp((char *)method, "PUT")) {
         // ...consume the request body
-        hyper_body* body = hyper_request_body(request);
-        hyper_task* task = hyper_body_foreach(body, print_body_chunk, NULL, NULL);
+        hyper_body *body = hyper_request_body(request);
+        hyper_task *task = hyper_body_foreach(body, print_body_chunk, NULL, NULL);
         hyper_executor_push(service_data->executor, task);
     }
 
@@ -336,22 +338,18 @@ static void server_callback(
     // Build a response
     hyper_response *response = hyper_response_new();
     hyper_response_set_status(response, 200);
-    hyper_headers* rsp_headers = hyper_response_headers(response);
+    hyper_headers *rsp_headers = hyper_response_headers(response);
     hyper_headers_set(
-        rsp_headers,
-        (unsigned char*)"Cache-Control",
-        13,
-        (unsigned char*)"no-cache",
-        8
+        rsp_headers, (unsigned char *)"Cache-Control", 13, (unsigned char *)"no-cache", 8
     );
 
-    if (!strncmp((char*)method, "GET", method_len)) {
+    if (!strncmp((char *)method, "GET", method_len)) {
         // ...add a body
-        hyper_body* body = hyper_body_new();
+        hyper_body *body = hyper_body_new();
         hyper_body_set_data_func(body, send_each_body_chunk);
-        int* chunk_count = (int*)malloc(sizeof(int));
+        int *chunk_count = (int *)malloc(sizeof(int));
         *chunk_count = 1000;
-        hyper_body_set_userdata(body, (void*)chunk_count, free);
+        hyper_body_set_userdata(body, (void *)chunk_count, free);
         hyper_response_set_body(response, body);
     }
 
@@ -412,7 +410,7 @@ int main(int argc, char *argv[]) {
     // Configure the server HTTP/2 stack
     hyper_http2_serverconn_options *http2_opts = hyper_http2_serverconn_options_new(exec);
     hyper_http2_serverconn_options_keep_alive_interval(http2_opts, 5); // 5 seconds
-    hyper_http2_serverconn_options_keep_alive_timeout(http2_opts, 5); // 5 seconds
+    hyper_http2_serverconn_options_keep_alive_timeout(http2_opts, 5);  // 5 seconds
 
     while (1) {
         while (1) {
@@ -424,7 +422,7 @@ int main(int argc, char *argv[]) {
             if (hyper_task_type(task) == HYPER_TASK_ERROR) {
                 printf("hyper task failed with error!\n");
 
-                hyper_error* err = hyper_task_value(task);
+                hyper_error *err = hyper_task_value(task);
                 printf("error code: %d\n", hyper_error_code(err));
                 uint8_t errbuf[256];
                 size_t errlen = hyper_error_print(err, errbuf, sizeof(errbuf));
@@ -492,7 +490,9 @@ int main(int argc, char *argv[]) {
                         perror("getnameinfo");
                         printf("New incoming connection from (unknown)\n");
                     } else {
-                        printf("New incoming connection from (%s:%s)\n", userdata->host, userdata->port);
+                        printf(
+                            "New incoming connection from (%s:%s)\n", userdata->host, userdata->port
+                        );
                     }
 
                     // Set non-blocking
@@ -546,26 +546,26 @@ int main(int argc, char *argv[]) {
                 // Existing transport socket, poke the wakers or close the socket
                 conn_data *conn = events[n].data.ptr;
                 if (events[n].events & EPOLLIN) {
-                  if (conn->read_waker) {
-                    hyper_waker_wake(conn->read_waker);
-                    conn->read_waker = NULL;
-                  } else {
-                    conn->event_mask &= ~EPOLLIN;
-                    if (!update_conn_data_registrations(conn, false)) {
-                      epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
+                    if (conn->read_waker) {
+                        hyper_waker_wake(conn->read_waker);
+                        conn->read_waker = NULL;
+                    } else {
+                        conn->event_mask &= ~EPOLLIN;
+                        if (!update_conn_data_registrations(conn, false)) {
+                            epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
+                        }
                     }
-                  }
                 }
                 if (events[n].events & EPOLLOUT) {
-                  if (conn->write_waker) {
-                    hyper_waker_wake(conn->write_waker);
-                    conn->write_waker = NULL;
-                  } else {
-                    conn->event_mask &= ~EPOLLOUT;
-                    if (!update_conn_data_registrations(conn, false)) {
-                      epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
+                    if (conn->write_waker) {
+                        hyper_waker_wake(conn->write_waker);
+                        conn->write_waker = NULL;
+                    } else {
+                        conn->event_mask &= ~EPOLLOUT;
+                        if (!update_conn_data_registrations(conn, false)) {
+                            epoll_ctl(conn->epoll_fd, EPOLL_CTL_DEL, conn->fd, NULL);
+                        }
                     }
-                  }
                 }
             }
         }
