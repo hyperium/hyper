@@ -55,6 +55,7 @@ impl ReasonPhrase {
     ///
     /// Use with care; invalid bytes in a reason phrase can cause serious security problems if
     /// emitted in a response.
+    #[cfg(feature = "client")]
     pub(crate) fn from_bytes_unchecked(reason: Bytes) -> Self {
         Self(reason)
     }

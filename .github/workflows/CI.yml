@@ -146,6 +146,8 @@ jobs:
 
       - name: check --feature-powerset
         run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi,tracing
+        env:
+          RUSTFLAGS: "-D dead_code -D unused_imports"
 
   ffi:
     name: Test C API (FFI)

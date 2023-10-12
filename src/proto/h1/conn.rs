@@ -1,6 +1,6 @@
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
+use std::marker::{PhantomData, Unpin};
 #[cfg(feature = "server")]
 use std::time::Duration;
 
@@ -15,7 +15,7 @@ use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::time::Time;
-use crate::common::{task, Pin, Poll, Unpin};
+use crate::common::{task, Pin, Poll};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, MessageHead};
 #[cfg(feature = "server")]

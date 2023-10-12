@@ -2,6 +2,7 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::marker::Unpin;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -9,7 +10,7 @@ use crate::rt::{Read, Write};
 use bytes::Bytes;
 
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::{task, Future, Pin, Poll, Unpin};
+use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
 use crate::service::HttpService;
 use crate::{common::time::Time, rt::Timer};

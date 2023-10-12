@@ -33,7 +33,7 @@ impl DecodedLength {
     /// Should only be called if previously confirmed this isn't
     /// CLOSE_DELIMITED or CHUNKED.
     #[inline]
-    #[cfg(feature = "http1")]
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(crate) fn danger_len(self) -> u64 {
         debug_assert!(self.0 < Self::CHUNKED.0);
         self.0
@@ -72,7 +72,7 @@ impl DecodedLength {
     /// This includes 0, which of course is an exact known length.
     ///
     /// It would return false if "chunked" or otherwise size-unknown.
-    #[cfg(feature = "http2")]
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
     pub(crate) fn is_exact(&self) -> bool {
         self.0 <= MAX_LEN
     }

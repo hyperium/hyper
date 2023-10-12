@@ -1,9 +1,12 @@
 //! HTTP extensions.
 
 use bytes::Bytes;
-#[cfg(any(feature = "http1", feature = "ffi"))]
+#[cfg(any(
+    all(any(feature = "client", feature = "server"), feature = "http1"),
+    feature = "ffi"
+))]
 use http::header::HeaderName;
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use http::header::{IntoHeaderName, ValueIter};
 use http::HeaderMap;
 #[cfg(feature = "ffi")]
@@ -45,6 +48,7 @@ impl Protocol {
         Self { inner }
     }
 
+    #[cfg(all(feature = "client", feature = "http2"))]
     pub(crate) fn into_inner(self) -> h2::ext::Protocol {
         self.inner
     }
@@ -97,10 +101,11 @@ impl fmt::Debug for Protocol {
 #[derive(Clone, Debug)]
 pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
+    #[cfg(feature = "client")]
     pub(crate) fn get_all<'a>(
         &'a self,
         name: &HeaderName,
@@ -110,10 +115,12 @@ impl HeaderCaseMap {
 
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn get_all_internal<'a>(&'a self, name: &HeaderName) -> ValueIter<'_, Bytes> {
         self.0.get_all(name).into_iter()
     }
 
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn default() -> Self {
         Self(Default::default())
     }
@@ -123,6 +130,7 @@ impl HeaderCaseMap {
         self.0.insert(name, orig);
     }
 
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
     where
         N: IntoHeaderName,

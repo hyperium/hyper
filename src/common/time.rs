@@ -1,8 +1,7 @@
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+use std::time::Duration;
 use std::{fmt, sync::Arc};
-use std::{
-    pin::Pin,
-    time::{Duration, Instant},
-};
+use std::{pin::Pin, time::Instant};
 
 use crate::rt::Sleep;
 use crate::rt::Timer;
@@ -55,6 +54,7 @@ impl<F> Future for HyperTimeout<F> where F: Future {
 */
 
 impl Time {
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
     pub(crate) fn sleep(&self, duration: Duration) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
@@ -64,6 +64,7 @@ impl Time {
         }
     }
 
+    #[cfg(feature = "http1")]
     pub(crate) fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
