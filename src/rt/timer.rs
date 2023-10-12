@@ -1,6 +1,7 @@
 //! Provides a timer trait with timer-like functions
 //!
 //! Example using tokio timer:
+//!
 //! ```rust
 //! use std::{
 //!     future::Future,
@@ -17,44 +18,17 @@
 //!
 //! impl Timer for TokioTimer {
 //!     fn sleep(&self, duration: Duration) -> Pin<Box<dyn Sleep>> {
-//!         Box::pin(TokioSleep {
-//!             inner: tokio::time::sleep(duration),
-//!         })
+//!         Box::pin(tokio::time::sleep(duration))
 //!     }
 //!
 //!     fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
-//!         Box::pin(TokioSleep {
-//!             inner: tokio::time::sleep_until(deadline.into()),
-//!         })
+//!         Box::pin(tokio::time::sleep_until(deadline.into()))
 //!     }
 //!
 //!     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
-//!         if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<TokioSleep>() {
+//!         if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<tokio::time::Sleep>() {
 //!             sleep.reset(new_deadline.into())
 //!         }
-//!     }
-//! }
-//!
-//! pin_project! {
-//!     pub(crate) struct TokioSleep {
-//!         #[pin]
-//!         pub(crate) inner: tokio::time::Sleep,
-//!     }
-//! }
-//!
-//! impl Future for TokioSleep {
-//!     type Output = ();
-//!
-//!     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-//!         self.project().inner.poll(cx)
-//!     }
-//! }
-//!
-//! impl Sleep for TokioSleep {}
-//!
-//! impl TokioSleep {
-//!     pub fn reset(self: Pin<&mut Self>, deadline: Instant) {
-//!         self.project().inner.as_mut().reset(deadline.into());
 //!     }
 //! }
 //! ````

@@ -38,7 +38,7 @@ impl Timer for TokioTimer {
     }
 
     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
-        if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<TokioSleep>() {
+        if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<tokio::time::Sleep>() {
             sleep.reset(new_deadline.into())
         }
     }
@@ -59,30 +59,7 @@ where
     }
 }
 
-// Use TokioSleep to get tokio::time::Sleep to implement Unpin.
-// see https://docs.rs/tokio/latest/tokio/time/struct.Sleep.html
-pin_project! {
-    pub(crate) struct TokioSleep {
-        #[pin]
-        pub(crate) inner: tokio::time::Sleep,
-    }
-}
-
-impl Future for TokioSleep {
-    type Output = ();
-
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.project().inner.poll(cx)
-    }
-}
-
-impl TokioSleep {
-    pub fn reset(self: Pin<&mut Self>, deadline: Instant) {
-        self.project().inner.as_mut().reset(deadline.into());
-    }
-}
-
-pin_project! {
+pin_project_lite::pin_project! {
     #[derive(Debug)]
     pub struct TokioIo<T> {
         #[pin]
