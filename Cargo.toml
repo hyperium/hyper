@@ -26,7 +26,7 @@ futures-util = { version = "0.3", default-features = false }
 http = "0.2"
 http-body = "=1.0.0-rc.2"
 pin-project-lite = "0.2.4"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1.13", features = ["sync"] }
 
 # Optional
 
