@@ -1,9 +1,9 @@
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
 
 use crate::body::Body;
-use crate::common::Future;
 use crate::service::service::Service;
 use crate::{Request, Response};
 

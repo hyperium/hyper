@@ -1,11 +1,10 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
+use std::task::{Context, Poll};
 use std::usize;
 
 use bytes::Bytes;
-
-use crate::common::{task, Poll};
 
 use super::io::MemRead;
 use super::DecodedLength;
@@ -102,7 +101,7 @@ impl Decoder {
 
     pub(crate) fn decode<R: MemRead>(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         body: &mut R,
     ) -> Poll<Result<Bytes, io::Error>> {
         trace!("decode; state={:?}", self.kind);
@@ -184,7 +183,7 @@ macro_rules! byte (
 impl ChunkedState {
     fn step<R: MemRead>(
         &self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         body: &mut R,
         size: &mut u64,
         buf: &mut Option<Bytes>,
@@ -206,7 +205,7 @@ impl ChunkedState {
         }
     }
     fn read_size<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
         size: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
@@ -251,7 +250,7 @@ impl ChunkedState {
         Poll::Ready(Ok(ChunkedState::Size))
     }
     fn read_size_lws<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_size_lws");
@@ -267,7 +266,7 @@ impl ChunkedState {
         }
     }
     fn read_extension<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_extension");
@@ -287,7 +286,7 @@ impl ChunkedState {
         }
     }
     fn read_size_lf<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
         size: u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
@@ -309,7 +308,7 @@ impl ChunkedState {
     }
 
     fn read_body<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
         rem: &mut u64,
         buf: &mut Option<Bytes>,
@@ -343,7 +342,7 @@ impl ChunkedState {
         }
     }
     fn read_body_cr<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
@@ -355,7 +354,7 @@ impl ChunkedState {
         }
     }
     fn read_body_lf<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
@@ -368,7 +367,7 @@ impl ChunkedState {
     }
 
     fn read_trailer<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_trailer");
@@ -378,7 +377,7 @@ impl ChunkedState {
         }
     }
     fn read_trailer_lf<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
@@ -391,7 +390,7 @@ impl ChunkedState {
     }
 
     fn read_end_cr<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
@@ -400,7 +399,7 @@ impl ChunkedState {
         }
     }
     fn read_end_lf<R: MemRead>(
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
@@ -432,7 +431,7 @@ mod tests {
     use std::time::Duration;
 
     impl<'a> MemRead for &'a [u8] {
-        fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
+        fn read_mem(&mut self, _: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let n = std::cmp::min(len, self.len());
             if n > 0 {
                 let (a, b) = self.split_at(n);
@@ -446,7 +445,7 @@ mod tests {
     }
 
     impl<'a> MemRead for &'a mut (dyn Read + Unpin) {
-        fn read_mem(&mut self, cx: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
+        fn read_mem(&mut self, cx: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let mut v = vec![0; len];
             let mut buf = ReadBuf::new(&mut v);
             ready!(Pin::new(self).poll_read(cx, buf.unfilled())?);
@@ -456,7 +455,7 @@ mod tests {
 
     #[cfg(feature = "nightly")]
     impl MemRead for Bytes {
-        fn read_mem(&mut self, _: &mut task::Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
+        fn read_mem(&mut self, _: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let n = std::cmp::min(len, self.len());
             let ret = self.split_to(n);
             Poll::Ready(Ok(ret))

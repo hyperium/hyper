@@ -1,7 +1,7 @@
 use std::error::Error as StdError;
+use std::future::Future;
 
 use crate::body::Body;
-use crate::common::Future;
 use crate::service::service::Service;
 use crate::{Request, Response};
 

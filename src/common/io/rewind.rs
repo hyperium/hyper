@@ -1,9 +1,10 @@
 use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::{cmp, io};
 
 use bytes::{Buf, Bytes};
 
-use crate::common::{task, Pin, Poll};
 use crate::rt::{Read, ReadBufCursor, Write};
 
 /// Combine a buffer with an IO, rewinding reads to use the buffer.
@@ -50,7 +51,7 @@ where
 {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         mut buf: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         if let Some(mut prefix) = self.pre.take() {
@@ -78,7 +79,7 @@ where
 {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.inner).poll_write(cx, buf)
@@ -86,17 +87,17 @@ where
 
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.inner).poll_write_vectored(cx, bufs)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.inner).poll_shutdown(cx)
     }
 

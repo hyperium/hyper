@@ -1,4 +1,7 @@
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures_channel::mpsc;
@@ -8,8 +11,7 @@ use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
 
 use super::DecodedLength;
-use crate::common::Future;
-use crate::common::{task, watch, Pin, Poll};
+use crate::common::watch;
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
 
@@ -157,7 +159,7 @@ impl Body for Incoming {
 
     fn poll_frame(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match self.kind {
             Kind::Empty => Poll::Ready(None),
@@ -287,7 +289,7 @@ impl fmt::Debug for Incoming {
 
 impl Sender {
     /// Check to see if this `Sender` can send more data.
-    pub(crate) fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         // Check if the receiver end has tried polling for the body yet
         ready!(self.poll_want(cx)?);
         self.data_tx
@@ -295,7 +297,7 @@ impl Sender {
             .map_err(|_| crate::Error::new_closed())
     }
 
-    fn poll_want(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_want(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         match self.want_rx.load(cx) {
             WANT_READY => Poll::Ready(Ok(())),
             WANT_PENDING => Poll::Pending,

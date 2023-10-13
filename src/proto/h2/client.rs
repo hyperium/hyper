@@ -1,4 +1,11 @@
-use std::{convert::Infallible, marker::PhantomData, time::Duration};
+use std::{
+    convert::Infallible,
+    future::Future,
+    marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll},
+    time::Duration,
+};
 
 use crate::rt::{Read, Write};
 use bytes::Bytes;
@@ -17,7 +24,6 @@ use crate::body::{Body, Incoming as IncomingBody};
 use crate::client::dispatch::{Callback, SendWhen};
 use crate::common::io::Compat;
 use crate::common::time::Time;
-use crate::common::{task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
@@ -190,7 +196,7 @@ where
 {
     type Output = Result<(), h2::Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
         match this.ponger.poll(cx) {
             Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
@@ -230,7 +236,7 @@ where
 {
     type Output = Result<(), ()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
         if *this.is_terminated {
@@ -298,7 +304,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
         if !this.conn.is_terminated() {
@@ -356,10 +362,7 @@ where
 {
     type Output = ();
 
-    fn poll(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
         let this = self.project();
 
         match this {
@@ -432,10 +435,7 @@ where
 {
     type Output = ();
 
-    fn poll(
-        self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> std::task::Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
         let mut this = self.project();
 
         match this.pipe.poll_unpin(cx) {
@@ -461,7 +461,7 @@ where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
 {
-    fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut task::Context<'_>) {
+    fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut Context<'_>) {
         let ping = self.ping.clone();
 
         let send_stream = if !f.is_connect {
@@ -530,7 +530,7 @@ where
 {
     type Output = Result<Response<crate::body::Incoming>, (crate::Error, Option<Request<B>>)>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
         let result = ready!(this.fut.poll(cx));
@@ -598,7 +598,7 @@ where
 {
     type Output = crate::Result<Dispatched>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
             match ready!(self.h2_tx.poll_ready(cx)) {
                 Ok(()) => (),

@@ -42,15 +42,17 @@
 use std::any::TypeId;
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::io;
 use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
-use crate::common::{task, Future, Pin, Poll};
 
 /// An upgraded HTTP connection.
 ///
@@ -158,7 +160,7 @@ impl Upgraded {
 impl Read for Upgraded {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
@@ -168,7 +170,7 @@ impl Read for Upgraded {
 impl Write for Upgraded {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write(cx, buf)
@@ -176,17 +178,17 @@ impl Write for Upgraded {
 
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write_vectored(cx, bufs)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_shutdown(cx)
     }
 
@@ -217,7 +219,7 @@ impl OnUpgrade {
 impl Future for OnUpgrade {
     type Output = Result<Upgraded, crate::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.rx {
             Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
                 Ok(Ok(upgraded)) => Ok(upgraded),
@@ -364,7 +366,7 @@ mod tests {
     impl Read for Mock {
         fn poll_read(
             self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
+            _cx: &mut Context<'_>,
             _buf: ReadBufCursor<'_>,
         ) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_read")
@@ -374,21 +376,18 @@ mod tests {
     impl Write for Mock {
         fn poll_write(
             self: Pin<&mut Self>,
-            _: &mut task::Context<'_>,
+            _: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             // panic!("poll_write shouldn't be called");
             Poll::Ready(Ok(buf.len()))
         }
 
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_flush")
         }
 
-        fn poll_shutdown(
-            self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_shutdown")
         }
     }
