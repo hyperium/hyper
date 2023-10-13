@@ -7,6 +7,7 @@ To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERN
 - Eray Karatay (@programatik29)
 - Oddbjørn Grødem (@oddgrd)
 - Noah Kennedy (@Noah-Kennedy)
+- tottoto (@tottoto)
 
 ## Collaborators
 
