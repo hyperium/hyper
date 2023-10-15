@@ -135,18 +135,13 @@ impl Http1Transaction for Server {
         let len;
         let headers_len;
 
-        // Unsafe: both headers_indices and headers are using uninitialized memory,
+        // Both headers_indices and headers are using uninitialized memory,
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
-            // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-            MaybeUninit::uninit().assume_init()
-        };
+        let mut headers_indices = [MaybeUninit::<HeaderIndices>::uninit(); MAX_HEADERS];
         {
-            /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
-            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
-                unsafe { MaybeUninit::uninit().assume_init() };
+            let mut headers = [MaybeUninit::<httparse::Header<'_>>::uninit(); MAX_HEADERS];
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
@@ -230,7 +225,7 @@ impl Http1Transaction for Server {
 
         for header in &headers_indices[..headers_len] {
             // SAFETY: array is valid up to `headers_len`
-            let header = unsafe { &*header.as_ptr() };
+            let header = unsafe { header.assume_init_ref() };
             let name = header_name!(&slice[header.name.0..header.name.1]);
             let value = header_value!(slice.slice(header.value.0..header.value.1));
 
@@ -936,15 +931,9 @@ impl Http1Transaction for Client {
 
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            // Unsafe: see comment in Server Http1Transaction, above.
-            let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-                MaybeUninit::uninit().assume_init()
-            };
+            let mut headers_indices = [MaybeUninit::<HeaderIndices>::uninit(); MAX_HEADERS];
             let (len, status, reason, version, headers_len) = {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-                let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
-                    unsafe { MaybeUninit::uninit().assume_init() };
+                let mut headers = [MaybeUninit::<httparse::Header<'_>>::uninit(); MAX_HEADERS];
                 trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
@@ -994,7 +983,7 @@ impl Http1Transaction for Client {
             {
                 for header in &mut headers_indices[..headers_len] {
                     // SAFETY: array is valid up to `headers_len`
-                    let header = unsafe { &mut *header.as_mut_ptr() };
+                    let header = unsafe { header.assume_init_mut() };
                     Client::obs_fold_line(&mut slice, header);
                 }
             }
@@ -1021,7 +1010,7 @@ impl Http1Transaction for Client {
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
                 // SAFETY: array is valid up to `headers_len`
-                let header = unsafe { &*header.as_ptr() };
+                let header = unsafe { header.assume_init_ref() };
                 let name = header_name!(&slice[header.name.0..header.name.1]);
                 let value = header_value!(slice.slice(header.value.0..header.value.1));
 
@@ -1455,16 +1444,10 @@ fn record_header_indices(
         let value_start = header.value.as_ptr() as usize - bytes_ptr;
         let value_end = value_start + header.value.len();
 
-        // FIXME(maybe_uninit_extra)
-        // FIXME(addr_of)
-        // Currently we don't have `ptr::addr_of_mut` in stable rust or
-        // MaybeUninit::write, so this is some way of assigning into a MaybeUninit
-        // safely
-        let new_header_indices = HeaderIndices {
+        indices.write(HeaderIndices {
             name: (name_start, name_end),
             value: (value_start, value_end),
-        };
-        *indices = MaybeUninit::new(new_header_indices);
+        });
     }
 
     Ok(())
