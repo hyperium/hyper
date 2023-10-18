@@ -1,9 +1,10 @@
 use std::error::Error as StdError;
+use std::future::Future;
 use std::marker::Unpin;
-
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
-use crate::rt::{Read, Write};
 use bytes::Bytes;
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
@@ -12,14 +13,15 @@ use pin_project_lite::pin_project;
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
+use crate::common::date;
 use crate::common::time::Time;
-use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
 use crate::rt::bounds::Http2ConnExec;
+use crate::rt::{Read, Write};
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
@@ -189,7 +191,7 @@ where
 {
     type Output = crate::Result<Dispatched>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let me = &mut *self;
         loop {
             let next = match me.state {
@@ -232,7 +234,7 @@ where
 {
     fn poll_server<S, E>(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         service: &mut S,
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
@@ -320,7 +322,7 @@ where
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
 
-    fn poll_ping(&mut self, cx: &mut task::Context<'_>) {
+    fn poll_ping(&mut self, cx: &mut Context<'_>) {
         if let Some((_, ref mut estimator)) = self.ping {
             match estimator.poll(cx) {
                 Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
@@ -410,7 +412,7 @@ where
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll2(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         let mut me = self.project();
         loop {
             let next = match me.state.as_mut().project() {
@@ -505,7 +507,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
             if let Err(_e) = res {
                 debug!("stream error: {}", _e);

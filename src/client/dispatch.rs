@@ -1,5 +1,6 @@
+use std::task::{Context, Poll};
 #[cfg(feature = "http2")]
-use std::future::Future;
+use std::{future::Future, pin::Pin};
 
 #[cfg(feature = "http2")]
 use http::{Request, Response};
@@ -9,9 +10,8 @@ use http_body::Body;
 use pin_project_lite::pin_project;
 use tokio::sync::{mpsc, oneshot};
 
-use crate::common::{task, Poll};
 #[cfg(feature = "http2")]
-use crate::{body::Incoming, common::Pin, proto::h2::client::ResponseFutMap};
+use crate::{body::Incoming, proto::h2::client::ResponseFutMap};
 
 #[cfg(test)]
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
@@ -62,7 +62,7 @@ pub(crate) struct UnboundedSender<T, U> {
 
 impl<T, U> Sender<T, U> {
     #[cfg(feature = "http1")]
-    pub(crate) fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.giver
             .poll_want(cx)
             .map_err(|_| crate::Error::new_closed())
@@ -169,10 +169,7 @@ pub(crate) struct Receiver<T, U> {
 }
 
 impl<T, U> Receiver<T, U> {
-    pub(crate) fn poll_recv(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<(T, Callback<T, U>)>> {
+    pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
         match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
@@ -261,7 +258,7 @@ impl<T, U> Callback<T, U> {
         }
     }
 
-    pub(crate) fn poll_canceled(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
+    pub(crate) fn poll_canceled(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         match *self {
             Callback::Retry(Some(ref mut tx)) => tx.poll_closed(cx),
             Callback::NoRetry(Some(ref mut tx)) => tx.poll_closed(cx),
@@ -302,7 +299,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut std::task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
         let mut call_back = this.call_back.take().expect("polled after complete");
@@ -319,7 +316,7 @@ where
                     Poll::Pending => {
                         // Move call_back back to struct before return
                         this.call_back.set(Some(call_back));
-                        return std::task::Poll::Pending;
+                        return Poll::Pending;
                     }
                 };
                 trace!("send_when canceled");

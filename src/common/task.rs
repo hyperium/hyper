@@ -1,4 +1,5 @@
-pub(crate) use std::task::{Context, Poll};
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+use std::task::{Context, Poll};
 
 /// A function to help "yield" a future, such that it is re-scheduled immediately.
 ///

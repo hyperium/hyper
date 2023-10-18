@@ -21,8 +21,3 @@ pub(crate) mod task;
 ))]
 pub(crate) mod time;
 pub(crate) mod watch;
-
-pub(crate) use self::task::Poll;
-
-// group up types normally needed for `Future`
-pub(crate) use std::{future::Future, pin::Pin};
