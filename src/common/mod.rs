@@ -11,8 +11,6 @@ macro_rules! ready {
 pub(crate) mod buf;
 #[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
 pub(crate) mod date;
-#[cfg(not(feature = "http2"))]
-pub(crate) mod exec;
 pub(crate) mod io;
 pub(crate) mod task;
 #[cfg(any(
