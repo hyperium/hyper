@@ -53,6 +53,7 @@
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 //!
 //! # Unstable Features
+//!
 //! hyper includes a set of unstable optional features that can be enabled through the use of a
 //! feature flag and a [configuration flag].
 //!
@@ -65,6 +66,27 @@
 //! RUSTFLAGS="--cfg hyper_unstable_tracing" cargo rustc --features client,http1,http2,tracing --crate-type cdylib
 //!```
 //! [configuration flag]: https://doc.rust-lang.org/reference/conditional-compilation.html
+//!
+//! # Stability
+//!
+//! It's worth talking a bit about the stability of hyper. hyper's API follows
+//! [SemVer](https://semver.org). Breaking changes will only be introduced in
+//! major versions, if ever. New additions to the API, such as new types,
+//! methods, or traits will only be added in minor versions.
+//!
+//! Some parts of hyper are documented as NOT being part of the stable API. The
+//! following is a brief list, you can read more about each one in the relevant
+//! part of the documentation.
+//!
+//! - Downcasting error types from `Error::source()` is not considered stable.
+//! - Private dependencies use of global variables is not considered stable.
+//!   So, if a dependency uses `log` or `tracing`, hyper doesn't promise it
+//!   will continue to do so.
+//! - Behavior from default options is not stable. hyper reserves the right to
+//!   add new options that are enabled by default which might alter the
+//!   behavior, for the purposes of protection. It is also possible to _change_
+//!   what the default options are set to, also in efforts to protect the
+//!   most people possible.
 #[doc(hidden)]
 pub use http;
 
