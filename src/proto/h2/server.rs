@@ -62,7 +62,7 @@ impl Default for Config {
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             enable_connect_protocol: false,
-            max_concurrent_streams: None,
+            max_concurrent_streams: Some(200),
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
