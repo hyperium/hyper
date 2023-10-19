@@ -250,7 +250,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: check-external-types
-        run: cargo check-external-types
+        run: cargo check-external-types --config .github/workflows/external-types.toml
 
   udeps:
     needs: [style]
