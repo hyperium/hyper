@@ -10,6 +10,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
+use futures_util::ready;
 use http::{Request, Response};
 
 use super::super::dispatch;

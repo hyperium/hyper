@@ -106,9 +106,8 @@ mod cfg;
 #[macro_use]
 mod trace;
 
-#[macro_use]
-mod common;
 pub mod body;
+mod common;
 mod error;
 pub mod ext;
 #[cfg(test)]
