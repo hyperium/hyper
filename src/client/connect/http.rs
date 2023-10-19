@@ -521,7 +521,7 @@ struct ConnectingTcpRemote {
 
 impl ConnectingTcpRemote {
     fn new(addrs: dns::SocketAddrs, connect_timeout: Option<Duration>) -> Self {
-        let connect_timeout = connect_timeout.map(|t| t / (addrs.len() as u32));
+        let connect_timeout = connect_timeout.map(|t| t.checked_div(addrs.len() as u32)).flatten();
 
         Self {
             addrs,
