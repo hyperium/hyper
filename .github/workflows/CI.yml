@@ -227,7 +227,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: cargo doc
-        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D rustdoc::broken-intra-doc-links
 
   check-external-types:
     name: Check exposed types
