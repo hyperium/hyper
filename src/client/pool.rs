@@ -113,7 +113,7 @@ impl<T> Pool<T> {
                 waiters: HashMap::new(),
                 #[cfg(feature = "runtime")]
                 exec: __exec.clone(),
-                timeout: config.idle_timeout,
+                timeout: config.idle_timeout.filter(|&t| t > Duration::ZERO),
             })))
         } else {
             None
