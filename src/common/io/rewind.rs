@@ -108,8 +108,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    // FIXME: re-implement tests with `async/await`, this import should
-    // trigger a warning to remind us
     use super::super::compat;
     use super::Rewind;
     use bytes::Bytes;
