@@ -177,7 +177,10 @@ impl<E> Builder<E> {
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///
-    /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
+    /// Default is 200, but not part of the stability of hyper. It could change
+    /// in a future release. You are encouraged to set your own limit.
+    ///
+    /// Passing `None` will remove any limit.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
@@ -191,9 +194,6 @@ impl<E> Builder<E> {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    ///
-    /// # Cargo Feature
-    ///
     pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
@@ -205,9 +205,6 @@ impl<E> Builder<E> {
     /// be closed. Does nothing if `keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
-    ///
-    /// # Cargo Feature
-    ///
     pub fn keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.h2_builder.keep_alive_timeout = timeout;
         self
