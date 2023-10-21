@@ -43,7 +43,7 @@ pin_project_lite::pin_project! {
 /// A configuration builder for HTTP/1 server connections.
 ///
 /// **Note**: The default values of options are *not considered stable*. They
-/// are subject to change at any time
+/// are subject to change at any time.
 #[derive(Clone, Debug)]
 pub struct Builder {
     timer: Time,

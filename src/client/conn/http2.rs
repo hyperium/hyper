@@ -52,7 +52,7 @@ where
 /// After setting options, the builder is used to create a handshake future.
 ///
 /// **Note**: The default values of options are *not considered stable*. They
-/// are subject to change at any time
+/// are subject to change at any time.
 #[derive(Clone, Debug)]
 pub struct Builder<Ex> {
     pub(super) exec: Ex,
