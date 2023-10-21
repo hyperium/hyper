@@ -1,10 +1,19 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::io::IoSlice;
 
 use bytes::buf::{Chain, Take};
-use bytes::Buf;
+use bytes::{Buf, Bytes};
+use http::{
+    header::{
+        AUTHORIZATION, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE,
+        CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TRAILER, TRANSFER_ENCODING,
+    },
+    HeaderMap, HeaderName, HeaderValue,
+};
 
 use super::io::WriteBuf;
+use super::role::{write_headers, write_headers_title_case};
 
 type StaticBuf = &'static [u8];
 
@@ -26,7 +35,7 @@ pub(crate) struct NotEof(u64);
 #[derive(Debug, PartialEq, Clone)]
 enum Kind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
-    Chunked,
+    Chunked(Option<Vec<HeaderValue>>),
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
@@ -45,6 +54,7 @@ enum BufKind<B> {
     Limited(Take<B>),
     Chunked(Chain<Chain<ChunkSize, B>, StaticBuf>),
     ChunkedEnd(StaticBuf),
+    Trailers(Chain<Chain<StaticBuf, Bytes>, StaticBuf>),
 }
 
 impl Encoder {
@@ -55,7 +65,7 @@ impl Encoder {
         }
     }
     pub(crate) fn chunked() -> Encoder {
-        Encoder::new(Kind::Chunked)
+        Encoder::new(Kind::Chunked(None))
     }
 
     pub(crate) fn length(len: u64) -> Encoder {
@@ -65,6 +75,16 @@ impl Encoder {
     #[cfg(feature = "server")]
     pub(crate) fn close_delimited() -> Encoder {
         Encoder::new(Kind::CloseDelimited)
+    }
+
+    pub(crate) fn into_chunked_with_trailing_fields(self, trailers: Vec<HeaderValue>) -> Encoder {
+        match self.kind {
+            Kind::Chunked(_) => Encoder {
+                kind: Kind::Chunked(Some(trailers)),
+                is_last: self.is_last,
+            },
+            _ => self,
+        }
     }
 
     pub(crate) fn is_eof(&self) -> bool {
@@ -89,10 +109,17 @@ impl Encoder {
         }
     }
 
+    pub(crate) fn is_chunked(&self) -> bool {
+        match self.kind {
+            Kind::Chunked(_) => true,
+            _ => false,
+        }
+    }
+
     pub(crate) fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
         match self.kind {
             Kind::Length(0) => Ok(None),
-            Kind::Chunked => Ok(Some(EncodedBuf {
+            Kind::Chunked(_) => Ok(Some(EncodedBuf {
                 kind: BufKind::ChunkedEnd(b"0\r\n\r\n"),
             })),
             #[cfg(feature = "server")]
@@ -109,7 +136,7 @@ impl Encoder {
         debug_assert!(len > 0, "encode() called with empty buf");
 
         let kind = match self.kind {
-            Kind::Chunked => {
+            Kind::Chunked(_) => {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
@@ -136,6 +163,54 @@ impl Encoder {
         EncodedBuf { kind }
     }
 
+    pub(crate) fn encode_trailers<B>(
+        &self,
+        mut trailers: HeaderMap,
+        title_case_headers: bool,
+    ) -> Option<EncodedBuf<B>> {
+        match &self.kind {
+            Kind::Chunked(allowed_trailer_fields) => {
+                let allowed_trailer_fields_map = match allowed_trailer_fields {
+                    Some(ref allowed_trailer_fields) => {
+                        allowed_trailer_field_map(&allowed_trailer_fields)
+                    }
+                    None => return None,
+                };
+
+                let mut cur_name = None;
+                let mut allowed_trailers = HeaderMap::new();
+
+                for (opt_name, value) in trailers.drain() {
+                    if let Some(n) = opt_name {
+                        cur_name = Some(n);
+                    }
+                    let name = cur_name.as_ref().expect("current header name");
+
+                    if allowed_trailer_fields_map.contains_key(name.as_str())
+                        && !invalid_trailer_field(name)
+                    {
+                        allowed_trailers.insert(name, value);
+                    }
+                }
+
+                let mut buf = Vec::new();
+                if title_case_headers {
+                    write_headers_title_case(&allowed_trailers, &mut buf);
+                } else {
+                    write_headers(&allowed_trailers, &mut buf);
+                }
+
+                Some(EncodedBuf {
+                    kind: BufKind::Trailers(b"0\r\n".chain(Bytes::from(buf)).chain(b"\r\n")),
+                })
+            }
+            _ => {
+                debug!("attempted to encode trailers for non-chunked response");
+                None
+            }
+        }
+    }
+
     pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>) -> bool
     where
         B: Buf,
@@ -144,7 +219,7 @@ impl Encoder {
         debug_assert!(len > 0, "encode() called with empty buf");
 
         match self.kind {
-            Kind::Chunked => {
+            Kind::Chunked(_) => {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
@@ -181,6 +256,39 @@ impl Encoder {
     }
 }
 
+fn invalid_trailer_field(name: &HeaderName) -> bool {
+    match name {
+        &AUTHORIZATION => true,
+        &CACHE_CONTROL => true,
+        &CONTENT_ENCODING => true,
+        &CONTENT_LENGTH => true,
+        &CONTENT_RANGE => true,
+        &CONTENT_TYPE => true,
+        &HOST => true,
+        &MAX_FORWARDS => true,
+        &SET_COOKIE => true,
+        &TRAILER => true,
+        &TRANSFER_ENCODING => true,
+        _ => false,
+    }
+}
+
+fn allowed_trailer_field_map(allowed_trailer_fields: &Vec<HeaderValue>) -> HashMap<String, ()> {
+    let mut trailer_map = HashMap::new();
+
+    for header_value in allowed_trailer_fields {
+        if let Ok(header_str) = header_value.to_str() {
+            let items: Vec<&str> = header_str.split(',').map(|item| item.trim()).collect();
+
+            for item in items {
+                trailer_map.entry(item.to_string()).or_insert(());
+            }
+        }
+    }
+
+    trailer_map
+}
+
 impl<B> Buf for EncodedBuf<B>
 where
     B: Buf,
@@ -192,6 +300,7 @@ where
             BufKind::Limited(ref b) => b.remaining(),
             BufKind::Chunked(ref b) => b.remaining(),
             BufKind::ChunkedEnd(ref b) => b.remaining(),
+            BufKind::Trailers(ref b) => b.remaining(),
         }
     }
 
@@ -202,6 +311,7 @@ where
             BufKind::Limited(ref b) => b.chunk(),
             BufKind::Chunked(ref b) => b.chunk(),
             BufKind::ChunkedEnd(ref b) => b.chunk(),
+            BufKind::Trailers(ref b) => b.chunk(),
         }
     }
 
@@ -212,6 +322,7 @@ where
             BufKind::Limited(ref mut b) => b.advance(cnt),
             BufKind::Chunked(ref mut b) => b.advance(cnt),
             BufKind::ChunkedEnd(ref mut b) => b.advance(cnt),
+            BufKind::Trailers(ref mut b) => b.advance(cnt),
         }
     }
 
@@ -222,6 +333,7 @@ where
             BufKind::Limited(ref b) => b.chunks_vectored(dst),
             BufKind::Chunked(ref b) => b.chunks_vectored(dst),
             BufKind::ChunkedEnd(ref b) => b.chunks_vectored(dst),
+            BufKind::Trailers(ref b) => b.chunks_vectored(dst),
         }
     }
 }

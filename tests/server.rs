@@ -19,7 +19,7 @@ use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt};
 use h2::client::SendRequest;
 use h2::{RecvStream, SendStream};
-use http::header::{HeaderName, HeaderValue};
+use http::header::{HeaderMap, HeaderName, HeaderValue};
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use hyper::rt::Timer;
 use hyper::rt::{Read as AsyncRead, Write as AsyncWrite};
@@ -2595,6 +2595,94 @@ async fn http2_keep_alive_count_server_pings() {
         .expect("timed out waiting for pings");
 }
 
+#[test]
+fn http1_trailer_fields() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+    // Invalid trailer field that should not be sent
+    headers.insert("Host", "www.example.com".parse().unwrap());
+    // Not specified in Trailer header, so should not be sent
+    headers.insert("foo", "bar".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "chunky-trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let expected_head =
+        "HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\ntrailer: chunky-trailer\r\n";
+    assert_eq!(&sres[..expected_head.len()], expected_head);
+
+    // skip the date header
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
+fn http1_trailer_fields_not_allowed() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "chunky-trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+
+    // TE: trailers is not specified in request headers
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let last_chunk = b"\r\n0\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(last_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let expected_head =
+        "HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\ntrailer: chunky-trailer\r\n";
+    assert_eq!(&sres[..expected_head.len()], expected_head);
+
+    // skip the date header
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    // no trailer fields should be sent because TE: trailers was not in request headers
+    let expected_body = "5\r\nhello\r\n0\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -2697,6 +2785,19 @@ impl<'a> ReplyBuilder<'a> {
         use futures_util::TryStreamExt;
         use hyper::body::Frame;
         let body = BodyExt::boxed(StreamBody::new(stream.map_ok(Frame::data)));
+        self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
+    }
+
+    fn body_stream_with_trailers<S>(self, stream: S, trailers: HeaderMap)
+    where
+        S: futures_util::Stream<Item = Result<Bytes, BoxError>> + Send + Sync + 'static,
+    {
+        use futures_util::TryStreamExt;
+        use hyper::body::Frame;
+        use support::trailers::StreamBodyWithTrailers;
+        let mut stream_body = StreamBodyWithTrailers::new(stream.map_ok(Frame::data));
+        stream_body.set_trailers(trailers);
+        let body = BodyExt::boxed(stream_body);
         self.tx.lock().unwrap().send(Reply::Body(body)).unwrap();
     }
 
