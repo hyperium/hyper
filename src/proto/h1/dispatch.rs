@@ -668,7 +668,7 @@ cfg_client! {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::common::io::compat;
+    use crate::common::io::Compat;
     use crate::proto::h1::ClientTransaction;
     use std::time::Duration;
 
@@ -682,7 +682,7 @@ mod tests {
             // Block at 0 for now, but we will release this response before
             // the request is ready to write later...
             let (mut tx, rx) = crate::client::dispatch::channel();
-            let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(compat(io));
+            let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(Compat::new(io));
             let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
 
             // First poll is needed to allow tx to send...
@@ -719,7 +719,7 @@ mod tests {
             .build_with_handle();
 
         let (mut tx, rx) = crate::client::dispatch::channel();
-        let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(compat(io));
+        let mut conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(Compat::new(io));
         conn.set_write_strategy_queue();
 
         let dispatcher = Dispatcher::new(Client::new(rx), conn);
@@ -750,7 +750,7 @@ mod tests {
             .build();
 
         let (mut tx, rx) = crate::client::dispatch::channel();
-        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(compat(io));
+        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(Compat::new(io));
         let mut dispatcher = tokio_test::task::spawn(Dispatcher::new(Client::new(rx), conn));
 
         // First poll is needed to allow tx to send...

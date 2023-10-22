@@ -108,7 +108,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::super::compat;
+    use super::super::Compat;
     use super::Rewind;
     use bytes::Bytes;
     use tokio::io::AsyncReadExt;
@@ -120,7 +120,7 @@ mod tests {
 
         let mock = tokio_test::io::Builder::new().read(&underlying).build();
 
-        let mut stream = compat(Rewind::new(compat(mock)));
+        let mut stream = Compat::new(Rewind::new(Compat::new(mock)));
 
         // Read off some bytes, ensure we filled o1
         let mut buf = [0; 2];
@@ -143,7 +143,7 @@ mod tests {
 
         let mock = tokio_test::io::Builder::new().read(&underlying).build();
 
-        let mut stream = compat(Rewind::new(compat(mock)));
+        let mut stream = Compat::new(Rewind::new(Compat::new(mock)));
 
         let mut buf = [0; 5];
         stream.read_exact(&mut buf).await.expect("read1");

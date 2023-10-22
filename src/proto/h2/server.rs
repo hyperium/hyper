@@ -14,6 +14,7 @@ use pin_project_lite::pin_project;
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::date;
+use crate::common::io::Compat;
 use crate::common::time::Time;
 use crate::ext::Protocol;
 use crate::headers;
@@ -90,7 +91,7 @@ where
 {
     Handshaking {
         ping_config: ping::Config,
-        hs: Handshake<crate::common::io::Compat<T>, SendBuf<B::Data>>,
+        hs: Handshake<Compat<T>, SendBuf<B::Data>>,
     },
     Serving(Serving<T, B>),
     Closed,
@@ -101,7 +102,7 @@ where
     B: Body,
 {
     ping: Option<(ping::Recorder, ping::Ponger)>,
-    conn: Connection<crate::common::io::Compat<T>, SendBuf<B::Data>>,
+    conn: Connection<Compat<T>, SendBuf<B::Data>>,
     closing: Option<crate::Error>,
 }
 
@@ -133,7 +134,7 @@ where
         if config.enable_connect_protocol {
             builder.enable_connect_protocol();
         }
-        let handshake = builder.handshake(crate::common::io::compat(io));
+        let handshake = builder.handshake(Compat::new(io));
 
         let bdp = if config.adaptive_window {
             Some(config.initial_stream_window_size)

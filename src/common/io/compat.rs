@@ -7,11 +7,11 @@ use std::task::{Context, Poll};
 #[derive(Debug)]
 pub(crate) struct Compat<T>(pub(crate) T);
 
-pub(crate) fn compat<T>(io: T) -> Compat<T> {
-    Compat(io)
-}
-
 impl<T> Compat<T> {
+    pub(crate) fn new(io: T) -> Self {
+        Compat(io)
+    }
+
     fn p(self: Pin<&mut Self>) -> Pin<&mut T> {
         // SAFETY: The simplest of projections. This is just
         // a wrapper, we don't do anything that would undo the projection.
