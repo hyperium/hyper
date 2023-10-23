@@ -126,27 +126,35 @@ impl hyper_executor {
         let mut cx = Context::from_waker(&waker);
 
         loop {
-            match Pin::new(&mut *self.driver.lock().unwrap()).poll_next(&mut cx) {
-                Poll::Ready(val) => return val,
-                Poll::Pending => {
-                    // Check if any of the pending tasks tried to spawn
-                    // some new tasks. If so, drain into the driver and loop.
-                    if self.drain_queue() {
-                        continue;
-                    }
-
-                    // If the driver called `wake` while we were polling,
-                    // we should poll again immediately!
-                    if self.is_woken.0.swap(false, Ordering::SeqCst) {
-                        continue;
-                    }
-
-                    return None;
-                }
+            {
+                // Scope the lock on the driver to ensure it is dropped before
+                // calling drain_queue below.
+                let mut driver = self.driver.lock().unwrap();
+                match Pin::new(&mut *driver).poll_next(&mut cx) {
+                    Poll::Ready(val) => return val,
+                    Poll::Pending => {}
+                };
             }
+
+            // poll_next returned Pending.
+            // Check if any of the pending tasks tried to spawn
+            // some new tasks. If so, drain into the driver and loop.
+            if self.drain_queue() {
+                continue;
+            }
+
+            // If the driver called `wake` while we were polling,
+            // we should poll again immediately!
+            if self.is_woken.0.swap(false, Ordering::SeqCst) {
+                continue;
+            }
+
+            return None;
         }
     }
 
+    /// drain_queue locks both self.spawn_queue and self.driver, so it requires
+    /// that neither of them be locked already.
     fn drain_queue(&self) -> bool {
         let mut queue = self.spawn_queue.lock().unwrap();
         if queue.is_empty() {
