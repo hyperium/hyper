@@ -122,7 +122,7 @@ where
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     let (h2_tx, mut conn) = new_builder(config)
-        .handshake::<_, SendBuf<B::Data>>(crate::common::io::compat(io))
+        .handshake::<_, SendBuf<B::Data>>(Compat::new(io))
         .await
         .map_err(crate::Error::new_h2)?;
 

@@ -659,7 +659,7 @@ enum WriteStrategy {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::io::compat;
+    use crate::common::io::Compat;
     use crate::common::time::Time;
 
     use super::*;
@@ -715,7 +715,7 @@ mod tests {
             .wait(Duration::from_secs(1))
             .build();
 
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(compat(mock));
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
 
         // We expect a `parse` to be not ready, and so can't await it directly.
         // Rather, this `poll_fn` will wrap the `Poll` result.
@@ -860,7 +860,7 @@ mod tests {
     #[cfg(debug_assertions)] // needs to trigger a debug_assert
     fn write_buf_requires_non_empty_bufs() {
         let mock = Mock::new().build();
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(compat(mock));
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
 
         buffered.buffer(Cursor::new(Vec::new()));
     }
@@ -895,7 +895,7 @@ mod tests {
 
         let mock = Mock::new().write(b"hello world, it's hyper!").build();
 
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(compat(mock));
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
         buffered.write_buf.set_strategy(WriteStrategy::Flatten);
 
         buffered.headers_buf().extend(b"hello ");
@@ -954,7 +954,7 @@ mod tests {
             .write(b"hyper!")
             .build();
 
-        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(compat(mock));
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
         buffered.write_buf.set_strategy(WriteStrategy::Queue);
 
         // we have 4 buffers, and vec IO disabled, but explicitly said
