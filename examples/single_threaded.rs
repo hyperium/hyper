@@ -138,7 +138,7 @@ async fn http1_server() -> Result<(), Box<dyn std::error::Error>> {
     loop {
         let (stream, _) = listener.accept().await?;
 
-        let io = TokioIo::new(stream);
+        let io = IOTypeNotSend::new(TokioIo::new(stream));
 
         let cnt = counter.clone();
 
@@ -166,7 +166,7 @@ async fn http1_client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>>
     let addr = format!("{}:{}", host, port);
     let stream = TcpStream::connect(addr).await?;
 
-    let io = TokioIo::new(stream);
+    let io = IOTypeNotSend::new(TokioIo::new(stream));
 
     let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
 

@@ -107,7 +107,8 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
     let (mut sender, conn) = hyper::client::conn::http1::handshake(io).await?;
 
     tokio::task::spawn(async move {
-        if let Err(err) = conn.await {
+        // Don't forget to enable upgrades on the connection.
+        if let Err(err) = conn.with_upgrades().await {
             println!("Connection failed: {:?}", err);
         }
     });
