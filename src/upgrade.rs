@@ -73,7 +73,7 @@ pub struct OnUpgrade {
     rx: Option<oneshot::Receiver<crate::Result<Upgraded>>>,
 }
 
-/// The deconstructed parts of an [`Upgraded`](Upgraded) type.
+/// The deconstructed parts of an [`Upgraded`] type.
 ///
 /// Includes the original IO type, and a read buffer of bytes that the
 /// HTTP state machine may have already read before completing an upgrade.
