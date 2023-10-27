@@ -11,7 +11,6 @@ use tokio::net::TcpListener;
 use std::collections::HashMap;
 use std::convert::Infallible;
 use std::net::SocketAddr;
-use url::form_urlencoded;
 
 #[path = "../benches/support/mod.rs"]
 mod support;
