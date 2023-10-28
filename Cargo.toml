@@ -40,6 +40,7 @@ tracing = { version = "0.1", default-features = false, features = ["std"], optio
 want = { version = "0.3", optional = true }
 
 [dev-dependencies]
+form_urlencoded = "1"
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 http-body-util = "=0.1.0-rc.3"
 pretty_env_logger = "0.5"
@@ -59,7 +60,6 @@ tokio = { version = "1", features = [
     "test-util",
 ] }
 tokio-test = "0.4"
-url = "2.2"
 
 [features]
 # Nothing by default
