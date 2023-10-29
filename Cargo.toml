@@ -41,7 +41,6 @@ want = { version = "0.3", optional = true }
 
 [dev-dependencies]
 form_urlencoded = "1"
-futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
 http-body-util = "=0.1.0-rc.3"
 pretty_env_logger = "0.5"
 spmc = "0.3"
