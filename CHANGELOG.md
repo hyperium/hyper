@@ -392,7 +392,7 @@
 #### Bug Fixes
 
 * **client:** HTTP/1 client "Transfer-Encoding" repair code would panic (#2410) ([2c8121f1](https://github.com/hyperium/hyper/commit/2c8121f1735aa8efeb0d5e4ef595363c373ba470), closes [#2409](https://github.com/hyperium/hyper/issues/2409))
-* **http1:** fix server misinterpretting multiple Transfer-Encoding headers ([8f93123e](https://github.com/hyperium/hyper/commit/8f93123efef5c1361086688fe4f34c83c89cec02))
+* **http1:** fix server misinterpreting multiple Transfer-Encoding headers ([8f93123e](https://github.com/hyperium/hyper/commit/8f93123efef5c1361086688fe4f34c83c89cec02))
 
 
 #### Features
