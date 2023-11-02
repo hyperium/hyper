@@ -264,7 +264,7 @@ impl Ponger {
 
         if let Some(ref mut ka) = self.keep_alive {
             ka.maybe_schedule(is_idle, &locked);
-            ka.maybe_ping(cx, &mut locked);
+            ka.maybe_ping(cx, is_idle, &mut locked);
         }
 
         if !locked.is_ping_sent() {
@@ -284,7 +284,7 @@ impl Ponger {
                 if let Some(ref mut ka) = self.keep_alive {
                     locked.update_last_read_at();
                     ka.maybe_schedule(is_idle, &locked);
-                    ka.maybe_ping(cx, &mut locked);
+                    ka.maybe_ping(cx, is_idle, &mut locked);
                 }
 
                 if let Some(ref mut bdp) = self.bdp {
@@ -448,7 +448,7 @@ impl KeepAlive {
         self.timer.reset(&mut self.sleep, interval);
     }
 
-    fn maybe_ping(&mut self, cx: &mut task::Context<'_>, shared: &mut Shared) {
+    fn maybe_ping(&mut self, cx: &mut task::Context<'_>, is_idle: bool, shared: &mut Shared) {
         match self.state {
             KeepAliveState::Scheduled(at) => {
                 if Pin::new(&mut self.sleep).poll(cx).is_pending() {
@@ -458,6 +458,10 @@ impl KeepAlive {
                 if shared.last_read_at() + self.interval > at {
                     self.state = KeepAliveState::Init;
                     cx.waker().wake_by_ref(); // schedule us again
+                    return;
+                }
+                if !self.while_idle && is_idle {
+                    trace!("keep-alive no need to ping when idle and while_idle=false");
                     return;
                 }
                 trace!("keep-alive interval ({:?}) reached", self.interval);
