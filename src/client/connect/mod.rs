@@ -81,8 +81,8 @@
 //! [`Connection`]: Connection
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use ::http::Extensions;
@@ -129,7 +129,12 @@ pub(crate) struct PoisonPill {
 impl Debug for PoisonPill {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         // print the address of the pill—this makes debugging issues much easier
-        write!(f, "PoisonPill@{:p} {{ poisoned: {} }}", self.poisoned, self.poisoned.load(Ordering::Relaxed))
+        write!(
+            f,
+            "PoisonPill@{:p} {{ poisoned: {} }}",
+            self.poisoned,
+            self.poisoned.load(Ordering::Relaxed)
+        )
     }
 }
 

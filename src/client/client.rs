@@ -253,7 +253,8 @@ where
             if req.version() == Version::HTTP_2 {
                 warn!("Connection is HTTP/1, but request requires HTTP/2");
                 return Err(ClientError::Normal(
-                    crate::Error::new_user_unsupported_version().with_client_connect_info(pooled.conn_info.clone()),
+                    crate::Error::new_user_unsupported_version()
+                        .with_client_connect_info(pooled.conn_info.clone()),
                 ));
             }
 
@@ -606,7 +607,7 @@ impl ResponseFuture {
         F: Future<Output = crate::Result<Response<Body>>> + Send + 'static,
     {
         Self {
-            inner: SyncWrapper::new(Box::pin(value))
+            inner: SyncWrapper::new(Box::pin(value)),
         }
     }
 
@@ -711,7 +712,10 @@ where
 {
     fn is_open(&self) -> bool {
         if self.conn_info.poisoned.poisoned() {
-            trace!("marking {:?} as closed because it was poisoned", self.conn_info);
+            trace!(
+                "marking {:?} as closed because it was poisoned",
+                self.conn_info
+            );
             return false;
         }
         match self.tx {
@@ -1114,10 +1118,7 @@ impl Builder {
     /// line in the input to resume parsing the rest of the headers. An error
     /// will be emitted nonetheless if it finds `\0` or a lone `\r` while
     /// looking for the next line.
-    pub fn http1_ignore_invalid_headers_in_responses(
-        &mut self,
-        val: bool,
-    ) -> &mut Builder {
+    pub fn http1_ignore_invalid_headers_in_responses(&mut self, val: bool) -> &mut Builder {
         self.conn_builder
             .http1_ignore_invalid_headers_in_responses(val);
         self

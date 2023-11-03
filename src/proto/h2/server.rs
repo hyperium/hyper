@@ -35,8 +35,7 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
-// 16 MB "sane default" taken from golang http2
-const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
+const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20; // 16 MB "sane default" taken from golang http2
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {

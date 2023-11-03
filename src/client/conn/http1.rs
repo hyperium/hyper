@@ -8,11 +8,9 @@ use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::body::{Body as IncomingBody, HttpBody as Body};
 use super::super::dispatch;
-use crate::common::{
-    task, Future, Pin, Poll,
-};
+use crate::body::{Body as IncomingBody, HttpBody as Body};
+use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
 use crate::upgrade::Upgraded;
 
@@ -43,7 +41,6 @@ pub struct Parts<T> {
     pub read_buf: Bytes,
     _inner: (),
 }
-
 
 /// A future that processes all HTTP state for the IO object.
 ///
@@ -88,7 +85,10 @@ where
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
     pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+        self.inner
+            .as_mut()
+            .expect("algready upgraded")
+            .poll_without_shutdown(cx)
     }
 }
 
@@ -112,9 +112,7 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
-    io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
@@ -324,10 +322,7 @@ impl Builder {
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn allow_spaces_after_header_name_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn allow_spaces_after_header_name_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .allow_spaces_after_header_name_in_responses(enabled);
         self
@@ -365,10 +360,7 @@ impl Builder {
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn allow_obsolete_multiline_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn allow_obsolete_multiline_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .allow_obsolete_multiline_headers_in_responses(enabled);
         self
@@ -381,10 +373,7 @@ impl Builder {
     /// and no error will be reported.
     ///
     /// Default is false.
-    pub fn ignore_invalid_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_responses(enabled);
         self

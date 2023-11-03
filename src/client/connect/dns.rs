@@ -318,7 +318,7 @@ impl Future for TokioThreadpoolGaiFuture {
 */
 
 mod sealed {
-    use super::{SocketAddr, Name};
+    use super::{Name, SocketAddr};
     use crate::common::{task, Future, Poll};
     use tower_service::Service;
 

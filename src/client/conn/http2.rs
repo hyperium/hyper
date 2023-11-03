@@ -10,7 +10,7 @@ use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
-use crate::body::{HttpBody as Body, Body as IncomingBody};
+use crate::body::{Body as IncomingBody, HttpBody as Body};
 use crate::common::{
     exec::{BoxSendFuture, Exec},
     task, Future, Pin, Poll,
@@ -25,7 +25,9 @@ pub struct SendRequest<B> {
 
 impl<B> Clone for SendRequest<B> {
     fn clone(&self) -> SendRequest<B> {
-        SendRequest { dispatch: self.dispatch.clone() }
+        SendRequest {
+            dispatch: self.dispatch.clone(),
+        }
     }
 }
 
@@ -55,10 +57,7 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<E, T, B>(
-    exec: E,
-    io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+pub async fn handshake<E, T, B>(exec: E, io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -244,7 +243,7 @@ where
 impl Builder {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new<E>(exec: E) -> Builder 
+    pub fn new<E>(exec: E) -> Builder
     where
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
@@ -285,10 +284,7 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn initial_connection_window_size(
-        &mut self,
-        sz: impl Into<Option<u32>>,
-    ) -> &mut Self {
+    pub fn initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
@@ -331,10 +327,7 @@ impl Builder {
     ///
     /// Default is currently disabled.
     #[cfg(feature = "runtime")]
-    pub fn keep_alive_interval(
-        &mut self,
-        interval: impl Into<Option<Duration>>,
-    ) -> &mut Self {
+    pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
     }
@@ -412,8 +405,7 @@ impl Builder {
             tracing::trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
-            let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec)
-                .await?;
+            let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec).await?;
             Ok((
                 SendRequest {
                     dispatch: tx.unbound(),
