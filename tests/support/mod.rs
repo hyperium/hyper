@@ -13,7 +13,9 @@ use hyper::{Body, Client, Request, Response, Server, Version};
 pub use futures_util::{
     future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
 };
-pub use hyper::{ext::Protocol, http::Extensions, HeaderMap, StatusCode};
+pub use hyper::{ext::Protocol, HeaderMap};
+#[allow(unused_imports)]
+pub use hyper::{http::Extensions, StatusCode};
 pub use std::net::SocketAddr;
 
 #[allow(unused_macros)]

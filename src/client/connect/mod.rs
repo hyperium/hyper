@@ -448,6 +448,7 @@ pub(super) mod sealed {
         fn connect(self, internal_only: Internal, dst: Uri) -> <Self::_Svc as ConnectSvc>::Future;
     }
 
+    #[allow(unreachable_pub)]
     pub trait ConnectSvc {
         type Connection: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static;
         type Error: Into<Box<dyn StdError + Send + Sync>>;
