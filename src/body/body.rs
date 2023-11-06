@@ -2,6 +2,9 @@ use std::borrow::Cow;
 #[cfg(feature = "stream")]
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use futures_channel::mpsc;
@@ -15,10 +18,9 @@ use http_body::{Body as HttpBody, SizeHint};
 use super::DecodedLength;
 #[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
-use crate::common::Future;
+use crate::common::watch;
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
 use crate::common::Never;
-use crate::common::{task, watch, Pin, Poll};
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
 
@@ -239,7 +241,7 @@ impl Body {
             .get_or_insert_with(|| Box::new(Extra { delayed_eof: None }))
     }
 
-    fn poll_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+    fn poll_eof(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.take_delayed_eof() {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "client")]
@@ -292,7 +294,7 @@ impl Body {
         }
     }
 
-    fn poll_inner(&mut self, cx: &mut task::Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
+    fn poll_inner(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Bytes>>> {
         match self.kind {
             Kind::Once(ref mut val) => Poll::Ready(val.take().map(Ok)),
             Kind::Chan {
@@ -367,14 +369,14 @@ impl HttpBody for Body {
 
     fn poll_data(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Self::Data, Self::Error>>> {
         self.poll_eof(cx)
     }
 
     fn poll_trailers(
         #[cfg_attr(not(feature = "http2"), allow(unused_mut))] mut self: Pin<&mut Self>,
-        #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut task::Context<'_>,
+        #[cfg_attr(not(feature = "http2"), allow(unused))] cx: &mut Context<'_>,
     ) -> Poll<Result<Option<HeaderMap>, Self::Error>> {
         match self.kind {
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
@@ -470,7 +472,7 @@ impl fmt::Debug for Body {
 impl Stream for Body {
     type Item = crate::Result<Bytes>;
 
-    fn poll_next(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         HttpBody::poll_data(self, cx)
     }
 }
@@ -550,7 +552,7 @@ impl From<Cow<'static, str>> for Body {
 
 impl Sender {
     /// Check to see if this `Sender` can send more data.
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         // Check if the receiver end has tried polling for the body yet
         ready!(self.poll_want(cx)?);
         self.data_tx
@@ -558,7 +560,7 @@ impl Sender {
             .map_err(|_| crate::Error::new_closed())
     }
 
-    fn poll_want(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_want(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         match self.want_rx.load(cx) {
             WANT_READY => Poll::Ready(Ok(())),
             WANT_PENDING => Poll::Pending,

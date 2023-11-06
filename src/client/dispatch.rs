@@ -1,12 +1,12 @@
 #[cfg(feature = "http2")]
 use std::future::Future;
+use std::marker::Unpin;
+#[cfg(feature = "http2")]
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use futures_util::FutureExt;
 use tokio::sync::{mpsc, oneshot};
-
-#[cfg(feature = "http2")]
-use crate::common::Pin;
-use crate::common::{task, Poll};
 
 pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
@@ -53,7 +53,7 @@ pub(crate) struct UnboundedSender<T, U> {
 }
 
 impl<T, U> Sender<T, U> {
-    pub(crate) fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.giver
             .poll_want(cx)
             .map_err(|_| crate::Error::new_closed())
@@ -155,10 +155,7 @@ pub(crate) struct Receiver<T, U> {
 }
 
 impl<T, U> Receiver<T, U> {
-    pub(crate) fn poll_recv(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<(T, Callback<T, U>)>> {
+    pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
         match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
@@ -245,7 +242,7 @@ impl<T, U> Callback<T, U> {
         }
     }
 
-    pub(crate) fn poll_canceled(&mut self, cx: &mut task::Context<'_>) -> Poll<()> {
+    pub(crate) fn poll_canceled(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         match *self {
             Callback::Retry(Some(ref mut tx)) => tx.poll_closed(cx),
             Callback::NoRetry(Some(ref mut tx)) => tx.poll_closed(cx),

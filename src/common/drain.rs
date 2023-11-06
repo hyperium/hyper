@@ -1,9 +1,10 @@
+use std::future::Future;
 use std::mem;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
 use tokio::sync::watch;
-
-use super::{task, Future, Pin, Poll};
 
 pub(crate) fn channel() -> (Signal, Watch) {
     let (tx, rx) = watch::channel(());
@@ -47,7 +48,7 @@ impl Signal {
 impl Future for Draining {
     type Output = ();
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.as_mut().0).poll(cx)
     }
 }
@@ -80,7 +81,7 @@ where
 {
     type Output = F::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             match mem::replace(me.state, State::Draining) {
@@ -115,7 +116,7 @@ mod tests {
     impl Future for TestMe {
         type Output = ();
 
-        fn poll(mut self: Pin<&mut Self>, _: &mut task::Context<'_>) -> Poll<Self::Output> {
+        fn poll(mut self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<Self::Output> {
             self.poll_cnt += 1;
             if self.finished {
                 Poll::Ready(())

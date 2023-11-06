@@ -427,12 +427,13 @@ where
 #[cfg(any(feature = "http1", feature = "http2"))]
 pub(super) mod sealed {
     use std::error::Error as StdError;
+    use std::future::Future;
+    use std::marker::Unpin;
 
     use ::http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite};
 
     use super::Connection;
-    use crate::common::{Future, Unpin};
 
     /// Connect to a destination, returning an IO transport.
     ///

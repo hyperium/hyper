@@ -1,6 +1,9 @@
 use std::fmt;
 use std::io;
 use std::marker::PhantomData;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 #[cfg(all(feature = "server", feature = "runtime"))]
 use std::time::Duration;
 
@@ -16,7 +19,6 @@ use tracing::{debug, error, trace};
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
-use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, MessageHead};
 
@@ -185,7 +187,7 @@ where
 
     pub(super) fn poll_read_head(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<crate::Result<(MessageHead<T::Incoming>, DecodedLength, Wants)>>> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
@@ -286,7 +288,7 @@ where
 
     pub(crate) fn poll_read_body(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<io::Result<Bytes>>> {
         debug_assert!(self.can_read_body());
 
@@ -347,10 +349,7 @@ where
         ret
     }
 
-    pub(crate) fn poll_read_keep_alive(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_read_closed() {
@@ -373,7 +372,7 @@ where
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    fn require_empty_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn require_empty_read(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(!self.is_mid_message());
         debug_assert!(T::is_client());
@@ -406,7 +405,7 @@ where
         Poll::Ready(Err(crate::Error::new_unexpected_message()))
     }
 
-    fn mid_message_detect_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn mid_message_detect_eof(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(self.is_mid_message());
 
@@ -425,7 +424,7 @@ where
         }
     }
 
-    fn force_io_read(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+    fn force_io_read(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         debug_assert!(!self.state.is_read_closed());
 
         let result = ready!(self.io.poll_read_from_io(cx));
@@ -436,7 +435,7 @@ where
         }))
     }
 
-    fn maybe_notify(&mut self, cx: &mut task::Context<'_>) {
+    fn maybe_notify(&mut self, cx: &mut Context<'_>) {
         // its possible that we returned NotReady from poll() without having
         // exhausted the underlying Io. We would have done this when we
         // determined we couldn't keep reading until we knew how writing
@@ -483,7 +482,7 @@ where
         }
     }
 
-    fn try_keep_alive(&mut self, cx: &mut task::Context<'_>) {
+    fn try_keep_alive(&mut self, cx: &mut Context<'_>) {
         self.state.try_keep_alive::<T>();
         self.maybe_notify(cx);
     }
@@ -726,14 +725,14 @@ where
         Err(err)
     }
 
-    pub(crate) fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
 
-    pub(crate) fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
             Ok(()) => {
                 trace!("shut down IO complete");
@@ -747,7 +746,7 @@ where
     }
 
     /// If the read side can be cheaply drained, do so. Otherwise, close.
-    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut task::Context<'_>) {
+    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut Context<'_>) {
         if let Reading::Continue(ref decoder) = self.state.reading {
             // skip sending the 100-continue
             // just move forward to a read, in case a tiny body was included

@@ -2,8 +2,12 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::marker::Unpin;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use http::{Request, Response};
@@ -11,10 +15,7 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
 use crate::body::{Body as IncomingBody, HttpBody as Body};
-use crate::common::{
-    exec::{BoxSendFuture, Exec},
-    task, Future, Pin, Poll,
-};
+use crate::common::exec::{BoxSendFuture, Exec};
 use crate::proto;
 use crate::rt::Executor;
 
@@ -74,7 +75,7 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         if self.is_closed() {
             Poll::Ready(Err(crate::Error::new_closed()))
         } else {
@@ -229,7 +230,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.inner.1).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
             #[cfg(feature = "http1")]

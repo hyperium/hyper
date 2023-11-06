@@ -1,5 +1,8 @@
 use std::error::Error as StdError;
+use std::future::Future;
 use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 
@@ -13,8 +16,8 @@ use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
+use crate::common::date;
 use crate::common::exec::ConnStreamExec;
-use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
@@ -192,7 +195,7 @@ where
 {
     type Output = crate::Result<Dispatched>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let me = &mut *self;
         loop {
             let next = match me.state {
@@ -235,7 +238,7 @@ where
 {
     fn poll_server<S, E>(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         service: &mut S,
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
@@ -355,7 +358,7 @@ where
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
 
-    fn poll_ping(&mut self, cx: &mut task::Context<'_>) {
+    fn poll_ping(&mut self, cx: &mut Context<'_>) {
         if let Some((_, ref mut estimator)) = self.ping {
             match estimator.poll(cx) {
                 Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
@@ -446,7 +449,7 @@ where
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll2(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         let mut me = self.project();
         loop {
             let next = match me.state.as_mut().project() {
@@ -541,7 +544,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
             if let Err(e) = res {
                 debug!("stream error: {}", e);

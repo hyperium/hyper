@@ -1,9 +1,10 @@
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::task::{Context, Poll};
 
 use crate::body::HttpBody;
-use crate::common::{task, Future, Poll};
 use crate::{Request, Response};
 
 /// Create a `Service` from a function.
@@ -54,7 +55,7 @@ where
     type Error = E;
     type Future = Ret;
 
-    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
