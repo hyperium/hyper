@@ -72,6 +72,8 @@ cfg_feature! {
     use std::pin::Pin;
     use std::future::Future;
     use std::marker::Unpin;
+    #[cfg(not(all(feature = "http1", feature = "http2")))]
+    use std::convert::Infallible;
 
     use bytes::Bytes;
     use pin_project_lite::pin_project;
@@ -80,8 +82,6 @@ cfg_feature! {
 
     pub use super::server::Connecting;
     use crate::body::{Body, HttpBody};
-    #[cfg(not(all(feature = "http1", feature = "http2")))]
-    use crate::common::Never;
     use crate::common::exec::{ConnStreamExec, Exec};
     use crate::proto;
     use crate::service::HttpService;
@@ -159,14 +159,14 @@ type Http1Dispatcher<T, B, S> =
     proto::h1::Dispatcher<proto::h1::dispatch::Server<S, Body>, B, T, proto::ServerTransaction>;
 
 #[cfg(all(not(feature = "http1"), feature = "http2"))]
-type Http1Dispatcher<T, B, S> = (Never, PhantomData<(T, Box<Pin<B>>, Box<Pin<S>>)>);
+type Http1Dispatcher<T, B, S> = (Infallible, PhantomData<(T, Box<Pin<B>>, Box<Pin<S>>)>);
 
 #[cfg(feature = "http2")]
 type Http2Server<T, B, S, E> = proto::h2::Server<Rewind<T>, S, B, E>;
 
 #[cfg(all(not(feature = "http2"), feature = "http1"))]
 type Http2Server<T, B, S, E> = (
-    Never,
+    Infallible,
     PhantomData<(T, Box<Pin<S>>, Box<Pin<B>>, Box<Pin<E>>)>,
 );
 

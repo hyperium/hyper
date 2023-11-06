@@ -59,6 +59,8 @@ pub mod http1;
 #[cfg(all(feature = "backports", feature = "http2"))]
 pub mod http2;
 
+#[cfg(not(all(feature = "http1", feature = "http2")))]
+use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::fmt;
 use std::future::Future;
@@ -82,8 +84,6 @@ use tracing::{debug, trace};
 use super::dispatch;
 use crate::body::HttpBody;
 use crate::common::exec::{BoxSendFuture, Exec};
-#[cfg(not(all(feature = "http1", feature = "http2")))]
-use crate::common::Never;
 use crate::proto;
 use crate::rt::Executor;
 #[cfg(feature = "http1")]
@@ -95,13 +95,13 @@ type Http1Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
 
 #[cfg(not(feature = "http1"))]
-type Http1Dispatcher<T, B> = (Never, PhantomData<(T, Pin<Box<B>>)>);
+type Http1Dispatcher<T, B> = (Infallible, PhantomData<(T, Pin<Box<B>>)>);
 
 #[cfg(feature = "http2")]
 type Http2ClientTask<B> = proto::h2::ClientTask<B>;
 
 #[cfg(not(feature = "http2"))]
-type Http2ClientTask<B> = (Never, PhantomData<Pin<Box<B>>>);
+type Http2ClientTask<B> = (Infallible, PhantomData<Pin<Box<B>>>);
 
 pin_project! {
     #[project = ProtoClientProj]
