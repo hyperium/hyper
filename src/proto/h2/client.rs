@@ -1,4 +1,8 @@
 use std::error::Error as StdError;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 
@@ -15,7 +19,7 @@ use tracing::{debug, trace, warn};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
 use crate::client::dispatch::Callback;
-use crate::common::{exec::Exec, task, Future, Never, Pin, Poll};
+use crate::common::{exec::Exec, Never};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
@@ -239,7 +243,7 @@ where
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut task::Context<'_>) {
+    fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut Context<'_>) {
         let ping = self.ping.clone();
         let send_stream = if !f.is_connect {
             if !f.eos {
@@ -334,7 +338,7 @@ where
 {
     type Output = crate::Result<Dispatched>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         loop {
             match ready!(self.h2_tx.poll_ready(cx)) {
                 Ok(()) => (),

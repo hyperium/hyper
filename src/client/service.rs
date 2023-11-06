@@ -5,6 +5,8 @@
 use std::error::Error as StdError;
 use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use tracing::debug;
 
@@ -12,7 +14,6 @@ use tracing::debug;
 use super::conn::{Builder, SendRequest};
 use crate::{
     body::HttpBody,
-    common::{task, Pin, Poll},
     service::{MakeConnection, Service},
 };
 
@@ -58,7 +59,7 @@ where
     type Future =
         Pin<Box<dyn Future<Output = Result<Self::Response, Self::Error>> + Send + 'static>>;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.inner
             .poll_ready(cx)
             .map_err(|e| crate::Error::new(crate::error::Kind::Connect).with(e.into()))

@@ -1,9 +1,11 @@
 // TODO: Eventually to be replaced with tower_util::Oneshot.
 
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use pin_project_lite::pin_project;
 use tower_service::Service;
-
-use crate::common::{task, Future, Pin, Poll};
 
 pub(crate) fn oneshot<S, Req>(svc: S, req: Req) -> Oneshot<S, Req>
 where
@@ -47,7 +49,7 @@ where
 {
     type Output = Result<S::Response, S::Error>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
 
         loop {

@@ -2,6 +2,10 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use pin_project_lite::pin_project;
@@ -9,7 +13,6 @@ use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body as IncomingBody, HttpBody as Body};
 use crate::common::exec::ConnStreamExec;
-use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto;
 use crate::service::HttpService;
 
@@ -79,7 +82,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.conn).poll(cx)) {
             Ok(_done) => {
                 //TODO: the proto::h2::Server no longer needs to return

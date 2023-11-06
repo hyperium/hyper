@@ -1,6 +1,9 @@
-use pin_project_lite::pin_project;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
-use super::{task, Future, Pin, Poll};
+use pin_project_lite::pin_project;
 
 pub(crate) trait Started: Future {
     fn started(&self) -> bool;
@@ -55,7 +58,7 @@ where
 {
     type Output = R::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
         if let InnerProj::Fut { fut } = this.inner.as_mut().project() {

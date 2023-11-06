@@ -1,11 +1,12 @@
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::task::{Context, Poll};
 
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::{HttpService, Service};
 use crate::body::HttpBody;
-use crate::common::{task, Future, Poll};
 
 // The same "trait alias" as tower::MakeConnection, but inlined to reduce
 // dependencies.
@@ -14,7 +15,7 @@ pub trait MakeConnection<Target>: self::sealed::Sealed<(Target,)> {
     type Error;
     type Future: Future<Output = Result<Self::Connection, Self::Error>>;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>>;
     fn make_connection(&mut self, target: Target) -> Self::Future;
 }
 
@@ -29,7 +30,7 @@ where
     type Error = S::Error;
     type Future = S::Future;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Service::poll_ready(self, cx)
     }
 
@@ -58,7 +59,7 @@ pub trait MakeServiceRef<Target, ReqBody>: self::sealed::Sealed<(Target, ReqBody
     // if necessary.
     type __DontNameMe: self::sealed::CantImpl;
 
-    fn poll_ready_ref(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>>;
+    fn poll_ready_ref(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::MakeError>>;
 
     fn make_service_ref(&mut self, target: &Target) -> Self::Future;
 }
@@ -81,7 +82,7 @@ where
 
     type __DontNameMe = self::sealed::CantName;
 
-    fn poll_ready_ref(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::MakeError>> {
+    fn poll_ready_ref(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::MakeError>> {
         self.poll_ready(cx)
     }
 
@@ -159,7 +160,7 @@ where
     type Response = Svc;
     type Future = Ret;
 
-    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
