@@ -566,13 +566,13 @@ cfg_client! {
     {
         type PollItem = RequestHead;
         type PollBody = B;
-        type PollError = crate::common::Never;
+        type PollError = std::convert::Infallible;
         type RecvItem = crate::proto::ResponseHead;
 
         fn poll_msg(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), crate::common::Never>>> {
+        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
             let mut this = self.as_mut();
             debug_assert!(!this.rx_closed);
             match this.rx.poll_recv(cx) {

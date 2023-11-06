@@ -1,3 +1,4 @@
+use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::future::Future;
 use std::marker::Unpin;
@@ -19,7 +20,7 @@ use tracing::{debug, trace, warn};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
 use crate::client::dispatch::Callback;
-use crate::common::{exec::Exec, Never};
+use crate::common::exec::Exec;
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
@@ -32,11 +33,11 @@ type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, Response<Body>>
 
 ///// An mpsc channel is used to help notify the `Connection` task when *all*
 ///// other handles to it have been dropped, so that it can shutdown.
-type ConnDropRef = mpsc::Sender<Never>;
+type ConnDropRef = mpsc::Sender<Infallible>;
 
 ///// A oneshot channel watches the `Connection` task, and when it completes,
 ///// the "dispatch" task will be notified and can shutdown sooner.
-type ConnEof = oneshot::Receiver<Never>;
+type ConnEof = oneshot::Receiver<Infallible>;
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -181,7 +182,7 @@ where
     })
 }
 
-async fn conn_task<C, D>(conn: C, drop_rx: D, cancel_tx: oneshot::Sender<Never>)
+async fn conn_task<C, D>(conn: C, drop_rx: D, cancel_tx: oneshot::Sender<Infallible>)
 where
     C: Future + Unpin,
     D: Future<Output = ()> + Unpin,

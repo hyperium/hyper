@@ -1,4 +1,6 @@
 use std::borrow::Cow;
+#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+use std::convert::Infallible;
 #[cfg(feature = "stream")]
 use std::error::Error as StdError;
 use std::fmt;
@@ -19,8 +21,6 @@ use super::DecodedLength;
 #[cfg(feature = "stream")]
 use crate::common::sync_wrapper::SyncWrapper;
 use crate::common::watch;
-#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
-use crate::common::Never;
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
 
@@ -79,7 +79,7 @@ struct Extra {
 }
 
 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
-type DelayEofUntil = oneshot::Receiver<Never>;
+type DelayEofUntil = oneshot::Receiver<Infallible>;
 
 enum DelayEof {
     /// Initial state, stream hasn't seen EOF yet.

@@ -83,7 +83,7 @@ struct PoolInner<T> {
     // A oneshot channel is used to allow the interval to be notified when
     // the Pool completely drops. That way, the interval can cancel immediately.
     #[cfg(feature = "runtime")]
-    idle_interval_ref: Option<oneshot::Sender<crate::common::Never>>,
+    idle_interval_ref: Option<oneshot::Sender<std::convert::Infallible>>,
     #[cfg(feature = "runtime")]
     exec: Exec,
     timeout: Option<Duration>,
@@ -741,7 +741,7 @@ pin_project_lite::pin_project! {
         // Pool is fully dropped, and shutdown. This channel is never sent on,
         // but Err(Canceled) will be received when the Pool is dropped.
         #[pin]
-        pool_drop_notifier: oneshot::Receiver<crate::common::Never>,
+        pool_drop_notifier: oneshot::Receiver<std::convert::Infallible>,
     }
 }
 
