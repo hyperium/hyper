@@ -15,7 +15,10 @@ use bytes::Bytes;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
 use crate::service::HttpService;
-use crate::{common::time::Time, rt::Timer};
+use crate::{
+    common::time::{Dur, Time},
+    rt::Timer,
+};
 
 type Http1Dispatcher<T, B, S> = proto::h1::Dispatcher<
     proto::h1::dispatch::Server<S, IncomingBody>,
@@ -70,7 +73,7 @@ pub struct Builder {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
-    h1_header_read_timeout: Option<Duration>,
+    h1_header_read_timeout: Dur,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
@@ -237,7 +240,7 @@ impl Builder {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
-            h1_header_read_timeout: None,
+            h1_header_read_timeout: Dur::Default(None),
             h1_writev: None,
             max_buf_size: None,
             pipeline_flush: false,
@@ -293,8 +296,8 @@ impl Builder {
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
-    pub fn header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
-        self.h1_header_read_timeout = Some(read_timeout);
+    pub fn header_read_timeout(&mut self, read_timeout: impl Into<Option<Duration>>) -> &mut Self {
+        self.h1_header_read_timeout = Dur::Configured(read_timeout.into());
         self
     }
 
@@ -355,6 +358,11 @@ impl Builder {
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
     ///
+    /// # Panics
+    ///
+    /// If a timeout option has been configured, but a `timer` has not been
+    /// provided, calling `serve_connection` will panic.
+    ///
     /// # Example
     ///
     /// ```
@@ -400,9 +408,12 @@ impl Builder {
         if self.h1_preserve_header_case {
             conn.set_preserve_header_case();
         }
-        if let Some(header_read_timeout) = self.h1_header_read_timeout {
-            conn.set_http1_header_read_timeout(header_read_timeout);
-        }
+        if let Some(dur) = self
+            .timer
+            .check(self.h1_header_read_timeout, "header_read_timeout")
+        {
+            conn.set_http1_header_read_timeout(dur);
+        };
         if let Some(writev) = self.h1_writev {
             if writev {
                 conn.set_write_strategy_queue();
