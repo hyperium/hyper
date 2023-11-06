@@ -710,10 +710,7 @@ impl Builder {
     /// Note that this setting does not affect HTTP/2.
     ///
     /// Default is false.
-    pub fn http1_ignore_invalid_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn http1_ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_responses(enabled);
         self

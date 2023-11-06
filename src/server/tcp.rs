@@ -1,8 +1,8 @@
+use socket2::TcpKeepalive;
 use std::fmt;
 use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
 use std::time::Duration;
-use socket2::TcpKeepalive;
 
 use tokio::net::TcpListener;
 use tokio::time::Sleep;
@@ -71,7 +71,7 @@ impl TcpKeepaliveConfig {
         windows,
     )))]
     fn ka_with_interval(ka: TcpKeepalive, _: Duration, _: &mut bool) -> TcpKeepalive {
-        ka  // no-op as keepalive interval is not supported on this platform
+        ka // no-op as keepalive interval is not supported on this platform
     }
 
     #[cfg(any(
@@ -100,7 +100,7 @@ impl TcpKeepaliveConfig {
         target_vendor = "apple",
     )))]
     fn ka_with_retries(ka: TcpKeepalive, _: u32, _: &mut bool) -> TcpKeepalive {
-        ka  // no-op as keepalive retries is not supported on this platform
+        ka // no-op as keepalive retries is not supported on this platform
     }
 }
 
@@ -420,8 +420,8 @@ mod addr_stream {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use crate::server::tcp::TcpKeepaliveConfig;
+    use std::time::Duration;
 
     #[test]
     fn no_tcp_keepalive_config() {
