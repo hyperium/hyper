@@ -240,7 +240,7 @@ impl Builder {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
-            h1_header_read_timeout: Dur::Default(None),
+            h1_header_read_timeout: Dur::Default(Some(Duration::from_secs(30))),
             h1_writev: None,
             max_buf_size: None,
             pipeline_flush: false,
@@ -295,7 +295,9 @@ impl Builder {
     /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
-    /// Default is None.
+    /// Pass `None` to disable.
+    ///
+    /// Default is 30 seconds.
     pub fn header_read_timeout(&mut self, read_timeout: impl Into<Option<Duration>>) -> &mut Self {
         self.h1_header_read_timeout = Dur::Configured(read_timeout.into());
         self
