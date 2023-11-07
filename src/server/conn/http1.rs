@@ -44,6 +44,25 @@ pin_project_lite::pin_project! {
 ///
 /// **Note**: The default values of options are *not considered stable*. They
 /// are subject to change at any time.
+///
+/// # Example
+///
+/// ```
+/// # use std::time::Duration;
+/// # use hyper::server::conn::http1::Builder;
+/// # fn main() {
+/// let mut http = Builder::new();
+/// // Set options one at a time
+/// http.header_read_timeout(Duration::from_millis(200));
+///
+/// // Or, chain multiple options
+/// http.keep_alive(false).title_case_headers(true).max_buf_size(8192);
+///
+/// # }
+/// ```
+///
+/// Use [`Builder::serve_connection`](struct.Builder.html#method.serve_connection)
+/// to bind the built connection to a service.
 #[derive(Clone, Debug)]
 pub struct Builder {
     timer: Time,
