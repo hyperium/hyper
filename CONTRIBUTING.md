@@ -24,6 +24,6 @@ Get-ChildItem . -Filter "*.rs" -Recurse | foreach { rustfmt --check --edition 20
 > **NOTE**: If you are using `rust-analyzer`, you can add the following two lines in your `settings.json` to make sure the features get taken into account when checking the project:
 >
 >    ```json
->     "rust-analyzer.cargo.features": "full",
->     "rust-analyzer.check.features": "full",
+>     "rust-analyzer.cargo.features": ["full"],
+>     "rust-analyzer.check.features": ["full"],
 >    ```
