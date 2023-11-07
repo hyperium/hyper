@@ -197,7 +197,7 @@ required-features = ["full"]
 [[example]]
 name = "tower_client"
 path = "examples/tower_client.rs"
-required-features = ["full"]
+required-features = ["full", "backports"]
 
 [[example]]
 name = "tower_server"
