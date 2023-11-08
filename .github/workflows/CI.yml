@@ -206,7 +206,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cbindgen
         uses: taiki-e/cache-cargo-install-action@v1
