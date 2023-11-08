@@ -147,13 +147,13 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-hack
         run: cargo install cargo-hack
 
       - name: check --feature-powerset
-        run: cargo hack check --feature-powerset --depth 2 --skip ffi -Z avoid-dev-deps
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi
 
   deprecated:
     name: Check deprecated on ${{ matrix.rust }}
