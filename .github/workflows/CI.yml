@@ -79,6 +79,8 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Test
         run: cargo test ${{ matrix.features }}
 
@@ -107,6 +109,8 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Check
         run: cargo check --features full
@@ -143,6 +147,8 @@ jobs:
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: check --feature-powerset
         run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi
 
@@ -166,6 +172,8 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Check
         run: cargo check --features full,backports,deprecated
 
@@ -184,6 +192,8 @@ jobs:
         uses: taiki-e/cache-cargo-install-action@v1
         with:
           tool: cbindgen
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build FFI
         run: cargo rustc --features client,http1,http2,ffi --crate-type cdylib
