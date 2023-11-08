@@ -80,17 +80,11 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: ${{ matrix.features }}
+        run: cargo test ${{ matrix.features }}
 
       - name: Test all benches
         if: matrix.benches
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --benches ${{ matrix.features }}
+        run: cargo test --benches ${{ matrix.features }}
 
   msrv:
     name: Check MSRV (${{ matrix.rust }})
@@ -115,10 +109,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features full
+        run: cargo check --features full
 
   miri:
     name: Test with Miri
@@ -150,7 +141,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-hack
-        run: cargo install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
 
       - name: check --feature-powerset
         run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi
@@ -176,10 +167,7 @@ jobs:
           toolchain: ${{ matrix.rust }}
 
       - name: Check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --features full,backports,deprecated
+        run: cargo check --features full,backports,deprecated
 
   ffi:
     name: Test C API (FFI)
@@ -193,29 +181,22 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Install cbindgen
-        uses: actions-rs/cargo@v1
+        uses: taiki-e/cache-cargo-install-action@v1
         with:
-          command: install
-          args: cbindgen
+          tool: cbindgen
 
       - name: Build FFI
-        uses: actions-rs/cargo@v1
+        run: cargo rustc --features client,http1,http2,ffi --crate-type cdylib
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        with:
-          command: rustc
-          args: --features client,http1,http2,ffi -Z unstable-options --crate-type cdylib
 
       - name: Make Examples
         run: cd capi/examples && make client
 
       - name: Run FFI unit tests
-        uses: actions-rs/cargo@v1
+        run: cargo test --features full,ffi --lib
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        with:
-          command: test
-          args: --features full,ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date
@@ -228,18 +209,14 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
 
       - name: Install cbindgen
-        uses: actions-rs/cargo@v1
+        uses: taiki-e/cache-cargo-install-action@v1
         with:
-          command: install
-          args: cbindgen
+          tool: cbindgen
 
       - name: Build FFI
-        uses: actions-rs/cargo@v1
+        run: cargo build --features client,http1,http2,ffi
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        with:
-          command: build
-          args: --features client,http1,http2,ffi
 
       - name: Ensure that hyper.h is up to date
         run: ./capi/gen_header.sh --verify
@@ -256,7 +233,4 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
 
       - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: rustdoc
-          args: --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
