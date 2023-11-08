@@ -213,6 +213,13 @@ jobs:
         with:
           tool: cbindgen
 
+      - name: Install cargo-expand
+        uses: taiki-e/cache-cargo-install-action@v1
+        with:
+          tool: cargo-expand
+
+      - uses: Swatinem/rust-cache@v2
+
       - name: Build FFI
         run: cargo build --features client,http1,http2,ffi
         env:
