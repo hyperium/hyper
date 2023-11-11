@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use http::header::{HeaderValue, CONNECTION};
+use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
 
@@ -265,12 +265,14 @@ where
             self.state.reading = Reading::Body(Decoder::new(msg.decode));
         }
 
-        if let Some(Ok(te_value)) = msg.head.headers.get("te").map(|v| v.to_str()) {
-            if te_value.eq_ignore_ascii_case("trailers") {
-                self.state.allow_trailer_fields = true;
-            } else {
-                self.state.allow_trailer_fields = false;
-            }
+        if msg
+            .head
+            .headers
+            .get(TE)
+            .map(|te_header| te_header == "trailers")
+            .unwrap_or(false)
+        {
+            self.state.allow_trailer_fields = true;
         } else {
             self.state.allow_trailer_fields = false;
         }

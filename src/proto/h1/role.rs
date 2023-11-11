@@ -1347,20 +1347,10 @@ impl Client {
 
         let encoder = encoder.map(|enc| {
             if enc.is_chunked() {
-                let mut allowed_trailer_fields: Option<Vec<HeaderValue>> = None;
-                let trailers = headers.get_all(header::TRAILER);
-                for trailer in trailers.iter() {
-                    match allowed_trailer_fields {
-                        Some(ref mut allowed_trailer_fields) => {
-                            allowed_trailer_fields.push(trailer.clone());
-                        }
-                        None => {
-                            allowed_trailer_fields = Some(vec![trailer.clone()]);
-                        }
-                    }
-                }
+                let allowed_trailer_fields: Vec<HeaderValue> =
+                    headers.get_all(header::TRAILER).iter().cloned().collect();
 
-                if let Some(allowed_trailer_fields) = allowed_trailer_fields {
+                if allowed_trailer_fields.len() > 0 {
                     return enc.into_chunked_with_trailing_fields(allowed_trailer_fields);
                 }
             }

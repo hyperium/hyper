@@ -7,7 +7,7 @@ use bytes::{Buf, Bytes};
 use http::{
     header::{
         AUTHORIZATION, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE,
-        CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TRAILER, TRANSFER_ENCODING,
+        CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TE, TRAILER, TRANSFER_ENCODING,
     },
     HeaderMap, HeaderName, HeaderValue,
 };
@@ -169,13 +169,8 @@ impl Encoder {
         title_case_headers: bool,
     ) -> Option<EncodedBuf<B>> {
         match &self.kind {
-            Kind::Chunked(allowed_trailer_fields) => {
-                let allowed_trailer_fields_map = match allowed_trailer_fields {
-                    Some(ref allowed_trailer_fields) => {
-                        allowed_trailer_field_map(&allowed_trailer_fields)
-                    }
-                    None => return None,
-                };
+            Kind::Chunked(Some(ref allowed_trailer_fields)) => {
+                let allowed_trailer_field_map = allowed_trailer_field_map(&allowed_trailer_fields);
 
                 let mut cur_name = None;
                 let mut allowed_trailers = HeaderMap::new();
@@ -186,8 +181,8 @@ impl Encoder {
                     }
                     let name = cur_name.as_ref().expect("current header name");
 
-                    if allowed_trailer_fields_map.contains_key(name.as_str())
-                        && !invalid_trailer_field(name)
+                    if allowed_trailer_field_map.contains_key(name.as_str())
+                        && valid_trailer_field(name)
                     {
                         allowed_trailers.insert(name, value);
                     }
@@ -198,6 +193,10 @@ impl Encoder {
                     write_headers_title_case(&allowed_trailers, &mut buf);
                 } else {
                     write_headers(&allowed_trailers, &mut buf);
+                }
+
+                if buf.is_empty() {
+                    return None;
                 }
 
                 Some(EncodedBuf {
@@ -256,20 +255,21 @@ impl Encoder {
     }
 }
 
-fn invalid_trailer_field(name: &HeaderName) -> bool {
+fn valid_trailer_field(name: &HeaderName) -> bool {
     match name {
-        &AUTHORIZATION => true,
-        &CACHE_CONTROL => true,
-        &CONTENT_ENCODING => true,
-        &CONTENT_LENGTH => true,
-        &CONTENT_RANGE => true,
-        &CONTENT_TYPE => true,
-        &HOST => true,
-        &MAX_FORWARDS => true,
-        &SET_COOKIE => true,
-        &TRAILER => true,
-        &TRANSFER_ENCODING => true,
-        _ => false,
+        &AUTHORIZATION => false,
+        &CACHE_CONTROL => false,
+        &CONTENT_ENCODING => false,
+        &CONTENT_LENGTH => false,
+        &CONTENT_RANGE => false,
+        &CONTENT_TYPE => false,
+        &HOST => false,
+        &MAX_FORWARDS => false,
+        &SET_COOKIE => false,
+        &TRAILER => false,
+        &TRANSFER_ENCODING => false,
+        &TE => false,
+        _ => true,
     }
 }
 
@@ -439,7 +439,16 @@ impl std::error::Error for NotEof {}
 
 #[cfg(test)]
 mod tests {
+    use std::iter::FromIterator;
+
     use bytes::BufMut;
+    use http::{
+        header::{
+            AUTHORIZATION, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE,
+            CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TE, TRAILER, TRANSFER_ENCODING,
+        },
+        HeaderMap, HeaderName, HeaderValue,
+    };
 
     use super::super::io::Cursor;
     use super::Encoder;
@@ -513,5 +522,109 @@ mod tests {
         assert_eq!(dst, b"foo barbaz");
         assert!(!encoder.is_eof());
         encoder.end::<()>().unwrap();
+    }
+
+    #[test]
+    fn chunked_with_valid_trailers() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![HeaderValue::from_static("chunky-trailer")];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(
+            HeaderName::from_static("chunky-trailer"),
+            HeaderValue::from_static("header data"),
+        );
+        headers.insert(
+            HeaderName::from_static("should-not-be-included"),
+            HeaderValue::from_static("oops"),
+        );
+
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(dst, b"0\r\nchunky-trailer: header data\r\n\r\n");
+    }
+
+    #[test]
+    fn chunked_with_no_trailer_header() {
+        let encoder = Encoder::chunked();
+
+        let headers = HeaderMap::from_iter(
+            vec![(
+                HeaderName::from_static("chunky-trailer"),
+                HeaderValue::from_static("header data"),
+            )]
+            .into_iter(),
+        );
+
+        assert!(encoder
+            .encode_trailers::<&[u8]>(headers.clone(), false)
+            .is_none());
+
+        let trailers = vec![];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        assert!(encoder.encode_trailers::<&[u8]>(headers, false).is_none());
+    }
+
+    #[test]
+    fn chunked_with_invalid_trailers() {
+        let encoder = Encoder::chunked();
+
+        let trailers = format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{}",
+            AUTHORIZATION,
+            CACHE_CONTROL,
+            CONTENT_ENCODING,
+            CONTENT_LENGTH,
+            CONTENT_RANGE,
+            CONTENT_TYPE,
+            HOST,
+            MAX_FORWARDS,
+            SET_COOKIE,
+            TRAILER,
+            TRANSFER_ENCODING,
+            TE,
+        );
+        let trailers = vec![HeaderValue::from_str(&trailers).unwrap()];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, HeaderValue::from_static("header data"));
+        headers.insert(CACHE_CONTROL, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_ENCODING, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("header data"));
+        headers.insert(HOST, HeaderValue::from_static("header data"));
+        headers.insert(MAX_FORWARDS, HeaderValue::from_static("header data"));
+        headers.insert(SET_COOKIE, HeaderValue::from_static("header data"));
+        headers.insert(TRAILER, HeaderValue::from_static("header data"));
+        headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("header data"));
+        headers.insert(TE, HeaderValue::from_static("header data"));
+
+        assert!(encoder.encode_trailers::<&[u8]>(headers, true).is_none());
+    }
+
+    #[test]
+    fn chunked_with_title_case_headers() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![HeaderValue::from_static("chunky-trailer")];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let headers = HeaderMap::from_iter(
+            vec![(
+                HeaderName::from_static("chunky-trailer"),
+                HeaderValue::from_static("header data"),
+            )]
+            .into_iter(),
+        );
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, true).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(dst, b"0\r\nChunky-Trailer: header data\r\n\r\n");
     }
 }
