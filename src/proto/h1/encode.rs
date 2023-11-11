@@ -175,7 +175,7 @@ impl Encoder {
                 let mut cur_name = None;
                 let mut allowed_trailers = HeaderMap::new();
 
-                for (opt_name, value) in trailers.into_iter() {
+                for (opt_name, value) in trailers {
                     if let Some(n) = opt_name {
                         cur_name = Some(n);
                     }
