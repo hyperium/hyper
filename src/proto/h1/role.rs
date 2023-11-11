@@ -1350,7 +1350,7 @@ impl Client {
                 let allowed_trailer_fields: Vec<HeaderValue> =
                     headers.get_all(header::TRAILER).iter().cloned().collect();
 
-                if allowed_trailer_fields.len() > 0 {
+                if !allowed_trailer_fields.is_empty() {
                     return enc.into_chunked_with_trailing_fields(allowed_trailer_fields);
                 }
             }

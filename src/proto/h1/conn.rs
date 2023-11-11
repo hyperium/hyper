@@ -265,17 +265,12 @@ where
             self.state.reading = Reading::Body(Decoder::new(msg.decode));
         }
 
-        if msg
+        self.state.allow_trailer_fields = msg
             .head
             .headers
             .get(TE)
             .map(|te_header| te_header == "trailers")
-            .unwrap_or(false)
-        {
-            self.state.allow_trailer_fields = true;
-        } else {
-            self.state.allow_trailer_fields = false;
-        }
+            .unwrap_or(false);
 
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }

@@ -165,7 +165,7 @@ impl Encoder {
 
     pub(crate) fn encode_trailers<B>(
         &self,
-        mut trailers: HeaderMap,
+        trailers: HeaderMap,
         title_case_headers: bool,
     ) -> Option<EncodedBuf<B>> {
         match &self.kind {
@@ -175,7 +175,7 @@ impl Encoder {
                 let mut cur_name = None;
                 let mut allowed_trailers = HeaderMap::new();
 
-                for (opt_name, value) in trailers.drain() {
+                for (opt_name, value) in trailers.into_iter() {
                     if let Some(n) = opt_name {
                         cur_name = Some(n);
                     }
@@ -530,14 +530,18 @@ mod tests {
         let trailers = vec![HeaderValue::from_static("chunky-trailer")];
         let encoder = encoder.into_chunked_with_trailing_fields(trailers);
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            HeaderName::from_static("chunky-trailer"),
-            HeaderValue::from_static("header data"),
-        );
-        headers.insert(
-            HeaderName::from_static("should-not-be-included"),
-            HeaderValue::from_static("oops"),
+        let headers = HeaderMap::from_iter(
+            vec![
+                (
+                    HeaderName::from_static("chunky-trailer"),
+                    HeaderValue::from_static("header data"),
+                ),
+                (
+                    HeaderName::from_static("should-not-be-included"),
+                    HeaderValue::from_static("oops"),
+                ),
+            ]
+            .into_iter(),
         );
 
         let buf1 = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
@@ -545,6 +549,39 @@ mod tests {
         let mut dst = Vec::new();
         dst.put(buf1);
         assert_eq!(dst, b"0\r\nchunky-trailer: header data\r\n\r\n");
+    }
+
+    #[test]
+    fn chunked_with_multiple_trailer_headers() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![
+            HeaderValue::from_static("chunky-trailer"),
+            HeaderValue::from_static("chunky-trailer-2"),
+        ];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let headers = HeaderMap::from_iter(
+            vec![
+                (
+                    HeaderName::from_static("chunky-trailer"),
+                    HeaderValue::from_static("header data"),
+                ),
+                (
+                    HeaderName::from_static("chunky-trailer-2"),
+                    HeaderValue::from_static("more header data"),
+                ),
+            ]
+            .into_iter(),
+        );
+
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(
+            dst,
+            b"0\r\nchunky-trailer: header data\r\nchunky-trailer-2: more header data\r\n\r\n"
+        );
     }
 
     #[test]
