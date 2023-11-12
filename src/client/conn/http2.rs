@@ -16,7 +16,7 @@ use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
 use crate::proto;
-use crate::rt::bounds::ExecutorClient;
+use crate::rt::bounds::Http2ClientConnExec;
 use crate::rt::Timer;
 
 /// The sender side of an established connection.
@@ -41,7 +41,7 @@ pub struct Connection<T, B, E>
 where
     T: Read + Write + 'static + Unpin,
     B: Body + 'static,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     inner: (PhantomData<T>, proto::h2::ClientTask<B, E, T>),
@@ -73,7 +73,7 @@ where
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + Unpin + Clone,
+    E: Http2ClientConnExec<B, T> + Unpin + Clone,
 {
     Builder::new(exec).handshake(io).await
 }
@@ -202,7 +202,7 @@ where
     B: Body + Unpin + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
 {
     /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
     ///
@@ -222,7 +222,7 @@ impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
     T: Read + Write + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -237,7 +237,7 @@ where
     B::Data: Send,
     E: Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
+    E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
 {
     type Output = crate::Result<()>;
 
@@ -407,7 +407,7 @@ where
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn Error + Send + Sync>>,
-        Ex: ExecutorClient<B, T> + Unpin,
+        Ex: Http2ClientConnExec<B, T> + Unpin,
     {
         let opts = self.clone();
 
