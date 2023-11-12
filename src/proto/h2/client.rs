@@ -28,7 +28,7 @@ use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
-use crate::rt::bounds::ExecutorClient;
+use crate::rt::bounds::Http2ClientConnExec;
 use crate::upgrade::Upgraded;
 use crate::{Request, Response};
 use h2::client::ResponseFuture;
@@ -118,7 +118,7 @@ where
     T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send + 'static,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     let (h2_tx, mut conn) = new_builder(config)
@@ -405,7 +405,7 @@ where
 impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
 {
@@ -457,7 +457,7 @@ impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static + Unpin,
     B::Data: Send,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
 {
@@ -593,7 +593,7 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
+    E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
     T: Read + Write + Unpin,
 {
     type Output = crate::Result<Dispatched>;

@@ -14,7 +14,7 @@ use pin_project_lite::pin_project;
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
-use crate::rt::bounds::Http2ConnExec;
+use crate::rt::bounds::Http2ServerConnExec;
 use crate::service::HttpService;
 use crate::{common::time::Time, rt::Timer};
 
@@ -63,7 +63,7 @@ where
     I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -87,7 +87,7 @@ where
     I: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     type Output = crate::Result<()>;
 
@@ -109,9 +109,9 @@ impl<E> Builder<E> {
     /// Create a new connection builder.
     ///
     /// This starts with the default options, and an executor which is a type
-    /// that implements [`Http2ConnExec`] trait.
+    /// that implements [`Http2ServerConnExec`] trait.
     ///
-    /// [`Http2ConnExec`]: crate::rt::bounds::Http2ConnExec
+    /// [`Http2ServerConnExec`]: crate::rt::bounds::Http2ServerConnExec
     pub fn new(exec: E) -> Self {
         Self {
             exec: exec,
@@ -262,7 +262,7 @@ impl<E> Builder<E> {
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: Read + Write + Unpin,
-        E: Http2ConnExec<S::Future, Bd>,
+        E: Http2ServerConnExec<S::Future, Bd>,
     {
         let proto = proto::h2::Server::new(
             io,
