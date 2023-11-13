@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - doc-incoming
 
 env:
   RUST_BACKTRACE: 1
