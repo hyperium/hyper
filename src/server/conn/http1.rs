@@ -15,7 +15,10 @@ use bytes::Bytes;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
 use crate::service::HttpService;
-use crate::{common::time::Time, rt::Timer};
+use crate::{
+    common::time::{Dur, Time},
+    rt::Timer,
+};
 
 type Http1Dispatcher<T, B, S> = proto::h1::Dispatcher<
     proto::h1::dispatch::Server<S, IncomingBody>,
@@ -44,6 +47,25 @@ pin_project_lite::pin_project! {
 ///
 /// **Note**: The default values of options are *not considered stable*. They
 /// are subject to change at any time.
+///
+/// # Example
+///
+/// ```
+/// # use std::time::Duration;
+/// # use hyper::server::conn::http1::Builder;
+/// # fn main() {
+/// let mut http = Builder::new();
+/// // Set options one at a time
+/// http.header_read_timeout(Duration::from_millis(200));
+///
+/// // Or, chain multiple options
+/// http.keep_alive(false).title_case_headers(true).max_buf_size(8192);
+///
+/// # }
+/// ```
+///
+/// Use [`Builder::serve_connection`](struct.Builder.html#method.serve_connection)
+/// to bind the built connection to a service.
 #[derive(Clone, Debug)]
 pub struct Builder {
     timer: Time,
@@ -51,7 +73,7 @@ pub struct Builder {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
-    h1_header_read_timeout: Option<Duration>,
+    h1_header_read_timeout: Dur,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
@@ -218,7 +240,7 @@ impl Builder {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
-            h1_header_read_timeout: None,
+            h1_header_read_timeout: Dur::Default(Some(Duration::from_secs(30))),
             h1_writev: None,
             max_buf_size: None,
             pipeline_flush: false,
@@ -273,9 +295,11 @@ impl Builder {
     /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
-    /// Default is None.
-    pub fn header_read_timeout(&mut self, read_timeout: Duration) -> &mut Self {
-        self.h1_header_read_timeout = Some(read_timeout);
+    /// Pass `None` to disable.
+    ///
+    /// Default is 30 seconds.
+    pub fn header_read_timeout(&mut self, read_timeout: impl Into<Option<Duration>>) -> &mut Self {
+        self.h1_header_read_timeout = Dur::Configured(read_timeout.into());
         self
     }
 
@@ -336,6 +360,11 @@ impl Builder {
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
     ///
+    /// # Panics
+    ///
+    /// If a timeout option has been configured, but a `timer` has not been
+    /// provided, calling `serve_connection` will panic.
+    ///
     /// # Example
     ///
     /// ```
@@ -381,9 +410,12 @@ impl Builder {
         if self.h1_preserve_header_case {
             conn.set_preserve_header_case();
         }
-        if let Some(header_read_timeout) = self.h1_header_read_timeout {
-            conn.set_http1_header_read_timeout(header_read_timeout);
-        }
+        if let Some(dur) = self
+            .timer
+            .check(self.h1_header_read_timeout, "header_read_timeout")
+        {
+            conn.set_http1_header_read_timeout(dur);
+        };
         if let Some(writev) = self.h1_writev {
             if writev {
                 conn.set_write_strategy_queue();

@@ -19,6 +19,20 @@ type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
 type TrailersSender = oneshot::Sender<HeaderMap>;
 
 /// A stream of `Bytes`, used when receiving bodies from the network.
+///
+/// Note that Users should not instantiate this struct directly. When working with the hyper client,
+/// `Incoming` is returned to you in responses. Similarly, when operating with the hyper server,
+/// it is provided within requests.
+///
+/// # Examples
+///
+/// ```rust,ignore
+/// async fn echo(
+///    req: Request<hyper::body::Incoming>,
+/// ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
+///    //Here, you can process `Incoming`
+/// }
+/// ```
 #[must_use = "streams do nothing unless polled"]
 pub struct Incoming {
     kind: Kind,

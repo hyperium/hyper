@@ -21,7 +21,7 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
-use crate::rt::bounds::Http2ConnExec;
+use crate::rt::bounds::Http2ServerConnExec;
 use crate::rt::{Read, Write};
 use crate::service::HttpService;
 
@@ -112,7 +112,7 @@ where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     pub(crate) fn new(
         io: T,
@@ -188,7 +188,7 @@ where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -242,7 +242,7 @@ where
     where
         S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: Http2ConnExec<S::Future, B>,
+        E: Http2ServerConnExec<S::Future, B>,
     {
         if self.closing.is_none() {
             loop {

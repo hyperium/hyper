@@ -345,6 +345,10 @@ mod sealed {
     }
 }
 
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 #[cfg(test)]
 mod tests {
     use super::*;
