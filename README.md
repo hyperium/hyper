@@ -6,11 +6,7 @@
 [![CI](https://github.com/hyperium/hyper/workflows/CI/badge.svg)](https://github.com/hyperium/hyper/actions?query=workflow%3ACI)
 [![Discord chat][discord-badge]][discord-url]
 
-A **fast** and **correct** HTTP implementation for Rust.
-
-> **Note**: hyper's [master](https://github.com/hyperium/hyper) branch is
-> currently preparing breaking changes. For the most recently *released* code,
-> look to the [0.14.x branch](https://github.com/hyperium/hyper/tree/0.14.x).
+A protective and efficient HTTP library for all.
 
 - HTTP/1 and HTTP/2
 - Asynchronous design
@@ -28,8 +24,11 @@ libraries and applications.
 
 If you are looking for a convenient HTTP client, then you may wish to consider
 [reqwest](https://github.com/seanmonstar/reqwest).
-If you are not sure what HTTP server to choose, then you may want to consider [axum](https://github.com/tokio-rs/axum) or [warp](https://github.com/seanmonstar/warp), the latter taking a more functional approach.
-Both are built on top of this library.
+
+If you are not sure what HTTP server to choose, then you may want to consider
+[axum](https://github.com/tokio-rs/axum) or
+[warp](https://github.com/seanmonstar/warp), the latter taking a more functional
+approach. Both are built on top of this library.
 
 ## Contributing
 
