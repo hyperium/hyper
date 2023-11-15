@@ -38,6 +38,7 @@ async fn tcp_connect(addr: &SocketAddr) -> std::io::Result<TokioIo<TcpStream>> {
     TcpStream::connect(*addr).await.map(TokioIo::new)
 }
 
+#[derive(Clone)]
 struct HttpInfo {
     remote_addr: SocketAddr,
 }
