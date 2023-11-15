@@ -76,6 +76,7 @@ pub const HYPER_HTTP_VERSION_1_1: libc::c_int = 11;
 /// The HTTP/2 version.
 pub const HYPER_HTTP_VERSION_2: libc::c_int = 20;
 
+#[derive(Clone)]
 struct UserDataPointer(*mut std::ffi::c_void);
 
 // We don't actually know anything about this pointer, it's up to the user

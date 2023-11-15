@@ -20,12 +20,14 @@ pub struct hyper_response(pub(super) Response<IncomingBody>);
 /// An HTTP header map.
 ///
 /// These can be part of a request or response.
+#[derive(Clone)]
 pub struct hyper_headers {
     pub(super) headers: HeaderMap,
     orig_casing: HeaderCaseMap,
     orig_order: OriginalHeaderOrder,
 }
 
+#[derive(Clone)]
 pub(crate) struct OnInformational {
     func: hyper_request_on_informational_callback,
     data: UserDataPointer,

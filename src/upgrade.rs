@@ -46,6 +46,7 @@ use std::future::Future;
 use std::io;
 use std::marker::Unpin;
 use std::pin::Pin;
+use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
 
 use crate::rt::{Read, ReadBufCursor, Write};
@@ -69,8 +70,9 @@ pub struct Upgraded {
 /// A future for a possible HTTP upgrade.
 ///
 /// If no upgrade was available, or it doesn't succeed, yields an `Error`.
+#[derive(Clone)]
 pub struct OnUpgrade {
-    rx: Option<oneshot::Receiver<crate::Result<Upgraded>>>,
+    rx: Option<Arc<Mutex<oneshot::Receiver<crate::Result<Upgraded>>>>>,
 }
 
 /// The deconstructed parts of an [`Upgraded`] type.
@@ -119,7 +121,12 @@ pub(super) struct Pending {
 ))]
 pub(super) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
-    (Pending { tx }, OnUpgrade { rx: Some(rx) })
+    (
+        Pending { tx },
+        OnUpgrade {
+            rx: Some(Arc::new(Mutex::new(rx))),
+        },
+    )
 }
 
 // ===== impl Upgraded =====
@@ -219,13 +226,17 @@ impl OnUpgrade {
 impl Future for OnUpgrade {
     type Output = Result<Upgraded, crate::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.rx {
-            Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
-                Ok(Ok(upgraded)) => Ok(upgraded),
-                Ok(Err(err)) => Err(err),
-                Err(_oneshot_canceled) => Err(crate::Error::new_canceled().with(UpgradeExpected)),
-            }),
+            Some(ref rx) => Pin::new(&mut *rx.lock().unwrap())
+                .poll(cx)
+                .map(|res| match res {
+                    Ok(Ok(upgraded)) => Ok(upgraded),
+                    Ok(Err(err)) => Err(err),
+                    Err(_oneshot_canceled) => {
+                        Err(crate::Error::new_canceled().with(UpgradeExpected))
+                    }
+                }),
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
     }
