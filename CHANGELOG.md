@@ -1,3 +1,69 @@
+## v1.0.0 (2023-11-15)
+
+
+#### Bug Fixes
+
+* **client:**
+  * avoid double-polling a Select future (#3290) ([fece9f7f](https://github.com/hyperium/hyper/commit/fece9f7f50431cf9533cfe7106b53a77b48db699), closes [#3289](https://github.com/hyperium/hyper/issues/3289))
+  * early server response shouldn't propagate NO_ERROR (#3275) ([194e6f98](https://github.com/hyperium/hyper/commit/194e6f984763f5dc1c376082170a85cc4db40ce4), closes [#2872](https://github.com/hyperium/hyper/issues/2872))
+  * remove Send bounds for request `Body` (#3266) ([4ace340b](https://github.com/hyperium/hyper/commit/4ace340bb00a2ffe8ec93e4955989eb69f29d531), closes [#3184](https://github.com/hyperium/hyper/issues/3184))
+* **ffi:** fix deadlock in `hyper_executor::poll_next` (#3370) ([0c7d03ef](https://github.com/hyperium/hyper/commit/0c7d03eff2f2433e4f4a0a768009d97e1a7858fd), closes [#3369](https://github.com/hyperium/hyper/issues/3369))
+* **http2:**
+  * don't send keep-alive ping when idle (#3381) ([429ad8a3](https://github.com/hyperium/hyper/commit/429ad8a34b20a877b4d17df1f4991a193f4a56f0))
+  * change default server max concurrent streams to 200 (#3362) ([dd638b5b](https://github.com/hyperium/hyper/commit/dd638b5b34225d2c5ad0bd01de0ecf738f9a0e12), closes [#3358](https://github.com/hyperium/hyper/issues/3358))
+* **server:** Respect Expect header only when http proto > 1.0 (#3294) ([43d2f5c6](https://github.com/hyperium/hyper/commit/43d2f5c6cfd575f7259a5b3684f7e99cedbd0edb))
+
+
+#### Features
+
+* **client:** allow `!Send` IO with HTTP/1 client (#3371) ([cf87eda8](https://github.com/hyperium/hyper/commit/cf87eda82ca0af1f5f45b0a0710eaae9ec1aed7b), closes [#3363](https://github.com/hyperium/hyper/issues/3363))
+* **error:**
+  * `Error::source()` is purposefully unspecified (#3318) ([502a6450](https://github.com/hyperium/hyper/commit/502a645053b0d19252d9fdc170b0a2c0a6fe0ba6), closes [#2843](https://github.com/hyperium/hyper/issues/2843))
+  * change `Display for Error` to only print top error (#3312) ([50f123af](https://github.com/hyperium/hyper/commit/50f123afc0e6c289030bf8699dbec826dc47572c), closes [#2844](https://github.com/hyperium/hyper/issues/2844))
+* **ext:**
+  * make `ReasonPhrase::from_static` a const fn ([d4a61e3d](https://github.com/hyperium/hyper/commit/d4a61e3da87a08a25772cd3aa2f503cb4346c81f))
+  * remove `ReasonPhrase::from_bytes_unchecked()` method ([4021c57b](https://github.com/hyperium/hyper/commit/4021c57bd9265b9ebc5b88c9bffbb0ac3704bdbe))
+* **lib:**
+  * update to `http` 1.0 ([899e92a5](https://github.com/hyperium/hyper/commit/899e92a580961c5bd1cc9b49a8fb7c7cd8b53ef8))
+  * missing Timer will warn or panic ([f3308c04](https://github.com/hyperium/hyper/commit/f3308c044d402dfad448bbc0497b14c69a8f22f2), closes [#3393](https://github.com/hyperium/hyper/issues/3393))
+  * increase MSRV to 1.63 (#3293) ([e68dc961](https://github.com/hyperium/hyper/commit/e68dc961a7dad0a96e16898b0da234927564c079))
+* **rt:** rename to `Http2ClientConnExec` and `Http2ServerConnExec` ([52b27faa](https://github.com/hyperium/hyper/commit/52b27faa09715b5835804de7abf6998e028736fc))
+* **server:** default `http1` `header_read_timeout` to 30 seconds ([8bf26d1e](https://github.com/hyperium/hyper/commit/8bf26d1e394a8f207debe45445a5fb85cc349238))
+* **upgrade:** introduce tracing as an optional unstable feature (#3326) ([da3fc76c](https://github.com/hyperium/hyper/commit/da3fc76c06b6caa60f6abc1da570d56d7c8fa468), closes [#3319](https://github.com/hyperium/hyper/issues/3319))
+
+
+#### Breaking Changes
+
+* Upgrade to `http` 1.0.
+
+ ([899e92a5](https://github.com/hyperium/hyper/commit/899e92a580961c5bd1cc9b49a8fb7c7cd8b53ef8))
+* (From previous RCs) `ExecutorClient` is renamed to
+  `Http2ClientConnExec`, and `Http2ConnExec` is renamed to
+  `Http2ServerConnExec`.
+
+ ([52b27faa](https://github.com/hyperium/hyper/commit/52b27faa09715b5835804de7abf6998e028736fc))
+* If you use client HTTP/1 upgrades, you must call
+  `Connection::with_upgrades()` to still work the same.
+ ([cf87eda8](https://github.com/hyperium/hyper/commit/cf87eda82ca0af1f5f45b0a0710eaae9ec1aed7b))
+* HTTP/2 server builder now has a default max concurrent streams. This is a
+  behavior change. Consider setting your own maximum.
+ ([dd638b5b](https://github.com/hyperium/hyper/commit/dd638b5b34225d2c5ad0bd01de0ecf738f9a0e12))
+* Do not build any logic depending on the exact types of
+  an `Error::source()`. They are only for debugging.
+ ([502a6450](https://github.com/hyperium/hyper/commit/502a645053b0d19252d9fdc170b0a2c0a6fe0ba6))
+* The format no longer prints the error chain. Be sure to
+  check if you are logging errors directly.
+
+  The `Error::message()` method is removed, it is no longer needed.
+
+  The `Error::into_cause()` method is removed.
+ ([50f123af](https://github.com/hyperium/hyper/commit/50f123afc0e6c289030bf8699dbec826dc47572c))
+* The `ReasonPhrase::from_bytes_unchecked()` method is
+  gone. Use `from_static()` or `TryFrom` to construct one.
+
+ ([4021c57b](https://github.com/hyperium/hyper/commit/4021c57bd9265b9ebc5b88c9bffbb0ac3704bdbe))
+
+
 ### v1.0.0-rc.4 (2023-07-10)
 
 
