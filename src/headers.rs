@@ -66,7 +66,7 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
         }
     }
 
-    return content_length;
+    content_length
 }
 
 fn from_digits(bytes: &[u8]) -> Option<u64> {
