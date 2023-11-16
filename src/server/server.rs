@@ -257,6 +257,19 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Set whether to include the raw bytes of HTTP/1 requests.
+    ///
+    /// This will store a [`Http1RawMessage`](crate::ext::Http1RawMessage)
+    /// in extensions of HTTP/1 requests.
+    ///
+    /// Default is false.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http1_raw_message(mut self, enabled: bool) -> Self {
+        self.protocol.http1_raw_message(enabled);
+        self
+    }
+
     /// Set whether HTTP/1 connections should support half-closures.
     ///
     /// Clients can chose to shutdown their write-side while waiting

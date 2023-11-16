@@ -192,8 +192,7 @@ pub struct Builder {
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
-    #[cfg(feature = "ffi")]
-    h1_headers_raw: bool,
+    h1_raw_message: bool,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::client::Config,
     version: Proto,
@@ -603,8 +602,7 @@ impl Builder {
             #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
-            #[cfg(feature = "ffi")]
-            h1_headers_raw: false,
+            h1_raw_message: false,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             #[cfg(feature = "http1")]
@@ -811,9 +809,16 @@ impl Builder {
         self
     }
 
-    #[cfg(feature = "ffi")]
-    pub(crate) fn http1_headers_raw(&mut self, enabled: bool) -> &mut Self {
-        self.h1_headers_raw = enabled;
+    /// Set whether to include the raw bytes of HTTP/1 responses.
+    ///
+    /// This will store a [`Http1RawMessage`](crate::ext::Http1RawMessage)
+    /// in extensions of HTTP/1 responses.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http1_raw_message(&mut self, enabled: bool) -> &mut Self {
+        self.h1_raw_message = enabled;
         self
     }
 
@@ -1033,8 +1038,9 @@ impl Builder {
                         conn.set_h09_responses();
                     }
 
-                    #[cfg(feature = "ffi")]
-                    conn.set_raw_headers(opts.h1_headers_raw);
+                    if opts.h1_raw_message {
+                        conn.set_h1_raw_message();
+                    }
 
                     if let Some(sz) = opts.h1_read_buf_exact_size {
                         conn.set_read_buf_exact_size(sz);

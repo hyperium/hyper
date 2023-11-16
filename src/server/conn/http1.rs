@@ -42,6 +42,7 @@ pub struct Builder {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    h1_raw_message: bool,
     h1_header_read_timeout: Option<Duration>,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
@@ -208,6 +209,7 @@ impl Builder {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            h1_raw_message: false,
             h1_header_read_timeout: None,
             h1_writev: None,
             max_buf_size: None,
@@ -257,6 +259,17 @@ impl Builder {
     /// Default is false.
     pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Set whether to include the raw bytes of HTTP/1 requests and responses.
+    ///
+    /// This will store a [`ext::Http1RawMessage`] in extensions of
+    /// HTTP/1 requests and responses.
+    ///
+    /// Default is false.
+    pub fn raw_message(&mut self, enabled: bool) -> &mut Self {
+        self.h1_raw_message = enabled;
         self
     }
 
@@ -369,6 +382,9 @@ impl Builder {
         }
         if self.h1_preserve_header_case {
             conn.set_preserve_header_case();
+        }
+        if self.h1_raw_message {
+            conn.set_h1_raw_message();
         }
         if let Some(header_read_timeout) = self.h1_header_read_timeout {
             conn.set_http1_header_read_timeout(header_read_timeout);

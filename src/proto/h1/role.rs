@@ -15,9 +15,9 @@ use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::date;
 use crate::error::Parse;
-use crate::ext::HeaderCaseMap;
 #[cfg(feature = "ffi")]
 use crate::ext::OriginalHeaderOrder;
+use crate::ext::{HeaderCaseMap, Http1RawMessage};
 use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
@@ -193,6 +193,12 @@ impl Http1Transaction for Server {
 
         let slice = buf.split_to(len).freeze();
 
+        let mut extensions = http::Extensions::default();
+
+        if ctx.h1_raw_message {
+            extensions.insert(Http1RawMessage { buf: slice.clone() });
+        }
+
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. (irrelevant to Request)
         // 2. (irrelevant to Request)
@@ -310,8 +316,6 @@ impl Http1Transaction for Server {
             debug!("request with transfer-encoding header, but not chunked, bad request");
             return Err(Parse::transfer_encoding_invalid());
         }
-
-        let mut extensions = http::Extensions::default();
 
         if let Some(header_case_map) = header_case_map {
             extensions.insert(header_case_map);
@@ -986,10 +990,18 @@ impl Http1Transaction for Client {
 
             let mut slice = buf.split_to(len);
 
-            if ctx
+            let mut extensions = http::Extensions::default();
+
+            let slice = if ctx
                 .h1_parser_config
                 .obsolete_multiline_headers_in_responses_are_allowed()
             {
+                if ctx.h1_raw_message {
+                    extensions.insert(Http1RawMessage {
+                        buf: slice.clone().freeze(),
+                    });
+                }
+
                 for header in &headers_indices[..headers_len] {
                     // SAFETY: array is valid up to `headers_len`
                     let header = unsafe { &*header.as_ptr() };
@@ -999,9 +1011,17 @@ impl Http1Transaction for Client {
                         }
                     }
                 }
-            }
 
-            let slice = slice.freeze();
+                slice.freeze()
+            } else {
+                let slice = slice.freeze();
+
+                if ctx.h1_raw_message {
+                    extensions.insert(Http1RawMessage { buf: slice.clone() });
+                }
+
+                slice
+            };
 
             let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
 
@@ -1050,8 +1070,6 @@ impl Http1Transaction for Client {
                 headers.append(name, value);
             }
 
-            let mut extensions = http::Extensions::default();
-
             if let Some(header_case_map) = header_case_map {
                 extensions.insert(header_case_map);
             }
@@ -1066,11 +1084,6 @@ impl Http1Transaction for Client {
                 // field.
                 let reason = unsafe { crate::ext::ReasonPhrase::from_bytes_unchecked(reason) };
                 extensions.insert(reason);
-            }
-
-            #[cfg(feature = "ffi")]
-            if ctx.raw_headers {
-                extensions.insert(crate::ffi::RawHeaders(crate::ffi::hyper_buf(slice)));
             }
 
             let head = MessageHead {
@@ -1535,8 +1548,7 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
-                #[cfg(feature = "ffi")]
-                raw_headers: false,
+                h1_raw_message: false,
             },
         )
         .unwrap()
@@ -1570,8 +1582,7 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1600,8 +1611,7 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1628,8 +1638,7 @@ mod tests {
             h09_responses: true,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw, H09_RESPONSE);
@@ -1658,8 +1667,7 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
         assert_eq!(raw, H09_RESPONSE);
@@ -1692,8 +1700,7 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1723,8 +1730,7 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1749,8 +1755,7 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
-            #[cfg(feature = "ffi")]
-            raw_headers: false,
+            h1_raw_message: false,
         };
         let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
         let orig_headers = parsed_message
@@ -1796,8 +1801,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 },
             )
             .expect("parse ok")
@@ -1824,8 +1828,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 },
             )
             .expect_err(comment)
@@ -2061,8 +2064,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 }
             )
             .expect("parse ok")
@@ -2089,8 +2091,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 },
             )
             .expect("parse ok")
@@ -2117,8 +2118,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 },
             )
             .expect_err("parse should err")
@@ -2622,8 +2622,7 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
-                #[cfg(feature = "ffi")]
-                raw_headers: false,
+                h1_raw_message: false,
             },
         )
         .expect("parse ok")
@@ -2714,8 +2713,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 },
             )
             .unwrap()
@@ -2762,8 +2760,7 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
-                    #[cfg(feature = "ffi")]
-                    raw_headers: false,
+                    h1_raw_message: false,
                 },
             )
             .unwrap()

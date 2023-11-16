@@ -10,6 +10,7 @@ use http::HeaderMap;
 use std::collections::HashMap;
 #[cfg(feature = "http2")]
 use std::fmt;
+use std::ops::Deref;
 
 #[cfg(any(feature = "http1", feature = "ffi"))]
 mod h1_reason_phrase;
@@ -128,6 +129,41 @@ impl HeaderCaseMap {
         N: IntoHeaderName,
     {
         self.0.append(name, orig);
+    }
+}
+
+/// Raw bytes of HTTP/1 requests and responses.
+///
+/// Included in HTTP/1 requests and responses when `http1_raw_message` is set
+/// to true.
+#[derive(Clone, Debug, PartialEq, PartialOrd, Hash)]
+pub struct Http1RawMessage {
+    pub(crate) buf: Bytes,
+}
+
+impl Deref for Http1RawMessage {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.buf
+    }
+}
+
+impl AsRef<Bytes> for Http1RawMessage {
+    fn as_ref(&self) -> &Bytes {
+        &self.buf
+    }
+}
+
+impl AsRef<[u8]> for Http1RawMessage {
+    fn as_ref(&self) -> &[u8] {
+        &self
+    }
+}
+
+impl From<Http1RawMessage> for Bytes {
+    fn from(message: Http1RawMessage) -> Self {
+        message.buf
     }
 }
 
