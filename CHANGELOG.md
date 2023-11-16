@@ -1,3 +1,25 @@
+### v1.0.1 (2023-11-16)
+
+This release "fixes" or adds a few things that should have been in 1.0.0, but were forgotten. Thus, it includes additions that would normally be a semver-minor release, but because it is so close to 1.0.0, it is released as a patch version.
+
+#### Bug Fixes
+
+* **rt:** implement Read/Write for Pin<P> (#3413) ([dd6d81ca](https://github.com/hyperium/hyper/commit/dd6d81ca4a180695dc70d6c9b2aececd29606224), closes [#3412](https://github.com/hyperium/hyper/issues/3412))
+
+
+#### Features
+
+* **rt:** Make ReadBuf::new public ([7161f562](https://github.com/hyperium/hyper/commit/7161f56274a30bfbe4a718bbe21d35beaf86b00b))
+
+
+#### Breaking Changes
+
+* Pin is #[fundamental], so providing a Read/Write impl for it theoretically conflicts
+  with existing user Read/Write for Pin<...> impls. However, those impls
+  probably don't exist yet.
+ ([dd6d81ca](https://github.com/hyperium/hyper/commit/dd6d81ca4a180695dc70d6c9b2aececd29606224))
+
+
 ## v1.0.0 (2023-11-15)
 
 
