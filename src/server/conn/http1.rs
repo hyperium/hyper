@@ -86,6 +86,7 @@ pub struct Builder {
 /// This allows taking apart a `Connection` at a later time, in order to
 /// reclaim the IO object, and additional related pieces.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Parts<T, S> {
     /// The original IO object used in the handshake.
     pub io: T,
@@ -100,7 +101,6 @@ pub struct Parts<T, S> {
     pub read_buf: Bytes,
     /// The `Service` used to serve this connection.
     pub service: S,
-    _inner: (),
 }
 
 // ===== impl Connection =====
@@ -151,7 +151,6 @@ where
             io,
             read_buf,
             service: dispatch.into_service(),
-            _inner: (),
         }
     }
 
