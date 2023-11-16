@@ -114,7 +114,7 @@ impl<E> Builder<E> {
     /// [`Http2ServerConnExec`]: crate::rt::bounds::Http2ServerConnExec
     pub fn new(exec: E) -> Self {
         Self {
-            exec: exec,
+            exec,
             timer: Time::Empty,
             h2_builder: Default::default(),
         }
