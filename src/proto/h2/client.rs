@@ -486,7 +486,7 @@ where
                         };
                         // Clear send task
                         self.executor
-                            .execute_h2_future(H2ClientFuture::Pipe { pipe: pipe });
+                            .execute_h2_future(H2ClientFuture::Pipe { pipe });
                     }
                 }
             }
@@ -559,7 +559,7 @@ where
 
                     let (pending, on_upgrade) = crate::upgrade::pending();
                     let io = H2Upgraded {
-                        ping: ping,
+                        ping,
                         send_stream: unsafe { UpgradedSendStream::new(send_stream) },
                         recv_stream,
                         buf: Bytes::new(),
