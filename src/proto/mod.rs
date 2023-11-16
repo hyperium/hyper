@@ -17,7 +17,7 @@ cfg_feature! {
 pub(crate) mod h2;
 
 /// An Incoming Message head. Includes request/status line, and headers.
-#[cfg(any(feature = "http1"))]
+#[cfg(feature = "http1")]
 #[derive(Debug, Default)]
 pub(crate) struct MessageHead<S> {
     /// HTTP version of the message.

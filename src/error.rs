@@ -104,7 +104,7 @@ pub(super) enum Parse {
 #[cfg(feature = "http1")]
 pub(super) enum Header {
     Token,
-    #[cfg(all(any(feature = "client", feature = "server")))]
+    #[cfg(any(feature = "client", feature = "server"))]
     ContentLengthInvalid,
     #[cfg(feature = "server")]
     TransferEncodingInvalid,
