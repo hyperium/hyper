@@ -12,16 +12,16 @@ A complete list of dependencies used across these examples:
 
 ```toml
 [dependencies]
-hyper = { version = "1.0.0-rc.3", features = ["full"] }
+hyper = { version = "1", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
-pretty_env_logger = "0.4"
-http-body-util = "0.1.0-rc.2"
+pretty_env_logger = "0.5"
+http-body-util = "0.1"
 bytes = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-url = "2.2"
-http = "0.2"
-futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+form_urlencoded = "1"
+http = "1"
+futures-util = { version = "0.3", default-features = false }
 ```
 
 ## Getting Started
