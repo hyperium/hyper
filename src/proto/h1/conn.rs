@@ -903,17 +903,12 @@ impl std::ops::BitAndAssign<bool> for KA {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 enum KA {
     Idle,
+    #[default]
     Busy,
     Disabled,
-}
-
-impl Default for KA {
-    fn default() -> KA {
-        KA::Busy
-    }
 }
 
 impl KA {
