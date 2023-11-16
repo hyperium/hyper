@@ -222,7 +222,7 @@ where
                         pending.manual();
                     }
                 };
-                return Poll::Ready(Ok(()));
+                Poll::Ready(Ok(()))
             }
             Err(e) => Poll::Ready(Err(e)),
         }
