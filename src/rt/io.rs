@@ -133,9 +133,9 @@ pub struct ReadBufCursor<'a> {
 }
 
 impl<'data> ReadBuf<'data> {
+    /// Create a new `ReadBuf` with a slice of initialized bytes.
     #[inline]
-    #[cfg(test)]
-    pub(crate) fn new(raw: &'data mut [u8]) -> Self {
+    pub fn new(raw: &'data mut [u8]) -> Self {
         let len = raw.len();
         Self {
             // SAFETY: We never de-init the bytes ourselves.
