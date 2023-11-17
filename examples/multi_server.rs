@@ -11,9 +11,7 @@ use hyper::service::service_fn;
 use hyper::{Request, Response};
 use tokio::net::TcpListener;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 static INDEX1: &[u8] = b"The 1st service!";
 static INDEX2: &[u8] = b"The 2nd service!";

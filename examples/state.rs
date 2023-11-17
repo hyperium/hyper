@@ -12,9 +12,7 @@ use hyper::{server::conn::http1, service::service_fn};
 use hyper::{Error, Response};
 use tokio::net::TcpListener;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

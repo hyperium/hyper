@@ -16,9 +16,7 @@ use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Request, Response, StatusCode};
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

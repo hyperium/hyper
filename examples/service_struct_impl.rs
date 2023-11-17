@@ -10,9 +10,7 @@ use std::net::SocketAddr;
 use std::pin::Pin;
 use std::sync::Mutex;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 type Counter = i32;
 

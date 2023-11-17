@@ -10,9 +10,7 @@ use hyper::service::service_fn;
 use hyper::{body::Body, Method, Request, Response, StatusCode};
 use tokio::net::TcpListener;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 /// This is our service handler. It receives a Request, routes on its
 /// path, and returns a Future of a Response.

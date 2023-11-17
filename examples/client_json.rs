@@ -7,9 +7,7 @@ use hyper::{body::Buf, Request};
 use serde::Deserialize;
 use tokio::net::TcpStream;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 // A simple type alias so as to DRY.
 type Result<T> = std::result::Result<T, Box<dyn std::error::Error + Send + Sync>>;

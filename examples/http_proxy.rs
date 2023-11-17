@@ -12,9 +12,7 @@ use hyper::{Method, Request, Response};
 
 use tokio::net::{TcpListener, TcpStream};
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 // To try this example:
 // 1. cargo run --example http_proxy

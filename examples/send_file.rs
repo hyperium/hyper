@@ -10,9 +10,7 @@ use http_body_util::Full;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, Result, StatusCode};
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 static INDEX: &str = "examples/send_file_index.html";
 static NOTFOUND: &[u8] = b"Not Found";

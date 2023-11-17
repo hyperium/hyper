@@ -28,9 +28,7 @@ use std::task::{Context, Poll};
 use std::thread;
 use tokio::net::TcpStream;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 struct Body {
     // Our Body type is !Send and !Sync:

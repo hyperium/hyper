@@ -12,9 +12,7 @@ use hyper::{Request, Response};
 use tokio::net::TcpListener;
 use tokio::pin;
 
-#[path = "../benches/support/mod.rs"]
-mod support;
-use support::TokioIo;
+use hyper_util::rt::TokioIo;
 
 // An async function that consumes a request, does nothing with it and returns a
 // response.
