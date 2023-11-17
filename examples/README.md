@@ -22,6 +22,7 @@ serde_json = "1.0"
 form_urlencoded = "1"
 http = "1"
 futures-util = { version = "0.3", default-features = false }
+hyper-util = { version = "0.1", features = ["full"] }
 ```
 
 ## Getting Started
