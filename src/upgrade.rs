@@ -51,6 +51,9 @@ use std::task::{Context, Poll};
 
 use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
+#[cfg(not(feature = "tokio"))]
+use futures_channel::oneshot;
+#[cfg(feature = "tokio")]
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;

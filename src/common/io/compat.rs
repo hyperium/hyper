@@ -19,6 +19,7 @@ impl<T> Compat<T> {
     }
 }
 
+#[cfg(feature = "tokio")]
 impl<T> tokio::io::AsyncRead for Compat<T>
 where
     T: crate::rt::Read,
@@ -51,6 +52,7 @@ where
     }
 }
 
+#[cfg(feature = "tokio")]
 impl<T> tokio::io::AsyncWrite for Compat<T>
 where
     T: crate::rt::Write,

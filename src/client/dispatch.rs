@@ -2,12 +2,15 @@ use std::task::{Context, Poll};
 #[cfg(feature = "http2")]
 use std::{future::Future, pin::Pin};
 
+#[cfg(not(feature = "tokio"))]
+use futures_channel::{mpsc, oneshot};
 #[cfg(feature = "http2")]
 use http::{Request, Response};
 #[cfg(feature = "http2")]
 use http_body::Body;
 #[cfg(feature = "http2")]
 use pin_project_lite::pin_project;
+#[cfg(feature = "tokio")]
 use tokio::sync::{mpsc, oneshot};
 
 #[cfg(feature = "http2")]
@@ -18,7 +21,10 @@ pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, 
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
 
 pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
+    #[cfg(feature = "tokio")]
     let (tx, rx) = mpsc::unbounded_channel();
+    #[cfg(not(feature = "tokio"))]
+    let (tx, rx) = mpsc::unbounded();
     let (giver, taker) = want::new();
     let tx = Sender {
         #[cfg(feature = "http1")]
@@ -60,6 +66,28 @@ pub(crate) struct UnboundedSender<T, U> {
     inner: mpsc::UnboundedSender<Envelope<T, U>>,
 }
 
+#[inline]
+fn try_send_impl<T, U, R>(
+    inner: &mpsc::UnboundedSender<Envelope<T, U>>,
+    msg: Envelope<T, U>,
+    rx: R,
+) -> Result<R, T> {
+    #[cfg(feature = "tokio")]
+    {
+        inner
+            .send(msg)
+            .map(move |_| rx)
+            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+    }
+    #[cfg(not(feature = "tokio"))]
+    {
+        inner
+            .unbounded_send(msg)
+            .map(move |_| rx)
+            .map_err(|e| e.into_inner().0.take().expect("envelope not dropped").0)
+    }
+}
+
 impl<T, U> Sender<T, U> {
     #[cfg(feature = "http1")]
     pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
@@ -98,10 +126,11 @@ impl<T, U> Sender<T, U> {
             return Err(val);
         }
         let (tx, rx) = oneshot::channel();
-        self.inner
-            .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
-            .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+        try_send_impl(
+            &self.inner,
+            Envelope(Some((val, Callback::Retry(Some(tx))))),
+            rx,
+        )
     }
 
     #[cfg(feature = "http1")]
@@ -110,10 +139,11 @@ impl<T, U> Sender<T, U> {
             return Err(val);
         }
         let (tx, rx) = oneshot::channel();
-        self.inner
-            .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
-            .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+        try_send_impl(
+            &self.inner,
+            Envelope(Some((val, Callback::NoRetry(Some(tx))))),
+            rx,
+        )
     }
 
     #[cfg(feature = "http2")]
@@ -138,18 +168,20 @@ impl<T, U> UnboundedSender<T, U> {
     #[cfg(test)]
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner
-            .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
-            .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+        try_send_impl(
+            &self.inner,
+            Envelope(Some((val, Callback::Retry(Some(tx))))),
+            rx,
+        )
     }
 
     pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
         let (tx, rx) = oneshot::channel();
-        self.inner
-            .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
-            .map(move |_| rx)
-            .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
+        try_send_impl(
+            &self.inner,
+            Envelope(Some((val, Callback::NoRetry(Some(tx))))),
+            rx,
+        )
     }
 }
 
@@ -170,7 +202,14 @@ pub(crate) struct Receiver<T, U> {
 
 impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
-        match self.inner.poll_recv(cx) {
+        #[cfg(feature = "tokio")]
+        let poll = self.inner.poll_recv(cx);
+        #[cfg(not(feature = "tokio"))]
+        let poll = {
+            use futures_util::StreamExt;
+            self.inner.poll_next_unpin(cx)
+        };
+        match poll {
             Poll::Ready(item) => {
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
@@ -189,9 +228,17 @@ impl<T, U> Receiver<T, U> {
 
     #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        use futures_util::FutureExt;
-        match self.inner.recv().now_or_never() {
-            Some(Some(mut env)) => env.0.take(),
+        #[cfg(feature = "tokio")]
+        {
+            use futures_util::FutureExt;
+            match self.inner.recv().now_or_never() {
+                Some(Some(mut env)) => env.0.take(),
+                _ => None,
+            }
+        }
+        #[cfg(not(feature = "tokio"))]
+        match self.inner.try_next() {
+            Ok(Some(mut env)) => env.0.take(),
             _ => None,
         }
     }
@@ -252,16 +299,28 @@ impl<T, U> Callback<T, U> {
     #[cfg(feature = "http2")]
     pub(crate) fn is_canceled(&self) -> bool {
         match *self {
+            #[cfg(feature = "tokio")]
             Callback::Retry(Some(ref tx)) => tx.is_closed(),
+            #[cfg(feature = "tokio")]
             Callback::NoRetry(Some(ref tx)) => tx.is_closed(),
+            #[cfg(not(feature = "tokio"))]
+            Callback::Retry(Some(ref tx)) => tx.is_canceled(),
+            #[cfg(not(feature = "tokio"))]
+            Callback::NoRetry(Some(ref tx)) => tx.is_canceled(),
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn poll_canceled(&mut self, cx: &mut Context<'_>) -> Poll<()> {
         match *self {
+            #[cfg(feature = "tokio")]
             Callback::Retry(Some(ref mut tx)) => tx.poll_closed(cx),
+            #[cfg(feature = "tokio")]
             Callback::NoRetry(Some(ref mut tx)) => tx.poll_closed(cx),
+            #[cfg(not(feature = "tokio"))]
+            Callback::Retry(Some(ref mut tx)) => tx.poll_canceled(cx),
+            #[cfg(not(feature = "tokio"))]
+            Callback::NoRetry(Some(ref mut tx)) => tx.poll_canceled(cx),
             _ => unreachable!(),
         }
     }
