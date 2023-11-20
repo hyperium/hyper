@@ -19,7 +19,20 @@ type hyper_io_read_callback =
 type hyper_io_write_callback =
     extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
 
-/// An IO object used to represent a socket or similar concept.
+/// A read/write handle for a specific connection.
+///
+/// This owns a specific TCP or TLS connection for the lifetime of
+/// that connection. It contains a read and write callback, as well as a
+/// void *userdata. Typically the userdata will point to a struct
+/// containing a file descriptor and a TLS context.
+///
+/// Methods:
+///
+/// - hyper_io_new:          Create a new IO type used to represent a transport.
+/// - hyper_io_set_read:     Set the read function for this IO transport.
+/// - hyper_io_set_write:    Set the write function for this IO transport.
+/// - hyper_io_set_userdata: Set the user data pointer for this IO to some value.
+/// - hyper_io_free:         Free an IO handle.
 pub struct hyper_io {
     read: hyper_io_read_callback,
     write: hyper_io_write_callback,
@@ -31,6 +44,11 @@ ffi_fn! {
     ///
     /// The read and write functions of this transport should be set with
     /// `hyper_io_set_read` and `hyper_io_set_write`.
+    ///
+    /// It is expected that the underlying transport is non-blocking. When
+    /// a read or write callback can't make progress because there is no
+    /// data available yet, it should use the `hyper_waker` mechanism to
+    /// arrange to be called again when data is available.
     ///
     /// To avoid a memory leak, the IO handle must eventually be consumed by
     /// `hyper_io_free` or `hyper_clientconn_handshake`.
@@ -72,10 +90,11 @@ ffi_fn! {
     /// unless you have already written them yourself. It is also undefined behavior
     /// to return that more bytes have been written than actually set on the `buf`.
     ///
-    /// If there is no data currently available, a waker should be claimed from
-    /// the `ctx` and registered with whatever polling mechanism is used to signal
-    /// when data is available later on. The return value should be
-    /// `HYPER_IO_PENDING`.
+    /// If there is no data currently available, the callback should create a
+    /// `hyper_waker` from its `hyper_context` argument and register the waker
+    /// with whatever polling mechanism is used to signal when data is available
+    /// later on. The return value should be `HYPER_IO_PENDING`. See the
+    /// documentation for `hyper_waker`.
     ///
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
@@ -90,11 +109,11 @@ ffi_fn! {
     /// Data from the `buf` pointer should be written to the transport, up to
     /// `buf_len` bytes. The number of bytes written should be the return value.
     ///
-    /// If no data can currently be written, the `waker` should be cloned and
-    /// registered with whatever polling mechanism is used to signal when data
-    /// is available later on. The return value should be `HYPER_IO_PENDING`.
-    ///
-    /// Yeet.
+    /// If there is no data currently available, the callback should create a
+    /// `hyper_waker` from its `hyper_context` argument and register the waker
+    /// with whatever polling mechanism is used to signal when data is available
+    /// later on. The return value should be `HYPER_IO_PENDING`. See the documentation
+    /// for `hyper_waker`.
     ///
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.

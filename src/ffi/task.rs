@@ -28,6 +28,28 @@ pub const HYPER_POLL_PENDING: c_int = 1;
 pub const HYPER_POLL_ERROR: c_int = 3;
 
 /// A task executor for `hyper_task`s.
+///
+/// A task is a unit of work that may be blocked on IO, and can be polled to
+/// make progress on that work.
+///
+/// An executor can hold many tasks, included from unrelated HTTP connections.
+/// An executor is single threaded. Typically you might have one executor per
+/// thread. Or, for simplicity, you may choose one executor per connection.
+///
+/// Progress on tasks happens only when `hyper_executor_poll` is called, and only
+/// on tasks whose corresponding `hyper_waker` has been called to indicate they
+/// are ready to make progress (for instance, because the OS has indicated there
+/// is more data to read or more buffer space available to write).
+///
+/// Deadlock potential: `hyper_executor_poll` must not be called from within a task's
+/// callback. Doing so will result in a deadlock.
+///
+/// Methods:
+///
+/// - hyper_executor_new:  Creates a new task executor.
+/// - hyper_executor_push: Push a task onto the executor.
+/// - hyper_executor_poll: Polls the executor, trying to make progress on any tasks that have notified that they are ready again.
+/// - hyper_executor_free: Frees an executor and any incomplete tasks still part of it.
 pub struct hyper_executor {
     /// The executor of all task futures.
     ///
@@ -55,6 +77,40 @@ pub(crate) struct WeakExec(Weak<hyper_executor>);
 struct ExecWaker(AtomicBool);
 
 /// An async task.
+///
+/// A task represents a chunk of work that will eventually yield exactly one
+/// `hyper_task_value`. Tasks are pushed onto an executor, and that executor is
+/// responsible for calling the necessary private functions on the task to make
+/// progress. In most cases those private functions will eventually cause read
+/// or write callbacks on a `hyper_io` object to be called.
+///
+/// Tasks are created by various functions:
+///
+/// - hyper_clientconn_handshake: Creates an HTTP client handshake task.
+/// - hyper_clientconn_send:      Creates a task to send a request on the client connection.
+/// - hyper_body_data:            Creates a task that will poll a response body for the next buffer of data.
+/// - hyper_body_foreach:         Creates a task to execute the callback with each body chunk received.
+///
+/// Tasks then have a userdata associated with them using `hyper_task_set_userdata``. This
+/// is important, for instance, to associate a request id with a given request. When multiple
+/// tasks are running on the same executor, this allows distinguishing tasks for different
+/// requests.
+///
+/// Tasks are then pushed onto an executor, and eventually yielded from hyper_executor_poll:
+///
+/// - hyper_executor_push:        Push a task onto the executor.
+/// - hyper_executor_poll:        Polls the executor, trying to make progress on any tasks that have notified that they are ready again.
+///
+/// Once a task is yielded from poll, retrieve its userdata, check its type,
+/// and extract its value. This will require a case from void* to the appropriate type.
+///
+/// Methods on hyper_task:
+///
+/// - hyper_task_type:            Query the return type of this task.
+/// - hyper_task_value:           Takes the output value of this task.
+/// - hyper_task_set_userdata:    Set a user data pointer to be associated with this task.
+/// - hyper_task_userdata:        Retrieve the userdata that has been set via hyper_task_set_userdata.
+/// - hyper_task_free:            Free a task.
 pub struct hyper_task {
     future: BoxFuture<BoxAny>,
     output: Option<BoxAny>,
@@ -66,9 +122,36 @@ struct TaskFuture {
 }
 
 /// An async context for a task that contains the related waker.
+///
+/// This is provided to `hyper_io`'s read and write callbacks. Currently
+/// its only purpose is to provide access to the waker. See `hyper_waker`.
+///
+/// Corresponding Rust type: <https://doc.rust-lang.org/std/task/struct.Context.html>
 pub struct hyper_context<'a>(Context<'a>);
 
 /// A waker that is saved and used to waken a pending task.
+///
+/// This is provided to `hyper_io`'s read and write callbacks via `hyper_context`
+/// and `hyper_context_waker`.
+///
+/// When nonblocking I/O in one of those callbacks can't make progress (returns
+/// `EAGAIN` or `EWOULDBLOCK`), the callback has to return to avoid blocking the
+/// executor. But it also has to arrange to get called in the future when more
+/// data is available. That's the role of the async context and the waker. The
+/// waker can be used to tell the executor "this task is ready to make progress."
+///
+/// The read or write callback, upon finding it can't make progress, must get a
+/// waker from the context (`hyper_context_waker`), arrange for that waker to be
+/// called in the future, and then return `HYPER_POLL_PENDING`.
+///
+/// The arrangements for the waker to be called in the future are up to the
+/// application, but usually it will involve one big `select(2)` loop that checks which
+/// FDs are ready, and a correspondence between FDs and waker objects. For each
+/// FD that is ready, the corresponding waker must be called. Then `hyper_executor_poll`
+/// must be called. That will cause the executor to attempt to make progress on each
+/// woken task.
+///
+/// Corresponding Rust type: <https://doc.rust-lang.org/std/task/struct.Waker.html>
 pub struct hyper_waker {
     waker: std::task::Waker,
 }
@@ -219,8 +302,14 @@ ffi_fn! {
 ffi_fn! {
     /// Push a task onto the executor.
     ///
-    /// The executor takes ownership of the task, which should not be accessed
-    /// again unless returned back to the user with `hyper_executor_poll`.
+    /// The executor takes ownership of the task, which must not be accessed
+    /// again.
+    ///
+    /// Ownership of the task will eventually be returned to the user from
+    /// `hyper_executor_poll`.
+    ///
+    /// To distinguish multiple tasks running on the same executor, use
+    /// hyper_task_set_userdata.
     fn hyper_executor_push(exec: *const hyper_executor, task: *mut hyper_task) -> hyper_code {
         let exec = non_null!(&*exec ?= hyper_code::HYPERE_INVALID_ARG);
         let task = non_null!(Box::from_raw(task) ?= hyper_code::HYPERE_INVALID_ARG);
@@ -230,14 +319,14 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Polls the executor, trying to make progress on any tasks that have notified
-    /// that they are ready again.
+    /// Polls the executor, trying to make progress on any tasks that can do so.
     ///
-    /// If ready, returns a task from the executor that has completed.
+    /// If any task from the executor is ready, returns one of them. The way
+    /// tasks signal being finished is internal to Hyper. The order in which tasks
+    /// are returned is not guaranteed. Use userdata to distinguish between tasks.
     ///
     /// To avoid a memory leak, the task must eventually be consumed by
-    /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
-    /// without subsequently being given back by `hyper_executor_poll`.
+    /// `hyper_task_free`.
     ///
     /// If there are no ready tasks, this returns `NULL`.
     fn hyper_executor_poll(exec: *const hyper_executor) -> *mut hyper_task {
@@ -341,6 +430,9 @@ ffi_fn! {
     ///
     /// This value will be passed to task callbacks, and can be checked later
     /// with `hyper_task_userdata`.
+    ///
+    /// This is useful for telling apart tasks for different requests that are
+    /// running on the same executor.
     fn hyper_task_set_userdata(task: *mut hyper_task, userdata: *mut c_void) {
         if task.is_null() {
             return;
@@ -414,7 +506,13 @@ impl hyper_context<'_> {
 }
 
 ffi_fn! {
-    /// Copies a waker out of the task context.
+    /// Creates a waker associated with the task context.
+    ///
+    /// The waker can be used to inform the task's executor that the task is
+    /// ready to make progress (using `hyper_waker_wake``).
+    ///
+    /// Typically this only needs to be called once, but it can be called
+    /// multiple times, returning a new waker each time.
     ///
     /// To avoid a memory leak, the waker must eventually be consumed by
     /// `hyper_waker_free` or `hyper_waker_wake`.
@@ -438,6 +536,11 @@ ffi_fn! {
 
 ffi_fn! {
     /// Wake up the task associated with a waker.
+    ///
+    /// This does not do work towards associated task. Instead, it signals
+    /// to the task's executor that the task is ready to make progress. The
+    /// application is responsible for calling hyper_executor_poll, which
+    /// will in turn do work on all tasks that are ready to make progress.
     ///
     /// NOTE: This consumes the waker. You should not use or free the waker afterwards.
     fn hyper_waker_wake(waker: *mut hyper_waker) {

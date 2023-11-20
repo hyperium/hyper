@@ -168,7 +168,7 @@ typedef struct hyper_executor hyper_executor;
 typedef struct hyper_headers hyper_headers;
 
 /*
- An IO object used to represent a socket or similar concept.
+ A read/write handle for a specific connection.
  */
 typedef struct hyper_io hyper_io;
 
@@ -214,7 +214,7 @@ extern "C" {
 const char *hyper_version(void);
 
 /*
- Create a new "empty" body.
+ Creates a new "empty" body.
  */
 struct hyper_body *hyper_body_new(void);
 
@@ -224,12 +224,12 @@ struct hyper_body *hyper_body_new(void);
 void hyper_body_free(struct hyper_body *body);
 
 /*
- Return a task that will poll the body for the next buffer of data.
+ Creates a task that will poll a response body for the next buffer of data.
  */
 struct hyper_task *hyper_body_data(struct hyper_body *body);
 
 /*
- Return a task that will poll the body and execute the callback with each
+ Creates a task to execute the callback with each body chunk received.
  */
 struct hyper_task *hyper_body_foreach(struct hyper_body *body,
                                       hyper_body_foreach_callback func,
@@ -241,7 +241,7 @@ struct hyper_task *hyper_body_foreach(struct hyper_body *body,
 void hyper_body_set_userdata(struct hyper_body *body, void *userdata);
 
 /*
- Set the data callback for this body.
+ Set the outgoing data callback for this body.
  */
 void hyper_body_set_data_func(struct hyper_body *body, hyper_body_data_callback func);
 
@@ -266,13 +266,13 @@ size_t hyper_buf_len(const struct hyper_buf *buf);
 void hyper_buf_free(struct hyper_buf *buf);
 
 /*
- Starts an HTTP client connection handshake using the provided IO transport
+ Creates an HTTP client handshake task.
  */
 struct hyper_task *hyper_clientconn_handshake(struct hyper_io *io,
                                               struct hyper_clientconn_options *options);
 
 /*
- Send a request on the client connection.
+ Creates a task to send a request on the client connection.
  */
 struct hyper_task *hyper_clientconn_send(struct hyper_clientconn *conn, struct hyper_request *req);
 
@@ -287,13 +287,13 @@ void hyper_clientconn_free(struct hyper_clientconn *conn);
 struct hyper_clientconn_options *hyper_clientconn_options_new(void);
 
 /*
- Set the whether or not header case is preserved.
+ Set whether header case is preserved.
  */
 void hyper_clientconn_options_set_preserve_header_case(struct hyper_clientconn_options *opts,
                                                        int enabled);
 
 /*
- Set the whether or not header order is preserved.
+ Set whether header order is preserved.
  */
 void hyper_clientconn_options_set_preserve_header_order(struct hyper_clientconn_options *opts,
                                                         int enabled);
@@ -310,12 +310,12 @@ void hyper_clientconn_options_exec(struct hyper_clientconn_options *opts,
                                    const struct hyper_executor *exec);
 
 /*
- Set the whether to use HTTP2.
+ Set whether to use HTTP2.
  */
 enum hyper_code hyper_clientconn_options_http2(struct hyper_clientconn_options *opts, int enabled);
 
 /*
- Set whether HTTP/1 connections will accept obsolete line folding for header values.
+ Set whether HTTP/1 connections accept obsolete line folding for header values.
  */
 enum hyper_code hyper_clientconn_options_http1_allow_multiline_headers(struct hyper_clientconn_options *opts,
                                                                        int enabled);
@@ -376,7 +376,7 @@ enum hyper_code hyper_request_set_uri_parts(struct hyper_request *req,
 enum hyper_code hyper_request_set_version(struct hyper_request *req, int version);
 
 /*
- Gets a reference to the HTTP headers of this request
+ Gets a mutable reference to the HTTP headers of this request
  */
 struct hyper_headers *hyper_request_headers(struct hyper_request *req);
 
@@ -493,7 +493,7 @@ void hyper_executor_free(const struct hyper_executor *exec);
 enum hyper_code hyper_executor_push(const struct hyper_executor *exec, struct hyper_task *task);
 
 /*
- Polls the executor, trying to make progress on any tasks that have notified
+ Polls the executor, trying to make progress on any tasks that can do so.
  */
 struct hyper_task *hyper_executor_poll(const struct hyper_executor *exec);
 
@@ -523,7 +523,7 @@ void hyper_task_set_userdata(struct hyper_task *task, void *userdata);
 void *hyper_task_userdata(struct hyper_task *task);
 
 /*
- Copies a waker out of the task context.
+ Creates a waker associated with the task context.
  */
 struct hyper_waker *hyper_context_waker(struct hyper_context *cx);
 

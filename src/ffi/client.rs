@@ -12,6 +12,16 @@ use super::io::hyper_io;
 use super::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType, WeakExec};
 
 /// An options builder to configure an HTTP client connection.
+///
+/// Methods:
+///
+/// - hyper_clientconn_options_new:     Creates a new set of HTTP clientconn options to be used in a handshake.
+/// - hyper_clientconn_options_exec:    Set the client background task executor.
+/// - hyper_clientconn_options_http2:   Set whether to use HTTP2.
+/// - hyper_clientconn_options_set_preserve_header_case:  Set whether header case is preserved.
+/// - hyper_clientconn_options_set_preserve_header_order: Set whether header order is preserved.
+/// - hyper_clientconn_options_http1_allow_multiline_headers: Set whether HTTP/1 connections accept obsolete line folding for header values.
+/// - hyper_clientconn_options_free:    Free a set of HTTP clientconn options.
 pub struct hyper_clientconn_options {
     http1_allow_obsolete_multiline_headers_in_responses: bool,
     http1_preserve_header_case: bool,
@@ -23,9 +33,42 @@ pub struct hyper_clientconn_options {
 
 /// An HTTP client connection handle.
 ///
-/// These are used to send a request on a single connection. It's possible to
-/// send multiple requests on a single connection, such as when HTTP/1
-/// keep-alive or HTTP/2 is used.
+/// These are used to send one or more requests on a single connection.
+///
+/// It's possible to send multiple requests on a single connection, such
+/// as when HTTP/1 keep-alive or HTTP/2 is used.
+///
+/// To create a `hyper_clientconn`:
+///
+///   1. Create a `hyper_io` with `hyper_io_new`.
+///   2. Create a `hyper_clientconn_options` with `hyper_clientconn_options_new`.
+///   3. Call `hyper_clientconn_handshake` with the `hyper_io` and `hyper_clientconn_options`.
+///      This creates a `hyper_task`.
+///   5. Call `hyper_task_set_userdata` to assign an application-specific pointer to the task.
+///      This allows keeping track of multiple connections that may be handshaking
+///      simultaneously.
+///   4. Add the `hyper_task` to an executor with `hyper_executor_push`.
+///   5. Poll that executor until it yields a task of type `HYPER_TASK_CLIENTCONN`.
+///   6. Extract the `hyper_clientconn` from the task with `hyper_task_value`.
+///      This will require a cast from `void *` to `hyper_clientconn *`.
+///
+/// This process results in a `hyper_clientconn` that permanently owns the
+/// `hyper_io`. Because the `hyper_io` in turn owns a TCP or TLS connection, that means
+/// the `hyper_clientconn` owns the connection for both the clientconn's lifetime
+/// and the connection's lifetime.
+///
+/// In other words, each connection (`hyper_io`) must have exactly one `hyper_clientconn`
+/// associated with it. That's because `hyper_clientconn_handshake` sends the
+/// [HTTP/2 Connection Preface] (for HTTP/2 connections). Since that preface can't
+/// be sent twice, handshake can't be called twice.
+///
+/// [HTTP/2 Connection Preface]: https://datatracker.ietf.org/doc/html/rfc9113#name-http-2-connection-preface
+///
+/// Methods:
+///
+/// - hyper_clientconn_handshake:  Creates an HTTP client handshake task.
+/// - hyper_clientconn_send:       Creates a task to send a request on the client connection.
+/// - hyper_clientconn_free:       Free a hyper_clientconn *.
 pub struct hyper_clientconn {
     tx: Tx,
 }
@@ -40,8 +83,7 @@ enum Tx {
 // ===== impl hyper_clientconn =====
 
 ffi_fn! {
-    /// Starts an HTTP client connection handshake using the provided IO transport
-    /// and options.
+    /// Creates an HTTP client handshake task.
     ///
     /// Both the `io` and the `options` are consumed in this function call.
     /// They should not be used or freed afterwards.
@@ -89,7 +131,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Send a request on the client connection.
+    /// Creates a task to send a request on the client connection.
     ///
     /// This consumes the request. You should not use or free the request
     /// afterwards.
@@ -153,7 +195,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Set the whether or not header case is preserved.
+    /// Set whether header case is preserved.
     ///
     /// Pass `0` to allow lowercase normalization (default), `1` to retain original case.
     fn hyper_clientconn_options_set_preserve_header_case(opts: *mut hyper_clientconn_options, enabled: c_int) {
@@ -163,7 +205,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Set the whether or not header order is preserved.
+    /// Set whether header order is preserved.
     ///
     /// Pass `0` to allow reordering (default), `1` to retain original ordering.
     fn hyper_clientconn_options_set_preserve_header_order(opts: *mut hyper_clientconn_options, enabled: c_int) {
@@ -198,7 +240,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Set the whether to use HTTP2.
+    /// Set whether to use HTTP2.
     ///
     /// Pass `0` to disable, `1` to enable.
     fn hyper_clientconn_options_http2(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
@@ -219,7 +261,8 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Set whether HTTP/1 connections will accept obsolete line folding for header values.
+    /// Set whether HTTP/1 connections accept obsolete line folding for header values.
+    ///
     /// Newline codepoints (\r and \n) will be transformed to spaces when parsing.
     ///
     /// Pass `0` to disable, `1` to enable.
