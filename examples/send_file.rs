@@ -79,7 +79,7 @@ async fn simple_file_send(filename: &str) -> Result<Response<BoxBody<Bytes, std:
     let reader_stream = ReaderStream::new(file);
 
     // Convert to http_body_util::BoxBody
-    let stream_body = StreamBody::from(reader_stream);
+    let stream_body = StreamBody::new(reader_stream.map_ok(Frame::data));
     let boxed_body = stream_body.boxed();
 
     // Send response
