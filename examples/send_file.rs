@@ -61,7 +61,7 @@ async fn response_examples(
 fn not_found() -> Response<BoxBody<Bytes, std::io::Error>> {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
-        .body(Full::new(NOTFOUND.into().boxed()))
+        .body(Full::new(NOTFOUND.into()).boxed())
         .unwrap()
 }
 
