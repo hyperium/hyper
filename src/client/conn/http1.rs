@@ -88,6 +88,17 @@ where
     pub fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.inner.poll_without_shutdown(cx)
     }
+
+    /// Prevent shutdown of the underlying IO object at the end of service the request,
+    /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
+    pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
+        let mut conn = Some(self);
+        futures_util::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
+            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(conn.take().unwrap().into_parts()))
+        })
+        .await
+    }
 }
 
 /// A builder to configure an HTTP connection.
