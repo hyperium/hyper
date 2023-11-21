@@ -2,18 +2,15 @@
 
 use std::net::SocketAddr;
 
-use hyper::server::conn::http1;
-use tokio::{
-    net::TcpListener,
-    fs::File,
-};
-use tokio_util::io::ReaderStream;
-use futures_util::TryStreamExt;
-use hyper::body::Frame;
 use bytes::Bytes;
-use http_body_util::{Full, StreamBody, BodyExt, combinators::BoxBody};
+use futures_util::TryStreamExt;
+use http_body_util::{combinators::BoxBody, BodyExt, Full, StreamBody};
+use hyper::body::Frame;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, Result, StatusCode};
+use tokio::{fs::File, net::TcpListener};
+use tokio_util::io::ReaderStream;
 
 #[path = "../benches/support/mod.rs"]
 mod support;
