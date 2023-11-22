@@ -3,6 +3,7 @@
 use std::net::SocketAddr;
 
 use bytes::Bytes;
+use http::{uri, Uri};
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
 use hyper::client::conn::http1::Builder;
 use hyper::server::conn::http1;
@@ -49,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn proxy(
-    req: Request<hyper::body::Incoming>,
+    mut req: Request<hyper::body::Incoming>,
 ) -> Result<Response<BoxBody<Bytes, hyper::Error>>, hyper::Error> {
     println!("req: {:?}", req);
 
@@ -104,6 +105,10 @@ async fn proxy(
                 println!("Connection failed: {:?}", err);
             }
         });
+
+        let mut uri_parts = uri::Parts::default();
+        uri_parts.path_and_query = req.uri().path_and_query().cloned();
+        *req.uri_mut() = Uri::from_parts(uri_parts).unwrap();
 
         let resp = sender.send_request(req).await?;
         Ok(resp.map(|b| b.boxed()))
