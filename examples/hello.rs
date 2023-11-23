@@ -9,6 +9,7 @@ use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response};
 use tokio::net::TcpListener;
+// use tokio::net::UnixListener; // for unix socket listener
 
 #[path = "../benches/support/mod.rs"]
 mod support;
@@ -30,6 +31,16 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     // Bind to the port and listen for incoming TCP connections
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
+    
+    // This is the unix socket listener (comment the 3 lines of code above and uncomment lines below)
+    // let socketpath = "/tmp/notexistent.sock";
+    // let path = std::path::Path::new(socketpath);
+    // if path.exists() {
+    //    tokio::fs::remove_file(path).await.expect("Could not remove old socket!");
+    // }
+    // let listener = UnixListener::bind(path).unwrap();
+    // println!("Listening on unix socket, use `curl --unixx-socket {} http://domain/sayhello`", socketpath);
+
     loop {
         // When an incoming TCP connection is received grab a TCP stream for
         // client<->server communication.
