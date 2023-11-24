@@ -10,13 +10,15 @@ use hyper::service::service_fn;
 use hyper::{Request, Response};
 use tokio::net::TcpListener;
 
+// This would normally come from the `hyper-util` crate, but we can't depend
+// on that here because it would be a cyclical dependency.
 #[path = "../benches/support/mod.rs"]
 mod support;
-use support::TokioIo;
+use support::{TokioIo, TokioTimer};
 
 // An async function that consumes a request, does nothing with it and returns a
 // response.
-async fn hello(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
+async fn hello(_: Request<impl hyper::body::Body>) -> Result<Response<Full<Bytes>>, Infallible> {
     Ok(Response::new(Full::new(Bytes::from("Hello World!"))))
 }
 
@@ -51,6 +53,7 @@ pub async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             // Handle the connection from the client using HTTP1 and pass any
             // HTTP requests received on that connection to the `hello` function
             if let Err(err) = http1::Builder::new()
+                .timer(TokioTimer)
                 .serve_connection(io, service_fn(hello))
                 .await
             {
