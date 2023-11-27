@@ -22,6 +22,7 @@ This release "fixes" or adds a few things that should have been in 1.0.0, but we
 
 ## v1.0.0 (2023-11-15)
 
+Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
 #### Bug Fixes
 
