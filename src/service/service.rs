@@ -38,4 +38,3 @@ pub trait Service<Request> {
     /// The discussion on this is here: <https://github.com/hyperium/hyper/issues/3040>
     fn call(&self, req: Request) -> Self::Future;
 }
-
