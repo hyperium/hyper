@@ -19,9 +19,11 @@ pub use bytes::{Buf, Bytes};
 pub use http_body::Body as HttpBody;
 pub use http_body::SizeHint;
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub use self::aggregate::aggregate;
 pub use self::body::{Body, Sender};
 pub(crate) use self::length::DecodedLength;
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub use self::to_bytes::to_bytes;
 
 mod aggregate;

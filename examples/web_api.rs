@@ -40,6 +40,7 @@ async fn client_request_response(client: &Client<HttpConnector>) -> Result<Respo
 
 async fn api_post_response(req: Request<Body>) -> Result<Response<Body>> {
     // Aggregate the body...
+    #[allow(deprecated)]
     let whole_body = hyper::body::aggregate(req).await?;
     // Decode as JSON...
     let mut data: serde_json::Value = serde_json::from_reader(whole_body.reader())?;
