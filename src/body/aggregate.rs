@@ -13,6 +13,13 @@ use crate::common::buf::BufList;
 /// Care needs to be taken if the remote is untrusted. The function doesn't implement any length
 /// checks and an malicious peer might make it consume arbitrary amounts of memory. Checking the
 /// `Content-Length` is a possibility, but it is not strictly mandated to be present.
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This function has been replaced by a method on the `hyper::body::HttpBody` trait. Use `.collect().await?.aggregate()` instead."
+    )
+)]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub async fn aggregate<T>(body: T) -> Result<impl Buf, T::Error>
 where
     T: HttpBody,

@@ -374,6 +374,7 @@ async fn async_test(cfg: __TestConfig) {
                 func(&req.headers());
             }
             let sbody = sreq.body;
+            #[allow(deprecated)]
             hyper::body::to_bytes(req).map_ok(move |body| {
                 assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
@@ -433,6 +434,7 @@ async fn async_test(cfg: __TestConfig) {
                     for func in &cheaders {
                         func(&res.headers());
                     }
+                    #[allow(deprecated)]
                     hyper::body::to_bytes(res)
                 })
                 .map_ok(move |body| {
