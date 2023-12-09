@@ -7,12 +7,12 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use bytes::BytesMut;
-#[cfg(feature = "client")]
-use http::header::Entry;
 #[cfg(feature = "server")]
 use http::header::ValueIter;
 use http::header::{self, HeaderName, HeaderValue};
-use http::{HeaderMap, Method, StatusCode, Version};
+#[cfg(feature = "client")]
+use http::{header::Entry, HeaderMap};
+use http::{Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
@@ -219,7 +219,7 @@ impl Http1Transaction for Server {
             None
         };
 
-        let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
+        let mut headers = ctx.cached_headers.take().unwrap_or_default();
 
         headers.reserve(headers_len);
 
@@ -984,7 +984,7 @@ impl Http1Transaction for Client {
 
             let slice = slice.freeze();
 
-            let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
+            let mut headers = ctx.cached_headers.take().unwrap_or_default();
 
             let mut keep_alive = version == Version::HTTP_11;
 
