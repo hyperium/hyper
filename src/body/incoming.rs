@@ -186,13 +186,9 @@ impl Body for Incoming {
                 want_tx.send(WANT_READY);
 
                 if !data_rx.is_terminated() {
-                    match ready!(Pin::new(data_rx).poll_next(cx)?) {
-                        Some(chunk) => {
-                            len.sub_if(chunk.len() as u64);
-                            return Poll::Ready(Some(Ok(Frame::data(chunk))));
-                        }
-                        // fall through to trailers
-                        None => (),
+                    if let Some(chunk) = ready!(Pin::new(data_rx).poll_next(cx)?) {
+                        len.sub_if(chunk.len() as u64);
+                        return Poll::Ready(Some(Ok(Frame::data(chunk))));
                     }
                 }
 
