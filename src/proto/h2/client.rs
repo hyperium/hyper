@@ -307,22 +307,18 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
-        if !this.conn.is_terminated() {
-            if let Poll::Ready(_) = this.conn.poll_unpin(cx) {
-                // ok or err, the `conn` has finished.
-                return Poll::Ready(());
-            };
+        if !this.conn.is_terminated() && this.conn.poll_unpin(cx).is_ready() {
+            // ok or err, the `conn` has finished.
+            return Poll::Ready(());
         }
 
-        if !this.drop_rx.is_terminated() {
-            if let Poll::Ready(_) = this.drop_rx.poll_unpin(cx) {
-                // mpsc has been dropped, hopefully polling
-                // the connection some more should start shutdown
-                // and then close.
-                trace!("send_request dropped, starting conn shutdown");
-                drop(this.cancel_tx.take().expect("ConnTask Future polled twice"));
-            }
-        };
+        if !this.drop_rx.is_terminated() && this.drop_rx.poll_unpin(cx).is_ready() {
+            // mpsc has been dropped, hopefully polling
+            // the connection some more should start shutdown
+            // and then close.
+            trace!("send_request dropped, starting conn shutdown");
+            drop(this.cancel_tx.take().expect("ConnTask Future polled twice"));
+        }
 
         Poll::Pending
     }
@@ -613,14 +609,11 @@ where
                 }
             };
 
-            match self.fut_ctx.take() {
-                // If we were waiting on pending open
-                // continue where we left off.
-                Some(f) => {
-                    self.poll_pipe(f, cx);
-                    continue;
-                }
-                None => (),
+            // If we were waiting on pending open
+            // continue where we left off.
+            if let Some(f) = self.fut_ctx.take() {
+                self.poll_pipe(f, cx);
+                continue;
             }
 
             match self.req_rx.poll_recv(cx) {
@@ -642,17 +635,16 @@ where
                     let is_connect = req.method() == Method::CONNECT;
                     let eos = body.is_end_stream();
 
-                    if is_connect {
-                        if headers::content_length_parse_all(req.headers())
+                    if is_connect
+                        && headers::content_length_parse_all(req.headers())
                             .map_or(false, |len| len != 0)
-                        {
-                            warn!("h2 connect request with non-zero body not supported");
-                            cb.send(Err((
-                                crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
-                                None,
-                            )));
-                            continue;
-                        }
+                    {
+                        warn!("h2 connect request with non-zero body not supported");
+                        cb.send(Err((
+                            crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
+                            None,
+                        )));
+                        continue;
                     }
 
                     if let Some(protocol) = req.extensions_mut().remove::<Protocol>() {
