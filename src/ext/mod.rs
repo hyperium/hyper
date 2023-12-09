@@ -110,7 +110,7 @@ impl HeaderCaseMap {
         &'a self,
         name: &HeaderName,
     ) -> impl Iterator<Item = impl AsRef<[u8]> + 'a> + 'a {
-        self.get_all_internal(name).into_iter()
+        self.get_all_internal(name)
     }
 
     /// Returns a view of all spellings associated with that header name,
