@@ -141,14 +141,13 @@ impl Incoming {
         if !content_length.is_exact() && recv.is_end_stream() {
             content_length = DecodedLength::ZERO;
         }
-        let body = Incoming::new(Kind::H2 {
+
+        Incoming::new(Kind::H2 {
             data_done: false,
             ping,
             content_length,
             recv,
-        });
-
-        body
+        })
     }
 
     #[cfg(feature = "ffi")]
