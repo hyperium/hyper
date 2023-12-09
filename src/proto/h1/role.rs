@@ -450,8 +450,10 @@ impl Http1Transaction for Server {
         };
 
         debug!("sending automatic response ({}) for parse error", status);
-        let mut msg = MessageHead::default();
-        msg.subject = status;
+        let msg = MessageHead {
+            subject: status,
+            ..Default::default()
+        };
         Some(msg)
     }
 
