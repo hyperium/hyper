@@ -44,7 +44,7 @@ const CONNECTION_HEADERS: [HeaderName; 5] = [
 ];
 
 fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
-    for header in &CONNECTION_HEADERS {
+    for header in CONNECTION_HEADERS {
         if headers.remove(header).is_some() {
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
         }

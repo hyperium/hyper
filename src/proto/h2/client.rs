@@ -135,7 +135,7 @@ where
 
     let conn_drop_rx = rx.into_future();
 
-    let ping_config = new_ping_config(&config);
+    let ping_config = new_ping_config(config);
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");

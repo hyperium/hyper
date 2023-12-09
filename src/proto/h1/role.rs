@@ -167,7 +167,7 @@ impl Http1Transaction for Server {
                         Version::HTTP_10
                     };
 
-                    record_header_indices(bytes, &req.headers, &mut headers_indices)?;
+                    record_header_indices(bytes, req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
@@ -955,7 +955,7 @@ impl Http1Transaction for Client {
                         } else {
                             Version::HTTP_10
                         };
-                        record_header_indices(bytes, &res.headers, &mut headers_indices)?;
+                        record_header_indices(bytes, res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
                         (len, status, reason, version, headers_len)
                     }
