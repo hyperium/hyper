@@ -319,7 +319,7 @@ where
                             .size_hint()
                             .exact()
                             .map(BodyLength::Known)
-                            .or_else(|| Some(BodyLength::Unknown));
+                            .or(Some(BodyLength::Unknown));
                         self.body_rx.set(Some(body));
                         btype
                     };
