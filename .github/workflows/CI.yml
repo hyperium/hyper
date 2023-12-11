@@ -27,6 +27,7 @@ jobs:
       - check-external-types
       - udeps
       - minimal-versions
+      - semver
     steps:
       - run: exit 0
 
@@ -286,3 +287,15 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo minimal-versions check
       - run: cargo minimal-versions check --features full
+
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          feature-group: only-explicit-features
+          features: full
+          release-type: minor
