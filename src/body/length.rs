@@ -40,6 +40,10 @@ impl DecodedLength {
     }
 
     /// Converts to an Option<u64> representing a Known or Unknown length.
+    #[cfg(all(
+        any(feature = "http1", feature = "http2"),
+        any(feature = "client", feature = "server")
+    ))]
     pub(crate) fn into_opt(self) -> Option<u64> {
         match self {
             DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => None,
@@ -58,6 +62,10 @@ impl DecodedLength {
         }
     }
 
+    #[cfg(all(
+        any(feature = "http1", feature = "http2"),
+        any(feature = "client", feature = "server")
+    ))]
     pub(crate) fn sub_if(&mut self, amt: u64) {
         match *self {
             DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => (),

@@ -1,4 +1,5 @@
 use std::fmt;
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -6,10 +7,15 @@ use std::task::{Context, Poll};
 use bytes::Bytes;
 use futures_channel::mpsc;
 use futures_channel::oneshot;
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use futures_util::{stream::FusedStream, Stream}; // for mpsc::Receiver
 use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
 
+#[cfg(all(
+    any(feature = "http1", feature = "http2"),
+    any(feature = "client", feature = "server")
+))]
 use super::DecodedLength;
 use crate::common::watch;
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
@@ -39,8 +45,8 @@ pub struct Incoming {
 }
 
 enum Kind {
-    #[allow(dead_code)]
     Empty,
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     Chan {
         content_length: DecodedLength,
         want_tx: watch::Sender,
@@ -86,11 +92,12 @@ impl Incoming {
     ///
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
-    #[allow(unused)]
+    #[cfg(test)]
     pub(crate) fn channel() -> (Sender, Incoming) {
         Self::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false)
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     pub(crate) fn new_channel(content_length: DecodedLength, wanter: bool) -> (Sender, Incoming) {
         let (data_tx, data_rx) = mpsc::channel(0);
         let (trailers_tx, trailers_rx) = oneshot::channel();
@@ -171,11 +178,26 @@ impl Body for Incoming {
     type Error = crate::Error;
 
     fn poll_frame(
+        #[cfg_attr(
+            not(all(
+                any(feature = "http1", feature = "http2"),
+                any(feature = "client", feature = "server")
+            )),
+            allow(unused_mut)
+        )]
         mut self: Pin<&mut Self>,
+        #[cfg_attr(
+            not(all(
+                any(feature = "http1", feature = "http2"),
+                any(feature = "client", feature = "server")
+            )),
+            allow(unused_variables)
+        )]
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
         match self.kind {
             Kind::Empty => Poll::Ready(None),
+            #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
             Kind::Chan {
                 content_length: ref mut len,
                 ref mut data_rx,
@@ -247,6 +269,7 @@ impl Body for Incoming {
     fn is_end_stream(&self) -> bool {
         match self.kind {
             Kind::Empty => true,
+            #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
             Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
@@ -256,6 +279,10 @@ impl Body for Incoming {
     }
 
     fn size_hint(&self) -> SizeHint {
+        #[cfg(all(
+            any(feature = "http1", feature = "http2"),
+            any(feature = "client", feature = "server")
+        ))]
         macro_rules! opt_len {
             ($content_length:expr) => {{
                 let mut hint = SizeHint::default();
@@ -270,6 +297,7 @@ impl Body for Incoming {
 
         match self.kind {
             Kind::Empty => SizeHint::with_exact(0),
+            #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
             Kind::Chan { content_length, .. } => opt_len!(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 { content_length, .. } => opt_len!(content_length),
@@ -289,6 +317,13 @@ impl fmt::Debug for Incoming {
         let mut builder = f.debug_tuple("Body");
         match self.kind {
             Kind::Empty => builder.field(&Empty),
+            #[cfg(any(
+                all(
+                    any(feature = "http1", feature = "http2"),
+                    any(feature = "client", feature = "server")
+                ),
+                feature = "ffi"
+            ))]
             _ => builder.field(&Streaming),
         };
 

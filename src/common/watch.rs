@@ -15,6 +15,7 @@ type Value = usize;
 
 pub(crate) const CLOSED: usize = 0;
 
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 pub(crate) fn channel(initial: Value) -> (Sender, Receiver) {
     debug_assert!(
         initial != CLOSED,
