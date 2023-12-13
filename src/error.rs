@@ -50,6 +50,10 @@ pub(super) enum Kind {
     /// A pending item was dropped before ever being processed.
     Canceled,
     /// Indicates a channel (client or body sender) is closed.
+    #[cfg(any(
+        all(feature = "http1", any(feature = "client", feature = "server")),
+        all(feature = "http2", feature = "client")
+    ))]
     ChannelClosed,
     /// An `io::Error` that occurred while trying to read or write to a network stream.
     #[cfg(all(
@@ -121,6 +125,10 @@ pub(super) enum User {
     ))]
     Body,
     /// The user aborted writing of the outgoing body.
+    #[cfg(any(
+        all(feature = "http1", any(feature = "client", feature = "server")),
+        feature = "ffi"
+    ))]
     BodyWriteAborted,
     /// Error from future of user's Service.
     #[cfg(any(
@@ -192,6 +200,16 @@ impl Error {
 
     /// Returns true if a sender's channel is closed.
     pub fn is_closed(&self) -> bool {
+        #[cfg(not(any(
+            all(feature = "http1", any(feature = "client", feature = "server")),
+            all(feature = "http2", feature = "client")
+        )))]
+        return false;
+
+        #[cfg(any(
+            all(feature = "http1", any(feature = "client", feature = "server")),
+            all(feature = "http2", feature = "client")
+        ))]
         matches!(self.inner.kind, Kind::ChannelClosed)
     }
 
@@ -202,6 +220,16 @@ impl Error {
 
     /// Returns true if the body write was aborted.
     pub fn is_body_write_aborted(&self) -> bool {
+        #[cfg(not(any(
+            all(feature = "http1", any(feature = "client", feature = "server")),
+            feature = "ffi"
+        )))]
+        return false;
+
+        #[cfg(any(
+            all(feature = "http1", any(feature = "client", feature = "server")),
+            feature = "ffi"
+        ))]
         matches!(self.inner.kind, Kind::User(User::BodyWriteAborted))
     }
 
@@ -280,6 +308,10 @@ impl Error {
         Error::new(Kind::Io).with(cause)
     }
 
+    #[cfg(any(
+        all(feature = "http1", any(feature = "client", feature = "server")),
+        all(feature = "http2", feature = "client")
+    ))]
     pub(super) fn new_closed() -> Error {
         Error::new(Kind::ChannelClosed)
     }
@@ -300,6 +332,10 @@ impl Error {
         Error::new(Kind::BodyWrite).with(cause)
     }
 
+    #[cfg(any(
+        all(feature = "http1", any(feature = "client", feature = "server")),
+        feature = "ffi"
+    ))]
     pub(super) fn new_body_write_aborted() -> Error {
         Error::new(Kind::User(User::BodyWriteAborted))
     }
@@ -407,6 +443,10 @@ impl Error {
             Kind::IncompleteMessage => "connection closed before message completed",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::UnexpectedMessage => "received unexpected message from connection",
+            #[cfg(any(
+                all(feature = "http1", any(feature = "client", feature = "server")),
+                all(feature = "http2", feature = "client")
+            ))]
             Kind::ChannelClosed => "channel closed",
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "http1", feature = "server"))]
@@ -436,6 +476,10 @@ impl Error {
                 any(feature = "http1", feature = "http2")
             ))]
             Kind::User(User::Body) => "error from user's Body stream",
+            #[cfg(any(
+                all(feature = "http1", any(feature = "client", feature = "server")),
+                feature = "ffi"
+            ))]
             Kind::User(User::BodyWriteAborted) => "user body write aborted",
             #[cfg(any(
                 all(any(feature = "client", feature = "server"), feature = "http1"),

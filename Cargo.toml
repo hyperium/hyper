@@ -21,8 +21,6 @@ include = [
 
 [dependencies]
 bytes = "1"
-futures-channel = "0.3"
-futures-util = { version = "0.3", default-features = false }
 http = "1"
 http-body = "1"
 pin-project-lite = "0.2.4"
@@ -30,6 +28,8 @@ tokio = { version = "1", features = ["sync"] }
 
 # Optional
 
+futures-channel = { version = "0.3", optional = true }
+futures-util = { version = "0.3", default-features = false, optional = true }
 h2 = { version = "0.4", optional = true }
 http-body-util = { version = "0.1", optional = true }
 httparse = { version = "1.8", optional = true }
@@ -74,8 +74,8 @@ full = [
 ]
 
 # HTTP versions
-http1 = ["dep:httparse", "dep:itoa"]
-http2 = ["dep:h2"]
+http1 = ["dep:futures-channel", "dep:futures-util", "dep:httparse", "dep:itoa"]
+http2 = ["dep:futures-channel", "dep:futures-util", "dep:h2"]
 
 # Client/Server
 client = ["dep:want"]
