@@ -5,10 +5,11 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-use futures_channel::mpsc;
-use futures_channel::oneshot;
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
+use futures_channel::{mpsc, oneshot};
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use futures_util::{stream::FusedStream, Stream}; // for mpsc::Receiver
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
 
@@ -17,11 +18,14 @@ use http_body::{Body, Frame, SizeHint};
     any(feature = "client", feature = "server")
 ))]
 use super::DecodedLength;
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use crate::common::watch;
 #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
 use crate::proto::h2::ping;
 
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 type BodySender = mpsc::Sender<Result<Bytes, crate::Error>>;
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 type TrailersSender = oneshot::Sender<HeaderMap>;
 
 /// A stream of `Bytes`, used when receiving bodies from the network.
@@ -78,13 +82,16 @@ enum Kind {
 /// [`Body::channel()`]: struct.Body.html#method.channel
 /// [`Sender::abort()`]: struct.Sender.html#method.abort
 #[must_use = "Sender does nothing unless sent on"]
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 pub(crate) struct Sender {
     want_rx: watch::Receiver,
     data_tx: BodySender,
     trailers_tx: Option<TrailersSender>,
 }
 
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 const WANT_PENDING: usize = 1;
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 const WANT_READY: usize = 2;
 
 impl Incoming {
@@ -331,6 +338,7 @@ impl fmt::Debug for Incoming {
     }
 }
 
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 impl Sender {
     /// Check to see if this `Sender` can send more data.
     pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
@@ -350,11 +358,13 @@ impl Sender {
         }
     }
 
+    #[cfg(test)]
     async fn ready(&mut self) -> crate::Result<()> {
         futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /// Send data on data channel when it is ready.
+    #[cfg(test)]
     #[allow(unused)]
     pub(crate) async fn send_data(&mut self, chunk: Bytes) -> crate::Result<()> {
         self.ready().await?;
@@ -392,7 +402,7 @@ impl Sender {
             .map_err(|err| err.into_inner().expect("just sent Ok"))
     }
 
-    #[allow(unused)]
+    #[cfg(test)]
     pub(crate) fn abort(mut self) {
         self.send_error(crate::Error::new_body_write_aborted());
     }
@@ -406,6 +416,7 @@ impl Sender {
     }
 }
 
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 impl fmt::Debug for Sender {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]

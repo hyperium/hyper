@@ -1,3 +1,7 @@
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2")
+))]
 macro_rules! ready {
     ($e:expr) => {
         match $e {
@@ -18,4 +22,5 @@ pub(crate) mod task;
     all(any(feature = "client", feature = "server"), feature = "http2"),
 ))]
 pub(crate) mod time;
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 pub(crate) mod watch;
