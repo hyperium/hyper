@@ -159,6 +159,11 @@ jobs:
         env:
           RUSTFLAGS: "-D dead_code -D unused_imports"
 
+      - name: check --feature-powerset with tracing feature
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --features tracing --skip ffi
+        env:
+          RUSTFLAGS: "--cfg hyper_unstable_tracing -D dead_code -D unused_imports"
+
   ffi:
     name: Test C API (FFI)
     needs: [style]
