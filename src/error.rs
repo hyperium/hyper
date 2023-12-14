@@ -42,7 +42,7 @@ pub(super) enum Kind {
     Parse(Parse),
     User(User),
     /// A message reached EOF, but is not complete.
-    #[allow(unused)]
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     IncompleteMessage,
     /// A connection received a message (or bytes) when not waiting for one.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
@@ -100,7 +100,7 @@ pub(super) enum Parse {
     #[cfg(any(feature = "http1", feature = "http2"))]
     TooLarge,
     Status,
-    #[cfg_attr(debug_assertions, allow(unused))]
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     Internal,
 }
 
@@ -215,6 +215,10 @@ impl Error {
 
     /// Returns true if the connection closed before a message could complete.
     pub fn is_incomplete_message(&self) -> bool {
+        #[cfg(not(all(any(feature = "client", feature = "server"), feature = "http1")))]
+        return false;
+
+        #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
         matches!(self.inner.kind, Kind::IncompleteMessage)
     }
 
@@ -437,9 +441,11 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::Parse(Parse::Internal) => {
                 "internal error inside Hyper and/or its dependencies, please report"
             }
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::IncompleteMessage => "connection closed before message completed",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::UnexpectedMessage => "received unexpected message from connection",
