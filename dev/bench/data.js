@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702657764999,
+  "lastUpdate": 1702665522402,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6329,6 +6329,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46810,
             "range": "± 8441",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "herman@hermanradtke.com",
+            "name": "Herman J. Radtke III",
+            "username": "hjr3"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "31b41807523370f3efbf47ba16c9e1c193b6335a",
+          "message": "feat(http1): Add support for sending HTTP/1.1 Chunked Trailer Fields (#3375)\n\nCloses #2719",
+          "timestamp": "2023-12-15T13:37:48-05:00",
+          "tree_id": "ddec3ce2b4496afa1ad5e830b1e7e4c2bc9c0c7a",
+          "url": "https://github.com/hyperium/hyper/commit/31b41807523370f3efbf47ba16c9e1c193b6335a"
+        },
+        "date": 1702665520398,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46234,
+            "range": "± 9407",
             "unit": "ns/iter"
           }
         ]
