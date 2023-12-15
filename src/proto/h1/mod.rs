@@ -92,6 +92,8 @@ pub(crate) struct ParseContext<'a> {
     h09_responses: bool,
     #[cfg(feature = "ffi")]
     on_informational: &'a mut Option<crate::ffi::OnInformational>,
+    #[cfg(feature = "client")]
+    awaiting_100_continue: &'a mut bool,
 }
 
 /// Passed to Http1Transaction::encode

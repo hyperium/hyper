@@ -197,6 +197,8 @@ where
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "ffi")]
                     on_informational: parse_ctx.on_informational,
+                    #[cfg(feature = "client")]
+                    awaiting_100_continue: parse_ctx.awaiting_100_continue,
                 },
             )? {
                 Some(msg) => {
@@ -734,6 +736,8 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
+                #[cfg(feature = "client")]
+                awaiting_100_continue: &mut false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)

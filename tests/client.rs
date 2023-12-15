@@ -2318,6 +2318,55 @@ mod conn {
         assert!(error.is_user());
     }
 
+    #[tokio::test]
+    async fn test_await_100_continue() {
+        let (listener, addr) = setup_tk_test_server().await;
+
+        let server = async move {
+            let mut sock = listener.accept().await.unwrap().0;
+            let mut buf = [0; 4096];
+            let n = sock.read(&mut buf).await.expect("read 1");
+
+            // we should have received just the headers
+            let expected = "PUT /a HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 8\r\n\r\n";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 100 Continue\r\n\r\n")
+                .await
+                .unwrap();
+
+            let n = sock.read(&mut buf).await.expect("read 2");
+
+            // the next read should hold the body
+            let expected = "baguette";
+            assert_eq!(s(&buf[..n]), expected);
+
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .await
+                .unwrap();
+        };
+
+        let client = async move {
+            let tcp = tcp_connect(&addr).await.expect("connect");
+            let (mut client, conn) = conn::http1::handshake(tcp).await.expect("handshake");
+
+            tokio::task::spawn(async move {
+                conn.await.expect("http conn");
+            });
+
+            let req = Request::builder()
+                .method(Method::PUT)
+                .header(http::header::EXPECT, "100-continue")
+                .uri("/a")
+                .body(String::from("baguette"))
+                .unwrap();
+            let res = client.send_request(req).await.expect("send_request");
+            assert_eq!(res.status(), hyper::StatusCode::OK);
+        };
+
+        future::join(server, client).await;
+    }
+
     async fn drain_til_eof<T: tokio::io::AsyncRead + Unpin>(mut sock: T) -> io::Result<()> {
         let mut buf = [0u8; 1024];
         loop {

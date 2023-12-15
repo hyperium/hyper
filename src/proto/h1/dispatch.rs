@@ -310,6 +310,11 @@ where
             {
                 if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
                     let (head, body) = msg.map_err(crate::Error::new_user_service)?;
+                    let expect_100_continue = T::is_client()
+                        && head.headers.get(http::header::EXPECT).map_or(false, |h| {
+                            h.as_bytes().eq_ignore_ascii_case(b"100-continue")
+                        });
+
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
@@ -324,10 +329,14 @@ where
                         btype
                     };
                     self.conn.write_head(head, body_type);
+                    #[cfg(feature = "client")]
+                    self.conn.set_awaiting_100_continue(expect_100_continue);
                 } else {
                     self.close();
                     return Poll::Ready(Ok(()));
                 }
+            } else if self.conn.is_awaiting_100_continue() {
+                ready!(self.poll_read(cx))?;
             } else if !self.conn.can_buffer_body() {
                 ready!(self.poll_flush(cx))?;
             } else {
