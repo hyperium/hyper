@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702665522402,
+  "lastUpdate": 1702665592067,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -35431,6 +35431,96 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5059689,
             "range": "± 123552",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "herman@hermanradtke.com",
+            "name": "Herman J. Radtke III",
+            "username": "hjr3"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "31b41807523370f3efbf47ba16c9e1c193b6335a",
+          "message": "feat(http1): Add support for sending HTTP/1.1 Chunked Trailer Fields (#3375)\n\nCloses #2719",
+          "timestamp": "2023-12-15T13:37:48-05:00",
+          "tree_id": "ddec3ce2b4496afa1ad5e830b1e7e4c2bc9c0c7a",
+          "url": "https://github.com/hyperium/hyper/commit/31b41807523370f3efbf47ba16c9e1c193b6335a"
+        },
+        "date": 1702665590321,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70659,
+            "range": "± 8354",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4646719,
+            "range": "± 490598",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22323,
+            "range": "± 735",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 25147,
+            "range": "± 4206",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 34775,
+            "range": "± 1493",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 102442,
+            "range": "± 3812",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38309,
+            "range": "± 4880",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 98513,
+            "range": "± 8444",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51045311,
+            "range": "± 1214125",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 86557120,
+            "range": "± 10336080",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5321626,
+            "range": "± 312324",
             "unit": "ns/iter"
           }
         ]
