@@ -91,6 +91,16 @@ These labels indicate an issue is "blocked" for some reason.
 - **B-rfc**: request for comments. More discussion is needed to explore the design.
 - **B-upstream**: waiting on something in a dependency or the compiler.
 
+### Category
+
+The category marks what kind of issue this is.
+
+- **C-bug**: something is wrong, this is bad!
+- **C-feature**: this is a new feature request, adding something new.
+- **C-performance**: make existing working code go faster.
+- **C-refactor**: improve internal code to help readability and maintenance.
+- **C-chore**: a general chore or maintenance task.
+
 ### Effort
 
 The effort labels are a best-guess at roughly how much effort and knowledge of hyper is needed to accomplish the task.
@@ -99,14 +109,6 @@ The effort labels are a best-guess at roughly how much effort and knowledge of h
 - **E-medium**: some knowledge of how hyper internals work would be useful.
 - **E-hard**: likely requires a deeper understanding of how hyper internals work.
 
-### Severity
-
-The severity marks how _severe_ the issue is. Note this isn't "importance" or "priority".
-
-- **S-bug**: something is wrong, this is bad!
-- **S-feature**: this is a new feature request, adding something new.
-- **S-performance**: make existing working code go faster.
-- **S-refactor**: improve internal code to help readability and maintenance.
 
 [issues]: https://github.com/hyperium/hyper/issues
 [COC]: ./CODE_OF_CONDUCT.md
