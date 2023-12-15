@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1658930742034,
+  "lastUpdate": 1702657717333,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "connect": [
@@ -12631,6 +12631,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49535,
             "range": "± 3148",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0f2929b944cd6324e8ff7ad47dedb06c98c42ded",
+          "message": "chore(ci): enable benchmark timeline in CI again (#3490)",
+          "timestamp": "2023-12-15T11:27:42-05:00",
+          "tree_id": "db3a6f8615e082e47d084e41d27746633f684caf",
+          "url": "https://github.com/hyperium/hyper/commit/0f2929b944cd6324e8ff7ad47dedb06c98c42ded"
+        },
+        "date": 1702657714995,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46810,
+            "range": "± 8441",
             "unit": "ns/iter"
           }
         ]
