@@ -11,9 +11,8 @@ jobs:
     strategy:
       matrix:
         bench:
-          #- connect
-          #- end_to_end
-          #- pipeline
+          - end_to_end
+          - pipeline
     steps:
       - uses: actions/checkout@v4
 
