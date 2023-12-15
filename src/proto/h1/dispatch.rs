@@ -351,27 +351,33 @@ where
                             *clear_body = true;
                             crate::Error::new_user_body(e)
                         })?;
-                        let chunk = if let Ok(data) = frame.into_data() {
-                            data
-                        } else {
-                            trace!("discarding non-data frame");
-                            continue;
-                        };
-                        let eos = body.is_end_stream();
-                        if eos {
-                            *clear_body = true;
-                            if chunk.remaining() == 0 {
-                                trace!("discarding empty chunk");
-                                self.conn.end_body()?;
+
+                        if frame.is_data() {
+                            let chunk = frame.into_data().unwrap_or_else(|_| unreachable!());
+                            let eos = body.is_end_stream();
+                            if eos {
+                                *clear_body = true;
+                                if chunk.remaining() == 0 {
+                                    trace!("discarding empty chunk");
+                                    self.conn.end_body()?;
+                                } else {
+                                    self.conn.write_body_and_end(chunk);
+                                }
                             } else {
-                                self.conn.write_body_and_end(chunk);
+                                if chunk.remaining() == 0 {
+                                    trace!("discarding empty chunk");
+                                    continue;
+                                }
+                                self.conn.write_body(chunk);
                             }
+                        } else if frame.is_trailers() {
+                            *clear_body = true;
+                            self.conn.write_trailers(
+                                frame.into_trailers().unwrap_or_else(|_| unreachable!()),
+                            );
                         } else {
-                            if chunk.remaining() == 0 {
-                                trace!("discarding empty chunk");
-                                continue;
-                            }
-                            self.conn.write_body(chunk);
+                            trace!("discarding unknown frame");
+                            continue;
                         }
                     } else {
                         *clear_body = true;

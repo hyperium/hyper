@@ -5,6 +5,7 @@ use std::convert::Infallible;
 use std::fmt;
 use std::future::Future;
 use std::io::{Read, Write};
+use std::iter::FromIterator;
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
 use std::thread;
@@ -13,7 +14,7 @@ use std::time::Duration;
 use http::uri::PathAndQuery;
 use http_body_util::{BodyExt, StreamBody};
 use hyper::body::Frame;
-use hyper::header::HeaderValue;
+use hyper::header::{HeaderMap, HeaderName, HeaderValue};
 use hyper::{Method, Request, StatusCode, Uri, Version};
 
 use bytes::Bytes;
@@ -409,6 +410,15 @@ macro_rules! __client_req_prop {
             Frame::data,
         )));
     }};
+
+    ($req_builder:ident, $body:ident, $addr:ident, body_stream_with_trailers: $body_e:expr) => {{
+        use support::trailers::StreamBodyWithTrailers;
+        let (body, trailers) = $body_e;
+        $body = BodyExt::boxed(StreamBodyWithTrailers::with_trailers(
+            futures_util::TryStreamExt::map_ok(body, Frame::data),
+            trailers,
+        ));
+    }};
 }
 
 macro_rules! __client_req_header {
@@ -630,6 +640,44 @@ test! {
             status: OK,
             headers: {},
             body: &b"hello"[..],
+}
+
+test! {
+    name: client_post_req_body_chunked_with_trailer,
+
+    server:
+        expected: "\
+            POST / HTTP/1.1\r\n\
+            trailer: chunky-trailer\r\n\
+            host: {addr}\r\n\
+            transfer-encoding: chunked\r\n\
+            \r\n\
+            5\r\n\
+            hello\r\n\
+            0\r\n\
+            chunky-trailer: header data\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: POST,
+            url: "http://{addr}/",
+            headers: {
+                "trailer" => "chunky-trailer",
+            },
+            body_stream_with_trailers: (
+                (futures_util::stream::once(async { Ok::<_, Infallible>(Bytes::from("hello"))})),
+                HeaderMap::from_iter(vec![(
+                    HeaderName::from_static("chunky-trailer"),
+                    HeaderValue::from_static("header data")
+                )].into_iter())),
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
 }
 
 test! {

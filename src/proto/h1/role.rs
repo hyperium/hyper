@@ -625,6 +625,7 @@ impl Server {
         };
 
         let mut encoder = Encoder::length(0);
+        let mut allowed_trailer_fields: Option<Vec<HeaderValue>> = None;
         let mut wrote_date = false;
         let mut cur_name = None;
         let mut is_name_written = false;
@@ -811,6 +812,38 @@ impl Server {
                 header::DATE => {
                     wrote_date = true;
                 }
+                header::TRAILER => {
+                    // check that we actually can send a chunked body...
+                    if msg.head.version == Version::HTTP_10
+                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                    {
+                        continue;
+                    }
+
+                    if !is_name_written {
+                        is_name_written = true;
+                        header_name_writer.write_header_name_with_colon(
+                            dst,
+                            "trailer: ",
+                            header::TRAILER,
+                        );
+                        extend(dst, value.as_bytes());
+                    } else {
+                        extend(dst, b", ");
+                        extend(dst, value.as_bytes());
+                    }
+
+                    match allowed_trailer_fields {
+                        Some(ref mut allowed_trailer_fields) => {
+                            allowed_trailer_fields.push(value);
+                        }
+                        None => {
+                            allowed_trailer_fields = Some(vec![value]);
+                        }
+                    }
+
+                    continue 'headers;
+                }
                 _ => (),
             }
             //TODO: this should perhaps instead combine them into
@@ -893,6 +926,12 @@ impl Server {
             extend(dst, b"\r\n\r\n");
         } else {
             extend(dst, b"\r\n");
+        }
+
+        if encoder.is_chunked() {
+            if let Some(allowed_trailer_fields) = allowed_trailer_fields {
+                encoder = encoder.into_chunked_with_trailing_fields(allowed_trailer_fields);
+            }
         }
 
         Ok(encoder.set_last(is_last))
@@ -1302,6 +1341,19 @@ impl Client {
             }
         };
 
+        let encoder = encoder.map(|enc| {
+            if enc.is_chunked() {
+                let allowed_trailer_fields: Vec<HeaderValue> =
+                    headers.get_all(header::TRAILER).iter().cloned().collect();
+
+                if !allowed_trailer_fields.is_empty() {
+                    return enc.into_chunked_with_trailing_fields(allowed_trailer_fields);
+                }
+            }
+
+            enc
+        });
+
         // This is because we need a second mutable borrow to remove
         // content-length header.
         if let Some(encoder) = encoder {
@@ -1464,8 +1516,7 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     }
 }
 
-#[cfg(feature = "client")]
-fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
+pub(crate) fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         title_case(dst, name.as_str().as_bytes());
         extend(dst, b": ");
@@ -1474,8 +1525,7 @@ fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     }
 }
 
-#[cfg(feature = "client")]
-fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
+pub(crate) fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         extend(dst, name.as_str().as_bytes());
         extend(dst, b": ");

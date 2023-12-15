@@ -1,10 +1,19 @@
+use std::collections::HashMap;
 use std::fmt;
 use std::io::IoSlice;
 
 use bytes::buf::{Chain, Take};
-use bytes::Buf;
+use bytes::{Buf, Bytes};
+use http::{
+    header::{
+        AUTHORIZATION, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE,
+        CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TE, TRAILER, TRANSFER_ENCODING,
+    },
+    HeaderMap, HeaderName, HeaderValue,
+};
 
 use super::io::WriteBuf;
+use super::role::{write_headers, write_headers_title_case};
 
 type StaticBuf = &'static [u8];
 
@@ -26,7 +35,7 @@ pub(crate) struct NotEof(u64);
 #[derive(Debug, PartialEq, Clone)]
 enum Kind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
-    Chunked,
+    Chunked(Option<Vec<HeaderValue>>),
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
@@ -45,6 +54,7 @@ enum BufKind<B> {
     Limited(Take<B>),
     Chunked(Chain<Chain<ChunkSize, B>, StaticBuf>),
     ChunkedEnd(StaticBuf),
+    Trailers(Chain<Chain<StaticBuf, Bytes>, StaticBuf>),
 }
 
 impl Encoder {
@@ -55,7 +65,7 @@ impl Encoder {
         }
     }
     pub(crate) fn chunked() -> Encoder {
-        Encoder::new(Kind::Chunked)
+        Encoder::new(Kind::Chunked(None))
     }
 
     pub(crate) fn length(len: u64) -> Encoder {
@@ -65,6 +75,16 @@ impl Encoder {
     #[cfg(feature = "server")]
     pub(crate) fn close_delimited() -> Encoder {
         Encoder::new(Kind::CloseDelimited)
+    }
+
+    pub(crate) fn into_chunked_with_trailing_fields(self, trailers: Vec<HeaderValue>) -> Encoder {
+        match self.kind {
+            Kind::Chunked(_) => Encoder {
+                kind: Kind::Chunked(Some(trailers)),
+                is_last: self.is_last,
+            },
+            _ => self,
+        }
     }
 
     pub(crate) fn is_eof(&self) -> bool {
@@ -89,10 +109,17 @@ impl Encoder {
         }
     }
 
+    pub(crate) fn is_chunked(&self) -> bool {
+        match self.kind {
+            Kind::Chunked(_) => true,
+            _ => false,
+        }
+    }
+
     pub(crate) fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
         match self.kind {
             Kind::Length(0) => Ok(None),
-            Kind::Chunked => Ok(Some(EncodedBuf {
+            Kind::Chunked(_) => Ok(Some(EncodedBuf {
                 kind: BufKind::ChunkedEnd(b"0\r\n\r\n"),
             })),
             #[cfg(feature = "server")]
@@ -109,7 +136,7 @@ impl Encoder {
         debug_assert!(len > 0, "encode() called with empty buf");
 
         let kind = match self.kind {
-            Kind::Chunked => {
+            Kind::Chunked(_) => {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
@@ -136,6 +163,53 @@ impl Encoder {
         EncodedBuf { kind }
     }
 
+    pub(crate) fn encode_trailers<B>(
+        &self,
+        trailers: HeaderMap,
+        title_case_headers: bool,
+    ) -> Option<EncodedBuf<B>> {
+        match &self.kind {
+            Kind::Chunked(Some(ref allowed_trailer_fields)) => {
+                let allowed_trailer_field_map = allowed_trailer_field_map(&allowed_trailer_fields);
+
+                let mut cur_name = None;
+                let mut allowed_trailers = HeaderMap::new();
+
+                for (opt_name, value) in trailers {
+                    if let Some(n) = opt_name {
+                        cur_name = Some(n);
+                    }
+                    let name = cur_name.as_ref().expect("current header name");
+
+                    if allowed_trailer_field_map.contains_key(name.as_str())
+                        && valid_trailer_field(name)
+                    {
+                        allowed_trailers.insert(name, value);
+                    }
+                }
+
+                let mut buf = Vec::new();
+                if title_case_headers {
+                    write_headers_title_case(&allowed_trailers, &mut buf);
+                } else {
+                    write_headers(&allowed_trailers, &mut buf);
+                }
+
+                if buf.is_empty() {
+                    return None;
+                }
+
+                Some(EncodedBuf {
+                    kind: BufKind::Trailers(b"0\r\n".chain(Bytes::from(buf)).chain(b"\r\n")),
+                })
+            }
+            _ => {
+                debug!("attempted to encode trailers for non-chunked response");
+                None
+            }
+        }
+    }
+
     pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>) -> bool
     where
         B: Buf,
@@ -144,7 +218,7 @@ impl Encoder {
         debug_assert!(len > 0, "encode() called with empty buf");
 
         match self.kind {
-            Kind::Chunked => {
+            Kind::Chunked(_) => {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
                     .chain(msg)
@@ -181,6 +255,40 @@ impl Encoder {
     }
 }
 
+fn valid_trailer_field(name: &HeaderName) -> bool {
+    match name {
+        &AUTHORIZATION => false,
+        &CACHE_CONTROL => false,
+        &CONTENT_ENCODING => false,
+        &CONTENT_LENGTH => false,
+        &CONTENT_RANGE => false,
+        &CONTENT_TYPE => false,
+        &HOST => false,
+        &MAX_FORWARDS => false,
+        &SET_COOKIE => false,
+        &TRAILER => false,
+        &TRANSFER_ENCODING => false,
+        &TE => false,
+        _ => true,
+    }
+}
+
+fn allowed_trailer_field_map(allowed_trailer_fields: &Vec<HeaderValue>) -> HashMap<String, ()> {
+    let mut trailer_map = HashMap::new();
+
+    for header_value in allowed_trailer_fields {
+        if let Ok(header_str) = header_value.to_str() {
+            let items: Vec<&str> = header_str.split(',').map(|item| item.trim()).collect();
+
+            for item in items {
+                trailer_map.entry(item.to_string()).or_insert(());
+            }
+        }
+    }
+
+    trailer_map
+}
+
 impl<B> Buf for EncodedBuf<B>
 where
     B: Buf,
@@ -192,6 +300,7 @@ where
             BufKind::Limited(ref b) => b.remaining(),
             BufKind::Chunked(ref b) => b.remaining(),
             BufKind::ChunkedEnd(ref b) => b.remaining(),
+            BufKind::Trailers(ref b) => b.remaining(),
         }
     }
 
@@ -202,6 +311,7 @@ where
             BufKind::Limited(ref b) => b.chunk(),
             BufKind::Chunked(ref b) => b.chunk(),
             BufKind::ChunkedEnd(ref b) => b.chunk(),
+            BufKind::Trailers(ref b) => b.chunk(),
         }
     }
 
@@ -212,6 +322,7 @@ where
             BufKind::Limited(ref mut b) => b.advance(cnt),
             BufKind::Chunked(ref mut b) => b.advance(cnt),
             BufKind::ChunkedEnd(ref mut b) => b.advance(cnt),
+            BufKind::Trailers(ref mut b) => b.advance(cnt),
         }
     }
 
@@ -222,6 +333,7 @@ where
             BufKind::Limited(ref b) => b.chunks_vectored(dst),
             BufKind::Chunked(ref b) => b.chunks_vectored(dst),
             BufKind::ChunkedEnd(ref b) => b.chunks_vectored(dst),
+            BufKind::Trailers(ref b) => b.chunks_vectored(dst),
         }
     }
 }
@@ -327,7 +439,16 @@ impl std::error::Error for NotEof {}
 
 #[cfg(test)]
 mod tests {
+    use std::iter::FromIterator;
+
     use bytes::BufMut;
+    use http::{
+        header::{
+            AUTHORIZATION, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE,
+            CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TE, TRAILER, TRANSFER_ENCODING,
+        },
+        HeaderMap, HeaderName, HeaderValue,
+    };
 
     use super::super::io::Cursor;
     use super::Encoder;
@@ -401,5 +522,146 @@ mod tests {
         assert_eq!(dst, b"foo barbaz");
         assert!(!encoder.is_eof());
         encoder.end::<()>().unwrap();
+    }
+
+    #[test]
+    fn chunked_with_valid_trailers() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![HeaderValue::from_static("chunky-trailer")];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let headers = HeaderMap::from_iter(
+            vec![
+                (
+                    HeaderName::from_static("chunky-trailer"),
+                    HeaderValue::from_static("header data"),
+                ),
+                (
+                    HeaderName::from_static("should-not-be-included"),
+                    HeaderValue::from_static("oops"),
+                ),
+            ]
+            .into_iter(),
+        );
+
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(dst, b"0\r\nchunky-trailer: header data\r\n\r\n");
+    }
+
+    #[test]
+    fn chunked_with_multiple_trailer_headers() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![
+            HeaderValue::from_static("chunky-trailer"),
+            HeaderValue::from_static("chunky-trailer-2"),
+        ];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let headers = HeaderMap::from_iter(
+            vec![
+                (
+                    HeaderName::from_static("chunky-trailer"),
+                    HeaderValue::from_static("header data"),
+                ),
+                (
+                    HeaderName::from_static("chunky-trailer-2"),
+                    HeaderValue::from_static("more header data"),
+                ),
+            ]
+            .into_iter(),
+        );
+
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(
+            dst,
+            b"0\r\nchunky-trailer: header data\r\nchunky-trailer-2: more header data\r\n\r\n"
+        );
+    }
+
+    #[test]
+    fn chunked_with_no_trailer_header() {
+        let encoder = Encoder::chunked();
+
+        let headers = HeaderMap::from_iter(
+            vec![(
+                HeaderName::from_static("chunky-trailer"),
+                HeaderValue::from_static("header data"),
+            )]
+            .into_iter(),
+        );
+
+        assert!(encoder
+            .encode_trailers::<&[u8]>(headers.clone(), false)
+            .is_none());
+
+        let trailers = vec![];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        assert!(encoder.encode_trailers::<&[u8]>(headers, false).is_none());
+    }
+
+    #[test]
+    fn chunked_with_invalid_trailers() {
+        let encoder = Encoder::chunked();
+
+        let trailers = format!(
+            "{},{},{},{},{},{},{},{},{},{},{},{}",
+            AUTHORIZATION,
+            CACHE_CONTROL,
+            CONTENT_ENCODING,
+            CONTENT_LENGTH,
+            CONTENT_RANGE,
+            CONTENT_TYPE,
+            HOST,
+            MAX_FORWARDS,
+            SET_COOKIE,
+            TRAILER,
+            TRANSFER_ENCODING,
+            TE,
+        );
+        let trailers = vec![HeaderValue::from_str(&trailers).unwrap()];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let mut headers = HeaderMap::new();
+        headers.insert(AUTHORIZATION, HeaderValue::from_static("header data"));
+        headers.insert(CACHE_CONTROL, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_ENCODING, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_LENGTH, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_RANGE, HeaderValue::from_static("header data"));
+        headers.insert(CONTENT_TYPE, HeaderValue::from_static("header data"));
+        headers.insert(HOST, HeaderValue::from_static("header data"));
+        headers.insert(MAX_FORWARDS, HeaderValue::from_static("header data"));
+        headers.insert(SET_COOKIE, HeaderValue::from_static("header data"));
+        headers.insert(TRAILER, HeaderValue::from_static("header data"));
+        headers.insert(TRANSFER_ENCODING, HeaderValue::from_static("header data"));
+        headers.insert(TE, HeaderValue::from_static("header data"));
+
+        assert!(encoder.encode_trailers::<&[u8]>(headers, true).is_none());
+    }
+
+    #[test]
+    fn chunked_with_title_case_headers() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![HeaderValue::from_static("chunky-trailer")];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let headers = HeaderMap::from_iter(
+            vec![(
+                HeaderName::from_static("chunky-trailer"),
+                HeaderValue::from_static("header data"),
+            )]
+            .into_iter(),
+        );
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, true).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(dst, b"0\r\nChunky-Trailer: header data\r\n\r\n");
     }
 }

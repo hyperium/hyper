@@ -24,6 +24,8 @@ mod tokiort;
 #[allow(unused)]
 pub use tokiort::{TokioExecutor, TokioIo, TokioTimer};
 
+pub mod trailers;
+
 #[allow(unused_macros)]
 macro_rules! t {
     (
