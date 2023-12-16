@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702728983771,
+  "lastUpdate": 1702735470178,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6389,6 +6389,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47902,
             "range": "± 10064",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d9c5d3b9b3921e05040ef50d4aca080f563aac36",
+          "message": "refactor(body): switch opt_len helper macro as function (#3483)",
+          "timestamp": "2023-12-16T09:03:27-05:00",
+          "tree_id": "c811d8b3bb8fc19c15e3438c3397ba663da95099",
+          "url": "https://github.com/hyperium/hyper/commit/d9c5d3b9b3921e05040ef50d4aca080f563aac36"
+        },
+        "date": 1702735468435,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46805,
+            "range": "± 10455",
             "unit": "ns/iter"
           }
         ]
