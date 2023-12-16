@@ -7,11 +7,11 @@ use std::time::Instant;
 
 use bytes::Bytes;
 use bytes::BytesMut;
+#[cfg(feature = "client")]
+use http::header::Entry;
 #[cfg(feature = "server")]
 use http::header::ValueIter;
-use http::header::{self, HeaderName, HeaderValue};
-#[cfg(feature = "client")]
-use http::{header::Entry, HeaderMap};
+use http::header::{self, HeaderMap, HeaderName, HeaderValue};
 use http::{Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
