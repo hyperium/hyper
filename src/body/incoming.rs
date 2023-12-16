@@ -290,24 +290,20 @@ impl Body for Incoming {
             any(feature = "http1", feature = "http2"),
             any(feature = "client", feature = "server")
         ))]
-        macro_rules! opt_len {
-            ($content_length:expr) => {{
-                let mut hint = SizeHint::default();
-
-                if let Some(content_length) = $content_length.into_opt() {
-                    hint.set_exact(content_length);
-                }
-
-                hint
-            }};
+        fn opt_len(decoded_length: DecodedLength) -> SizeHint {
+            if let Some(content_length) = decoded_length.into_opt() {
+                SizeHint::with_exact(content_length)
+            } else {
+                SizeHint::default()
+            }
         }
 
         match self.kind {
             Kind::Empty => SizeHint::with_exact(0),
             #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-            Kind::Chan { content_length, .. } => opt_len!(content_length),
+            Kind::Chan { content_length, .. } => opt_len(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
-            Kind::H2 { content_length, .. } => opt_len!(content_length),
+            Kind::H2 { content_length, .. } => opt_len(content_length),
             #[cfg(feature = "ffi")]
             Kind::Ffi(..) => SizeHint::default(),
         }
