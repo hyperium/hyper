@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702665592067,
+  "lastUpdate": 1702728930972,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6359,6 +6359,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46234,
             "range": "± 9407",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "53b560b87004bf56c93323b728d26edf977864ea",
+          "message": "refactor(proto): use HeaderMap type without client feature (#3491)",
+          "timestamp": "2023-12-16T07:14:38-05:00",
+          "tree_id": "e650525931ac5ba4c55193aa0ec0a175ab7d75dd",
+          "url": "https://github.com/hyperium/hyper/commit/53b560b87004bf56c93323b728d26edf977864ea"
+        },
+        "date": 1702728929213,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47902,
+            "range": "± 10064",
             "unit": "ns/iter"
           }
         ]
