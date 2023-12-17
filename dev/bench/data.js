@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702820677994,
+  "lastUpdate": 1702820733618,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -35791,6 +35791,96 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5096199,
             "range": "± 118466",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "21aa2f1c69e1cc329b5787122c25596e0fa5e3ed",
+          "message": "refactor(common): move common feature cfg in common::task to common::mod (#3492)",
+          "timestamp": "2023-12-17T08:43:43-05:00",
+          "tree_id": "ffb2d83f9d9d5b88082bc28c38d311aef252a9db",
+          "url": "https://github.com/hyperium/hyper/commit/21aa2f1c69e1cc329b5787122c25596e0fa5e3ed"
+        },
+        "date": 1702820731873,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70114,
+            "range": "± 1380",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4039952,
+            "range": "± 161220",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22760,
+            "range": "± 320",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 25340,
+            "range": "± 12327",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 35328,
+            "range": "± 687",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101926,
+            "range": "± 1998",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 39567,
+            "range": "± 1565",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 99111,
+            "range": "± 2768",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49385479,
+            "range": "± 1501305",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 83997498,
+            "range": "± 9024461",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5059227,
+            "range": "± 110613",
             "unit": "ns/iter"
           }
         ]
