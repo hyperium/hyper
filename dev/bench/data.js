@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702735525120,
+  "lastUpdate": 1702820677994,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6419,6 +6419,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46805,
             "range": "± 10455",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "21aa2f1c69e1cc329b5787122c25596e0fa5e3ed",
+          "message": "refactor(common): move common feature cfg in common::task to common::mod (#3492)",
+          "timestamp": "2023-12-17T08:43:43-05:00",
+          "tree_id": "ffb2d83f9d9d5b88082bc28c38d311aef252a9db",
+          "url": "https://github.com/hyperium/hyper/commit/21aa2f1c69e1cc329b5787122c25596e0fa5e3ed"
+        },
+        "date": 1702820675254,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45209,
+            "range": "± 9084",
             "unit": "ns/iter"
           }
         ]
