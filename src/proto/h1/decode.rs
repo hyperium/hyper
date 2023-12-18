@@ -47,6 +47,7 @@ enum Kind {
 
 #[derive(Debug, PartialEq, Clone, Copy)]
 enum ChunkedState {
+    Start,
     Size,
     SizeLws,
     Extension,
@@ -72,7 +73,7 @@ impl Decoder {
 
     pub(crate) fn chunked() -> Decoder {
         Decoder {
-            kind: Kind::Chunked(ChunkedState::Size, 0),
+            kind: Kind::Chunked(ChunkedState::new(), 0),
         }
     }
 
@@ -180,7 +181,22 @@ macro_rules! byte (
     })
 );
 
+macro_rules! or_overflow {
+    ($e:expr) => (
+        match $e {
+            Some(val) => val,
+            None => return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "invalid chunk size: overflow",
+            ))),
+        }
+    )
+}
+
 impl ChunkedState {
+    fn new() -> ChunkedState {
+        ChunkedState::Start
+    }
     fn step<R: MemRead>(
         &self,
         cx: &mut Context<'_>,
@@ -190,6 +206,7 @@ impl ChunkedState {
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
+            Start => ChunkedState::read_start(cx, body, size),
             Size => ChunkedState::read_size(cx, body, size),
             SizeLws => ChunkedState::read_size_lws(cx, body),
             Extension => ChunkedState::read_extension(cx, body),
@@ -204,24 +221,45 @@ impl ChunkedState {
             End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
+
+    fn read_start<R: MemRead>(
+        cx: &mut Context<'_>,
+        rdr: &mut R,
+        size: &mut u64,
+    ) -> Poll<Result<ChunkedState, io::Error>> {
+        trace!("Read chunk start");
+
+        let radix = 16;
+        match byte!(rdr, cx) {
+            b @ b'0'..=b'9' => {
+                *size = or_overflow!(size.checked_mul(radix));
+                *size = or_overflow!(size.checked_add((b - b'0') as u64));
+            }
+            b @ b'a'..=b'f' => {
+                *size = or_overflow!(size.checked_mul(radix));
+                *size = or_overflow!(size.checked_add((b + 10 - b'a') as u64));
+            }
+            b @ b'A'..=b'F' => {
+                *size = or_overflow!(size.checked_mul(radix));
+                *size = or_overflow!(size.checked_add((b + 10 - b'A') as u64));
+            }
+            _ => {
+                return Poll::Ready(Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "Invalid chunk size line: missing size digit",
+                )));
+            }
+        }
+
+        Poll::Ready(Ok(ChunkedState::Size))
+    }
+
     fn read_size<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
         size: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("Read chunk hex size");
-
-        macro_rules! or_overflow {
-            ($e:expr) => (
-                match $e {
-                    Some(val) => val,
-                    None => return Poll::Ready(Err(io::Error::new(
-                        io::ErrorKind::InvalidData,
-                        "invalid chunk size: overflow",
-                    ))),
-                }
-            )
-        }
 
         let radix = 16;
         match byte!(rdr, cx) {
@@ -478,7 +516,7 @@ mod tests {
         use std::io::ErrorKind::{InvalidData, InvalidInput, UnexpectedEof};
 
         async fn read(s: &str) -> u64 {
-            let mut state = ChunkedState::Size;
+            let mut state = ChunkedState::new();
             let rdr = &mut s.as_bytes();
             let mut size = 0;
             loop {
@@ -495,7 +533,7 @@ mod tests {
         }
 
         async fn read_err(s: &str, expected_err: io::ErrorKind) {
-            let mut state = ChunkedState::Size;
+            let mut state = ChunkedState::new();
             let rdr = &mut s.as_bytes();
             let mut size = 0;
             loop {
@@ -532,6 +570,9 @@ mod tests {
         // Missing LF or CRLF
         read_err("F\rF", InvalidInput).await;
         read_err("F", UnexpectedEof).await;
+        // Missing digit
+        read_err("\r\n\r\n", InvalidInput).await;
+        read_err("\r\n", InvalidInput).await;
         // Invalid hex digit
         read_err("X\r\n", InvalidInput).await;
         read_err("1X\r\n", InvalidInput).await;
