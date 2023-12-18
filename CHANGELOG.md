@@ -1,3 +1,25 @@
+### v0.14.28 (2023-12-18)
+
+
+#### Bug Fixes
+
+* **client:**
+  * panic when pool idle timeout set to zero (#3365) ([34d38008](https://github.com/hyperium/hyper/commit/34d38008499de37d9b5b65440b3123ccd05c7510))
+  * divide by zero error when DNS returns no addrs (#3355) ([41eaf204](https://github.com/hyperium/hyper/commit/41eaf2042b8169d3dd067d49cfdbdaaf36678903))
+  * Do not strip `path` and `scheme` components from URIs for HTTP/2 Extended CONNEC ([45aa6249](https://github.com/hyperium/hyper/commit/45aa62494127066c63c987a57cc5eae2c5361886))
+  * early respond from server shouldn't propagate reset error (#3274) ([aac6760e](https://github.com/hyperium/hyper/commit/aac6760e032050dd47f5dbd32f852bf1ede9312b), closes [#2872](https://github.com/hyperium/hyper/issues/2872))
+* **http1:**
+  * add internal limit for chunked extensions (#3495) ([344a8782](https://github.com/hyperium/hyper/commit/344a87822951a46d252843ccc0b48e62988fc85b))
+  * reject chunked headers missing a digit (#3494) ([5eca028f](https://github.com/hyperium/hyper/commit/5eca028f4142e3e73f6d6188a4076f4db292b252))
+
+
+#### Features
+
+* **body:** deprecate to_bytes() and aggregate() (#3466) ([7f382ad6](https://github.com/hyperium/hyper/commit/7f382ad64326e1470912feb310d348fd79099c44))
+* **client:** add `conn::http1::Connection::without_shutdown()` method (#3431) ([ad504977](https://github.com/hyperium/hyper/commit/ad504977b520a9582e5516a08b2f1028ef1b5e45))
+* **server:** add `Builder::local_addr()` (#3278) ([d342c2c7](https://github.com/hyperium/hyper/commit/d342c2c714498d33891fa285a3c9ae991dc34769))
+
+
 ### v0.14.27 (2023-06-26)
 
 
