@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702907437448,
+  "lastUpdate": 1702907491700,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -36031,6 +36031,96 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5089795,
             "range": "± 159326",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d71ff962b08aca2f1c9c1724dfdab5bc1ec6ecd2",
+          "message": "fix(http1): add internal limit for chunked extensions (#3495)\n\nThe chunked transfer-encoding allows for extensions within the header of\r\neach chunk. hyper currently ignores the extension bytes. Sending large\r\namounts of bytes in the extensions will waste CPU reaing and skipping\r\nthem.\r\n\r\nThis change adds an internal limit to how many bytes will be read and\r\nignored in a single body, before returning an error.\r\n\r\nReported-by: Bartek Nowotarski <bartek@nowotarski.info>",
+          "timestamp": "2023-12-18T08:49:44-05:00",
+          "tree_id": "0755a64c721a866e0d03261f1022058ea61c5404",
+          "url": "https://github.com/hyperium/hyper/commit/d71ff962b08aca2f1c9c1724dfdab5bc1ec6ecd2"
+        },
+        "date": 1702907489994,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 72291,
+            "range": "± 2101",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4264315,
+            "range": "± 143593",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22756,
+            "range": "± 419",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 25469,
+            "range": "± 856",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33670,
+            "range": "± 1160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101650,
+            "range": "± 2034",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38180,
+            "range": "± 1518",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 97129,
+            "range": "± 4131",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49627197,
+            "range": "± 731131",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84000591,
+            "range": "± 8298997",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5135698,
+            "range": "± 94066",
             "unit": "ns/iter"
           }
         ]
