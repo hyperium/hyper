@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702906994177,
+  "lastUpdate": 1702907052225,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -35911,6 +35911,96 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5059227,
             "range": "± 110613",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "829153865a4d2bbb52227183c8857e57dc3e231b",
+          "message": "fix(http1): reject chunked headers missing a digit (#3494)\n\nPreviously, hyper would decode `\\r\\n\\r\\n` as `0\\r\\n\\r\\n`. This fixes\r\nhyper to require a digit to be present before starting at 0.\r\n\r\nReported-by: Ben Kallus <benjamin.p.kallus.gr@dartmouth.edu>",
+          "timestamp": "2023-12-18T08:42:15-05:00",
+          "tree_id": "301a74b9a53014ae2628e4675e3567c1bcb760d4",
+          "url": "https://github.com/hyperium/hyper/commit/829153865a4d2bbb52227183c8857e57dc3e231b"
+        },
+        "date": 1702907049599,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68666,
+            "range": "± 2889",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4125073,
+            "range": "± 316821",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22323,
+            "range": "± 454",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24822,
+            "range": "± 486",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33171,
+            "range": "± 878",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100671,
+            "range": "± 1968",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38392,
+            "range": "± 1802",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 96024,
+            "range": "± 1021",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49507118,
+            "range": "± 844686",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84000419,
+            "range": "± 8984969",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5089795,
+            "range": "± 159326",
             "unit": "ns/iter"
           }
         ]
