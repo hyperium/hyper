@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702820733618,
+  "lastUpdate": 1702906994177,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6449,6 +6449,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45209,
             "range": "± 9084",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "829153865a4d2bbb52227183c8857e57dc3e231b",
+          "message": "fix(http1): reject chunked headers missing a digit (#3494)\n\nPreviously, hyper would decode `\\r\\n\\r\\n` as `0\\r\\n\\r\\n`. This fixes\r\nhyper to require a digit to be present before starting at 0.\r\n\r\nReported-by: Ben Kallus <benjamin.p.kallus.gr@dartmouth.edu>",
+          "timestamp": "2023-12-18T08:42:15-05:00",
+          "tree_id": "301a74b9a53014ae2628e4675e3567c1bcb760d4",
+          "url": "https://github.com/hyperium/hyper/commit/829153865a4d2bbb52227183c8857e57dc3e231b"
+        },
+        "date": 1702906991577,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46112,
+            "range": "± 8684",
             "unit": "ns/iter"
           }
         ]
