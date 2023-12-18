@@ -1,3 +1,20 @@
+## v1.1.0 (2023-12-18)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * add internal limit for chunked extensions (#3495) ([d71ff962](https://github.com/hyperium/hyper/commit/d71ff962b08aca2f1c9c1724dfdab5bc1ec6ecd2))
+  * reject chunked headers missing a digit (#3494) ([82915386](https://github.com/hyperium/hyper/commit/829153865a4d2bbb52227183c8857e57dc3e231b))
+
+
+#### Features
+
+* **client:** add `http1::Connection` `without_shutdown()` method (#3430) ([210bfaa7](https://github.com/hyperium/hyper/commit/210bfaa711b5da1f6756582a2e4bc3e229924800))
+* **http1:** Add support for sending HTTP/1.1 Chunked Trailer Fields (#3375) ([31b41807](https://github.com/hyperium/hyper/commit/31b41807523370f3efbf47ba16c9e1c193b6335a), closes [#2719](https://github.com/hyperium/hyper/issues/2719))
+* **server:** expose `server::conn::http1::UpgradeableConnection` (#3457) ([6e3042a8](https://github.com/hyperium/hyper/commit/6e3042a86f10359624857d31bc9e876f521aee42))
+
+
 ### v1.0.1 (2023-11-16)
 
 This release "fixes" or adds a few things that should have been in 1.0.0, but were forgotten. Thus, it includes additions that would normally be a semver-minor release, but because it is so close to 1.0.0, it is released as a patch version.
