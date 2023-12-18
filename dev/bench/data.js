@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702907052225,
+  "lastUpdate": 1702907437448,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6479,6 +6479,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46112,
             "range": "± 8684",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d71ff962b08aca2f1c9c1724dfdab5bc1ec6ecd2",
+          "message": "fix(http1): add internal limit for chunked extensions (#3495)\n\nThe chunked transfer-encoding allows for extensions within the header of\r\neach chunk. hyper currently ignores the extension bytes. Sending large\r\namounts of bytes in the extensions will waste CPU reaing and skipping\r\nthem.\r\n\r\nThis change adds an internal limit to how many bytes will be read and\r\nignored in a single body, before returning an error.\r\n\r\nReported-by: Bartek Nowotarski <bartek@nowotarski.info>",
+          "timestamp": "2023-12-18T08:49:44-05:00",
+          "tree_id": "0755a64c721a866e0d03261f1022058ea61c5404",
+          "url": "https://github.com/hyperium/hyper/commit/d71ff962b08aca2f1c9c1724dfdab5bc1ec6ecd2"
+        },
+        "date": 1702907435420,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46389,
+            "range": "± 9266",
             "unit": "ns/iter"
           }
         ]
