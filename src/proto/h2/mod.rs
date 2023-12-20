@@ -386,6 +386,7 @@ fn h2_to_io_error(e: h2::Error) -> std::io::Error {
     }
 }
 
+#[repr(transparent)]
 struct UpgradedSendStream<B>(SendStream<SendBuf<Neutered<B>>>);
 
 impl<B> UpgradedSendStream<B>
