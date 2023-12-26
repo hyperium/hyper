@@ -35,7 +35,7 @@ pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 //
 // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
 // tested separately.
-const CONNECTION_HEADERS: [HeaderName; 5] = [
+static CONNECTION_HEADERS: [HeaderName; 5] = [
     HeaderName::from_static("keep-alive"),
     HeaderName::from_static("proxy-connection"),
     TRAILER,
