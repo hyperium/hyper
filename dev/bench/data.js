@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1702911373958,
+  "lastUpdate": 1703549375042,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6539,6 +6539,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46478,
             "range": "± 9166",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "3949379+getong@users.noreply.github.com",
+            "name": "19年梦醒",
+            "username": "getong"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "26f867529381f9dafdb9cd76d27e9dbf0fb0b4a4",
+          "message": "docs(examples): use share data in service (#3503)",
+          "timestamp": "2023-12-26T00:08:42Z",
+          "tree_id": "4cdf8340825df5de993260db6dfafae74f009849",
+          "url": "https://github.com/hyperium/hyper/commit/26f867529381f9dafdb9cd76d27e9dbf0fb0b4a4"
+        },
+        "date": 1703549373344,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46943,
+            "range": "± 7006",
             "unit": "ns/iter"
           }
         ]
