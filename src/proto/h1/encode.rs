@@ -110,10 +110,7 @@ impl Encoder {
     }
 
     pub(crate) fn is_chunked(&self) -> bool {
-        match self.kind {
-            Kind::Chunked(_) => true,
-            _ => false,
-        }
+        matches!(self.kind, Kind::Chunked(_))
     }
 
     pub(crate) fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
@@ -182,7 +179,7 @@ impl Encoder {
                     let name = cur_name.as_ref().expect("current header name");
 
                     if allowed_trailer_field_map.contains_key(name.as_str())
-                        && valid_trailer_field(name)
+                        && is_valid_trailer_field(name)
                     {
                         allowed_trailers.insert(name, value);
                     }
@@ -255,22 +252,22 @@ impl Encoder {
     }
 }
 
-fn valid_trailer_field(name: &HeaderName) -> bool {
-    match name {
-        &AUTHORIZATION => false,
-        &CACHE_CONTROL => false,
-        &CONTENT_ENCODING => false,
-        &CONTENT_LENGTH => false,
-        &CONTENT_RANGE => false,
-        &CONTENT_TYPE => false,
-        &HOST => false,
-        &MAX_FORWARDS => false,
-        &SET_COOKIE => false,
-        &TRAILER => false,
-        &TRANSFER_ENCODING => false,
-        &TE => false,
-        _ => true,
-    }
+fn is_valid_trailer_field(name: &HeaderName) -> bool {
+    !matches!(
+        *name,
+        AUTHORIZATION
+            | CACHE_CONTROL
+            | CONTENT_ENCODING
+            | CONTENT_LENGTH
+            | CONTENT_RANGE
+            | CONTENT_TYPE
+            | HOST
+            | MAX_FORWARDS
+            | SET_COOKIE
+            | TRAILER
+            | TRANSFER_ENCODING
+            | TE
+    )
 }
 
 fn allowed_trailer_field_map(allowed_trailer_fields: &Vec<HeaderValue>) -> HashMap<String, ()> {
