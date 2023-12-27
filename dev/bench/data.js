@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703689343536,
+  "lastUpdate": 1703689402523,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -36391,6 +36391,96 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5088091,
             "range": "± 136106",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "9b5f4092a0963e746dddf7c39ca17f84daa8ae18",
+          "message": "refactor(proto): resolve internal mutability in const variable",
+          "timestamp": "2023-12-27T10:01:33-05:00",
+          "tree_id": "0c98d1340305617a7092e1d53f91e0346fb91030",
+          "url": "https://github.com/hyperium/hyper/commit/9b5f4092a0963e746dddf7c39ca17f84daa8ae18"
+        },
+        "date": 1703689400625,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68796,
+            "range": "± 3477",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3983676,
+            "range": "± 78342",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22674,
+            "range": "± 561",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 25242,
+            "range": "± 560",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 34219,
+            "range": "± 2074",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 97551,
+            "range": "± 1212",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37644,
+            "range": "± 1339",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 95994,
+            "range": "± 2398",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 47756924,
+            "range": "± 803079",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 83834930,
+            "range": "± 8810603",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5048189,
+            "range": "± 110359",
             "unit": "ns/iter"
           }
         ]
