@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703549435285,
+  "lastUpdate": 1703689343536,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6569,6 +6569,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46943,
             "range": "± 7006",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "9b5f4092a0963e746dddf7c39ca17f84daa8ae18",
+          "message": "refactor(proto): resolve internal mutability in const variable",
+          "timestamp": "2023-12-27T10:01:33-05:00",
+          "tree_id": "0c98d1340305617a7092e1d53f91e0346fb91030",
+          "url": "https://github.com/hyperium/hyper/commit/9b5f4092a0963e746dddf7c39ca17f84daa8ae18"
+        },
+        "date": 1703689341858,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44761,
+            "range": "± 10831",
             "unit": "ns/iter"
           }
         ]
