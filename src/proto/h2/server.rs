@@ -49,6 +49,7 @@ pub(crate) struct Config {
     pub(crate) max_frame_size: u32,
     pub(crate) enable_connect_protocol: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
+    pub(crate) max_pending_accept_reset_streams: Option<usize>,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
     pub(crate) max_send_buffer_size: usize,
@@ -64,6 +65,7 @@ impl Default for Config {
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             enable_connect_protocol: false,
             max_concurrent_streams: Some(200),
+            max_pending_accept_reset_streams: None,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
@@ -130,6 +132,9 @@ where
             .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
+        }
+        if let Some(max) = config.max_pending_accept_reset_streams {
+            builder.max_pending_accept_reset_streams(max);
         }
         if config.enable_connect_protocol {
             builder.enable_connect_protocol();
