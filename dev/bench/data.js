@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703689402523,
+  "lastUpdate": 1703864448067,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6599,6 +6599,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44761,
             "range": "± 10831",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "44790295+dsgallups@users.noreply.github.com",
+            "name": "Daniel Gallups",
+            "username": "dsgallups"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a9fa893f18c6409abae2e1dcbba0f4487df54d4f",
+          "message": "feat(http2): add `max_pending_accept_reset_streams(num)` back to HTTP/2 server builder (#3507)\n\nIn places where required, the `max_pending_accept_reset_streams` option was reimplemented, as in PR #3201\r\n\r\ncc #3461",
+          "timestamp": "2023-12-29T10:39:56-05:00",
+          "tree_id": "ad2b9b702d1758c367799958c5f7bed54e7b959f",
+          "url": "https://github.com/hyperium/hyper/commit/a9fa893f18c6409abae2e1dcbba0f4487df54d4f"
+        },
+        "date": 1703864446401,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47851,
+            "range": "± 8351",
             "unit": "ns/iter"
           }
         ]
