@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703864448067,
+  "lastUpdate": 1703864511651,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -36511,6 +36511,96 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5048189,
             "range": "± 110359",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "44790295+dsgallups@users.noreply.github.com",
+            "name": "Daniel Gallups",
+            "username": "dsgallups"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a9fa893f18c6409abae2e1dcbba0f4487df54d4f",
+          "message": "feat(http2): add `max_pending_accept_reset_streams(num)` back to HTTP/2 server builder (#3507)\n\nIn places where required, the `max_pending_accept_reset_streams` option was reimplemented, as in PR #3201\r\n\r\ncc #3461",
+          "timestamp": "2023-12-29T10:39:56-05:00",
+          "tree_id": "ad2b9b702d1758c367799958c5f7bed54e7b959f",
+          "url": "https://github.com/hyperium/hyper/commit/a9fa893f18c6409abae2e1dcbba0f4487df54d4f"
+        },
+        "date": 1703864509053,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 79969,
+            "range": "± 5100",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4675595,
+            "range": "± 233779",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22634,
+            "range": "± 665",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 25306,
+            "range": "± 786",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 34259,
+            "range": "± 1009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 106433,
+            "range": "± 5297",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38797,
+            "range": "± 2649",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 98102,
+            "range": "± 3127",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50272477,
+            "range": "± 769372",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84000579,
+            "range": "± 8434840",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5238162,
+            "range": "± 285808",
             "unit": "ns/iter"
           }
         ]
