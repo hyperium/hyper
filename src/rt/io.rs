@@ -244,6 +244,41 @@ impl<'data> ReadBufCursor<'data> {
         self.buf.init = self.buf.filled.max(self.buf.init);
     }
 
+    /// Read into a byte slice safely.
+    ///
+    /// This function provides a safe alternative to the [`as_mut`] and
+    /// [`advance`] APIS. It initializes the uninitialized part of the
+    /// buffer (if one exists) and passed it as a slice to the provided
+    /// closure. Then, it advances the filled part of the buffer by the
+    /// returned value.
+    #[inline]
+    pub fn read_with<E>(&mut self, f: impl FnOnce(&mut [u8]) -> Result<usize, E>) -> Result<(), E> {
+        // Initialize the unfilled portion of this cursor.
+        if self.buf.init < self.buf.raw.len() {
+            self.buf.raw[self.buf.init..].fill(MaybeUninit::new(0));
+            self.buf.init = self.buf.raw.len();
+        }
+
+        // SAFETY: The full buffer is initialized now.
+        let slice = unsafe {
+            core::slice::from_raw_parts_mut(
+                self.buf.raw[self.buf.filled..].as_mut_ptr() as *mut u8,
+                self.buf.raw.len() - self.buf.filled,
+            )
+        };
+
+        // Call the function.
+        let n = match f(slice) {
+            Ok(n) => n,
+            Err(e) => return Err(e),
+        };
+
+        // Advance the buffer.
+        self.buf.filled = self.buf.filled.checked_add(n).expect("overflow");
+
+        Ok(())
+    }
+
     #[inline]
     pub(crate) fn remaining(&self) -> usize {
         self.buf.remaining()
