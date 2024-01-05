@@ -273,6 +273,17 @@ impl<'data> ReadBufCursor<'data> {
             Err(e) => return Err(e),
         };
 
+        // Panic if `n` is greater than the capacity we actually have.
+        if self
+            .buf
+            .filled
+            .checked_add(n)
+            .map(|total| total > self.buf.raw.len())
+            != Some(true)
+        {
+            panic!("closure returned more bytes than are available in the buffer");
+        }
+
         // Advance the buffer.
         self.buf.filled = self.buf.filled.checked_add(n).expect("overflow");
 
