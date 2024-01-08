@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1703864511651,
+  "lastUpdate": 1704738832548,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6629,6 +6629,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47851,
             "range": "± 8351",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b6e3b1b79ba368ab73b8510c2ea59392cb80b2ae",
+          "message": "test(benches): re-enable end-to-end http2 chunked benchmarks (#3517)",
+          "timestamp": "2024-01-08T13:32:53-05:00",
+          "tree_id": "d5cda4afe9597351e07713ab9f2f89fefd75fb38",
+          "url": "https://github.com/hyperium/hyper/commit/b6e3b1b79ba368ab73b8510c2ea59392cb80b2ae"
+        },
+        "date": 1704738829787,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48577,
+            "range": "± 10980",
             "unit": "ns/iter"
           }
         ]
