@@ -342,7 +342,7 @@ mod tests {
     use super::{channel, Callback, Receiver};
 
     #[derive(Debug)]
-    struct Custom(i32);
+    struct Custom(#[allow(dead_code)] i32);
 
     impl<T, U> Future for Receiver<T, U> {
         type Output = Option<(T, Callback<T, U>)>;
