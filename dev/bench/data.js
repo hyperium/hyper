@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1704738901852,
+  "lastUpdate": 1704833708481,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6659,6 +6659,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48577,
             "range": "± 10980",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b1ee2284e25864c64ee608e237e607667c6e648e",
+          "message": "refactor(common): replace hyper::common::ready with futures_util::ready (#3359)",
+          "timestamp": "2024-01-09T15:54:13-05:00",
+          "tree_id": "343dd1e2508cb9822a459ccd45c66dfe153a2205",
+          "url": "https://github.com/hyperium/hyper/commit/b1ee2284e25864c64ee608e237e607667c6e648e"
+        },
+        "date": 1704833705450,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46937,
+            "range": "± 10200",
             "unit": "ns/iter"
           }
         ]
