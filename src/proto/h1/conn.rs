@@ -8,6 +8,7 @@ use std::time::Duration;
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
+use futures_util::ready;
 use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;

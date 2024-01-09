@@ -8,6 +8,7 @@ use std::{
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
+use futures_util::ready;
 use http::Request;
 
 use super::{Http1Transaction, Wants};

@@ -7,6 +7,11 @@ use std::task::{Context, Poll};
 use bytes::Bytes;
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use futures_channel::{mpsc, oneshot};
+#[cfg(all(
+    any(feature = "http1", feature = "http2"),
+    any(feature = "client", feature = "server")
+))]
+use futures_util::ready;
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use futures_util::{stream::FusedStream, Stream}; // for mpsc::Receiver
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]

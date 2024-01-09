@@ -12,6 +12,7 @@ use std::time::Duration;
 use crate::rt::{Read, Write};
 use crate::upgrade::Upgraded;
 use bytes::Bytes;
+use futures_util::ready;
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
