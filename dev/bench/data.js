@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1704833785520,
+  "lastUpdate": 1705070805004,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6689,6 +6689,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46937,
             "range": "± 10200",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dswijj@gmail.com",
+            "name": "dswij",
+            "username": "dswij"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8241f91f5bf9bc8def35cc214a5219ad1a39f71e",
+          "message": "docs(examples): fix client request path (#3520)",
+          "timestamp": "2024-01-12T09:45:52-05:00",
+          "tree_id": "c8cd339c2c74ed08f2f92ded594a9b64194c6e7a",
+          "url": "https://github.com/hyperium/hyper/commit/8241f91f5bf9bc8def35cc214a5219ad1a39f71e"
+        },
+        "date": 1705070803215,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46249,
+            "range": "± 10084",
             "unit": "ns/iter"
           }
         ]
