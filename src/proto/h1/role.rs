@@ -2714,6 +2714,143 @@ mod tests {
     }
 
     #[test]
+    fn parse_too_large_headers() {
+        fn gen_req_with_headers(num: usize) -> String {
+            let mut req = String::from("GET / HTTP/1.1\r\n");
+            for i in 0..num {
+                req.push_str(&format!("key{i}: val{i}\r\n"));
+            }
+            req.push_str("\r\n");
+            req
+        }
+        fn gen_resp_with_headers(num: usize) -> String {
+            let mut req = String::from("HTTP/1.1 200 OK\r\n");
+            for i in 0..num {
+                req.push_str(&format!("key{i}: val{i}\r\n"));
+            }
+            req.push_str("\r\n");
+            req
+        }
+        fn parse(max_headers: Option<usize>, gen_size: usize, should_success: bool) {
+            {
+                // server side
+                let mut bytes = BytesMut::from(gen_req_with_headers(gen_size).as_str());
+                let result = Server::parse(
+                    &mut bytes,
+                    ParseContext {
+                        cached_headers: &mut None,
+                        req_method: &mut None,
+                        h1_parser_config: Default::default(),
+                        h1_max_headers: max_headers,
+                        h1_header_read_timeout: None,
+                        h1_header_read_timeout_fut: &mut None,
+                        h1_header_read_timeout_running: &mut false,
+                        timer: Time::Empty,
+                        preserve_header_case: false,
+                        #[cfg(feature = "ffi")]
+                        preserve_header_order: false,
+                        h09_responses: false,
+                        #[cfg(feature = "ffi")]
+                        on_informational: &mut None,
+                    },
+                );
+                if should_success {
+                    result.expect("parse ok").expect("parse complete");
+                } else {
+                    result.expect_err("parse should err");
+                }
+            }
+            {
+                // client side
+                let mut bytes = BytesMut::from(gen_resp_with_headers(gen_size).as_str());
+                let result = Client::parse(
+                    &mut bytes,
+                    ParseContext {
+                        cached_headers: &mut None,
+                        req_method: &mut None,
+                        h1_parser_config: Default::default(),
+                        h1_max_headers: max_headers,
+                        h1_header_read_timeout: None,
+                        h1_header_read_timeout_fut: &mut None,
+                        h1_header_read_timeout_running: &mut false,
+                        timer: Time::Empty,
+                        preserve_header_case: false,
+                        #[cfg(feature = "ffi")]
+                        preserve_header_order: false,
+                        h09_responses: false,
+                        #[cfg(feature = "ffi")]
+                        on_informational: &mut None,
+                    },
+                );
+                if should_success {
+                    result.expect("parse ok").expect("parse complete");
+                } else {
+                    result.expect_err("parse should err");
+                }
+            }
+        }
+
+        // check generator
+        assert_eq!(
+            gen_req_with_headers(0),
+            String::from("GET / HTTP/1.1\r\n\r\n")
+        );
+        assert_eq!(
+            gen_req_with_headers(1),
+            String::from("GET / HTTP/1.1\r\nkey0: val0\r\n\r\n")
+        );
+        assert_eq!(
+            gen_req_with_headers(2),
+            String::from("GET / HTTP/1.1\r\nkey0: val0\r\nkey1: val1\r\n\r\n")
+        );
+        assert_eq!(
+            gen_req_with_headers(3),
+            String::from("GET / HTTP/1.1\r\nkey0: val0\r\nkey1: val1\r\nkey2: val2\r\n\r\n")
+        );
+
+        // default max_headers is 100, so
+        //
+        // - less than or equal to 100, accepted
+        //
+        parse(None, 0, true);
+        parse(None, 1, true);
+        parse(None, 50, true);
+        parse(None, 99, true);
+        parse(None, 100, true);
+        //
+        // - more than 100, rejected
+        //
+        parse(None, 101, false);
+        parse(None, 102, false);
+        parse(None, 200, false);
+
+        // max_headers is 0, parser will reject any headers
+        //
+        // - without header, accepted
+        //
+        parse(Some(0), 0, true);
+        //
+        // - with header(s), rejected
+        //
+        parse(Some(0), 1, false);
+        parse(Some(0), 100, false);
+
+        // max_headers is 200
+        //
+        // - less than or equal to 200, accepted
+        //
+        parse(Some(200), 0, true);
+        parse(Some(200), 1, true);
+        parse(Some(200), 100, true);
+        parse(Some(200), 200, true);
+        //
+        // - more than 200, rejected
+        //
+        parse(Some(200), 201, false);
+        parse(Some(200), 210, false);
+    }
+
+    #[test]
     fn test_write_headers_orig_case_empty_value() {
         let mut headers = HeaderMap::new();
         let name = http::header::HeaderName::from_static("x-empty");
