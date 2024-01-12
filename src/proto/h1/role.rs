@@ -13,6 +13,7 @@ use http::header::Entry;
 use http::header::ValueIter;
 use http::header::{self, HeaderMap, HeaderName, HeaderValue};
 use http::{Method, StatusCode, Version};
+use smallvec::{smallvec, smallvec_inline, SmallVec};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
@@ -29,7 +30,7 @@ use crate::proto::h1::{
 use crate::proto::RequestHead;
 use crate::proto::{BodyLength, MessageHead, RequestLine};
 
-const MAX_HEADERS: usize = 100;
+const DEFAULT_MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 #[cfg(feature = "server")]
 const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
@@ -139,9 +140,17 @@ impl Http1Transaction for Server {
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
-        let mut headers_indices = [MaybeUninit::<HeaderIndices>::uninit(); MAX_HEADERS];
+        let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
+            match ctx.h1_max_headers {
+                Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+            };
         {
-            let mut headers = [MaybeUninit::<httparse::Header<'_>>::uninit(); MAX_HEADERS];
+            let mut headers: SmallVec<[MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS]> =
+                match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
@@ -966,9 +975,18 @@ impl Http1Transaction for Client {
 
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            let mut headers_indices = [MaybeUninit::<HeaderIndices>::uninit(); MAX_HEADERS];
+            let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
+                match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
             let (len, status, reason, version, headers_len) = {
-                let mut headers = [MaybeUninit::<httparse::Header<'_>>::uninit(); MAX_HEADERS];
+                let mut headers: SmallVec<
+                    [MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS],
+                > = match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
                 trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
@@ -1610,6 +1628,7 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
+                h1_max_headers: None,
                 h1_header_read_timeout: None,
                 h1_header_read_timeout_fut: &mut None,
                 h1_header_read_timeout_running: &mut false,
@@ -1641,6 +1660,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1667,6 +1687,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1691,6 +1712,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1717,6 +1739,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1747,6 +1770,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1774,6 +1798,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1796,6 +1821,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_header_read_timeout_fut: &mut None,
             h1_header_read_timeout_running: &mut false,
@@ -1839,6 +1865,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
@@ -1863,6 +1890,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
@@ -2096,6 +2124,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
@@ -2120,6 +2149,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
@@ -2144,6 +2174,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
@@ -2663,6 +2694,7 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
+                h1_max_headers: None,
                 h1_header_read_timeout: None,
                 h1_header_read_timeout_fut: &mut None,
                 h1_header_read_timeout_running: &mut false,
@@ -2751,6 +2783,7 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
@@ -2795,6 +2828,7 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     h1_header_read_timeout: None,
                     h1_header_read_timeout_fut: &mut None,
                     h1_header_read_timeout_running: &mut false,
