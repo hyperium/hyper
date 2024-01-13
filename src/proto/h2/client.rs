@@ -52,12 +52,21 @@ const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 1024; // 1mb
 
+// The maximum number of concurrent streams that the client is allowed to open
+// before it receives the initial SETTINGS frame from the server.
+// This default value is derived from what the HTTP/2 spec recommends as the
+// minimum value that endpoints advertise to their peers. It means that using
+// this value will minimize the chance of the failure where the local endpoint
+// attempts to open too many streams and gets rejected by the remote peer with
+// the `REFUSED_STREAM` error.
+const DEFAULT_INITIAL_MAX_SEND_STREAMS: usize = 100;
+
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
     pub(crate) adaptive_window: bool,
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
-    pub(crate) initial_max_send_streams: Option<usize>,
+    pub(crate) initial_max_send_streams: usize,
     pub(crate) max_frame_size: u32,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
@@ -72,7 +81,7 @@ impl Default for Config {
             adaptive_window: false,
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
-            initial_max_send_streams: None,
+            initial_max_send_streams: DEFAULT_INITIAL_MAX_SEND_STREAMS,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
@@ -86,14 +95,12 @@ impl Default for Config {
 fn new_builder(config: &Config) -> Builder {
     let mut builder = Builder::default();
     builder
+        .initial_max_send_streams(config.initial_max_send_streams)
         .initial_window_size(config.initial_stream_window_size)
         .initial_connection_window_size(config.initial_conn_window_size)
         .max_frame_size(config.max_frame_size)
         .max_send_buffer_size(config.max_send_buffer_size)
         .enable_push(false);
-    if let Some(initial_max_send_streams) = config.initial_max_send_streams {
-        builder.initial_max_send_streams(initial_max_send_streams);
-    }
     if let Some(max) = config.max_concurrent_reset_streams {
         builder.max_concurrent_reset_streams(max);
     }
