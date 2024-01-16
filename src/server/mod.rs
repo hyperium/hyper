@@ -158,6 +158,7 @@ pub use self::server::Server;
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]
 
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub(crate) mod server;
     pub use self::server::Builder;
 

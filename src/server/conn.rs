@@ -58,6 +58,11 @@ use crate::error::{Kind, Parse};
 #[cfg(feature = "http1")]
 use crate::upgrade::Upgraded;
 
+#[cfg(all(feature = "backports", feature = "http1"))]
+pub mod http1;
+#[cfg(all(feature = "backports", feature = "http2"))]
+pub mod http2;
+
 cfg_feature! {
     #![any(feature = "http1", feature = "http2")]
 
@@ -93,6 +98,12 @@ pub use super::tcp::{AddrIncoming, AddrStream};
 #[derive(Clone, Debug)]
 #[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This struct will be replaced with `server::conn::http1::Builder` and `server::conn::http2::Builder` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
 pub struct Http<E = Exec> {
     pub(crate) exec: E,
     h1_half_close: bool,
@@ -208,6 +219,12 @@ impl<E> Unpin for Fallback<E> {}
 #[derive(Debug)]
 #[cfg(any(feature = "http1", feature = "http2"))]
 #[cfg_attr(docsrs, doc(cfg(any(feature = "http1", feature = "http2"))))]
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This struct will be replaced with `server::conn::http1::Parts` in 1.0, enable the \"backports\" feature to use them now."
+    )
+)]
 pub struct Parts<T, S> {
     /// The original IO object used in the handshake.
     pub io: T,
@@ -227,6 +244,7 @@ pub struct Parts<T, S> {
 
 // ===== impl Http =====
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl Http {
     /// Creates a new instance of the HTTP protocol, ready to spawn a server or
@@ -250,6 +268,7 @@ impl Http {
     }
 }
 
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 #[cfg(any(feature = "http1", feature = "http2"))]
 impl<E> Http<E> {
     /// Sets whether HTTP1 is required.
@@ -327,7 +346,7 @@ impl<E> Http<E> {
         self
     }
 
-    /// Set a timeout for reading client request headers. If a client does not 
+    /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
     /// Default is None.
@@ -372,6 +391,23 @@ impl<E> Http<E> {
                 self.mode = ConnectionMode::Fallback;
             }
         }
+        self
+    }
+
+    /// Configures the maximum number of pending reset streams allowed before a GOAWAY will be sent.
+    ///
+    /// This will default to the default value set by the [`h2` crate](https://crates.io/crates/h2).
+    /// As of v0.3.17, it is 20.
+    ///
+    /// See <https://github.com/hyperium/hyper/issues/2877> for more information.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_pending_accept_reset_streams(
+        &mut self,
+        max: impl Into<Option<usize>>,
+    ) -> &mut Self {
+        self.h2_builder.max_pending_accept_reset_streams = max.into();
+
         self
     }
 
@@ -733,6 +769,7 @@ where
     ///
     /// # Panics
     /// This method will panic if this connection is using an h2 protocol.
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub fn into_parts(self) -> Parts<I, S> {
         self.try_into_parts()
             .unwrap_or_else(|| panic!("h2 cannot into_inner"))
@@ -741,6 +778,7 @@ where
     /// Return the inner IO object, and additional information, if available.
     ///
     /// This method will return a `None` if this connection is using an h2 protocol.
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub fn try_into_parts(self) -> Option<Parts<I, S>> {
         match self.conn.unwrap() {
             #[cfg(feature = "http1")]
@@ -767,12 +805,7 @@ where
     /// upgrade. Once the upgrade is completed, the connection would be "done",
     /// but it is not desired to actually shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
-    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>>
-    where
-        S: Unpin,
-        S::Future: Unpin,
-        B: Unpin,
-    {
+    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
         loop {
             match *self.conn.as_mut().unwrap() {
                 #[cfg(feature = "http1")]
@@ -808,16 +841,17 @@ where
     /// # Error
     ///
     /// This errors if the underlying connection protocol is not HTTP/1.
-    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>>
-    where
-        S: Unpin,
-        S::Future: Unpin,
-        B: Unpin,
-    {
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
+    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> {
         let mut conn = Some(self);
         futures_util::future::poll_fn(move |cx| {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
-            Poll::Ready(conn.take().unwrap().try_into_parts().ok_or_else(crate::Error::new_without_shutdown_not_h1))
+            Poll::Ready(
+                conn.take()
+                    .unwrap()
+                    .try_into_parts()
+                    .ok_or_else(crate::Error::new_without_shutdown_not_h1),
+            )
         })
     }
 
@@ -860,7 +894,7 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<Body, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: AsyncRead + AsyncWrite + Unpin + 'static,
+    I: AsyncRead + AsyncWrite + Unpin,
     B: HttpBody + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: ConnStreamExec<S::Future, B>,

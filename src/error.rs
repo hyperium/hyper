@@ -1,4 +1,7 @@
 //! Error and Result module.
+
+#[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+use crate::client::connect::Connected;
 use std::error::Error as StdError;
 use std::fmt;
 
@@ -15,6 +18,8 @@ pub struct Error {
 struct ErrorImpl {
     kind: Kind,
     cause: Option<Cause>,
+    #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+    connect_info: Option<Connected>,
 }
 
 #[derive(Debug)]
@@ -210,14 +215,31 @@ impl Error {
         self.inner.cause
     }
 
+    /// Returns the info of the client connection on which this error occurred.
+    #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+    pub fn client_connect_info(&self) -> Option<&Connected> {
+        self.inner.connect_info.as_ref()
+    }
+
     pub(super) fn new(kind: Kind) -> Error {
         Error {
-            inner: Box::new(ErrorImpl { kind, cause: None }),
+            inner: Box::new(ErrorImpl {
+                kind,
+                cause: None,
+                #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+                connect_info: None,
+            }),
         }
     }
 
     pub(super) fn with<C: Into<Cause>>(mut self, cause: C) -> Error {
         self.inner.cause = Some(cause.into());
+        self
+    }
+
+    #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
+    pub(super) fn with_client_connect_info(mut self, connect_info: Connected) -> Error {
+        self.inner.connect_info = Some(connect_info);
         self
     }
 

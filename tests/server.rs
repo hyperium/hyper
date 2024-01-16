@@ -1,5 +1,6 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
+#![cfg_attr(feature = "deprecated", allow(deprecated))]
 
 use std::convert::TryInto;
 use std::future::Future;
@@ -92,6 +93,7 @@ mod response_body_lengths {
     }
 
     fn run_test(case: TestCase) {
+        let _ = pretty_env_logger::try_init();
         assert!(
             case.version == 0 || case.version == 1,
             "TestCase.version must 0 or 1"
@@ -156,18 +158,22 @@ mod response_body_lengths {
         let n = body.find("\r\n\r\n").unwrap() + 4;
 
         if case.expects_chunked {
-            let len = body.len();
-            assert_eq!(
-                &body[n + 1..n + 3],
-                "\r\n",
-                "expected body chunk size header"
-            );
-            assert_eq!(&body[n + 3..len - 7], body_str, "expected body");
-            assert_eq!(
-                &body[len - 7..],
-                "\r\n0\r\n\r\n",
-                "expected body final chunk size header"
-            );
+            if body_str.len() > 0 {
+                let len = body.len();
+                assert_eq!(
+                    &body[n + 1..n + 3],
+                    "\r\n",
+                    "expected body chunk size header"
+                );
+                assert_eq!(&body[n + 3..len - 7], body_str, "expected body");
+                assert_eq!(
+                    &body[len - 7..],
+                    "\r\n0\r\n\r\n",
+                    "expected body final chunk size header"
+                );
+            } else {
+                assert_eq!(&body[n..], "0\r\n\r\n");
+            }
         } else {
             assert_eq!(&body[n..], body_str, "expected body");
         }
@@ -214,6 +220,17 @@ mod response_body_lengths {
             // even though we know the length, don't strip user's TE header
             body: Bd::Known("foo bar baz"),
             expects_chunked: true,
+            expects_con_len: false,
+        });
+    }
+
+    #[test]
+    fn chunked_response_known_empty() {
+        run_test(TestCase {
+            version: 1,
+            headers: &[("transfer-encoding", "chunked")],
+            body: Bd::Known(""),
+            expects_chunked: true, // should still send chunked, and 0\r\n\r\n
             expects_con_len: false,
         });
     }
@@ -973,9 +990,8 @@ async fn expect_continue_waits_for_body_poll() {
             service_fn(|req| {
                 assert_eq!(req.headers()["expect"], "100-continue");
                 // But! We're never going to poll the body!
+                drop(req);
                 tokio::time::sleep(Duration::from_millis(50)).map(move |_| {
-                    // Move and drop the req, so we don't auto-close
-                    drop(req);
                     Response::builder()
                         .status(StatusCode::BAD_REQUEST)
                         .body(hyper::Body::empty())
@@ -2537,6 +2553,7 @@ async fn http2_keep_alive_with_responsive_client() {
     });
 
     let tcp = connect_async(addr).await;
+    #[allow(deprecated)]
     let (mut client, conn) = hyper::client::conn::Builder::new()
         .http2_only(true)
         .handshake::<_, Body>(tcp)
@@ -2641,6 +2658,146 @@ async fn http2_keep_alive_count_server_pings() {
         .expect("timed out waiting for pings");
 }
 
+// Tests for backported 1.0 APIs
+#[deny(deprecated)]
+#[cfg(feature = "backports")]
+mod backports {
+    use super::*;
+    use hyper::server::conn::{http1, http2};
+
+    #[tokio::test]
+    async fn http_connect() {
+        let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let (tx, rx) = oneshot::channel();
+
+        thread::spawn(move || {
+            let mut tcp = connect(&addr);
+            tcp.write_all(
+                b"\
+            CONNECT localhost:80 HTTP/1.1\r\n\
+            \r\n\
+            eagerly optimistic\
+        ",
+            )
+            .expect("write 1");
+            let mut buf = [0; 256];
+            tcp.read(&mut buf).expect("read 1");
+
+            let expected = "HTTP/1.1 200 OK\r\n";
+            assert_eq!(s(&buf[..expected.len()]), expected);
+            let _ = tx.send(());
+
+            let n = tcp.read(&mut buf).expect("read 2");
+            assert_eq!(s(&buf[..n]), "foo=bar");
+            tcp.write_all(b"bar=foo").expect("write 2");
+        });
+
+        let (socket, _) = listener.accept().await.unwrap();
+        let conn = http1::Builder::new().serve_connection(
+            socket,
+            service_fn(|_| {
+                // In 1.0 we would use `http_body_util::Empty::<Bytes>::new()` to construct
+                // an empty body
+                let res = Response::builder().status(200).body(Body::empty()).unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+
+        let parts = conn.without_shutdown().await.unwrap();
+        assert_eq!(parts.read_buf, "eagerly optimistic");
+
+        // wait so that we don't write until other side saw 101 response
+        rx.await.unwrap();
+
+        let mut io = parts.io;
+        io.write_all(b"foo=bar").await.unwrap();
+        let mut vec = vec![];
+        io.read_to_end(&mut vec).await.unwrap();
+        assert_eq!(vec, b"bar=foo");
+    }
+
+    #[tokio::test]
+    async fn h2_connect() {
+        let listener = tcp_bind(&"127.0.0.1:0".parse().unwrap()).unwrap();
+        let addr = listener.local_addr().unwrap();
+
+        let conn = connect_async(addr).await;
+
+        let (h2, connection) = h2::client::handshake(conn).await.unwrap();
+        tokio::spawn(async move {
+            connection.await.unwrap();
+        });
+        let mut h2 = h2.ready().await.unwrap();
+
+        async fn connect_and_recv_bread(
+            h2: &mut SendRequest<Bytes>,
+        ) -> (RecvStream, SendStream<Bytes>) {
+            let request = Request::connect("localhost").body(()).unwrap();
+            let (response, send_stream) = h2.send_request(request, false).unwrap();
+            let response = response.await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+
+            let mut body = response.into_body();
+            let bytes = body.data().await.unwrap().unwrap();
+            assert_eq!(&bytes[..], b"Bread?");
+            let _ = body.flow_control().release_capacity(bytes.len());
+
+            (body, send_stream)
+        }
+
+        tokio::spawn(async move {
+            let (mut recv_stream, mut send_stream) = connect_and_recv_bread(&mut h2).await;
+
+            send_stream.send_data("Baguette!".into(), true).unwrap();
+
+            assert!(recv_stream.data().await.unwrap().unwrap().is_empty());
+        });
+
+        // In 1.0 the `Body` struct is renamed to `IncomingBody`
+        let svc = service_fn(move |req: Request<Body>| {
+            let on_upgrade = hyper::upgrade::on(req);
+
+            tokio::spawn(async move {
+                let mut upgraded = on_upgrade.await.expect("on_upgrade");
+                upgraded.write_all(b"Bread?").await.unwrap();
+
+                let mut vec = vec![];
+                upgraded.read_to_end(&mut vec).await.unwrap();
+                assert_eq!(s(&vec), "Baguette!");
+
+                upgraded.shutdown().await.unwrap();
+            });
+
+            future::ok::<_, hyper::Error>(
+                // In 1.0 we would use `http_body_util::Empty::<Bytes>::new()` to construct
+                // an empty body
+                Response::builder().status(200).body(Body::empty()).unwrap(),
+            )
+        });
+
+        let (socket, _) = listener.accept().await.unwrap();
+        http2::Builder::new(TokioExecutor)
+            .serve_connection(socket, svc)
+            .await
+            .unwrap();
+    }
+
+    #[derive(Clone)]
+    /// An Executor that uses the tokio runtime.
+    pub struct TokioExecutor;
+
+    impl<F> hyper::rt::Executor<F> for TokioExecutor
+    where
+        F: std::future::Future + Send + 'static,
+        F::Output: Send + 'static,
+    {
+        fn execute(&self, fut: F) {
+            tokio::task::spawn(fut);
+        }
+    }
+}
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
