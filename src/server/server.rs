@@ -387,6 +387,21 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Configures the maximum number of local reset streams allowed before a GOAWAY will be sent.
+    ///
+    /// If not set, hyper will use a default, currently of 1024.
+    ///
+    /// If `None` is supplied, hyper will not apply any limit.
+    /// This is not advised, as it can potentially expose servers to DOS vulnerabilities.
+    ///
+    /// See <https://rustsec.org/advisories/RUSTSEC-2024-0003.html> for more information.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_max_local_error_reset_streams(mut self, max: impl Into<Option<usize>>) -> Self {
+        self.protocol.http2_max_local_error_reset_streams(max);
+        self
+    }
+
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
     /// stream-level flow control.
     ///
