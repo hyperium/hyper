@@ -41,6 +41,7 @@ const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
                                                      // 16 MB "sane default" taken from golang http2
 const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
+const DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS: usize = 1024;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -51,6 +52,7 @@ pub(crate) struct Config {
     pub(crate) enable_connect_protocol: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
     pub(crate) max_pending_accept_reset_streams: Option<usize>,
+    pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
     pub(crate) max_send_buffer_size: usize,
@@ -67,6 +69,7 @@ impl Default for Config {
             enable_connect_protocol: false,
             max_concurrent_streams: Some(200),
             max_pending_accept_reset_streams: None,
+            max_local_error_reset_streams: Some(DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS),
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
@@ -130,6 +133,7 @@ where
             .initial_connection_window_size(config.initial_conn_window_size)
             .max_frame_size(config.max_frame_size)
             .max_header_list_size(config.max_header_list_size)
+            .max_local_error_reset_streams(config.max_pending_accept_reset_streams)
             .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
