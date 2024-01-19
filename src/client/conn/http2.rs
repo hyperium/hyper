@@ -310,15 +310,11 @@ where
     /// This value will be overwritten by the value included in the initial
     /// SETTINGS frame received from the peer as part of a [connection preface].
     ///
-    /// Passing `None` will do nothing.
-    ///
-    /// If not set, hyper will use a default.
+    /// The default value is determined by the `h2` crate, but may change.
     ///
     /// [connection preface]: https://httpwg.org/specs/rfc9113.html#preface
     pub fn initial_max_send_streams(&mut self, initial: impl Into<Option<usize>>) -> &mut Self {
-        if let Some(initial) = initial.into() {
-            self.h2_builder.initial_max_send_streams = initial;
-        }
+        self.h2_builder.initial_max_send_streams = initial.into();
         self
     }
 
