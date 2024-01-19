@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1705684241854,
+  "lastUpdate": 1705688257273,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6749,6 +6749,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47010,
             "range": "± 10613",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "nkennedy@cloudflare.com",
+            "name": "Noah Kennedy",
+            "username": "Noah-Kennedy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d7680e30e48926a5a3f94a0986d39181d5ab2218",
+          "message": "feat(http2): add config for `max_local_error_reset_streams` in server (#3530)\n\nThis change exposes a tunable for the max_local_error_reset_streams parameter in h2.",
+          "timestamp": "2024-01-19T13:16:42-05:00",
+          "tree_id": "9534f03815f1c69ab6b44536f40a23c50b33a3e1",
+          "url": "https://github.com/hyperium/hyper/commit/d7680e30e48926a5a3f94a0986d39181d5ab2218"
+        },
+        "date": 1705688255451,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48886,
+            "range": "± 9712",
             "unit": "ns/iter"
           }
         ]
