@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1705070881012,
+  "lastUpdate": 1705684172133,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6719,6 +6719,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46249,
             "range": "± 10084",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "yusuktan@maguro.dev",
+            "name": "Yusuke Tanaka",
+            "username": "magurotuna"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fdfa60d9fafb8a6bfb40acc4042ee54a2b9aad32",
+          "message": "feat(http2): add `initial_max_send_streams` method to HTTP/2 client builder (#3524)",
+          "timestamp": "2024-01-19T12:08:38-05:00",
+          "tree_id": "ec4b03d41c10dab4006aa7b72e4124cea2286349",
+          "url": "https://github.com/hyperium/hyper/commit/fdfa60d9fafb8a6bfb40acc4042ee54a2b9aad32"
+        },
+        "date": 1705684170314,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47010,
+            "range": "± 10613",
             "unit": "ns/iter"
           }
         ]
