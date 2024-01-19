@@ -52,6 +52,7 @@ pub(crate) struct Config {
     pub(crate) adaptive_window: bool,
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
+    pub(crate) initial_max_send_streams: Option<usize>,
     pub(crate) max_frame_size: u32,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
@@ -69,6 +70,7 @@ impl Default for Config {
             adaptive_window: false,
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
+            initial_max_send_streams: None,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             #[cfg(feature = "runtime")]
             keep_alive_interval: None,
@@ -90,6 +92,9 @@ fn new_builder(config: &Config) -> Builder {
         .max_frame_size(config.max_frame_size)
         .max_send_buffer_size(config.max_send_buffer_size)
         .enable_push(false);
+    if let Some(initial_max_send_streams) = config.initial_max_send_streams {
+        builder.initial_max_send_streams(initial_max_send_streams);
+    }
     if let Some(max) = config.max_concurrent_reset_streams {
         builder.max_concurrent_reset_streams(max);
     }
