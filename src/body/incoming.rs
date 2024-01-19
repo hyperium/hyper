@@ -554,7 +554,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(miri))] // TODO issue #3015
     fn channel_wanter() {
         let (mut tx, mut rx) =
             Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
@@ -577,7 +576,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(miri))] // TODO issue #3015
     fn channel_notices_closure() {
         let (mut tx, rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
