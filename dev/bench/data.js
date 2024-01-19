@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1705688327942,
+  "lastUpdate": 1705694328744,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6779,6 +6779,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48886,
             "range": "± 9712",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "cd15469475cc6a6cecc5a496c09593edb50dc42a",
+          "message": "doc(contrib): move cargo fmt notes to CODE_STYLE.md",
+          "timestamp": "2024-01-19T14:57:47-05:00",
+          "tree_id": "6ac4e3cafcd37fb27ed06e8e6141df1925d5d6b0",
+          "url": "https://github.com/hyperium/hyper/commit/cd15469475cc6a6cecc5a496c09593edb50dc42a"
+        },
+        "date": 1705694320826,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46481,
+            "range": "± 8845",
             "unit": "ns/iter"
           }
         ]
