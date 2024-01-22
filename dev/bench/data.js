@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1705694385081,
+  "lastUpdate": 1705934844612,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6809,6 +6809,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46481,
             "range": "± 8845",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "a52d39119890ccf40f17be9dc3cf4e558d54fb6d",
+          "message": "test(body): re-enable miri on a few channel tests",
+          "timestamp": "2024-01-22T09:46:28-05:00",
+          "tree_id": "e4e7b24c2e491aac3e7740313fc6e51d76650283",
+          "url": "https://github.com/hyperium/hyper/commit/a52d39119890ccf40f17be9dc3cf4e558d54fb6d"
+        },
+        "date": 1705934842734,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46856,
+            "range": "± 8844",
             "unit": "ns/iter"
           }
         ]
