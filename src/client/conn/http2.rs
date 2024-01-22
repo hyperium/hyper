@@ -426,7 +426,7 @@ where
         let opts = self.clone();
 
         async move {
-            trace!("client handshake HTTP/1");
+            trace!("client handshake HTTP/2");
 
             let (tx, rx) = dispatch::channel();
             let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
