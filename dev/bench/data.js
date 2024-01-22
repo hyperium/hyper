@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1705934915659,
+  "lastUpdate": 1705957250163,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6839,6 +6839,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46856,
             "range": "± 8844",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "github@erebe.eu",
+            "name": "Erèbe - Romain Gerard",
+            "username": "erebe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "79862ec2e84c32122c820958ceec06d8b7701ff7",
+          "message": "fix(http2): typo in trace logging (#3536)",
+          "timestamp": "2024-01-22T15:59:51-05:00",
+          "tree_id": "7adf9958a848c891309126d5e0f1e1e7e40ccc10",
+          "url": "https://github.com/hyperium/hyper/commit/79862ec2e84c32122c820958ceec06d8b7701ff7"
+        },
+        "date": 1705957244852,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46927,
+            "range": "± 8984",
             "unit": "ns/iter"
           }
         ]
