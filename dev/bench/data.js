@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1705957309757,
+  "lastUpdate": 1706016734713,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6869,6 +6869,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46927,
             "range": "± 8984",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dswijj@gmail.com",
+            "name": "dswij",
+            "username": "dswij"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7a0a640dc7bec93c282f4ce8f46245a93ccd06fb",
+          "message": "docs(maintainers): add dswij (@dswij) to triagers (#3540)",
+          "timestamp": "2024-01-23T08:31:16-05:00",
+          "tree_id": "deb064fa6f82b2e919c46a97429d42bbc7cc8077",
+          "url": "https://github.com/hyperium/hyper/commit/7a0a640dc7bec93c282f4ce8f46245a93ccd06fb"
+        },
+        "date": 1706016731920,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48956,
+            "range": "± 11542",
             "unit": "ns/iter"
           }
         ]
