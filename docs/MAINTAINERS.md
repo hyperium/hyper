@@ -8,6 +8,7 @@ To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERN
 - Oddbjørn Grødem (@oddgrd)
 - Noah Kennedy (@Noah-Kennedy)
 - tottoto (@tottoto)
+- dswij (@dswij)
 
 ## Collaborators
 
