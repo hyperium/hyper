@@ -191,6 +191,7 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
+                    h1_max_headers: parse_ctx.h1_max_headers,
                     #[cfg(all(feature = "server", feature = "runtime"))]
                     h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
                     #[cfg(all(feature = "server", feature = "runtime"))]
@@ -741,6 +742,7 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
+                h1_max_headers: None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "runtime")]

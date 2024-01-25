@@ -7,6 +7,7 @@ use bytes::BytesMut;
 use http::header::ValueIter;
 use http::header::{self, Entry, HeaderName, HeaderValue};
 use http::{HeaderMap, Method, StatusCode, Version};
+use smallvec::{smallvec, smallvec_inline, SmallVec};
 #[cfg(all(feature = "server", feature = "runtime"))]
 use tokio::time::Instant;
 use tracing::{debug, error, trace, trace_span, warn};
@@ -24,7 +25,7 @@ use crate::proto::h1::{
 };
 use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
 
-const MAX_HEADERS: usize = 100;
+const DEFAULT_MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 #[cfg(feature = "server")]
 const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
@@ -169,14 +170,17 @@ impl Http1Transaction for Server {
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
-            // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-            MaybeUninit::uninit().assume_init()
-        };
+        let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
+            match ctx.h1_max_headers {
+                Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+            };
         {
-            /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
-            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
-                unsafe { MaybeUninit::uninit().assume_init() };
+            let mut headers: SmallVec<[MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS]> =
+                match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
@@ -966,15 +970,18 @@ impl Http1Transaction for Client {
 
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            // Unsafe: see comment in Server Http1Transaction, above.
-            let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-                MaybeUninit::uninit().assume_init()
-            };
+            let mut headers_indices: SmallVec<[MaybeUninit<HeaderIndices>; DEFAULT_MAX_HEADERS]> =
+                match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
             let (len, status, reason, version, headers_len) = {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-                let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
-                    unsafe { MaybeUninit::uninit().assume_init() };
+                let mut headers: SmallVec<
+                    [MaybeUninit<httparse::Header<'_>>; DEFAULT_MAX_HEADERS],
+                > = match ctx.h1_max_headers {
+                    Some(cap) => smallvec![MaybeUninit::uninit(); cap],
+                    None => smallvec_inline![MaybeUninit::uninit(); DEFAULT_MAX_HEADERS],
+                };
                 trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
@@ -1555,6 +1562,7 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
+                h1_max_headers: None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "runtime")]
@@ -1590,6 +1598,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1620,6 +1629,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1648,6 +1658,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1678,6 +1689,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1712,6 +1724,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1743,6 +1756,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1769,6 +1783,7 @@ mod tests {
             cached_headers: &mut None,
             req_method: &mut None,
             h1_parser_config: Default::default(),
+            h1_max_headers: None,
             #[cfg(feature = "runtime")]
             h1_header_read_timeout: None,
             #[cfg(feature = "runtime")]
@@ -1816,6 +1831,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]
@@ -1844,6 +1860,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]
@@ -2081,6 +2098,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]
@@ -2109,6 +2127,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]
@@ -2137,6 +2156,7 @@ mod tests {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]
@@ -2642,6 +2662,7 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
+                h1_max_headers: None,
                 #[cfg(feature = "runtime")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "runtime")]
@@ -2662,6 +2683,143 @@ mod tests {
         .expect("parse complete");
 
         assert_eq!(parsed.head.headers["server"], "hello\tworld");
+    }
+
+    #[test]
+    fn parse_too_large_headers() {
+        fn gen_req_with_headers(num: usize) -> String {
+            let mut req = String::from("GET / HTTP/1.1\r\n");
+            for i in 0..num {
+                req.push_str(&format!("key{i}: val{i}\r\n"));
+            }
+            req.push_str("\r\n");
+            req
+        }
+        fn gen_resp_with_headers(num: usize) -> String {
+            let mut req = String::from("HTTP/1.1 200 OK\r\n");
+            for i in 0..num {
+                req.push_str(&format!("key{i}: val{i}\r\n"));
+            }
+            req.push_str("\r\n");
+            req
+        }
+        fn parse(max_headers: Option<usize>, gen_size: usize, should_success: bool) {
+            {
+                // server side
+                let mut bytes = BytesMut::from(gen_req_with_headers(gen_size).as_str());
+                let result = Server::parse(
+                    &mut bytes,
+                    ParseContext {
+                        cached_headers: &mut None,
+                        req_method: &mut None,
+                        h1_parser_config: Default::default(),
+                        h1_max_headers: max_headers,
+                        h1_header_read_timeout: None,
+                        h1_header_read_timeout_fut: &mut None,
+                        h1_header_read_timeout_running: &mut false,
+                        timer: Time::Empty,
+                        preserve_header_case: false,
+                        #[cfg(feature = "ffi")]
+                        preserve_header_order: false,
+                        h09_responses: false,
+                        #[cfg(feature = "ffi")]
+                        on_informational: &mut None,
+                    },
+                );
+                if should_success {
+                    result.expect("parse ok").expect("parse complete");
+                } else {
+                    result.expect_err("parse should err");
+                }
+            }
+            {
+                // client side
+                let mut bytes = BytesMut::from(gen_resp_with_headers(gen_size).as_str());
+                let result = Client::parse(
+                    &mut bytes,
+                    ParseContext {
+                        cached_headers: &mut None,
+                        req_method: &mut None,
+                        h1_parser_config: Default::default(),
+                        h1_max_headers: max_headers,
+                        h1_header_read_timeout: None,
+                        h1_header_read_timeout_fut: &mut None,
+                        h1_header_read_timeout_running: &mut false,
+                        timer: Time::Empty,
+                        preserve_header_case: false,
+                        #[cfg(feature = "ffi")]
+                        preserve_header_order: false,
+                        h09_responses: false,
+                        #[cfg(feature = "ffi")]
+                        on_informational: &mut None,
+                    },
+                );
+                if should_success {
+                    result.expect("parse ok").expect("parse complete");
+                } else {
+                    result.expect_err("parse should err");
+                }
+            }
+        }
+
+        // check generator
+        assert_eq!(
+            gen_req_with_headers(0),
+            String::from("GET / HTTP/1.1\r\n\r\n")
+        );
+        assert_eq!(
+            gen_req_with_headers(1),
+            String::from("GET / HTTP/1.1\r\nkey0: val0\r\n\r\n")
+        );
+        assert_eq!(
+            gen_req_with_headers(2),
+            String::from("GET / HTTP/1.1\r\nkey0: val0\r\nkey1: val1\r\n\r\n")
+        );
+        assert_eq!(
+            gen_req_with_headers(3),
+            String::from("GET / HTTP/1.1\r\nkey0: val0\r\nkey1: val1\r\nkey2: val2\r\n\r\n")
+        );
+
+        // default max_headers is 100, so
+        //
+        // - less than or equal to 100, accepted
+        //
+        parse(None, 0, true);
+        parse(None, 1, true);
+        parse(None, 50, true);
+        parse(None, 99, true);
+        parse(None, 100, true);
+        //
+        // - more than 100, rejected
+        //
+        parse(None, 101, false);
+        parse(None, 102, false);
+        parse(None, 200, false);
+
+        // max_headers is 0, parser will reject any headers
+        //
+        // - without header, accepted
+        //
+        parse(Some(0), 0, true);
+        //
+        // - with header(s), rejected
+        //
+        parse(Some(0), 1, false);
+        parse(Some(0), 100, false);
+
+        // max_headers is 200
+        //
+        // - less than or equal to 200, accepted
+        //
+        parse(Some(200), 0, true);
+        parse(Some(200), 1, true);
+        parse(Some(200), 100, true);
+        parse(Some(200), 200, true);
+        //
+        // - more than 200, rejected
+        //
+        parse(Some(200), 201, false);
+        parse(Some(200), 210, false);
     }
 
     #[test]
@@ -2756,6 +2914,7 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]
@@ -2804,6 +2963,7 @@ mod tests {
                     cached_headers: &mut headers,
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
+                    h1_max_headers: None,
                     #[cfg(feature = "runtime")]
                     h1_header_read_timeout: None,
                     #[cfg(feature = "runtime")]

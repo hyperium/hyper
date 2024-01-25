@@ -42,6 +42,7 @@ pub struct Builder {
     h1_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    h1_max_headers: Option<usize>,
     h1_header_read_timeout: Option<Duration>,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
@@ -208,6 +209,7 @@ impl Builder {
             h1_keep_alive: true,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            h1_max_headers: None,
             h1_header_read_timeout: None,
             h1_writev: None,
             max_buf_size: None,
@@ -257,6 +259,24 @@ impl Builder {
     /// Default is false.
     pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
+        self
+    }
+
+    /// Set the maximum number of headers.
+    ///
+    /// When a request is received, the parser will reserve a buffer to store headers for optimal
+    /// performance.
+    ///
+    /// If server receives more headers than the buffer size, it responds to the client with
+    /// "431 Request Header Fields Too Large".
+    ///
+    /// Note that headers is allocated on the stack by default, which has higher performance. After
+    /// setting this value, headers will be allocated in heap memory, that is, heap memory
+    /// allocation will occur for each request, and there will be a performance drop of about 5%.
+    ///
+    /// Default is 100.
+    pub fn max_headers(&mut self, val: usize) -> &mut Self {
+        self.h1_max_headers = Some(val);
         self
     }
 
@@ -369,6 +389,9 @@ impl Builder {
         }
         if self.h1_preserve_header_case {
             conn.set_preserve_header_case();
+        }
+        if let Some(max_headers) = self.h1_max_headers {
+            conn.set_http1_max_headers(max_headers);
         }
         if let Some(header_read_timeout) = self.h1_header_read_timeout {
             conn.set_http1_header_read_timeout(header_read_timeout);
