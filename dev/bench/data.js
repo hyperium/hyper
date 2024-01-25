@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1706107922503,
+  "lastUpdate": 1706219580034,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6929,6 +6929,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46184,
             "range": "± 10012",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "wfly1998@sina.com",
+            "name": "Yukiteru Li",
+            "username": "wfly1998"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b114244898828e9fb254bea1f0bbdd24850b2f3f",
+          "message": "feat(http1): support configurable `max_headers(num)` to client and server (#3523)",
+          "timestamp": "2024-01-25T16:52:07-05:00",
+          "tree_id": "37197ae22473a64d1eaf0751f5a812fd4e88daa5",
+          "url": "https://github.com/hyperium/hyper/commit/b114244898828e9fb254bea1f0bbdd24850b2f3f"
+        },
+        "date": 1706219578073,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46024,
+            "range": "± 8966",
             "unit": "ns/iter"
           }
         ]
