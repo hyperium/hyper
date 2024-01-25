@@ -54,6 +54,7 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
+                h1_max_headers: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "server")]
@@ -132,6 +133,10 @@ where
         self.state.h09_responses = true;
     }
 
+    pub(crate) fn set_http1_max_headers(&mut self, val: usize) {
+        self.state.h1_max_headers = Some(val);
+    }
+
     #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
@@ -207,6 +212,7 @@ where
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
+                h1_max_headers: self.state.h1_max_headers,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: self.state.h1_header_read_timeout,
                 #[cfg(feature = "server")]
@@ -847,6 +853,7 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
+    h1_max_headers: Option<usize>,
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "server")]

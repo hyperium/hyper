@@ -115,6 +115,7 @@ pub struct Builder {
     h1_writev: Option<bool>,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
+    h1_max_headers: Option<usize>,
     #[cfg(feature = "ffi")]
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
@@ -309,6 +310,7 @@ impl Builder {
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
+            h1_max_headers: None,
             #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
@@ -439,6 +441,24 @@ impl Builder {
         self
     }
 
+    /// Set the maximum number of headers.
+    ///
+    /// When a response is received, the parser will reserve a buffer to store headers for optimal
+    /// performance.
+    ///
+    /// If client receives more headers than the buffer size, the error "message header too large"
+    /// is returned.
+    ///
+    /// Note that headers is allocated on the stack by default, which has higher performance. After
+    /// setting this value, headers will be allocated in heap memory, that is, heap memory
+    /// allocation will occur for each response, and there will be a performance drop of about 5%.
+    ///
+    /// Default is 100.
+    pub fn max_headers(&mut self, val: usize) -> &mut Self {
+        self.h1_max_headers = Some(val);
+        self
+    }
+
     /// Set whether to support preserving original header order.
     ///
     /// Currently, this will record the order in which headers are received, and store this
@@ -518,6 +538,9 @@ impl Builder {
             }
             if opts.h1_preserve_header_case {
                 conn.set_preserve_header_case();
+            }
+            if let Some(max_headers) = opts.h1_max_headers {
+                conn.set_http1_max_headers(max_headers);
             }
             #[cfg(feature = "ffi")]
             if opts.h1_preserve_header_order {
