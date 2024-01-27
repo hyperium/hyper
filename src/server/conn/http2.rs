@@ -2,16 +2,20 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
+use futures_util::ready;
 use pin_project_lite::pin_project;
 
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto;
-use crate::rt::bounds::Http2ConnExec;
+use crate::rt::bounds::Http2ServerConnExec;
 use crate::service::HttpService;
 use crate::{common::time::Time, rt::Timer};
 
@@ -32,6 +36,9 @@ pin_project! {
 }
 
 /// A configuration builder for HTTP/2 server connections.
+///
+/// **Note**: The default values of options are *not considered stable*. They
+/// are subject to change at any time.
 #[derive(Clone, Debug)]
 pub struct Builder<E> {
     exec: E,
@@ -57,7 +64,7 @@ where
     I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -81,11 +88,11 @@ where
     I: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.conn).poll(cx)) {
             Ok(_done) => {
                 //TODO: the proto::h2::Server no longer needs to return
@@ -103,15 +110,41 @@ impl<E> Builder<E> {
     /// Create a new connection builder.
     ///
     /// This starts with the default options, and an executor which is a type
-    /// that implements [`Http2ConnExec`] trait.
+    /// that implements [`Http2ServerConnExec`] trait.
     ///
-    /// [`Http2ConnExec`]: crate::rt::bounds::Http2ConnExec
+    /// [`Http2ServerConnExec`]: crate::rt::bounds::Http2ServerConnExec
     pub fn new(exec: E) -> Self {
         Self {
-            exec: exec,
+            exec,
             timer: Time::Empty,
             h2_builder: Default::default(),
         }
+    }
+
+    /// Configures the maximum number of pending reset streams allowed before a GOAWAY will be sent.
+    ///
+    /// This will default to the default value set by the [`h2` crate](https://crates.io/crates/h2).
+    /// As of v0.4.0, it is 20.
+    ///
+    /// See <https://github.com/hyperium/hyper/issues/2877> for more information.
+    pub fn max_pending_accept_reset_streams(&mut self, max: impl Into<Option<usize>>) -> &mut Self {
+        self.h2_builder.max_pending_accept_reset_streams = max.into();
+        self
+    }
+
+    /// Configures the maximum number of local reset streams allowed before a GOAWAY will be sent.
+    ///
+    /// If not set, hyper will use a default, currently of 1024.
+    ///
+    /// If `None` is supplied, hyper will not apply any limit.
+    /// This is not advised, as it can potentially expose servers to DOS vulnerabilities.
+    ///
+    /// See <https://rustsec.org/advisories/RUSTSEC-2024-0003.html> for more information.
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn max_local_error_reset_streams(mut self, max: impl Into<Option<usize>>) -> Self {
+        self.h2_builder.max_local_error_reset_streams = max.into();
+        self
     }
 
     /// Sets the [`SETTINGS_INITIAL_WINDOW_SIZE`][spec] option for HTTP2
@@ -174,7 +207,10 @@ impl<E> Builder<E> {
     /// Sets the [`SETTINGS_MAX_CONCURRENT_STREAMS`][spec] option for HTTP2
     /// connections.
     ///
-    /// Default is no limit (`std::u32::MAX`). Passing `None` will do nothing.
+    /// Default is 200, but not part of the stability of hyper. It could change
+    /// in a future release. You are encouraged to set your own limit.
+    ///
+    /// Passing `None` will remove any limit.
     ///
     /// [spec]: https://httpwg.org/specs/rfc9113.html#SETTINGS_MAX_CONCURRENT_STREAMS
     pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
@@ -188,9 +224,6 @@ impl<E> Builder<E> {
     /// Pass `None` to disable HTTP2 keep-alive.
     ///
     /// Default is currently disabled.
-    ///
-    /// # Cargo Feature
-    ///
     pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
@@ -202,9 +235,6 @@ impl<E> Builder<E> {
     /// be closed. Does nothing if `keep_alive_interval` is disabled.
     ///
     /// Default is 20 seconds.
-    ///
-    /// # Cargo Feature
-    ///
     pub fn keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.h2_builder.keep_alive_timeout = timeout;
         self
@@ -259,7 +289,7 @@ impl<E> Builder<E> {
         Bd: Body + 'static,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: Read + Write + Unpin,
-        E: Http2ConnExec<S::Future, Bd>,
+        E: Http2ServerConnExec<S::Future, Bd>,
     {
         let proto = proto::h2::Server::new(
             io,

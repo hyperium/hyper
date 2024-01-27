@@ -26,6 +26,8 @@ jobs:
       - doc
       - check-external-types
       - udeps
+      - minimal-versions
+      - semver
     steps:
       - run: exit 0
 
@@ -43,8 +45,8 @@ jobs:
 
       - name: cargo fmt --check
         run: |
-          if ! rustfmt --check --edition 2021 $(git ls-files '*.rs'); then
-            printf "Please run \`rustfmt --edition 2021 \$(git ls-files '*.rs')\` to fix rustfmt errors.\nSee CONTRIBUTING.md for more details.\n" >&2
+          if ! rustfmt --check --edition 2018 $(git ls-files '*.rs'); then
+            printf "Please run \`rustfmt --edition 2018 \$(git ls-files '*.rs')\` to fix rustfmt errors.\nSee CONTRIBUTING.md for more details.\n" >&2
             exit 1
           fi
 
@@ -83,6 +85,8 @@ jobs:
         with:
           toolchain: ${{ matrix.rust }}
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Test
         run: cargo test ${{ matrix.features }}
 
@@ -109,6 +113,8 @@ jobs:
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Check
         run: cargo check --features full
 
@@ -125,6 +131,8 @@ jobs:
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Test
         # Can't enable tcp feature since Miri does not support the tokio runtime
@@ -144,8 +152,17 @@ jobs:
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: check --feature-powerset
         run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi,tracing
+        env:
+          RUSTFLAGS: "-D dead_code -D unused_imports"
+
+      - name: check --feature-powerset with tracing feature
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --features tracing --skip ffi
+        env:
+          RUSTFLAGS: "--cfg hyper_unstable_tracing -D dead_code -D unused_imports"
 
   ffi:
     name: Test C API (FFI)
@@ -157,6 +174,8 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build FFI
         env:
@@ -191,6 +210,8 @@ jobs:
         with:
           tool: cargo-expand
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Build FFI
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
@@ -210,8 +231,10 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: cargo doc
-        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D rustdoc::broken-intra-doc-links
 
   check-external-types:
     name: Check exposed types
@@ -224,12 +247,14 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2023-05-31  # Compatible version for cargo-check-external-types
+          toolchain: nightly-2023-10-10  # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
         uses: taiki-e/cache-cargo-install-action@v1
         with:
-          tool: cargo-check-external-types@0.1.7
+          tool: cargo-check-external-types@0.1.9
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: check-external-types
         run: cargo check-external-types --config .github/workflows/external-types.toml
@@ -247,8 +272,35 @@ jobs:
       - name: Install cargo-udeps
         uses: taiki-e/install-action@cargo-udeps
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: Check unused dependencies on default features
         run: cargo udeps
 
       - name: Check unused dependencies on full features
         run: cargo udeps --features full
+
+  minimal-versions:
+    runs-on: ubuntu-latest
+    needs: [style]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@cargo-minimal-versions
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo minimal-versions check
+      - run: cargo minimal-versions check --features full
+
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          feature-group: only-explicit-features
+          features: full
+          release-type: minor

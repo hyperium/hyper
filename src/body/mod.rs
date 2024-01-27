@@ -7,10 +7,10 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - **The [`Body`](Body) trait** describes all possible bodies.
+//! - **The [`Body`] trait** describes all possible bodies.
 //!   hyper allows any body type that implements `Body`, allowing
 //!   applications to have fine-grained control over their streaming.
-//! - **The [`Incoming`](Incoming) concrete type**, which is an implementation
+//! - **The [`Incoming`] concrete type**, which is an implementation
 //!   of `Body`, and returned by hyper as a "receive stream" (so, for server
 //!   requests and client responses).
 //!
@@ -26,8 +26,12 @@ pub use http_body::SizeHint;
 
 pub use self::incoming::Incoming;
 
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 pub(crate) use self::incoming::Sender;
+#[cfg(all(
+    any(feature = "http1", feature = "http2"),
+    any(feature = "client", feature = "server")
+))]
 pub(crate) use self::length::DecodedLength;
 
 mod incoming;

@@ -17,11 +17,14 @@ use hyper::{body::Incoming as IncomingBody, Request, Response, Version};
 pub use futures_util::{
     future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
 };
-pub use hyper::{HeaderMap, StatusCode};
+pub use hyper::HeaderMap;
 pub use std::net::SocketAddr;
 
 mod tokiort;
+#[allow(unused)]
 pub use tokiort::{TokioExecutor, TokioIo, TokioTimer};
+
+pub mod trailers;
 
 #[allow(unused_macros)]
 macro_rules! t {
@@ -199,7 +202,7 @@ macro_rules! __internal_req_res_prop {
         $prop_val
     };
     (status: $prop_val:expr) => {
-        StatusCode::from_u16($prop_val).expect("status code")
+        hyper::StatusCode::from_u16($prop_val).expect("status code")
     };
     ($prop_name:ident: $prop_val:expr) => {
         From::from($prop_val)

@@ -42,15 +42,18 @@
 use std::any::TypeId;
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::io;
 use std::marker::Unpin;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 
 use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
-use crate::common::{task, Future, Pin, Poll};
 
 /// An upgraded HTTP connection.
 ///
@@ -67,11 +70,12 @@ pub struct Upgraded {
 /// A future for a possible HTTP upgrade.
 ///
 /// If no upgrade was available, or it doesn't succeed, yields an `Error`.
+#[derive(Clone)]
 pub struct OnUpgrade {
-    rx: Option<oneshot::Receiver<crate::Result<Upgraded>>>,
+    rx: Option<Arc<Mutex<oneshot::Receiver<crate::Result<Upgraded>>>>>,
 }
 
-/// The deconstructed parts of an [`Upgraded`](Upgraded) type.
+/// The deconstructed parts of an [`Upgraded`] type.
 ///
 /// Includes the original IO type, and a read buffer of bytes that the
 /// HTTP state machine may have already read before completing an upgrade.
@@ -103,21 +107,35 @@ pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
     msg.on_upgrade()
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 pub(super) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 pub(super) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
-    (Pending { tx }, OnUpgrade { rx: Some(rx) })
+    (
+        Pending { tx },
+        OnUpgrade {
+            rx: Some(Arc::new(Mutex::new(rx))),
+        },
+    )
 }
 
 // ===== impl Upgraded =====
 
 impl Upgraded {
-    #[cfg(any(feature = "http1", feature = "http2", test))]
+    #[cfg(all(
+        any(feature = "client", feature = "server"),
+        any(feature = "http1", feature = "http2")
+    ))]
     pub(super) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
         T: Read + Write + Unpin + Send + 'static,
@@ -149,7 +167,7 @@ impl Upgraded {
 impl Read for Upgraded {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
@@ -159,7 +177,7 @@ impl Read for Upgraded {
 impl Write for Upgraded {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write(cx, buf)
@@ -167,17 +185,17 @@ impl Write for Upgraded {
 
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write_vectored(cx, bufs)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_shutdown(cx)
     }
 
@@ -199,7 +217,7 @@ impl OnUpgrade {
         OnUpgrade { rx: None }
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(super) fn is_none(&self) -> bool {
         self.rx.is_none()
     }
@@ -208,13 +226,17 @@ impl OnUpgrade {
 impl Future for OnUpgrade {
     type Output = Result<Upgraded, crate::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.rx {
-            Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
-                Ok(Ok(upgraded)) => Ok(upgraded),
-                Ok(Err(err)) => Err(err),
-                Err(_oneshot_canceled) => Err(crate::Error::new_canceled().with(UpgradeExpected)),
-            }),
+            Some(ref rx) => Pin::new(&mut *rx.lock().unwrap())
+                .poll(cx)
+                .map(|res| match res {
+                    Ok(Ok(upgraded)) => Ok(upgraded),
+                    Ok(Err(err)) => Err(err),
+                    Err(_oneshot_canceled) => {
+                        Err(crate::Error::new_canceled().with(UpgradeExpected))
+                    }
+                }),
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
     }
@@ -228,7 +250,10 @@ impl fmt::Debug for OnUpgrade {
 
 // ===== impl Pending =====
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2")
+))]
 impl Pending {
     pub(super) fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");
@@ -331,6 +356,10 @@ mod sealed {
     }
 }
 
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -352,7 +381,7 @@ mod tests {
     impl Read for Mock {
         fn poll_read(
             self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
+            _cx: &mut Context<'_>,
             _buf: ReadBufCursor<'_>,
         ) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_read")
@@ -362,21 +391,18 @@ mod tests {
     impl Write for Mock {
         fn poll_write(
             self: Pin<&mut Self>,
-            _: &mut task::Context<'_>,
+            _: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             // panic!("poll_write shouldn't be called");
             Poll::Ready(Ok(buf.len()))
         }
 
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_flush")
         }
 
-        fn poll_shutdown(
-            self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_shutdown")
         }
     }

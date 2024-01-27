@@ -2,13 +2,15 @@
 
 use std::net::SocketAddr;
 
-use hyper::server::conn::http1;
-use tokio::net::TcpListener;
-
 use bytes::Bytes;
-use http_body_util::Full;
+use futures_util::TryStreamExt;
+use http_body_util::{combinators::BoxBody, BodyExt, Full, StreamBody};
+use hyper::body::Frame;
+use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Method, Request, Response, Result, StatusCode};
+use tokio::{fs::File, net::TcpListener};
+use tokio_util::io::ReaderStream;
 
 #[path = "../benches/support/mod.rs"]
 mod support;
@@ -41,7 +43,9 @@ async fn main() -> std::result::Result<(), Box<dyn std::error::Error>> {
     }
 }
 
-async fn response_examples(req: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>> {
+async fn response_examples(
+    req: Request<hyper::body::Incoming>,
+) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => simple_file_send(INDEX).await,
         (&Method::GET, "/no_file.html") => {
@@ -53,18 +57,35 @@ async fn response_examples(req: Request<hyper::body::Incoming>) -> Result<Respon
 }
 
 /// HTTP status code 404
-fn not_found() -> Response<Full<Bytes>> {
+fn not_found() -> Response<BoxBody<Bytes, std::io::Error>> {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
-        .body(Full::new(NOTFOUND.into()))
+        .body(Full::new(NOTFOUND.into()).map_err(|e| match e {}).boxed())
         .unwrap()
 }
 
-async fn simple_file_send(filename: &str) -> Result<Response<Full<Bytes>>> {
-    if let Ok(contents) = tokio::fs::read(filename).await {
-        let body = contents.into();
-        return Ok(Response::new(Full::new(body)));
+async fn simple_file_send(filename: &str) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
+    // Open file for reading
+    let file = File::open(filename).await;
+    if file.is_err() {
+        eprintln!("ERROR: Unable to open file.");
+        return Ok(not_found());
     }
 
-    Ok(not_found())
+    let file: File = file.unwrap();
+
+    // Wrap to a tokio_util::io::ReaderStream
+    let reader_stream = ReaderStream::new(file);
+
+    // Convert to http_body_util::BoxBody
+    let stream_body = StreamBody::new(reader_stream.map_ok(Frame::data));
+    let boxed_body = stream_body.boxed();
+
+    // Send response
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .body(boxed_body)
+        .unwrap();
+
+    Ok(response)
 }

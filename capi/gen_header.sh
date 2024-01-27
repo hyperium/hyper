@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
-
-# This script regenerates hyper.h. As of April 2021, it only works with the
+#
+# This script regenerates hyper.h.
 # nightly build of Rust.
+#
+# Requirements:
+#
+# cargo install cbindgen
+# cargo install cargo-expand
 
 set -e
 

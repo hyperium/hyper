@@ -1,6 +1,7 @@
 use std::ffi::{c_uint, c_void};
 use std::ptr;
 use std::sync::Arc;
+use std::task::ready;
 
 use crate::body::Incoming as IncomingBody;
 use crate::ffi::error::hyper_code;

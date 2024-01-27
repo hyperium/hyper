@@ -8,7 +8,7 @@ use tokio::net::TcpListener;
 use std::future::Future;
 use std::net::SocketAddr;
 use std::pin::Pin;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 #[path = "../benches/support/mod.rs"]
 mod support;
@@ -23,28 +23,25 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let listener = TcpListener::bind(addr).await?;
     println!("Listening on http://{}", addr);
 
+    let svc = Svc {
+        counter: Arc::new(Mutex::new(0)),
+    };
+
     loop {
         let (stream, _) = listener.accept().await?;
         let io = TokioIo::new(stream);
-
+        let svc_clone = svc.clone();
         tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
-                .serve_connection(
-                    io,
-                    Svc {
-                        counter: Mutex::new(81818),
-                    },
-                )
-                .await
-            {
+            if let Err(err) = http1::Builder::new().serve_connection(io, svc_clone).await {
                 println!("Failed to serve connection: {:?}", err);
             }
         });
     }
 }
 
+#[derive(Debug, Clone)]
 struct Svc {
-    counter: Mutex<Counter>,
+    counter: Arc<Mutex<Counter>>,
 }
 
 impl Service<Request<IncomingBody>> for Svc {
@@ -57,6 +54,10 @@ impl Service<Request<IncomingBody>> for Svc {
             Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
         }
 
+        if req.uri().path() != "/favicon.ico" {
+            *self.counter.lock().expect("lock poisoned") += 1;
+        }
+
         let res = match req.uri().path() {
             "/" => mk_response(format!("home! counter = {:?}", self.counter)),
             "/posts" => mk_response(format!("posts, of course! counter = {:?}", self.counter)),
@@ -67,10 +68,6 @@ impl Service<Request<IncomingBody>> for Svc {
             // Return the 404 Not Found for other routes, and don't increment counter.
             _ => return Box::pin(async { mk_response("oh no! not found".into()) }),
         };
-
-        if req.uri().path() != "/favicon.ico" {
-            *self.counter.lock().expect("lock poisoned") += 1;
-        }
 
         Box::pin(async { res })
     }

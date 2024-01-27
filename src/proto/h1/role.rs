@@ -1,14 +1,18 @@
-use std::fmt::{self, Write};
-use std::mem::MaybeUninit;
+use std::{fmt, mem::MaybeUninit};
+
+#[cfg(feature = "client")]
+use std::fmt::Write;
 #[cfg(feature = "server")]
 use std::time::Instant;
 
 use bytes::Bytes;
 use bytes::BytesMut;
+#[cfg(feature = "client")]
+use http::header::Entry;
 #[cfg(feature = "server")]
 use http::header::ValueIter;
-use http::header::{self, Entry, HeaderName, HeaderValue};
-use http::{HeaderMap, Method, StatusCode, Version};
+use http::header::{self, HeaderMap, HeaderName, HeaderValue};
+use http::{Method, StatusCode, Version};
 
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
@@ -21,7 +25,9 @@ use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
 };
-use crate::proto::{BodyLength, MessageHead, RequestHead, RequestLine};
+#[cfg(feature = "client")]
+use crate::proto::RequestHead;
+use crate::proto::{BodyLength, MessageHead, RequestLine};
 
 const MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -129,18 +135,13 @@ impl Http1Transaction for Server {
         let len;
         let headers_len;
 
-        // Unsafe: both headers_indices and headers are using uninitialized memory,
+        // Both headers_indices and headers are using uninitialized memory,
         // but we *never* read any of it until after httparse has assigned
         // values into it. By not zeroing out the stack memory, this saves
         // a good ~5% on pipeline benchmarks.
-        let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
-            // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-            MaybeUninit::uninit().assume_init()
-        };
+        let mut headers_indices = [MaybeUninit::<HeaderIndices>::uninit(); MAX_HEADERS];
         {
-            /* SAFETY: it is safe to go from MaybeUninit array to array of MaybeUninit */
-            let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
-                unsafe { MaybeUninit::uninit().assume_init() };
+            let mut headers = [MaybeUninit::<httparse::Header<'_>>::uninit(); MAX_HEADERS];
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
@@ -166,7 +167,7 @@ impl Http1Transaction for Server {
                         Version::HTTP_10
                     };
 
-                    record_header_indices(bytes, &req.headers, &mut headers_indices)?;
+                    record_header_indices(bytes, req.headers, &mut headers_indices)?;
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
@@ -218,13 +219,13 @@ impl Http1Transaction for Server {
             None
         };
 
-        let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
+        let mut headers = ctx.cached_headers.take().unwrap_or_default();
 
         headers.reserve(headers_len);
 
         for header in &headers_indices[..headers_len] {
             // SAFETY: array is valid up to `headers_len`
-            let header = unsafe { &*header.as_ptr() };
+            let header = unsafe { header.assume_init_ref() };
             let name = header_name!(&slice[header.name.0..header.name.1]);
             let value = header_value!(slice.slice(header.value.0..header.value.1));
 
@@ -449,8 +450,10 @@ impl Http1Transaction for Server {
         };
 
         debug!("sending automatic response ({}) for parse error", status);
-        let mut msg = MessageHead::default();
-        msg.subject = status;
+        let msg = MessageHead {
+            subject: status,
+            ..Default::default()
+        };
         Some(msg)
     }
 
@@ -470,16 +473,13 @@ impl Server {
     }
 
     fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD) || method == &Some(Method::CONNECT) && status.is_success()
+        if method == &Some(Method::HEAD)
+            || method == &Some(Method::CONNECT) && status.is_success()
+            || status.is_informational()
         {
             false
-        } else if status.is_informational() {
-            false
         } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
@@ -487,10 +487,7 @@ impl Server {
         if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
             false
         } else {
-            match status {
-                StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED => false,
-                _ => true,
-            }
+            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
@@ -628,6 +625,7 @@ impl Server {
         };
 
         let mut encoder = Encoder::length(0);
+        let mut allowed_trailer_fields: Option<Vec<HeaderValue>> = None;
         let mut wrote_date = false;
         let mut cur_name = None;
         let mut is_name_written = false;
@@ -814,6 +812,38 @@ impl Server {
                 header::DATE => {
                     wrote_date = true;
                 }
+                header::TRAILER => {
+                    // check that we actually can send a chunked body...
+                    if msg.head.version == Version::HTTP_10
+                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                    {
+                        continue;
+                    }
+
+                    if !is_name_written {
+                        is_name_written = true;
+                        header_name_writer.write_header_name_with_colon(
+                            dst,
+                            "trailer: ",
+                            header::TRAILER,
+                        );
+                        extend(dst, value.as_bytes());
+                    } else {
+                        extend(dst, b", ");
+                        extend(dst, value.as_bytes());
+                    }
+
+                    match allowed_trailer_fields {
+                        Some(ref mut allowed_trailer_fields) => {
+                            allowed_trailer_fields.push(value);
+                        }
+                        None => {
+                            allowed_trailer_fields = Some(vec![value]);
+                        }
+                    }
+
+                    continue 'headers;
+                }
                 _ => (),
             }
             //TODO: this should perhaps instead combine them into
@@ -898,6 +928,12 @@ impl Server {
             extend(dst, b"\r\n");
         }
 
+        if encoder.is_chunked() {
+            if let Some(allowed_trailer_fields) = allowed_trailer_fields {
+                encoder = encoder.into_chunked_with_trailing_fields(allowed_trailer_fields);
+            }
+        }
+
         Ok(encoder.set_last(is_last))
     }
 }
@@ -930,15 +966,9 @@ impl Http1Transaction for Client {
 
         // Loop to skip information status code headers (100 Continue, etc).
         loop {
-            // Unsafe: see comment in Server Http1Transaction, above.
-            let mut headers_indices: [MaybeUninit<HeaderIndices>; MAX_HEADERS] = unsafe {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-                MaybeUninit::uninit().assume_init()
-            };
+            let mut headers_indices = [MaybeUninit::<HeaderIndices>::uninit(); MAX_HEADERS];
             let (len, status, reason, version, headers_len) = {
-                // SAFETY: We can go safely from MaybeUninit array to array of MaybeUninit
-                let mut headers: [MaybeUninit<httparse::Header<'_>>; MAX_HEADERS] =
-                    unsafe { MaybeUninit::uninit().assume_init() };
+                let mut headers = [MaybeUninit::<httparse::Header<'_>>::uninit(); MAX_HEADERS];
                 trace!(bytes = buf.len(), "Response.parse");
                 let mut res = httparse::Response::new(&mut []);
                 let bytes = buf.as_ref();
@@ -966,7 +996,7 @@ impl Http1Transaction for Client {
                         } else {
                             Version::HTTP_10
                         };
-                        record_header_indices(bytes, &res.headers, &mut headers_indices)?;
+                        record_header_indices(bytes, res.headers, &mut headers_indices)?;
                         let headers_len = res.headers.len();
                         (len, status, reason, version, headers_len)
                     }
@@ -988,14 +1018,14 @@ impl Http1Transaction for Client {
             {
                 for header in &mut headers_indices[..headers_len] {
                     // SAFETY: array is valid up to `headers_len`
-                    let header = unsafe { &mut *header.as_mut_ptr() };
+                    let header = unsafe { header.assume_init_mut() };
                     Client::obs_fold_line(&mut slice, header);
                 }
             }
 
             let slice = slice.freeze();
 
-            let mut headers = ctx.cached_headers.take().unwrap_or_else(HeaderMap::new);
+            let mut headers = ctx.cached_headers.take().unwrap_or_default();
 
             let mut keep_alive = version == Version::HTTP_11;
 
@@ -1015,7 +1045,7 @@ impl Http1Transaction for Client {
             headers.reserve(headers_len);
             for header in &headers_indices[..headers_len] {
                 // SAFETY: array is valid up to `headers_len`
-                let header = unsafe { &*header.as_ptr() };
+                let header = unsafe { header.assume_init_ref() };
                 let name = header_name!(&slice[header.name.0..header.name.1]);
                 let value = header_value!(slice.slice(header.value.0..header.value.1));
 
@@ -1311,6 +1341,19 @@ impl Client {
             }
         };
 
+        let encoder = encoder.map(|enc| {
+            if enc.is_chunked() {
+                let allowed_trailer_fields: Vec<HeaderValue> =
+                    headers.get_all(header::TRAILER).iter().cloned().collect();
+
+                if !allowed_trailer_fields.is_empty() {
+                    return enc.into_chunked_with_trailing_fields(allowed_trailer_fields);
+                }
+            }
+
+            enc
+        });
+
         // This is because we need a second mutable borrow to remove
         // content-length header.
         if let Some(encoder) = encoder {
@@ -1392,6 +1435,7 @@ impl Client {
     }
 }
 
+#[cfg(feature = "client")]
 fn set_content_length(headers: &mut HeaderMap, len: u64) -> Encoder {
     // At this point, there should not be a valid Content-Length
     // header. However, since we'll be indexing in anyways, we can
@@ -1448,16 +1492,10 @@ fn record_header_indices(
         let value_start = header.value.as_ptr() as usize - bytes_ptr;
         let value_end = value_start + header.value.len();
 
-        // FIXME(maybe_uninit_extra)
-        // FIXME(addr_of)
-        // Currently we don't have `ptr::addr_of_mut` in stable rust or
-        // MaybeUninit::write, so this is some way of assigning into a MaybeUninit
-        // safely
-        let new_header_indices = HeaderIndices {
+        indices.write(HeaderIndices {
             name: (name_start, name_end),
             value: (value_start, value_end),
-        };
-        *indices = MaybeUninit::new(new_header_indices);
+        });
     }
 
     Ok(())
@@ -1478,7 +1516,7 @@ fn title_case(dst: &mut Vec<u8>, name: &[u8]) {
     }
 }
 
-fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
+pub(crate) fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         title_case(dst, name.as_str().as_bytes());
         extend(dst, b": ");
@@ -1487,7 +1525,7 @@ fn write_headers_title_case(headers: &HeaderMap, dst: &mut Vec<u8>) {
     }
 }
 
-fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
+pub(crate) fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
     for (name, value) in headers {
         extend(dst, name.as_str().as_bytes());
         extend(dst, b": ");
@@ -1497,6 +1535,7 @@ fn write_headers(headers: &HeaderMap, dst: &mut Vec<u8>) {
 }
 
 #[cold]
+#[cfg(feature = "client")]
 fn write_headers_original_case(
     headers: &HeaderMap,
     orig_case: &HeaderCaseMap,

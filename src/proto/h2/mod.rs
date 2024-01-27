@@ -1,17 +1,20 @@
-use crate::rt::{Read, ReadBufCursor, Write};
+use std::error::Error as StdError;
+use std::future::Future;
+use std::io::{Cursor, IoSlice};
+use std::mem;
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 use bytes::{Buf, Bytes};
+use futures_util::ready;
 use h2::{Reason, RecvStream, SendStream};
 use http::header::{HeaderName, CONNECTION, TE, TRAILER, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
-use std::error::Error as StdError;
-use std::io::{Cursor, IoSlice};
-use std::mem;
-use std::task::Context;
 
 use crate::body::Body;
-use crate::common::{task, Future, Pin, Poll};
 use crate::proto::h2::ping::Recorder;
+use crate::rt::{Read, ReadBufCursor, Write};
 
 pub(crate) mod ping;
 
@@ -33,7 +36,7 @@ pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 //
 // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
 // tested separately.
-const CONNECTION_HEADERS: [HeaderName; 5] = [
+static CONNECTION_HEADERS: [HeaderName; 5] = [
     HeaderName::from_static("keep-alive"),
     HeaderName::from_static("proxy-connection"),
     TRAILER,
@@ -115,7 +118,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             // we don't have the next chunk of data yet, so just reserve 1 byte to make

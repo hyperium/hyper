@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "1.0.0-rc.4"
+version = "1.1.0"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -21,17 +21,17 @@ include = [
 
 [dependencies]
 bytes = "1"
-futures-channel = "0.3"
-futures-util = { version = "0.3", default-features = false }
-http = "0.2"
-http-body = "=1.0.0-rc.2"
+http = "1"
+http-body = "1"
 pin-project-lite = "0.2.4"
 tokio = { version = "1", features = ["sync"] }
 
 # Optional
 
-h2 = { version = "0.3.9", optional = true }
-http-body-util = { version = "=0.1.0-rc.3", optional = true }
+futures-channel = { version = "0.3", optional = true }
+futures-util = { version = "0.3", default-features = false, optional = true }
+h2 = { version = "0.4.2", optional = true }
+http-body-util = { version = "0.1", optional = true }
 httparse = { version = "1.8", optional = true }
 httpdate = { version = "1.0", optional = true }
 itoa = { version = "1", optional = true }
@@ -40,8 +40,10 @@ tracing = { version = "0.1", default-features = false, features = ["std"], optio
 want = { version = "0.3", optional = true }
 
 [dev-dependencies]
-futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-http-body-util = "=0.1.0-rc.3"
+form_urlencoded = "1"
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
+http-body-util = "0.1"
 pretty_env_logger = "0.5"
 spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -59,7 +61,7 @@ tokio = { version = "1", features = [
     "test-util",
 ] }
 tokio-test = "0.4"
-url = "2.2"
+tokio-util = "0.7.10"
 
 [features]
 # Nothing by default
@@ -69,8 +71,8 @@ default = []
 full = ["client", "http1", "http2", "server"]
 
 # HTTP versions
-http1 = ["dep:httparse", "dep:itoa"]
-http2 = ["dep:h2"]
+http1 = ["dep:futures-channel", "dep:futures-util", "dep:httparse", "dep:itoa"]
+http2 = ["dep:futures-channel", "dep:futures-util", "dep:h2"]
 
 # Client/Server
 client = ["dep:want"]

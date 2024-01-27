@@ -1,9 +1,12 @@
 //! HTTP extensions.
 
 use bytes::Bytes;
-#[cfg(any(feature = "http1", feature = "ffi"))]
+#[cfg(any(
+    all(any(feature = "client", feature = "server"), feature = "http1"),
+    feature = "ffi"
+))]
 use http::header::HeaderName;
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use http::header::{IntoHeaderName, ValueIter};
 use http::HeaderMap;
 #[cfg(feature = "ffi")]
@@ -45,6 +48,7 @@ impl Protocol {
         Self { inner }
     }
 
+    #[cfg(all(feature = "client", feature = "http2"))]
     pub(crate) fn into_inner(self) -> h2::ext::Protocol {
         self.inner
     }
@@ -97,23 +101,26 @@ impl fmt::Debug for Protocol {
 #[derive(Clone, Debug)]
 pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
+    #[cfg(feature = "client")]
     pub(crate) fn get_all<'a>(
         &'a self,
         name: &HeaderName,
     ) -> impl Iterator<Item = impl AsRef<[u8]> + 'a> + 'a {
-        self.get_all_internal(name).into_iter()
+        self.get_all_internal(name)
     }
 
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
-    pub(crate) fn get_all_internal<'a>(&'a self, name: &HeaderName) -> ValueIter<'_, Bytes> {
+    #[cfg(any(feature = "client", feature = "server"))]
+    pub(crate) fn get_all_internal(&self, name: &HeaderName) -> ValueIter<'_, Bytes> {
         self.0.get_all(name).into_iter()
     }
 
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn default() -> Self {
         Self(Default::default())
     }
@@ -123,6 +130,7 @@ impl HeaderCaseMap {
         self.0.insert(name, orig);
     }
 
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
     where
         N: IntoHeaderName,
@@ -182,19 +190,19 @@ impl OriginalHeaderOrder {
         self.entry_order.push((name, idx));
     }
 
-    // No doc test is run here because `RUSTFLAGS='--cfg hyper_unstable_ffi'`
-    // is needed to compile. Once ffi is stablized `no_run` should be removed
-    // here.
+    // No doc test is possible here because (a) `RUSTDOCFLAGS='--cfg hyper_unstable_ffi'`
+    // is needed to enable this feature and (b) because this is a private interface and doctests
+    // can only see public symbols.
     /// This returns an iterator that provides header names and indexes
     /// in the original order received.
     ///
     /// # Examples
-    /// ```no_run
+    /// ```ignore
     /// use hyper::ext::OriginalHeaderOrder;
     /// use hyper::header::{HeaderName, HeaderValue, HeaderMap};
     ///
     /// let mut h_order = OriginalHeaderOrder::default();
-    /// let mut h_map = Headermap::new();
+    /// let mut h_map = HeaderMap::new();
     ///
     /// let name1 = b"Set-CookiE";
     /// let value1 = b"a=b";
@@ -209,9 +217,9 @@ impl OriginalHeaderOrder {
     /// let name3 = b"SET-COOKIE";
     /// let value3 = b"c=d";
     /// h_map.append(name3, value3);
-    /// h_order.append(name3)
+    /// h_order.append(name3);
     ///
-    /// let mut iter = h_order.get_in_order()
+    /// let mut iter = h_order.get_in_order();
     ///
     /// let (name, idx) = iter.next();
     /// assert_eq!(b"a=b", h_map.get_all(name).nth(idx).unwrap());

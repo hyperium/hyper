@@ -2,19 +2,22 @@
 
 use std::error::Error;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
+use futures_util::ready;
 use http::{Request, Response};
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
-use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
-use crate::rt::bounds::ExecutorClient;
+use crate::rt::bounds::Http2ClientConnExec;
 use crate::rt::Timer;
 
 /// The sender side of an established connection.
@@ -39,7 +42,7 @@ pub struct Connection<T, B, E>
 where
     T: Read + Write + 'static + Unpin,
     B: Body + 'static,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     inner: (PhantomData<T>, proto::h2::ClientTask<B, E, T>),
@@ -48,6 +51,9 @@ where
 /// A builder to configure an HTTP connection.
 ///
 /// After setting options, the builder is used to create a handshake future.
+///
+/// **Note**: The default values of options are *not considered stable*. They
+/// are subject to change at any time.
 #[derive(Clone, Debug)]
 pub struct Builder<Ex> {
     pub(super) exec: Ex,
@@ -68,7 +74,7 @@ where
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + Unpin + Clone,
+    E: Http2ClientConnExec<B, T> + Unpin + Clone,
 {
     Builder::new(exec).handshake(io).await
 }
@@ -79,7 +85,7 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         if self.is_closed() {
             Poll::Ready(Err(crate::Error::new_closed()))
         } else {
@@ -197,7 +203,7 @@ where
     B: Body + Unpin + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
 {
     /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
     ///
@@ -217,7 +223,7 @@ impl<T, B, E> fmt::Debug for Connection<T, B, E>
 where
     T: Read + Write + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
-    E: ExecutorClient<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -232,11 +238,11 @@ where
     B::Data: Send,
     E: Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: ExecutorClient<B, T> + 'static + Send + Sync + Unpin,
+    E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.inner.1).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
             #[cfg(feature = "http1")]
@@ -296,6 +302,19 @@ where
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
         }
+        self
+    }
+
+    /// Sets the initial maximum of locally initiated (send) streams.
+    ///
+    /// This value will be overwritten by the value included in the initial
+    /// SETTINGS frame received from the peer as part of a [connection preface].
+    ///
+    /// The default value is determined by the `h2` crate, but may change.
+    ///
+    /// [connection preface]: https://httpwg.org/specs/rfc9113.html#preface
+    pub fn initial_max_send_streams(&mut self, initial: impl Into<Option<usize>>) -> &mut Self {
+        self.h2_builder.initial_max_send_streams = initial.into();
         self
     }
 
@@ -402,12 +421,12 @@ where
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn Error + Send + Sync>>,
-        Ex: ExecutorClient<B, T> + Unpin,
+        Ex: Http2ClientConnExec<B, T> + Unpin,
     {
         let opts = self.clone();
 
         async move {
-            trace!("client handshake HTTP/1");
+            trace!("client handshake HTTP/2");
 
             let (tx, rx) = dispatch::channel();
             let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)

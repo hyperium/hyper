@@ -4,13 +4,13 @@
 //! implemented by implementing another trait.
 
 #[cfg(all(feature = "server", feature = "http2"))]
-pub use self::h2::Http2ConnExec;
+pub use self::h2::Http2ServerConnExec;
 
 #[cfg(all(feature = "client", feature = "http2"))]
-pub use self::h2_client::ExecutorClient;
+pub use self::h2_client::Http2ClientConnExec;
 
 #[cfg(all(feature = "client", feature = "http2"))]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "server", feature = "http2"))))]
+#[cfg_attr(docsrs, doc(cfg(all(feature = "client", feature = "http2"))))]
 mod h2_client {
     use std::{error::Error, future::Future};
 
@@ -25,7 +25,7 @@ mod h2_client {
     /// This trait is sealed and cannot be implemented for types outside this crate.
     ///
     /// [`Executor`]: crate::rt::Executor
-    pub trait ExecutorClient<B, T>: sealed_client::Sealed<(B, T)>
+    pub trait Http2ClientConnExec<B, T>: sealed_client::Sealed<(B, T)>
     where
         B: http_body::Body,
         B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -35,7 +35,7 @@ mod h2_client {
         fn execute_h2_future(&mut self, future: H2ClientFuture<B, T>);
     }
 
-    impl<E, B, T> ExecutorClient<B, T> for E
+    impl<E, B, T> Http2ClientConnExec<B, T> for E
     where
         E: Executor<H2ClientFuture<B, T>>,
         B: http_body::Body + 'static,
@@ -78,13 +78,13 @@ mod h2 {
     /// This trait is sealed and cannot be implemented for types outside this crate.
     ///
     /// [`Executor`]: crate::rt::Executor
-    pub trait Http2ConnExec<F, B: Body>: sealed::Sealed<(F, B)> + Clone {
+    pub trait Http2ServerConnExec<F, B: Body>: sealed::Sealed<(F, B)> + Clone {
         #[doc(hidden)]
         fn execute_h2stream(&mut self, fut: H2Stream<F, B>);
     }
 
     #[doc(hidden)]
-    impl<E, F, B> Http2ConnExec<F, B> for E
+    impl<E, F, B> Http2ServerConnExec<F, B> for E
     where
         E: Executor<H2Stream<F, B>> + Clone,
         H2Stream<F, B>: Future<Output = ()>,

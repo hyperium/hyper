@@ -2,17 +2,19 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use crate::rt::{Read, Write};
 use bytes::Bytes;
+use futures_util::ready;
 use http::{Request, Response};
 use httparse::ParserConfig;
 
 use super::super::dispatch;
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::common::{task, Future, Pin, Poll};
 use crate::proto;
-use crate::upgrade::Upgraded;
 
 type Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
@@ -49,15 +51,15 @@ pub struct Parts<T> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B>
 where
-    T: Read + Write + Send + 'static,
+    T: Read + Write + 'static,
     B: Body + 'static,
 {
-    inner: Option<Dispatcher<T, B>>,
+    inner: Dispatcher<T, B>,
 }
 
 impl<T, B> Connection<T, B>
 where
-    T: Read + Write + Send + Unpin + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -65,7 +67,7 @@ where
     ///
     /// Only works for HTTP/1 connections. HTTP/2 connections will panic.
     pub fn into_parts(self) -> Parts<T> {
-        let (io, read_buf, _) = self.inner.expect("already upgraded").into_inner();
+        let (io, read_buf, _) = self.inner.into_inner();
         Parts {
             io,
             read_buf,
@@ -84,17 +86,28 @@ where
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
-    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        self.inner
-            .as_mut()
-            .expect("already upgraded")
-            .poll_without_shutdown(cx)
+    pub fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+        self.inner.poll_without_shutdown(cx)
+    }
+
+    /// Prevent shutdown of the underlying IO object at the end of service the request,
+    /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
+    pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
+        let mut conn = Some(self);
+        futures_util::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
+            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(conn.take().unwrap().into_parts()))
+        })
+        .await
     }
 }
 
 /// A builder to configure an HTTP connection.
 ///
 /// After setting options, the builder is used to create a handshake future.
+///
+/// **Note**: The default values of options are *not considered stable*. They
+/// are subject to change at any time.
 #[derive(Clone, Debug)]
 pub struct Builder {
     h09_responses: bool,
@@ -114,7 +127,7 @@ pub struct Builder {
 /// See [`client::conn`](crate::client::conn) for more.
 pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
-    T: Read + Write + Unpin + Send + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -128,7 +141,7 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.dispatch.poll_ready(cx)
     }
 
@@ -235,9 +248,23 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 // ===== impl Connection
 
+impl<T, B> Connection<T, B>
+where
+    T: Read + Write + Unpin + Send + 'static,
+    B: Body + 'static,
+    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+{
+    /// Enable this connection to support higher-level HTTP upgrades.
+    ///
+    /// See [the `upgrade` module](crate::upgrade) for more.
+    pub fn with_upgrades(self) -> upgrades::UpgradeableConnection<T, B> {
+        upgrades::UpgradeableConnection { inner: Some(self) }
+    }
+}
+
 impl<T, B> fmt::Debug for Connection<T, B>
 where
-    T: Read + Write + fmt::Debug + Send + 'static,
+    T: Read + Write + fmt::Debug + 'static,
     B: Body + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -247,27 +274,24 @@ where
 
 impl<T, B> Future for Connection<T, B>
 where
-    T: Read + Write + Unpin + Send + 'static,
+    T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        match ready!(Pin::new(&mut self.inner).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
-            proto::Dispatched::Upgrade(pending) => match self.inner.take() {
-                Some(h1) => {
-                    let (io, buf, _) = h1.into_inner();
-                    pending.fulfill(Upgraded::new(io, buf));
-                    Poll::Ready(Ok(()))
-                }
-                _ => {
-                    drop(pending);
-                    unreachable!("Upgraded twice");
-                }
-            },
+            proto::Dispatched::Upgrade(pending) => {
+                // With no `Send` bound on `I`, we can't try to do
+                // upgrades here. In case a user was trying to use
+                // `upgrade` with this API, send a special
+                // error letting them know about that.
+                pending.manual();
+                Poll::Ready(Ok(()))
+            }
         }
     }
 }
@@ -469,7 +493,7 @@ impl Builder {
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
-        T: Read + Write + Unpin + Send + 'static,
+        T: Read + Write + Unpin + 'static,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -513,10 +537,53 @@ impl Builder {
             let cd = proto::h1::dispatch::Client::new(rx);
             let proto = proto::h1::Dispatcher::new(cd, conn);
 
-            Ok((
-                SendRequest { dispatch: tx },
-                Connection { inner: Some(proto) },
-            ))
+            Ok((SendRequest { dispatch: tx }, Connection { inner: proto }))
+        }
+    }
+}
+
+mod upgrades {
+    use crate::upgrade::Upgraded;
+
+    use super::*;
+
+    // A future binding a connection with a Service with Upgrade support.
+    //
+    // This type is unnameable outside the crate.
+    #[must_use = "futures do nothing unless polled"]
+    #[allow(missing_debug_implementations)]
+    pub struct UpgradeableConnection<T, B>
+    where
+        T: Read + Write + Unpin + Send + 'static,
+        B: Body + 'static,
+        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    {
+        pub(super) inner: Option<Connection<T, B>>,
+    }
+
+    impl<I, B> Future for UpgradeableConnection<I, B>
+    where
+        I: Read + Write + Unpin + Send + 'static,
+        B: Body + 'static,
+        B::Data: Send,
+        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    {
+        type Output = crate::Result<()>;
+
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+            match ready!(Pin::new(&mut self.inner.as_mut().unwrap().inner).poll(cx)) {
+                Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
+                Ok(proto::Dispatched::Upgrade(pending)) => {
+                    let Parts {
+                        io,
+                        read_buf,
+                        _inner,
+                    } = self.inner.take().unwrap().into_parts();
+                    pending.fulfill(Upgraded::new(io, read_buf));
+                    Poll::Ready(Ok(()))
+                }
+                Err(e) => Poll::Ready(Err(e)),
+            }
         }
     }
 }

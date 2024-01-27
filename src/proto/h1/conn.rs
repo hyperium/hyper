@@ -1,12 +1,15 @@
 use std::fmt;
 use std::io;
-use std::marker::PhantomData;
+use std::marker::{PhantomData, Unpin};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 #[cfg(feature = "server")]
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use http::header::{HeaderValue, CONNECTION};
+use futures_util::ready;
+use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
 use httparse::ParserConfig;
 
@@ -15,7 +18,6 @@ use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::time::Time;
-use crate::common::{task, Pin, Poll, Unpin};
 use crate::headers::connection_keep_alive;
 use crate::proto::{BodyLength, MessageHead};
 #[cfg(feature = "server")]
@@ -74,6 +76,7 @@ where
                 // We assume a modern world where the remote speaks HTTP/1.1.
                 // If they tell us otherwise, we'll downgrade in `read_head`.
                 version: Version::HTTP_11,
+                allow_trailer_fields: false,
             },
             _marker: PhantomData,
         }
@@ -168,10 +171,10 @@ where
     }
 
     pub(crate) fn can_read_body(&self) -> bool {
-        match self.state.reading {
-            Reading::Body(..) | Reading::Continue(..) => true,
-            _ => false,
-        }
+        matches!(
+            self.state.reading,
+            Reading::Body(..) | Reading::Continue(..)
+        )
     }
 
     #[cfg(feature = "server")]
@@ -193,7 +196,7 @@ where
 
     pub(super) fn poll_read_head(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<crate::Result<(MessageHead<T::Incoming>, DecodedLength, Wants)>>> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
@@ -263,6 +266,13 @@ where
             self.state.reading = Reading::Body(Decoder::new(msg.decode));
         }
 
+        self.state.allow_trailer_fields = msg
+            .head
+            .headers
+            .get(TE)
+            .map(|te_header| te_header == "trailers")
+            .unwrap_or(false);
+
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }
 
@@ -294,7 +304,7 @@ where
 
     pub(crate) fn poll_read_body(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<io::Result<Bytes>>> {
         debug_assert!(self.can_read_body());
 
@@ -355,10 +365,7 @@ where
         ret
     }
 
-    pub(crate) fn poll_read_keep_alive(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_read_closed() {
@@ -381,7 +388,7 @@ where
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    fn require_empty_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn require_empty_read(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(!self.is_mid_message());
         debug_assert!(T::is_client());
@@ -414,7 +421,7 @@ where
         Poll::Ready(Err(crate::Error::new_unexpected_message()))
     }
 
-    fn mid_message_detect_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn mid_message_detect_eof(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(self.is_mid_message());
 
@@ -433,7 +440,7 @@ where
         }
     }
 
-    fn force_io_read(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+    fn force_io_read(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         debug_assert!(!self.state.is_read_closed());
 
         let result = ready!(self.io.poll_read_from_io(cx));
@@ -444,7 +451,7 @@ where
         }))
     }
 
-    fn maybe_notify(&mut self, cx: &mut task::Context<'_>) {
+    fn maybe_notify(&mut self, cx: &mut Context<'_>) {
         // its possible that we returned NotReady from poll() without having
         // exhausted the underlying Io. We would have done this when we
         // determined we couldn't keep reading until we knew how writing
@@ -491,7 +498,7 @@ where
         }
     }
 
-    fn try_keep_alive(&mut self, cx: &mut task::Context<'_>) {
+    fn try_keep_alive(&mut self, cx: &mut Context<'_>) {
         self.state.try_keep_alive::<T>();
         self.maybe_notify(cx);
     }
@@ -642,6 +649,31 @@ where
         self.state.writing = state;
     }
 
+    pub(crate) fn write_trailers(&mut self, trailers: HeaderMap) {
+        if T::is_server() && !self.state.allow_trailer_fields {
+            debug!("trailers not allowed to be sent");
+            return;
+        }
+        debug_assert!(self.can_write_body() && self.can_buffer_body());
+
+        match self.state.writing {
+            Writing::Body(ref encoder) => {
+                if let Some(enc_buf) =
+                    encoder.encode_trailers(trailers, self.state.title_case_headers)
+                {
+                    self.io.buffer(enc_buf);
+
+                    self.state.writing = if encoder.is_last() || encoder.is_close_delimited() {
+                        Writing::Closed
+                    } else {
+                        Writing::KeepAlive
+                    };
+                }
+            }
+            _ => unreachable!("write_trailers invalid state: {:?}", self.state.writing),
+        }
+    }
+
     pub(crate) fn write_body_and_end(&mut self, chunk: B) {
         debug_assert!(self.can_write_body() && self.can_buffer_body());
         // empty chunks should be discarded at Dispatcher level
@@ -716,14 +748,14 @@ where
         Err(err)
     }
 
-    pub(crate) fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
 
-    pub(crate) fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
             Ok(()) => {
                 trace!("shut down IO complete");
@@ -737,7 +769,7 @@ where
     }
 
     /// If the read side can be cheaply drained, do so. Otherwise, close.
-    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut task::Context<'_>) {
+    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut Context<'_>) {
         if let Reading::Continue(ref decoder) = self.state.reading {
             // skip sending the 100-continue
             // just move forward to a read, in case a tiny body was included
@@ -844,6 +876,8 @@ struct State {
     upgrade: Option<crate::upgrade::Pending>,
     /// Either HTTP/1.0 or 1.1 connection
     version: Version,
+    /// Flag to track if trailer fields are allowed to be sent
+    allow_trailer_fields: bool,
 }
 
 #[derive(Debug)]
@@ -905,17 +939,12 @@ impl std::ops::BitAndAssign<bool> for KA {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 enum KA {
     Idle,
+    #[default]
     Busy,
     Disabled,
-}
-
-impl Default for KA {
-    fn default() -> KA {
-        KA::Busy
-    }
 }
 
 impl KA {
@@ -957,11 +986,7 @@ impl State {
     }
 
     fn wants_keep_alive(&self) -> bool {
-        if let KA::Disabled = self.keep_alive.status() {
-            false
-        } else {
-            true
-        }
+        !matches!(self.keep_alive.status(), KA::Disabled)
     }
 
     fn try_keep_alive<T: Http1Transaction>(&mut self) {
