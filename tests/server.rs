@@ -1,7 +1,6 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
 
-use std::convert::TryInto;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::TcpListener as StdTcpListener;

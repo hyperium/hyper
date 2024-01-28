@@ -436,8 +436,6 @@ impl std::error::Error for NotEof {}
 
 #[cfg(test)]
 mod tests {
-    use std::iter::FromIterator;
-
     use bytes::BufMut;
     use http::{
         header::{

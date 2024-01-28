@@ -5,7 +5,6 @@ use std::convert::Infallible;
 use std::fmt;
 use std::future::Future;
 use std::io::{Read, Write};
-use std::iter::FromIterator;
 use std::net::{SocketAddr, TcpListener};
 use std::pin::Pin;
 use std::thread;

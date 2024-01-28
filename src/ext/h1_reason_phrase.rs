@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use bytes::Bytes;
 
 /// A reason phrase in an HTTP/1 response.
