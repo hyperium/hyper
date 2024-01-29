@@ -7,6 +7,12 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+#[cfg(not(feature = "runtime"))]
+use std::time::Instant;
+
+#[cfg(feature = "runtime")]
+use tokio::time::Instant;
+
 use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt as _, TryFutureExt as _};
 use http::header::{HeaderValue, HOST};
@@ -534,6 +540,7 @@ where
                                 PoolClient {
                                     conn_info: connected,
                                     tx,
+                                    created_at: Instant::now(),
                                 },
                             ))
                         }))
@@ -640,6 +647,7 @@ impl Future for ResponseFuture {
 #[allow(missing_debug_implementations)]
 struct PoolClient<B> {
     conn_info: Connected,
+    created_at: Instant,
     tx: PoolTx<B>,
 }
 
@@ -731,16 +739,19 @@ where
             PoolTx::Http1(tx) => Reservation::Unique(PoolClient {
                 conn_info: self.conn_info,
                 tx: PoolTx::Http1(tx),
+                created_at: self.created_at,
             }),
             #[cfg(feature = "http2")]
             PoolTx::Http2(tx) => {
                 let b = PoolClient {
                     conn_info: self.conn_info.clone(),
                     tx: PoolTx::Http2(tx.clone()),
+                    created_at: self.created_at,
                 };
                 let a = PoolClient {
                     conn_info: self.conn_info,
                     tx: PoolTx::Http2(tx),
+                    created_at: self.created_at,
                 };
                 Reservation::Shared(a, b)
             }
@@ -749,6 +760,10 @@ where
 
     fn can_share(&self) -> bool {
         self.is_http2()
+    }
+
+    fn created_at(&self) -> Instant {
+        self.created_at
     }
 }
 

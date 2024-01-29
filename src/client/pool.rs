@@ -38,6 +38,7 @@ pub(super) trait Poolable: Unpin + Send + Sized + 'static {
     /// Allows for HTTP/2 to return a shared reservation.
     fn reserve(self) -> Reservation<Self>;
     fn can_share(&self) -> bool;
+    fn created_at(&self) -> Instant;
 }
 
 /// When checking out a pooled connection, it might be that the connection
@@ -298,7 +299,17 @@ impl<'a, T: Poolable + 'a> IdlePopper<'a, T> {
             // In that case, we could just break out of the loop and drop the
             // whole list...
             if expiration.expires(entry.idle_at) {
-                trace!("removing expired connection for {:?}", self.key);
+                trace!(
+                    "removing expired connection for {:?}: reason idle_at",
+                    self.key
+                );
+                continue;
+            }
+            if Expiration::new(Some(Duration::from_secs(30))).expires(entry.value.created_at()) {
+                trace!(
+                    "removing expired connection for {:?}: reason conn_lifetime",
+                    self.key
+                );
                 continue;
             }
 
@@ -796,6 +807,10 @@ mod tests {
     use std::task::Context;
     use std::task::Poll;
     use std::time::Duration;
+    #[cfg(not(feature = "runtime"))]
+    use std::time::Instant;
+    #[cfg(feature = "runtime")]
+    use tokio::time::Instant;
 
     use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
     use crate::common::exec::Exec;
@@ -815,6 +830,10 @@ mod tests {
 
         fn can_share(&self) -> bool {
             false
+        }
+
+        fn created_at(&self) -> Instant {
+            Instant::now()
         }
     }
 
@@ -1028,6 +1047,10 @@ mod tests {
 
         fn can_share(&self) -> bool {
             false
+        }
+
+        fn created_at(&self) -> Instant {
+            Instant::now()
         }
     }
 
