@@ -104,7 +104,7 @@ impl dyn Sleep {
     }
 
     /// Downcast a pinned &mut Sleep object to its original type
-    pub fn downcast_mut_pin<T>(self: Pin<&mut Self>) -> Option<Pin<&'static mut T>>
+    pub fn downcast_mut_pin<T>(self: Pin<&mut Self>) -> Option<Pin<&mut T>>
     where
         T: Sleep + 'static,
     {
