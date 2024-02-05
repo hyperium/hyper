@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1706447055932,
+  "lastUpdate": 1707146283944,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -6989,6 +6989,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46707,
             "range": "± 9624",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "7206fe30302937075c51c16a69d1eb3bbce6a671",
+          "message": "fix(rt): `Sleep::downcast_mut_pin()` no longer extend lifetime\n\nThis lifetime extension was a mistake.\n\nCloses #3556\n\nBREAKING CHANGE: The returned lifetime from `Sleep::downcast_mut_pin()`\n  is no longer `'static`. This shouldn't affect most usage. This sort of\n  breaking change is needed because it is _wrong_.",
+          "timestamp": "2024-02-05T10:17:12-05:00",
+          "tree_id": "d54ba733d16c7a2f1f2fc3fce9efca2bdefd9a7f",
+          "url": "https://github.com/hyperium/hyper/commit/7206fe30302937075c51c16a69d1eb3bbce6a671"
+        },
+        "date": 1707146282148,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49324,
+            "range": "± 9177",
             "unit": "ns/iter"
           }
         ]
