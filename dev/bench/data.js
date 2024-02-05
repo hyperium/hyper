@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1707146283944,
+  "lastUpdate": 1707146358565,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -38287,6 +38287,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5099178,
             "range": "± 97284",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "7206fe30302937075c51c16a69d1eb3bbce6a671",
+          "message": "fix(rt): `Sleep::downcast_mut_pin()` no longer extend lifetime\n\nThis lifetime extension was a mistake.\n\nCloses #3556\n\nBREAKING CHANGE: The returned lifetime from `Sleep::downcast_mut_pin()`\n  is no longer `'static`. This shouldn't affect most usage. This sort of\n  breaking change is needed because it is _wrong_.",
+          "timestamp": "2024-02-05T10:17:12-05:00",
+          "tree_id": "d54ba733d16c7a2f1f2fc3fce9efca2bdefd9a7f",
+          "url": "https://github.com/hyperium/hyper/commit/7206fe30302937075c51c16a69d1eb3bbce6a671"
+        },
+        "date": 1707146356795,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69811,
+            "range": "± 4748",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4264794,
+            "range": "± 365627",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22426,
+            "range": "± 400",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24919,
+            "range": "± 587",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33731,
+            "range": "± 1335",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99897,
+            "range": "± 5592",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37484,
+            "range": "± 1874",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 95082,
+            "range": "± 2816",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24811147,
+            "range": "± 33077924",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24776299,
+            "range": "± 18371731",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7661274,
+            "range": "± 116871",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49607792,
+            "range": "± 668016",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84002337,
+            "range": "± 8205539",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5138408,
+            "range": "± 114859",
             "unit": "ns/iter"
           }
         ]
