@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708001998553,
+  "lastUpdate": 1708002074357,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -38563,6 +38563,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5318364,
             "range": "± 185151",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "00a703a9ef268266f8a8f78540253cbb2dcc6a55",
+          "message": "chore(ci): update to cargo-check-external-types 0.1.11",
+          "timestamp": "2024-02-15T08:59:10-04:00",
+          "tree_id": "3b66a2761f79f563efc3f7f0c0530539e3b0e5d3",
+          "url": "https://github.com/hyperium/hyper/commit/00a703a9ef268266f8a8f78540253cbb2dcc6a55"
+        },
+        "date": 1708002072558,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69231,
+            "range": "± 929",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4209224,
+            "range": "± 185177",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22034,
+            "range": "± 1009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24372,
+            "range": "± 714",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33370,
+            "range": "± 726",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101248,
+            "range": "± 1225",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38360,
+            "range": "± 1925",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 96861,
+            "range": "± 2851",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24805453,
+            "range": "± 33073220",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 25167302,
+            "range": "± 18401464",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7669073,
+            "range": "± 72476",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49544554,
+            "range": "± 405766",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84000518,
+            "range": "± 8429691",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5127123,
+            "range": "± 123322",
             "unit": "ns/iter"
           }
         ]
