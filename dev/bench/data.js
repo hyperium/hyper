@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1707146358565,
+  "lastUpdate": 1707998697033,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7019,6 +7019,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49324,
             "range": "± 9177",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "b0c1395aec0f3cdabf9d7af82dbd06418b72a24c",
+          "message": "refactor(error): resolve unused trait error",
+          "timestamp": "2024-02-15T08:04:02-04:00",
+          "tree_id": "1b62a5b1321a6a966a41c3262867d5a28af5dc81",
+          "url": "https://github.com/hyperium/hyper/commit/b0c1395aec0f3cdabf9d7af82dbd06418b72a24c"
+        },
+        "date": 1707998694632,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45351,
+            "range": "± 9704",
             "unit": "ns/iter"
           }
         ]
