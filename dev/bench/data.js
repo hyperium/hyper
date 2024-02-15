@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1707998769394,
+  "lastUpdate": 1708001998553,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7049,6 +7049,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45351,
             "range": "± 9704",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "00a703a9ef268266f8a8f78540253cbb2dcc6a55",
+          "message": "chore(ci): update to cargo-check-external-types 0.1.11",
+          "timestamp": "2024-02-15T08:59:10-04:00",
+          "tree_id": "3b66a2761f79f563efc3f7f0c0530539e3b0e5d3",
+          "url": "https://github.com/hyperium/hyper/commit/00a703a9ef268266f8a8f78540253cbb2dcc6a55"
+        },
+        "date": 1708001996734,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45949,
+            "range": "± 9167",
             "unit": "ns/iter"
           }
         ]
