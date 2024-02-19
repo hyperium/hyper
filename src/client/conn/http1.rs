@@ -61,7 +61,7 @@ impl<T, B> Connection<T, B>
 where
     T: Read + Write + Unpin + 'static,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     /// Return the inner IO object, and additional information.
     ///
@@ -131,7 +131,7 @@ where
     T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     Builder::new().handshake(io).await
 }
@@ -253,7 +253,7 @@ impl<T, B> Connection<T, B>
 where
     T: Read + Write + Unpin + Send + 'static,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     /// Enable this connection to support higher-level HTTP upgrades.
     ///
@@ -278,7 +278,7 @@ where
     T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     type Output = crate::Result<()>;
 
@@ -516,7 +516,7 @@ impl Builder {
         T: Read + Write + Unpin + 'static,
         B: Body + 'static,
         B::Data: Send,
-        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        B::Error: StdError + Send + Sync,
     {
         let opts = self.clone();
 
@@ -579,7 +579,7 @@ mod upgrades {
     where
         T: Read + Write + Unpin + Send + 'static,
         B: Body + 'static,
-        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        B::Error: StdError + Send + Sync,
     {
         pub(super) inner: Option<Connection<T, B>>,
     }
@@ -589,7 +589,7 @@ mod upgrades {
         I: Read + Write + Unpin + Send + 'static,
         B: Body + 'static,
         B::Data: Send,
-        B::Error: Into<Box<dyn StdError + Send + Sync>>,
+        B::Error: StdError + Send + Sync,
     {
         type Output = crate::Result<()>;
 

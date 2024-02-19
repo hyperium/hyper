@@ -60,10 +60,10 @@ where
 impl<I, B, S, E> Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     I: Read + Write + Unpin,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
     E: Http2ServerConnExec<S::Future, B>,
 {
     /// Start a graceful shutdown process for this connection.
@@ -84,10 +84,10 @@ where
 impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     I: Read + Write + Unpin + 'static,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
     E: Http2ServerConnExec<S::Future, B>,
 {
     type Output = crate::Result<()>;
@@ -285,9 +285,9 @@ impl<E> Builder<E> {
     pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
     where
         S: HttpService<IncomingBody, ResBody = Bd>,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Error: StdError + Send + Sync,
         Bd: Body + 'static,
-        Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
+        Bd::Error: StdError + Send + Sync,
         I: Read + Write + Unpin,
         E: Http2ServerConnExec<S::Future, Bd>,
     {

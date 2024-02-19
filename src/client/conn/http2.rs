@@ -43,7 +43,7 @@ where
     T: Read + Write + 'static + Unpin,
     B: Body + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
-    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    B::Error: Error + Send + Sync,
 {
     inner: (PhantomData<T>, proto::h2::ClientTask<B, E, T>),
 }
@@ -73,7 +73,7 @@ where
     T: Read + Write + Unpin + 'static,
     B: Body + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    B::Error: Error + Send + Sync,
     E: Http2ClientConnExec<B, T> + Unpin + Clone,
 {
     Builder::new(exec).handshake(io).await
@@ -202,7 +202,7 @@ where
     T: Read + Write + Unpin + 'static,
     B: Body + Unpin + 'static,
     B::Data: Send,
-    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    B::Error: Error + Send + Sync,
     E: Http2ClientConnExec<B, T> + Unpin,
 {
     /// Returns whether the [extended CONNECT protocol][1] is enabled or not.
@@ -224,7 +224,7 @@ where
     T: Read + Write + fmt::Debug + 'static + Unpin,
     B: Body + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
-    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    B::Error: Error + Send + Sync,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -237,7 +237,7 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     E: Unpin,
-    B::Error: Into<Box<dyn Error + Send + Sync>>,
+    B::Error: Error + Send + Sync,
     E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
 {
     type Output = crate::Result<()>;
@@ -420,7 +420,7 @@ where
         T: Read + Write + Unpin + 'static,
         B: Body + 'static,
         B::Data: Send,
-        B::Error: Into<Box<dyn Error + Send + Sync>>,
+        B::Error: Error + Send + Sync,
         Ex: Http2ClientConnExec<B, T> + Unpin,
     {
         let opts = self.clone();

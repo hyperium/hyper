@@ -69,11 +69,11 @@ where
             PollBody = Bs,
             RecvItem = MessageHead<T::Incoming>,
         > + Unpin,
-    D::PollError: Into<Box<dyn StdError + Send + Sync>>,
+    D::PollError: StdError + Send + Sync,
     I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
     Bs: Body + 'static,
-    Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
+    Bs::Error: StdError + Send + Sync,
 {
     pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
         Dispatcher {
@@ -434,11 +434,11 @@ where
             PollBody = Bs,
             RecvItem = MessageHead<T::Incoming>,
         > + Unpin,
-    D::PollError: Into<Box<dyn StdError + Send + Sync>>,
+    D::PollError: StdError + Send + Sync,
     I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
     Bs: Body + 'static,
-    Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
+    Bs::Error: StdError + Send + Sync,
 {
     type Output = crate::Result<Dispatched>;
 
@@ -497,7 +497,7 @@ cfg_server! {
     impl<S, Bs> Dispatch for Server<S, IncomingBody>
     where
         S: HttpService<IncomingBody, ResBody = Bs>,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Error: StdError + Send + Sync,
         Bs: Body,
     {
         type PollItem = MessageHead<http::StatusCode>;

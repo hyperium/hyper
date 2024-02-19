@@ -118,10 +118,10 @@ where
 impl<I, B, S> Connection<I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     I: Read + Write + Unpin,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -205,10 +205,10 @@ where
 impl<I, B, S> Future for Connection<I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     I: Read + Write + Unpin + 'static,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     type Output = crate::Result<()>;
 
@@ -398,7 +398,7 @@ impl Builder {
     /// # where
     /// #     I: Read + Write + Unpin + Send + 'static,
     /// #     S: Service<hyper::Request<Incoming>, Response=hyper::Response<Incoming>> + Send + 'static,
-    /// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    /// #     S::Error: std::error::Error + Send + Sync,
     /// #     S::Future: Send,
     /// # {
     /// let http = Builder::new();
@@ -413,9 +413,9 @@ impl Builder {
     pub fn serve_connection<I, S>(&self, io: I, service: S) -> Connection<I, S>
     where
         S: HttpService<IncomingBody>,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Error: StdError + Send + Sync,
         S::ResBody: 'static,
-        <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
+        <S::ResBody as Body>::Error: StdError + Send + Sync,
         I: Read + Write + Unpin,
     {
         let mut conn = proto::Conn::new(io);
@@ -471,10 +471,10 @@ where
 impl<I, B, S> UpgradeableConnection<I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     I: Read + Write + Unpin,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     /// Start a graceful shutdown process for this connection.
     ///
@@ -488,10 +488,10 @@ where
 impl<I, B, S> Future for UpgradeableConnection<I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     I: Read + Write + Unpin + Send + 'static,
     B: Body + 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
 {
     type Output = crate::Result<()>;
 

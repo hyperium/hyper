@@ -125,7 +125,7 @@ where
     B: Body + 'static,
     B::Data: Send + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync,
 {
     let (h2_tx, mut conn) = new_builder(config)
         .handshake::<_, SendBuf<B::Data>>(Compat::new(io))
@@ -336,7 +336,7 @@ pin_project! {
     where
         B: http_body::Body,
         B: 'static,
-        B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+        B::Error: std::error::Error + Send + Sync,
         T: Read,
         T: Write,
         T: Unpin,
@@ -359,7 +359,7 @@ pin_project! {
 impl<B, T> Future for H2ClientFuture<B, T>
 where
     B: http_body::Body + 'static,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync,
     T: Read + Write + Unpin,
 {
     type Output = ();
@@ -408,7 +408,7 @@ impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync,
     T: Read + Write + Unpin,
 {
     pub(crate) fn is_extended_connect_protocol_enabled(&self) -> bool {
@@ -433,7 +433,7 @@ pin_project! {
 impl<B> Future for PipeMap<B>
 where
     B: http_body::Body,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync,
 {
     type Output = ();
 
@@ -460,7 +460,7 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     E: Http2ClientConnExec<B, T> + Unpin,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync,
     T: Read + Write + Unpin,
 {
     fn poll_pipe(&mut self, f: FutCtx<B>, cx: &mut Context<'_>) {
@@ -594,7 +594,7 @@ impl<B, E, T> Future for ClientTask<B, E, T>
 where
     B: Body + 'static + Unpin,
     B::Data: Send,
-    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    B::Error: std::error::Error + Send + Sync,
     E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
     T: Read + Write + Unpin,
 {

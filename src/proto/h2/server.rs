@@ -116,7 +116,7 @@ impl<T, S, B, E> Server<T, S, B, E>
 where
     T: Read + Write + Unpin,
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     B: Body + 'static,
     E: Http2ServerConnExec<S::Future, B>,
 {
@@ -196,7 +196,7 @@ impl<T, S, B, E> Future for Server<T, S, B, E>
 where
     T: Read + Write + Unpin,
     S: HttpService<IncomingBody, ResBody = B>,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
     B: Body + 'static,
     E: Http2ServerConnExec<S::Future, B>,
 {
@@ -251,7 +251,7 @@ where
     ) -> Poll<crate::Result<()>>
     where
         S: HttpService<IncomingBody, ResBody = B>,
-        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::Error: StdError + Send + Sync,
         E: Http2ServerConnExec<S::Future, B>,
     {
         if self.closing.is_none() {
@@ -420,8 +420,8 @@ where
     F: Future<Output = Result<Response<B>, E>>,
     B: Body,
     B::Data: 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
+    E: StdError + Send + Sync,
 {
     fn poll2(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         let mut me = self.project();
@@ -513,8 +513,8 @@ where
     F: Future<Output = Result<Response<B>, E>>,
     B: Body,
     B::Data: 'static,
-    B::Error: Into<Box<dyn StdError + Send + Sync>>,
-    E: Into<Box<dyn StdError + Send + Sync>>,
+    B::Error: StdError + Send + Sync,
+    E: StdError + Send + Sync,
 {
     type Output = ();
 

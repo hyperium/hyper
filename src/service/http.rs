@@ -15,7 +15,7 @@ pub trait HttpService<ReqBody>: sealed::Sealed<ReqBody> {
     /// Note: Returning an `Error` to a hyper server will cause the connection
     /// to be abruptly aborted. In most cases, it is better to return a `Response`
     /// with a 4xx or 5xx status code.
-    type Error: Into<Box<dyn StdError + Send + Sync>>;
+    type Error: StdError + Send + Sync;
 
     /// The `Future` returned by this `Service`.
     type Future: Future<Output = Result<Response<Self::ResBody>, Self::Error>>;
@@ -28,7 +28,7 @@ impl<T, B1, B2> HttpService<B1> for T
 where
     T: Service<Request<B1>, Response = Response<B2>>,
     B2: Body,
-    T::Error: Into<Box<dyn StdError + Send + Sync>>,
+    T::Error: StdError + Send + Sync,
 {
     type ResBody = B2;
 

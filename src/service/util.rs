@@ -49,7 +49,7 @@ where
     F: Fn(Request<ReqBody>) -> Ret,
     ReqBody: Body,
     Ret: Future<Output = Result<Response<ResBody>, E>>,
-    E: Into<Box<dyn StdError + Send + Sync>>,
+    E: StdError + Send + Sync,
     ResBody: Body,
 {
     type Response = crate::Response<ResBody>;

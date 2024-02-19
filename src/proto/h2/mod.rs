@@ -114,7 +114,7 @@ where
 impl<S> Future for PipeToSendStream<S>
 where
     S: Body,
-    S::Error: Into<Box<dyn StdError + Send + Sync>>,
+    S::Error: StdError + Send + Sync,
 {
     type Output = crate::Result<()>;
 
@@ -197,14 +197,14 @@ where
 trait SendStreamExt {
     fn on_user_err<E>(&mut self, err: E) -> crate::Error
     where
-        E: Into<Box<dyn std::error::Error + Send + Sync>>;
+        E: std::error::Error + Send + Sync;
     fn send_eos_frame(&mut self) -> crate::Result<()>;
 }
 
 impl<B: Buf> SendStreamExt for SendStream<SendBuf<B>> {
     fn on_user_err<E>(&mut self, err: E) -> crate::Error
     where
-        E: Into<Box<dyn std::error::Error + Send + Sync>>,
+        E: std::error::Error + Send + Sync,
     {
         let err = crate::Error::new_user_body(err);
         debug!("send body user stream error: {}", err);
