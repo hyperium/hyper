@@ -135,6 +135,8 @@ impl Http1Transaction for Server {
         let version;
         let len;
         let headers_len;
+        let method;
+        let path_range;
 
         // Both headers_indices and headers are using uninitialized memory,
         // but we *never* read any of it until after httparse has assigned
@@ -162,10 +164,8 @@ impl Http1Transaction for Server {
                     if uri.len() > MAX_URI_LEN {
                         return Err(Parse::UriTooLong);
                     }
-                    subject = RequestLine(
-                        Method::from_bytes(req.method.unwrap().as_bytes())?,
-                        uri.parse()?,
-                    );
+                    method = Method::from_bytes(req.method.unwrap().as_bytes())?;
+                    path_range = Server::record_path_range(bytes, uri);
                     version = if req.version.unwrap() == 1 {
                         keep_alive = true;
                         is_http_11 = true;
@@ -198,6 +198,12 @@ impl Http1Transaction for Server {
         };
 
         let slice = buf.split_to(len).freeze();
+        let uri = {
+            let uri_bytes = slice.slice_ref(&slice[path_range]);
+            // TODO(lucab): switch to `Uri::from_shared()` once public.
+            http::Uri::from_maybe_shared(uri_bytes)?
+        };
+        subject = RequestLine(method, uri);
 
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. (irrelevant to Request)
@@ -944,6 +950,15 @@ impl Server {
         }
 
         Ok(encoder.set_last(is_last))
+    }
+
+    /// Helper for zero-copy parsing of request path URI.
+    #[inline]
+    fn record_path_range(bytes: &[u8], req_path: &str) -> std::ops::Range<usize> {
+        let bytes_ptr = bytes.as_ptr() as usize;
+        let start = req_path.as_ptr() as usize - bytes_ptr;
+        let end = start + req_path.len();
+        std::ops::Range { start, end }
     }
 }
 
@@ -2936,8 +2951,12 @@ mod tests {
             .unwrap()
             .unwrap();
             ::test::black_box(&msg);
+
+            // Remove all references pointing into BytesMut.
             msg.head.headers.clear();
             headers = Some(msg.head.headers);
+            std::mem::take(&mut msg.head.subject);
+
             restart(&mut raw, len);
         });
 
