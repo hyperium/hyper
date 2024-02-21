@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708002074357,
+  "lastUpdate": 1708529473437,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7079,6 +7079,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45949,
             "range": "± 9167",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "a7bdc60bb5c3fd78b12c6d5668ff0cf889e0a752",
+          "message": "refactor(lib): importing Unpin is not needed in 2021 edition",
+          "timestamp": "2024-02-21T10:30:22-05:00",
+          "tree_id": "9a644f8616842ae1c4927d7400d75dacb246d582",
+          "url": "https://github.com/hyperium/hyper/commit/a7bdc60bb5c3fd78b12c6d5668ff0cf889e0a752"
+        },
+        "date": 1708529471652,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46408,
+            "range": "± 9463",
             "unit": "ns/iter"
           }
         ]
