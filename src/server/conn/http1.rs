@@ -3,7 +3,6 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::future::Future;
-use std::marker::Unpin;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
