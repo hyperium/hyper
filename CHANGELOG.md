@@ -1,3 +1,30 @@
+## v1.2.0 (2024-02-21)
+
+
+#### Bug Fixes
+
+* **http2:** typo in trace logging (#3536) ([79862ec2](https://github.com/hyperium/hyper/commit/79862ec2e84c32122c820958ceec06d8b7701ff7))
+* **rt:** `Sleep::downcast_mut_pin()` no longer extend lifetime ([7206fe30](https://github.com/hyperium/hyper/commit/7206fe30302937075c51c16a69d1eb3bbce6a671), closes [#3556](https://github.com/hyperium/hyper/issues/3556))
+
+
+#### Features
+
+* **http1:** support configurable `max_headers(num)` to client and server (#3523) ([b1142448](https://github.com/hyperium/hyper/commit/b114244898828e9fb254bea1f0bbdd24850b2f3f))
+* **http2:**
+  * add config for `max_local_error_reset_streams` in server (#3530) ([d7680e30](https://github.com/hyperium/hyper/commit/d7680e30e48926a5a3f94a0986d39181d5ab2218))
+  * add `initial_max_send_streams` method to HTTP/2 client builder (#3524) ([fdfa60d9](https://github.com/hyperium/hyper/commit/fdfa60d9fafb8a6bfb40acc4042ee54a2b9aad32))
+  * add `max_pending_accept_reset_streams(num)` back to HTTP/2 server builder (#3507 ([a9fa893f](https://github.com/hyperium/hyper/commit/a9fa893f18c6409abae2e1dcbba0f4487df54d4f))
+
+
+#### Breaking Changes
+
+* The returned lifetime from `Sleep::downcast_mut_pin()`
+  is no longer `'static`. This shouldn't affect most usage. This sort of
+  breaking change is needed because it is _wrong_.
+
+ ([7206fe30](https://github.com/hyperium/hyper/commit/7206fe30302937075c51c16a69d1eb3bbce6a671))
+
+
 ## v1.1.0 (2023-12-18)
 
 
