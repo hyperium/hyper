@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708536237287,
+  "lastUpdate": 1708536305942,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -38977,6 +38977,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5094279,
             "range": "± 98576",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lucab@lucabruno.net",
+            "name": "Luca Bruno",
+            "username": "lucab"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "724bde7defdeaf6f3109e2943b49755df2ceacb9",
+          "message": "perf(http1): avoid copy-allocation in request path parsing (#3575)\n\nThis tweaks the request path parsing logic (in server role) in order to perform zero-copy URI parsing.\r\n\r\nCloses #3574",
+          "timestamp": "2024-02-21T12:23:04-05:00",
+          "tree_id": "621c2350767096eecb5138b3ccd1dc1b71e6586e",
+          "url": "https://github.com/hyperium/hyper/commit/724bde7defdeaf6f3109e2943b49755df2ceacb9"
+        },
+        "date": 1708536303321,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69359,
+            "range": "± 1431",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4210314,
+            "range": "± 759667",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22428,
+            "range": "± 1155",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24719,
+            "range": "± 1016",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 34537,
+            "range": "± 929",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101294,
+            "range": "± 4528",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 39467,
+            "range": "± 4211",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 98132,
+            "range": "± 5685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24807777,
+            "range": "± 34260508",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7927907,
+            "range": "± 4667090",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7636454,
+            "range": "± 232748",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50112916,
+            "range": "± 707810",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 84799364,
+            "range": "± 9165562",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5176646,
+            "range": "± 367030",
             "unit": "ns/iter"
           }
         ]
