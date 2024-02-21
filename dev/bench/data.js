@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708530201257,
+  "lastUpdate": 1708536237287,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7139,6 +7139,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47232,
             "range": "± 7909",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lucab@lucabruno.net",
+            "name": "Luca Bruno",
+            "username": "lucab"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "724bde7defdeaf6f3109e2943b49755df2ceacb9",
+          "message": "perf(http1): avoid copy-allocation in request path parsing (#3575)\n\nThis tweaks the request path parsing logic (in server role) in order to perform zero-copy URI parsing.\r\n\r\nCloses #3574",
+          "timestamp": "2024-02-21T12:23:04-05:00",
+          "tree_id": "621c2350767096eecb5138b3ccd1dc1b71e6586e",
+          "url": "https://github.com/hyperium/hyper/commit/724bde7defdeaf6f3109e2943b49755df2ceacb9"
+        },
+        "date": 1708536235215,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48293,
+            "range": "± 9136",
             "unit": "ns/iter"
           }
         ]
