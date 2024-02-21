@@ -3,7 +3,6 @@ use std::fmt;
 #[cfg(feature = "server")]
 use std::future::Future;
 use std::io::{self, IoSlice};
-use std::marker::Unpin;
 use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
