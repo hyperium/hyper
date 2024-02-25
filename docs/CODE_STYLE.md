@@ -8,10 +8,10 @@ hyper uses the default configuration of `rustfmt`.
 
 ```txt
 # Mac or Linux
-rustfmt --check --edition 2018 $(git ls-files '*.rs')
+rustfmt --check --edition 2021 $(git ls-files '*.rs')
 
 # Powershell
-Get-ChildItem . -Filter "*.rs" -Recurse | foreach { rustfmt --check --edition 2018 $_.FullName }
+Get-ChildItem . -Filter "*.rs" -Recurse | foreach { rustfmt --check --edition 2021 $_.FullName }
 ```
 
 > **NOTE**: If you are using `rust-analyzer`, you can add the following two lines in your `settings.json` to make sure the features get taken into account when checking the project:
