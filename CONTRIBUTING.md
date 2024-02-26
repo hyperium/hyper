@@ -14,6 +14,9 @@ Firstly, all interactions with the project need to abide by the code of conduct.
 - [Triaging issues](./docs/ISSUES.md#triaging) is a huge help. By your helping make issues better, the reporters can get answers sooner, and others can fix them with less effort. You can also volunteer as a frequent [triager](./docs/MAINTAINERS.md#triagers).
 - Discuss [feature requests][feat] (especially those marked [request-for-comment][b-rfc]).
 
+[feat]: https://github.com/hyperium/hyper/issues?q=is%3Aissue+is%3Aopen+label%3AC-feature
+[b-rfc]: https://github.com/hyperium/hyper/issues?q=is%3Aissue+is%3Aopen+label%3AB-rfc
+
 
 ## [Pull Requests](./docs/PULL_REQUESTS.md)
 
@@ -27,7 +30,7 @@ By the way, consider checking the [list of easy issues](https://github.com/hyper
 Improving hyper's documentation is a huge help for everyone who is trying to _use_ hyper.
 
 - The API documentation (rendered at https://docs.rs/hyper) is stored as rustdoc comments directly in the source.
-- The main website has [tutorial-style guides](https://hyper.rs/guides). As of v1, they are currently in a [revamp](https://github.com/hyperium/hyper/issues/3411), and wouldly greatly benefit from being filled out.
+- The main website has [tutorial-style guides](https://hyper.rs/guides). As of v1, they are currently in a [revamp](https://github.com/hyperium/hyper/issues/3411), and would greatly benefit from being filled out.
 
 ## Help
 
