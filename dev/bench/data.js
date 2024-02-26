@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1708972485244,
+  "lastUpdate": 1708984820431,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7259,6 +7259,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46083,
             "range": "± 9388",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e77c839a591f3685d851c96664ab29f8c45c45a2",
+          "message": "docs(contrib): make Noah-Kennedy a collaborator (#3584)",
+          "timestamp": "2024-02-26T15:59:32-06:00",
+          "tree_id": "8325d45c68b18a5ece677e344f76e6281fb190d3",
+          "url": "https://github.com/hyperium/hyper/commit/e77c839a591f3685d851c96664ab29f8c45c45a2"
+        },
+        "date": 1708984818589,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46495,
+            "range": "± 9340",
             "unit": "ns/iter"
           }
         ]
