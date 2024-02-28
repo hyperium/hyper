@@ -57,7 +57,7 @@ pin_project_lite::pin_project! {
 /// # fn main() {
 /// let mut http = Builder::new();
 /// // Set options one at a time
-/// http.header_read_timeout(Duration::from_millis(200));
+/// http.half_close(false);
 ///
 /// // Or, chain multiple options
 /// http.keep_alive(false).title_case_headers(true).max_buf_size(8192);
