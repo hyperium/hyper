@@ -316,6 +316,9 @@ impl Builder {
     /// Set a timeout for reading client request headers. If a client does not
     /// transmit the entire header within this time, the connection is closed.
     ///
+    /// Requires a [`Timer`] set by [`Builder::timer`] to take effect. Panics if `header_read_timeout` is configured
+    /// without a [`Timer`].
+    ///
     /// Pass `None` to disable.
     ///
     /// Default is 30 seconds.
