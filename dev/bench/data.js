@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1709160257992,
+  "lastUpdate": 1709166558007,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7319,6 +7319,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48027,
             "range": "± 8717",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dswijj@gmail.com",
+            "name": "dswij",
+            "username": "dswij"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "276cb0c1b6b6492c8864827495db822031676346",
+          "message": "chore(docs): remove `header_read_timeout` from `http1::Builder` example",
+          "timestamp": "2024-02-28T19:28:29-05:00",
+          "tree_id": "8c270aba4707d5d6c58c15f2c7f1c28ea7f0d7a2",
+          "url": "https://github.com/hyperium/hyper/commit/276cb0c1b6b6492c8864827495db822031676346"
+        },
+        "date": 1709166555767,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47229,
+            "range": "± 13298",
             "unit": "ns/iter"
           }
         ]
