@@ -6,7 +6,9 @@
 //! customize those things externally.
 //!
 //! If you are looking for a convenient HTTP client,
-//! then you may wish to consider [reqwest](https://github.com/seanmonstar/reqwest).
+//! then you may wish to consider [reqwest](https://github.com/seanmonstar/reqwest)
+//! for a high level client or [`hyper-util`'s client](https://docs.rs/hyper-util/latest/hyper_util/client/index.html)
+//! if you want to keep it more low level / basic.
 //!
 //! ## Example
 //!
