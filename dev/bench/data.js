@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1709646455484,
+  "lastUpdate": 1709706954694,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7409,6 +7409,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 50125,
             "range": "± 8327",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "contact@glendc.com",
+            "name": "Glen De Cauwsemaecker",
+            "username": "GlenDC"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9c438e386cbffe17bbbb2b001152ded640e7332e",
+          "message": "chore(docs): replace client link in `conn`s documentation (#3501)",
+          "timestamp": "2024-03-06T14:35:01+08:00",
+          "tree_id": "dd35bfc446438387f2bd8321e9e621ca46c21185",
+          "url": "https://github.com/hyperium/hyper/commit/9c438e386cbffe17bbbb2b001152ded640e7332e"
+        },
+        "date": 1709706952159,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48931,
+            "range": "± 11688",
             "unit": "ns/iter"
           }
         ]
