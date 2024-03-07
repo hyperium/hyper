@@ -29,7 +29,7 @@ type Cause = Box<dyn StdError + Send + Sync>;
 /// on**. They may come from private internal dependencies, and are subject to
 /// change at any moment.
 pub struct Error {
-    inner: Box<ErrorImpl>,
+    inner: ErrorImpl,
 }
 
 struct ErrorImpl {
@@ -244,7 +244,7 @@ impl Error {
 
     pub(super) fn new(kind: Kind) -> Error {
         Error {
-            inner: Box::new(ErrorImpl { kind, cause: None }),
+            inner: ErrorImpl { kind, cause: None },
         }
     }
 
@@ -625,7 +625,11 @@ mod tests {
 
     #[test]
     fn error_size_of() {
-        assert_eq!(mem::size_of::<Error>(), mem::size_of::<usize>());
+        assert!(
+            mem::size_of::<Error>() <= mem::size_of::<usize>() * 4,
+            "Size of error was {}, we prefer <= 16",
+            mem::size_of::<Error>()
+        );
     }
 
     #[cfg(feature = "http2")]
