@@ -253,7 +253,7 @@ impl Body for Incoming {
                                 Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => {
                                     Poll::Ready(None)
                                 }
-                                _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
+                                _ => Poll::Ready(Some(Err(crate::Error::new_body_h2(e)))),
                             };
                         }
                         None => {

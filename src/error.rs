@@ -1,11 +1,28 @@
 //! Error and Result module.
 use std::error::Error as StdError;
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = std::result::Result<T, Error>;
 
-type Cause = Box<dyn StdError + Send + Sync>;
+enum Cause {
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    H2(h2::Error),
+    Other(GenericError),
+}
+
+impl Debug for Cause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Cause::Other(e) => e.fmt(f),
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+            Cause::H2(e) => e.fmt(f),
+        }
+    }
+}
+
+type GenericError = Box<dyn StdError + Send + Sync>;
 
 /// Represents errors that can occur handling HTTP streams.
 ///
@@ -248,8 +265,14 @@ impl Error {
         }
     }
 
-    pub(super) fn with<C: Into<Cause>>(mut self, cause: C) -> Error {
-        self.inner.cause = Some(cause.into());
+    pub(super) fn with<C: Into<GenericError>>(mut self, cause: C) -> Error {
+        self.inner.cause = Some(Cause::Other(cause.into()));
+        self
+    }
+
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    pub(super) fn with_h2(mut self, cause: h2::Error) -> Error {
+        self.inner.cause = Some(Cause::H2(cause));
         self
     }
 
@@ -324,15 +347,21 @@ impl Error {
         any(feature = "client", feature = "server"),
         any(feature = "http1", feature = "http2")
     ))]
-    pub(super) fn new_body<E: Into<Cause>>(cause: E) -> Error {
+    #[allow(unused)]
+    pub(super) fn new_body<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::Body).with(cause)
+    }
+
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    pub(super) fn new_body_h2(cause: h2::Error) -> Error {
+        Error::new(Kind::Body).with_h2(cause)
     }
 
     #[cfg(all(
         any(feature = "client", feature = "server"),
         any(feature = "http1", feature = "http2")
     ))]
-    pub(super) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_body_write<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
     }
 
@@ -378,7 +407,7 @@ impl Error {
         all(any(feature = "client", feature = "server"), feature = "http1"),
         all(feature = "server", feature = "http2")
     ))]
-    pub(super) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_service<E: Into<GenericError>>(cause: E) -> Error {
         Error::new_user(User::Service).with(cause)
     }
 
@@ -386,7 +415,7 @@ impl Error {
         any(feature = "client", feature = "server"),
         any(feature = "http1", feature = "http2")
     ))]
-    pub(super) fn new_user_body<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_body<E: Into<GenericError>>(cause: E) -> Error {
         Error::new_user(User::Body).with(cause)
     }
 
@@ -410,7 +439,7 @@ impl Error {
         if cause.is_io() {
             Error::new_io(cause.into_io().expect("h2::Error::is_io"))
         } else {
-            Error::new(Kind::Http2).with(cause)
+            Error::new(Kind::Http2).with_h2(cause)
         }
     }
 
@@ -530,10 +559,11 @@ impl fmt::Display for Error {
 
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.inner
-            .cause
-            .as_ref()
-            .map(|cause| &**cause as &(dyn StdError + 'static))
+        self.inner.cause.as_ref().map(|cause| match cause {
+            Cause::Other(c) => &**c as &(dyn StdError + 'static),
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+            Cause::H2(c) => &*c as &(dyn StdError + 'static),
+        })
     }
 }
 
@@ -625,10 +655,13 @@ mod tests {
 
     #[test]
     fn error_size_of() {
+        const PREFERRED: usize = mem::size_of::<usize>() * 8;
+
         assert!(
-            mem::size_of::<Error>() <= mem::size_of::<usize>() * 4,
-            "Size of error was {}, we prefer <= 16",
-            mem::size_of::<Error>()
+            mem::size_of::<Error>() <= PREFERRED,
+            "Size of error was {}, we prefer <= {}",
+            mem::size_of::<Error>(),
+            PREFERRED
         );
     }
 
