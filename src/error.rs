@@ -4,15 +4,32 @@
 use crate::client::connect::Connected;
 use std::error::Error as StdError;
 use std::fmt;
+use std::fmt::{Debug, Formatter};
 
 /// Result type often returned from methods that can have hyper `Error`s.
 pub type Result<T> = std::result::Result<T, Error>;
 
-type Cause = Box<dyn StdError + Send + Sync>;
+enum Cause {
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    H2(h2::Error),
+    Other(GenericError),
+}
+
+impl Debug for Cause {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Cause::Other(e) => e.fmt(f),
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+            Cause::H2(e) => e.fmt(f),
+        }
+    }
+}
+
+type GenericError = Box<dyn StdError + Send + Sync>;
 
 /// Represents errors that can occur handling HTTP streams.
 pub struct Error {
-    inner: Box<ErrorImpl>,
+    inner: ErrorImpl,
 }
 
 struct ErrorImpl {
@@ -212,7 +229,10 @@ impl Error {
 
     /// Consumes the error, returning its cause.
     pub fn into_cause(self) -> Option<Box<dyn StdError + Send + Sync>> {
-        self.inner.cause
+        self.inner.cause.map(|x| match x {
+            Cause::H2(e) => Box::new(e),
+            Cause::Other(e) => e,
+        })
     }
 
     /// Returns the info of the client connection on which this error occurred.
@@ -223,17 +243,23 @@ impl Error {
 
     pub(super) fn new(kind: Kind) -> Error {
         Error {
-            inner: Box::new(ErrorImpl {
+            inner: ErrorImpl {
                 kind,
                 cause: None,
                 #[cfg(all(feature = "client", any(feature = "http1", feature = "http2")))]
                 connect_info: None,
-            }),
+            },
         }
     }
 
-    pub(super) fn with<C: Into<Cause>>(mut self, cause: C) -> Error {
-        self.inner.cause = Some(cause.into());
+    pub(super) fn with<C: Into<GenericError>>(mut self, cause: C) -> Error {
+        self.inner.cause = Some(Cause::Other(cause.into()));
+        self
+    }
+
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    pub(super) fn with_h2(mut self, cause: h2::Error) -> Error {
+        self.inner.cause = Some(Cause::H2(cause));
         self
     }
 
@@ -300,19 +326,19 @@ impl Error {
     }
 
     #[cfg(all(feature = "server", feature = "tcp"))]
-    pub(super) fn new_listen<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_listen<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::Listen).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
-    pub(super) fn new_accept<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_accept<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::Accept).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "client")]
-    pub(super) fn new_connect<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_connect<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::Connect).with(cause)
     }
 
@@ -321,12 +347,17 @@ impl Error {
     }
 
     #[cfg(any(feature = "http1", feature = "http2", feature = "stream"))]
-    pub(super) fn new_body<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_body<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::Body).with(cause)
     }
 
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    pub(super) fn new_body_h2(cause: h2::Error) -> Error {
+        Error::new(Kind::Body).with_h2(cause)
+    }
+
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(super) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_body_write<E: Into<GenericError>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
     }
 
@@ -384,17 +415,17 @@ impl Error {
 
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
-    pub(super) fn new_user_make_service<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_make_service<E: Into<GenericError>>(cause: E) -> Error {
         Error::new_user(User::MakeService).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(super) fn new_user_service<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_service<E: Into<GenericError>>(cause: E) -> Error {
         Error::new_user(User::Service).with(cause)
     }
 
     #[cfg(any(feature = "http1", feature = "http2"))]
-    pub(super) fn new_user_body<E: Into<Cause>>(cause: E) -> Error {
+    pub(super) fn new_user_body<E: Into<GenericError>>(cause: E) -> Error {
         Error::new_user(User::Body).with(cause)
     }
 
@@ -423,7 +454,7 @@ impl Error {
         if cause.is_io() {
             Error::new_io(cause.into_io().expect("h2::Error::is_io"))
         } else {
-            Error::new(Kind::Http2).with(cause)
+            Error::new(Kind::Http2).with_h2(cause)
         }
     }
 
@@ -536,7 +567,7 @@ impl fmt::Debug for Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ref cause) = self.inner.cause {
-            write!(f, "{}: {}", self.description(), cause)
+            write!(f, "{}: {:?}", self.description(), cause)
         } else {
             f.write_str(self.description())
         }
@@ -545,10 +576,11 @@ impl fmt::Display for Error {
 
 impl StdError for Error {
     fn source(&self) -> Option<&(dyn StdError + 'static)> {
-        self.inner
-            .cause
-            .as_ref()
-            .map(|cause| &**cause as &(dyn StdError + 'static))
+        self.inner.cause.as_ref().map(|cause| match cause {
+            Cause::Other(c) => &**c as &(dyn StdError + 'static),
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+            Cause::H2(c) => &*c as &(dyn StdError + 'static),
+        })
     }
 }
 
@@ -635,7 +667,14 @@ mod tests {
 
     #[test]
     fn error_size_of() {
-        assert_eq!(mem::size_of::<Error>(), mem::size_of::<usize>());
+        const PREFERRED: usize = 128;
+
+        assert!(
+            mem::size_of::<Error>() <= PREFERRED,
+            "Size of error was {}, we prefer <= {}",
+            mem::size_of::<Error>(),
+            PREFERRED
+        );
     }
 
     #[cfg(feature = "http2")]
