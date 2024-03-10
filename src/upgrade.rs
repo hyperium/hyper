@@ -110,7 +110,7 @@ pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
     any(feature = "client", feature = "server"),
     any(feature = "http1", feature = "http2"),
 ))]
-pub(super) struct Pending {
+pub struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
@@ -118,7 +118,7 @@ pub(super) struct Pending {
     any(feature = "client", feature = "server"),
     any(feature = "http1", feature = "http2"),
 ))]
-pub(super) fn pending() -> (Pending, OnUpgrade) {
+pub fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
     (
         Pending { tx },
@@ -254,7 +254,7 @@ impl fmt::Debug for OnUpgrade {
     any(feature = "http1", feature = "http2")
 ))]
 impl Pending {
-    pub(super) fn fulfill(self, upgraded: Upgraded) {
+    pub fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");
         let _ = self.tx.send(Ok(upgraded));
     }
