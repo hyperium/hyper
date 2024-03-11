@@ -178,18 +178,10 @@ where
     ///
     /// Returns a future that if successful, yields the `Response`.
     ///
-    /// # Note
+    /// `req` must have a `Host` header.
     ///
-    /// There are some key differences in what automatic things the `Client`
-    /// does for you that will not be done here:
-    ///
-    /// - `Client` requires absolute-form `Uri`s, since the scheme and
-    ///   authority are needed to connect. They aren't required here.
-    /// - Since the `Client` requires absolute-form `Uri`s, it can add
-    ///   the `Host` header based on it. You must add a `Host` header yourself
-    ///   before calling this method.
-    /// - Since absolute-form `Uri`s are not required, if received, they will
-    ///   be serialized as-is.
+    /// Absolute-form `Uri`s are not required. If received, they will be serialized
+    /// as-is.
     pub fn send_request(
         &mut self,
         req: Request<B>,
