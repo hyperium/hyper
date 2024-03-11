@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1709707005914,
+  "lastUpdate": 1710167310969,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7439,6 +7439,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48931,
             "range": "± 11688",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tom.fryers@midsummerenergy.co.uk",
+            "name": "Tom Fryers",
+            "username": "TomFryersMidsummer"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2a093c06a3818912079655757ac4b14c354031d1",
+          "message": "docs: remove reference to Client (#3598)",
+          "timestamp": "2024-03-11T22:27:37+08:00",
+          "tree_id": "3b09410a114329f02ac8df0c82bf56ba49713802",
+          "url": "https://github.com/hyperium/hyper/commit/2a093c06a3818912079655757ac4b14c354031d1"
+        },
+        "date": 1710167308944,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46730,
+            "range": "± 9276",
             "unit": "ns/iter"
           }
         ]
