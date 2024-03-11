@@ -5,8 +5,10 @@
 //! are not handled at this level. This module provides the building blocks to
 //! customize those things externally.
 //!
-//! If don't have need to manage connections yourself, consider using the
-//! higher-level [Client](super) API.
+//! If you are looking for a convenient HTTP client,
+//! then you may wish to consider [reqwest](https://github.com/seanmonstar/reqwest)
+//! for a high level client or [`hyper-util`'s client](https://docs.rs/hyper-util/latest/hyper_util/client/index.html)
+//! if you want to keep it more low level / basic.
 //!
 //! ## Example
 //!
