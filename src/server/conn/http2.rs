@@ -84,7 +84,7 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: Read + Write + Unpin + 'static,
+    I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ServerConnExec<S::Future, B>,
