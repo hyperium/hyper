@@ -25,12 +25,6 @@ mod http;
 mod service;
 mod util;
 
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
 pub use self::http::HttpService;
-#[cfg(all(
-    any(feature = "http1", feature = "http2"),
-    any(feature = "server", feature = "client")
-))]
 pub use self::service::Service;
-
 pub use self::util::service_fn;
