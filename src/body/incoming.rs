@@ -350,11 +350,6 @@ impl Sender {
         }
     }
 
-    #[cfg(test)]
-    async fn ready(&mut self) -> crate::Result<()> {
-        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
-    }
-
     /// Send trailers on trailers channel.
     #[allow(unused)]
     pub(crate) async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
@@ -382,11 +377,6 @@ impl Sender {
         self.data_tx
             .try_send(Ok(chunk))
             .map_err(|err| err.into_inner().expect("just sent Ok"))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn abort(mut self) {
-        self.send_error(crate::Error::new_body_write_aborted());
     }
 
     pub(crate) fn send_error(&mut self, err: crate::Error) {
@@ -423,6 +413,16 @@ mod tests {
 
     use super::{Body, DecodedLength, Incoming, Sender, SizeHint};
     use http_body_util::BodyExt;
+
+    impl Sender {
+        async fn ready(&mut self) -> crate::Result<()> {
+            futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
+        }
+
+        fn abort(mut self) {
+            self.send_error(crate::Error::new_body_write_aborted());
+        }
+    }
 
     #[test]
     fn test_size_of() {
