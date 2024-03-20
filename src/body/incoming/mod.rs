@@ -57,12 +57,6 @@ enum Kind {
 }
 
 impl Incoming {
-    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-    pub(crate) fn channel(content_length: DecodedLength, wanter: bool) -> (Sender, Incoming) {
-        let (tx, chan) = ChanBody::new(content_length, wanter);
-        (tx, Incoming::new(Kind::Chan(chan)))
-    }
-
     fn new(kind: Kind) -> Incoming {
         Incoming { kind }
     }
@@ -71,13 +65,17 @@ impl Incoming {
     pub(crate) fn empty() -> Incoming {
         Incoming::new(Kind::Empty)
     }
+}
 
-    #[cfg(feature = "ffi")]
-    pub(crate) fn ffi() -> Incoming {
-        Incoming::new(Kind::Ffi(crate::ffi::UserBody::new()))
+#[cfg(any(feature = "client", feature = "server"))]
+impl Incoming {
+    #[cfg(feature = "http1")]
+    pub(crate) fn channel(content_length: DecodedLength, wanter: bool) -> (Sender, Incoming) {
+        let (tx, chan) = ChanBody::new(content_length, wanter);
+        (tx, Incoming::new(Kind::Chan(chan)))
     }
 
-    #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
+    #[cfg(feature = "http2")]
     pub(crate) fn h2(
         recv: ::h2::RecvStream,
         content_length: DecodedLength,
@@ -85,8 +83,14 @@ impl Incoming {
     ) -> Self {
         Incoming::new(Kind::H2(H2Body::new(recv, content_length, ping)))
     }
+}
 
-    #[cfg(feature = "ffi")]
+#[cfg(feature = "ffi")]
+impl Incoming {
+    pub(crate) fn ffi() -> Incoming {
+        Incoming::new(Kind::Ffi(crate::ffi::UserBody::new()))
+    }
+
     pub(crate) fn as_ffi_mut(&mut self) -> &mut crate::ffi::UserBody {
         match self.kind {
             Kind::Ffi(ref mut body) => return body,
