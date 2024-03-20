@@ -164,18 +164,6 @@ impl Body for Incoming {
     }
 }
 
-#[cfg(all(
-    any(feature = "http1", feature = "http2"),
-    any(feature = "client", feature = "server")
-))]
-fn opt_len(decoded_length: DecodedLength) -> SizeHint {
-    if let Some(content_length) = decoded_length.into_opt() {
-        SizeHint::with_exact(content_length)
-    } else {
-        SizeHint::default()
-    }
-}
-
 impl fmt::Debug for Incoming {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         #[derive(Debug)]

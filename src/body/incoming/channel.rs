@@ -84,7 +84,10 @@ impl ChanBody {
     }
 
     pub(super) fn size_hint(&self) -> SizeHint {
-        super::opt_len(self.content_length)
+        self.content_length
+            .into_opt()
+            .map(SizeHint::with_exact)
+            .unwrap_or_default()
     }
 }
 
