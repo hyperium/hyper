@@ -764,7 +764,8 @@ mod tests {
         assert!(dispatcher.poll().is_pending());
 
         let body = {
-            let (mut tx, body) = IncomingBody::channel();
+            let (mut tx, body) =
+                IncomingBody::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false);
             tx.try_send_data("".into()).unwrap();
             body
         };
