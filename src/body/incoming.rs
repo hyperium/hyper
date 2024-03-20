@@ -101,7 +101,7 @@ const WANT_READY: usize = 2;
 
 impl Incoming {
     #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-    pub(crate) fn new_channel(content_length: DecodedLength, wanter: bool) -> (Sender, Incoming) {
+    pub(crate) fn channel(content_length: DecodedLength, wanter: bool) -> (Sender, Incoming) {
         let (data_tx, data_rx) = mpsc::channel(0);
         let (trailers_tx, trailers_rx) = oneshot::channel();
 
@@ -474,13 +474,13 @@ mod tests {
         eq(Incoming::empty(), SizeHint::with_exact(0), "empty");
 
         eq(
-            Incoming::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false).1,
+            Incoming::channel(DecodedLength::CHUNKED, /*wanter =*/ false).1,
             SizeHint::new(),
             "channel",
         );
 
         eq(
-            Incoming::new_channel(DecodedLength::new(4), /*wanter =*/ false).1,
+            Incoming::channel(DecodedLength::new(4), /*wanter =*/ false).1,
             SizeHint::with_exact(4),
             "channel with length",
         );
@@ -489,7 +489,7 @@ mod tests {
     #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_abort() {
-        let (tx, mut rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false);
+        let (tx, mut rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter =*/ false);
 
         tx.abort();
 
@@ -500,8 +500,7 @@ mod tests {
     #[cfg(all(not(miri), feature = "http1"))]
     #[tokio::test]
     async fn channel_abort_when_buffer_is_full() {
-        let (mut tx, mut rx) =
-            Incoming::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false);
+        let (mut tx, mut rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter =*/ false);
 
         tx.try_send_data("chunk 1".into()).expect("send 1");
         // buffer is full, but can still send abort
@@ -523,7 +522,7 @@ mod tests {
     #[cfg(feature = "http1")]
     #[test]
     fn channel_buffers_one() {
-        let (mut tx, _rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false);
+        let (mut tx, _rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter =*/ false);
 
         tx.try_send_data("chunk 1".into()).expect("send 1");
 
@@ -535,14 +534,14 @@ mod tests {
     #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_empty() {
-        let (_, mut rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false);
+        let (_, mut rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter =*/ false);
 
         assert!(rx.frame().await.is_none());
     }
 
     #[test]
     fn channel_ready() {
-        let (mut tx, _rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ false);
+        let (mut tx, _rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter = */ false);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
 
@@ -551,8 +550,7 @@ mod tests {
 
     #[test]
     fn channel_wanter() {
-        let (mut tx, mut rx) =
-            Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
+        let (mut tx, mut rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
         let mut rx_data = tokio_test::task::spawn(rx.frame());
@@ -573,7 +571,7 @@ mod tests {
 
     #[test]
     fn channel_notices_closure() {
-        let (mut tx, rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);
+        let (mut tx, rx) = Incoming::channel(DecodedLength::CHUNKED, /*wanter = */ true);
 
         let mut tx_ready = tokio_test::task::spawn(tx.ready());
 
