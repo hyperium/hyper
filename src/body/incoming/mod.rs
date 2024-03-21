@@ -172,17 +172,11 @@ impl fmt::Debug for Incoming {
         struct Empty;
 
         let mut builder = f.debug_tuple("Body");
-        match self.kind {
-            Kind::Empty => builder.field(&Empty),
-            #[cfg(any(
-                all(
-                    any(feature = "http1", feature = "http2"),
-                    any(feature = "client", feature = "server")
-                ),
-                feature = "ffi"
-            ))]
-            _ => builder.field(&Streaming),
-        };
+        if matches!(self.kind, Kind::Empty) {
+            builder.field(&Empty);
+        } else {
+            builder.field(&Streaming);
+        }
 
         builder.finish()
     }
