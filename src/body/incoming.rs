@@ -73,7 +73,7 @@ enum Kind {
     Ffi(crate::ffi::UserBody),
 }
 
-/// A sender half created through [`Body::channel()`].
+/// A sender half created through [`Incoming::channel()`].
 ///
 /// Useful when wanting to stream chunks from another thread.
 ///
@@ -84,7 +84,7 @@ enum Kind {
 /// connection with an incomplete response (e.g. in the case of an error during asynchronous
 /// processing), call the [`Sender::abort()`] method to abort the body in an abnormal fashion.
 ///
-/// [`Body::channel()`]: struct.Body.html#method.channel
+/// [`Incoming::channel()`]: struct.Incoming.html#method.channel
 /// [`Sender::abort()`]: struct.Sender.html#method.abort
 #[must_use = "Sender does nothing unless sent on"]
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
@@ -100,7 +100,7 @@ const WANT_PENDING: usize = 1;
 const WANT_READY: usize = 2;
 
 impl Incoming {
-    /// Create a `Body` stream with an associated sender half.
+    /// Create an `Incoming` stream with an associated sender half.
     ///
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
@@ -115,7 +115,7 @@ impl Incoming {
         let (trailers_tx, trailers_rx) = oneshot::channel();
 
         // If wanter is true, `Sender::poll_ready()` won't becoming ready
-        // until the `Body` has been polled for data once.
+        // until the `Incoming` has been polled for data once.
         let want = if wanter { WANT_PENDING } else { WANT_READY };
 
         let (want_tx, want_rx) = watch::channel(want);
@@ -322,7 +322,7 @@ impl fmt::Debug for Incoming {
         #[derive(Debug)]
         struct Empty;
 
-        let mut builder = f.debug_tuple("Body");
+        let mut builder = f.debug_tuple("Incoming");
         match self.kind {
             Kind::Empty => builder.field(&Empty),
             #[cfg(any(
