@@ -51,7 +51,7 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 1024; // 1mb
-const DEFAULT_MAX_HEADER_LIST_SIZE: u32 = 16 << 20; // 16mb
+const DEFAULT_MAX_HEADER_LIST_SIZE: u32 = 1024 * 16; // 16kb
 
 // The maximum number of concurrent streams that the client is allowed to open
 // before it receives the initial SETTINGS frame from the server.
