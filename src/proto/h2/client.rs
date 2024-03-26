@@ -51,6 +51,7 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024 * 5; // 5mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024 * 2; // 2mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 1024; // 1mb
+const DEFAULT_MAX_HEADER_LIST_SIZE: u32 = 16 << 20; // 16mb
 
 // The maximum number of concurrent streams that the client is allowed to open
 // before it receives the initial SETTINGS frame from the server.
@@ -68,6 +69,7 @@ pub(crate) struct Config {
     pub(crate) initial_stream_window_size: u32,
     pub(crate) initial_max_send_streams: usize,
     pub(crate) max_frame_size: u32,
+    pub(crate) max_header_list_size: u32,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
     pub(crate) keep_alive_while_idle: bool,
@@ -84,6 +86,7 @@ impl Default for Config {
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             initial_max_send_streams: DEFAULT_INITIAL_MAX_SEND_STREAMS,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
+            max_header_list_size: DEFAULT_MAX_HEADER_LIST_SIZE,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
             keep_alive_while_idle: false,
@@ -101,6 +104,7 @@ fn new_builder(config: &Config) -> Builder {
         .initial_window_size(config.initial_stream_window_size)
         .initial_connection_window_size(config.initial_conn_window_size)
         .max_frame_size(config.max_frame_size)
+        .max_header_list_size(config.max_header_list_size)
         .max_send_buffer_size(config.max_send_buffer_size)
         .enable_push(false);
     if let Some(max) = config.max_concurrent_reset_streams {
