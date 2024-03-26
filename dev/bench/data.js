@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1710504871766,
+  "lastUpdate": 1711459556449,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7529,6 +7529,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46252,
             "range": "± 10038",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "12ab310d9fb88fdb02b37ae1c0a8c32bb0bd7504",
+          "message": "refactor(ext): add feature config to HeaderCaseMap",
+          "timestamp": "2024-03-26T09:25:04-04:00",
+          "tree_id": "144f2e7da1ecb0025b52d7eb7d73276249245332",
+          "url": "https://github.com/hyperium/hyper/commit/12ab310d9fb88fdb02b37ae1c0a8c32bb0bd7504"
+        },
+        "date": 1711459554179,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47644,
+            "range": "± 9218",
             "unit": "ns/iter"
           }
         ]
