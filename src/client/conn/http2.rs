@@ -342,6 +342,14 @@ where
         self
     }
 
+    /// Sets the max size of received header frames.
+    ///
+    /// Default is currently 16MB, but can change.
+    pub fn max_header_list_size(&mut self, max: u32) -> &mut Self {
+        self.h2_builder.max_header_list_size = max;
+        self
+    }
+
     /// Sets an interval for HTTP2 Ping frames should be sent to keep a
     /// connection alive.
     ///
