@@ -262,7 +262,7 @@ impl<E> Builder<E> {
 
     /// Sets the max size of received header frames.
     ///
-    /// Default is currently ~16MB, but may change.
+    /// Default is currently 16KB, but can change.
     pub fn max_header_list_size(&mut self, max: u32) -> &mut Self {
         self.h2_builder.max_header_list_size = max;
         self
