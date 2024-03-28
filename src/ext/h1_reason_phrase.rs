@@ -107,9 +107,9 @@ impl TryFrom<Bytes> for ReasonPhrase {
     }
 }
 
-impl Into<Bytes> for ReasonPhrase {
-    fn into(self) -> Bytes {
-        self.0
+impl From<ReasonPhrase> for Bytes {
+    fn from(reason: ReasonPhrase) -> Self {
+        reason.0
     }
 }
 
