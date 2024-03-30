@@ -482,7 +482,11 @@ where
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
     pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
-        Pin::new(self.inner.as_mut().unwrap()).graceful_shutdown()
+        // Connection (`inner`) is `None` if it was upgraded (and `poll` is `Ready`).
+        // In that case, we don't need to call `graceful_shutdown`.
+        if let Some(conn) = self.inner.as_mut() {
+            Pin::new(conn).graceful_shutdown()
+        }
     }
 }
 
