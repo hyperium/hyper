@@ -1257,6 +1257,67 @@ async fn disable_keep_alive_post_request() {
 }
 
 #[tokio::test]
+async fn http1_graceful_shutdown_after_upgrade() {
+    let (listener, addr) = setup_tcp_listener();
+    let (read_101_tx, read_101_rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            Upgrade: foobar\r\n\
+            Connection: upgrade\r\n\
+            \r\n\
+            eagerly optimistic\
+        ",
+        )
+        .expect("write 1");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let response = s(&buf);
+        assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
+        assert!(!has_header(&response, "content-length"));
+        let _ = read_101_tx.send(());
+    });
+
+    let (upgrades_tx, upgrades_rx) = mpsc::channel();
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+        let _ = upgrades_tx.send(on_upgrade);
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(101)
+                .header("upgrade", "foobar")
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+
+    let mut conn = http1::Builder::new()
+        .serve_connection(socket, svc)
+        .with_upgrades();
+    (&mut conn).await.unwrap();
+
+    let on_upgrade = upgrades_rx.recv().unwrap();
+
+    // wait so that we don't write until other side saw 101 response
+    read_101_rx.await.unwrap();
+
+    let upgraded = on_upgrade.await.expect("on_upgrade");
+    let parts = upgraded.downcast::<TokioIo<TkTcpStream>>().unwrap();
+    assert_eq!(parts.read_buf, "eagerly optimistic");
+
+    pin!(conn);
+    // graceful shutdown doesn't cause issues or panic. It should be ignored after upgrade
+    conn.as_mut().graceful_shutdown();
+}
+
+#[tokio::test]
 async fn empty_parse_eof_does_not_return_error() {
     let (listener, addr) = setup_tcp_listener();
     thread::spawn(move || {
