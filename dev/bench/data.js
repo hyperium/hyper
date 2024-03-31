@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1711634664201,
+  "lastUpdate": 1711899083243,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7589,6 +7589,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45923,
             "range": "± 8714",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "artem.medvedev@workato.com",
+            "name": "Artem Medvedev",
+            "username": "DDtKey"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6ecf85218fb24531184c53d5ed0eb7caf13cdcef",
+          "message": "fix: avoid  `graceful_shutdown` panic on upgraded H1 connection (#3616)",
+          "timestamp": "2024-03-31T23:30:30+08:00",
+          "tree_id": "ca16b5388a96e5dde6e93839fbf19808f4e30ebd",
+          "url": "https://github.com/hyperium/hyper/commit/6ecf85218fb24531184c53d5ed0eb7caf13cdcef"
+        },
+        "date": 1711899080282,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46130,
+            "range": "± 10137",
             "unit": "ns/iter"
           }
         ]
