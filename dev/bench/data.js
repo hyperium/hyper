@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1711899137328,
+  "lastUpdate": 1711982839030,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7619,6 +7619,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46130,
             "range": "± 10137",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dswijj@gmail.com",
+            "name": "dswij",
+            "username": "dswij"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "330ddf1de1ca2841469d30d24143902e5ff06365",
+          "message": "feat(client): add `max_pending_accept_reset_streams` HTTP2 option (#3617)",
+          "timestamp": "2024-04-01T10:46:22-04:00",
+          "tree_id": "0b4cb8a9731268ab4b052935a39206fb9e4a537d",
+          "url": "https://github.com/hyperium/hyper/commit/330ddf1de1ca2841469d30d24143902e5ff06365"
+        },
+        "date": 1711982836046,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46848,
+            "range": "± 8081",
             "unit": "ns/iter"
           }
         ]
