@@ -3,7 +3,6 @@ use std::fmt;
 #[cfg(feature = "server")]
 use std::future::Future;
 use std::io::{self, IoSlice};
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -246,8 +245,9 @@ where
             self.read_buf.reserve(next);
         }
 
-        let dst = self.read_buf.chunk_mut();
-        let dst = unsafe { &mut *(dst as *mut _ as *mut [MaybeUninit<u8>]) };
+        // SAFETY: ReadBuf and poll_read promise not to set any uninitialized
+        // bytes onto `dst`.
+        let dst = unsafe { self.read_buf.chunk_mut().as_uninit_slice_mut() };
         let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, buf.unfilled()) {
             Poll::Ready(Ok(_)) => {
