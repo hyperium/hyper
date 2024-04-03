@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712146732308,
+  "lastUpdate": 1712146786801,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -41323,6 +41323,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4992599,
             "range": "± 86062",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "165746307+crazehang@users.noreply.github.com",
+            "name": "crazehang",
+            "username": "crazehang"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fabb886785ba356801d20482ae0d566d50a81faf",
+          "message": "chore: remove repetitive words in comment (#3619)\n\nSigned-off-by: crazehang <zhangrenzhong@outlook.com>",
+          "timestamp": "2024-04-03T21:17:58+09:00",
+          "tree_id": "f0150a1054312d1c93a89834e1e59723049bd262",
+          "url": "https://github.com/hyperium/hyper/commit/fabb886785ba356801d20482ae0d566d50a81faf"
+        },
+        "date": 1712146784732,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69236,
+            "range": "± 4664",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4294185,
+            "range": "± 569529",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21223,
+            "range": "± 755",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23715,
+            "range": "± 540",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33433,
+            "range": "± 882",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101793,
+            "range": "± 2994",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38059,
+            "range": "± 685",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 95636,
+            "range": "± 2773",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23993177,
+            "range": "± 32454065",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7830450,
+            "range": "± 39825780",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7609059,
+            "range": "± 56443",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49198021,
+            "range": "± 838124",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49608791,
+            "range": "± 1038417",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5016092,
+            "range": "± 119352",
             "unit": "ns/iter"
           }
         ]
