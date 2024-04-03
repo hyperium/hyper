@@ -40,7 +40,7 @@ pub(crate) struct Sender<T, U> {
     /// without notice.
     #[cfg(feature = "http1")]
     buffered_once: bool,
-    /// The Giver helps watch that the the Receiver side has been polled
+    /// The Giver helps watch that the Receiver side has been polled
     /// when the queue is empty. This helps us know when a request and
     /// response have been fully processed, and a connection is ready
     /// for more.
