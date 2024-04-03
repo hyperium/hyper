@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1711982903553,
+  "lastUpdate": 1712146732308,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7649,6 +7649,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46848,
             "range": "± 8081",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "165746307+crazehang@users.noreply.github.com",
+            "name": "crazehang",
+            "username": "crazehang"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fabb886785ba356801d20482ae0d566d50a81faf",
+          "message": "chore: remove repetitive words in comment (#3619)\n\nSigned-off-by: crazehang <zhangrenzhong@outlook.com>",
+          "timestamp": "2024-04-03T21:17:58+09:00",
+          "tree_id": "f0150a1054312d1c93a89834e1e59723049bd262",
+          "url": "https://github.com/hyperium/hyper/commit/fabb886785ba356801d20482ae0d566d50a81faf"
+        },
+        "date": 1712146730074,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46187,
+            "range": "± 9814",
             "unit": "ns/iter"
           }
         ]
