@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712146786801,
+  "lastUpdate": 1712174873309,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7679,6 +7679,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46187,
             "range": "± 9814",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "df33d4d908fb3042850f276ce18d2ef010f0bc2d",
+          "message": "refactor(h1): use UninitSlice::as_uninit_slice_mut() instead of cast (#3618)",
+          "timestamp": "2024-04-03T20:06:51Z",
+          "tree_id": "6eda047cf6a9b3dd52032b80d38e28ee44870aae",
+          "url": "https://github.com/hyperium/hyper/commit/df33d4d908fb3042850f276ce18d2ef010f0bc2d"
+        },
+        "date": 1712174871009,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46907,
+            "range": "± 7041",
             "unit": "ns/iter"
           }
         ]
