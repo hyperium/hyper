@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712339930768,
+  "lastUpdate": 1712339987125,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -41599,6 +41599,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5103961,
             "range": "± 159883",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "203d1b090d0d0349c7e373e881ac4ddba72129be",
+          "message": "fix(http2): `max_header_list_size(num)` defaults to 16kb\n\nThe HTTP/2 does not define a default. If not defined, hyper still set a\nhigh limit of 16mb. However, that seems very high, and most people\nlikely do not think to set it the property.\n\nSince hyper tries to protect users, it will now use a default of 16kb.\n\nThe defaults in hyper are not part of the public API stability promise.\nUsers are encouraged to set options themselves.",
+          "timestamp": "2024-04-05T13:57:57-04:00",
+          "tree_id": "62664043fd884765a92476734238d403f5fd4b56",
+          "url": "https://github.com/hyperium/hyper/commit/203d1b090d0d0349c7e373e881ac4ddba72129be"
+        },
+        "date": 1712339983874,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69825,
+            "range": "± 2679",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4165956,
+            "range": "± 707355",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22133,
+            "range": "± 7539",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24293,
+            "range": "± 1030",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33753,
+            "range": "± 1009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99985,
+            "range": "± 2623",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37777,
+            "range": "± 1239",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 96490,
+            "range": "± 2614",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23988186,
+            "range": "± 32940540",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 41199243,
+            "range": "± 42999038",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7578745,
+            "range": "± 76160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48689306,
+            "range": "± 600160",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49246292,
+            "range": "± 697489",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5002602,
+            "range": "± 98386",
             "unit": "ns/iter"
           }
         ]
