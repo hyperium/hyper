@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712174918651,
+  "lastUpdate": 1712339930768,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7709,6 +7709,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46907,
             "range": "± 7041",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "203d1b090d0d0349c7e373e881ac4ddba72129be",
+          "message": "fix(http2): `max_header_list_size(num)` defaults to 16kb\n\nThe HTTP/2 does not define a default. If not defined, hyper still set a\nhigh limit of 16mb. However, that seems very high, and most people\nlikely do not think to set it the property.\n\nSince hyper tries to protect users, it will now use a default of 16kb.\n\nThe defaults in hyper are not part of the public API stability promise.\nUsers are encouraged to set options themselves.",
+          "timestamp": "2024-04-05T13:57:57-04:00",
+          "tree_id": "62664043fd884765a92476734238d403f5fd4b56",
+          "url": "https://github.com/hyperium/hyper/commit/203d1b090d0d0349c7e373e881ac4ddba72129be"
+        },
+        "date": 1712339927588,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46310,
+            "range": "± 8406",
             "unit": "ns/iter"
           }
         ]
