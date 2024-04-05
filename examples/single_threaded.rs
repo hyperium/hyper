@@ -181,13 +181,11 @@ async fn http1_client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>>
         }
     });
 
-    let authority = url.authority().unwrap().clone();
-
     // Make 4 requests
     for _ in 0..4 {
         let req = Request::builder()
             .uri(url.clone())
-            .header(hyper::header::HOST, authority.as_str())
+            .header(hyper::header::HOST, format!("{}:{}", host, port))
             .body(Body::from("test".to_string()))?;
 
         let mut res = sender.send_request(req).await?;
@@ -282,13 +280,11 @@ async fn http2_client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>>
         }
     });
 
-    let authority = url.authority().unwrap().clone();
-
     // Make 4 requests
     for _ in 0..4 {
         let req = Request::builder()
             .uri(url.clone())
-            .header(hyper::header::HOST, authority.as_str())
+            .header(hyper::header::HOST, format!("{}:{}", host, port))
             .body(Body::from("test".to_string()))?;
 
         let mut res = sender.send_request(req).await?;

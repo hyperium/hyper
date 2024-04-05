@@ -53,12 +53,10 @@ async fn fetch_url(url: hyper::Uri) -> Result<()> {
         }
     });
 
-    let authority = url.authority().unwrap().clone();
-
     let path = url.path();
     let req = Request::builder()
         .uri(path)
-        .header(hyper::header::HOST, authority.as_str())
+        .header(hyper::header::HOST, format!("{}:{}", host, port))
         .body(Empty::<Bytes>::new())?;
 
     let mut res = sender.send_request(req).await?;
