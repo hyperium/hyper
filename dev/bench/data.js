@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712789896312,
+  "lastUpdate": 1712789957117,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -41737,6 +41737,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5002602,
             "range": "± 98386",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "artem.medvedev@workato.com",
+            "name": "Artem Medvedev",
+            "username": "DDtKey"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b79be911696f6a93e8d408080ebbf558b612ce3c",
+          "message": "fix(server): avoid unwrapping for the `Future` impl of HTTP/1 `UpgradeableConnection` (#3627)\n\n\n\nCloses #3621",
+          "timestamp": "2024-04-10T18:57:23-04:00",
+          "tree_id": "daaa3e7829d6a5516786529abd1e432476ba4214",
+          "url": "https://github.com/hyperium/hyper/commit/b79be911696f6a93e8d408080ebbf558b612ce3c"
+        },
+        "date": 1712789954786,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70923,
+            "range": "± 3301",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4437198,
+            "range": "± 470726",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21403,
+            "range": "± 709",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24148,
+            "range": "± 743",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 32658,
+            "range": "± 1159",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99708,
+            "range": "± 2467",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 36149,
+            "range": "± 1369",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 92984,
+            "range": "± 3241",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24410701,
+            "range": "± 33965459",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 16015236,
+            "range": "± 18434288",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7596372,
+            "range": "± 111060",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49991306,
+            "range": "± 919132",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49626484,
+            "range": "± 1090603",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5143442,
+            "range": "± 295333",
             "unit": "ns/iter"
           }
         ]
