@@ -50,16 +50,7 @@ spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 tokio = { version = "1", features = [
-    "fs",
-    "macros",
-    "net",
-    "io-std",
-    "io-util",
-    "rt",
-    "rt-multi-thread", # so examples can use #[tokio::main]
-    "sync",
-    "time",
-    "test-util",
+  "full"
 ] }
 tokio-test = "0.4"
 tokio-util = "0.7.10"
@@ -70,10 +61,10 @@ default = []
 
 # Easily turn it all on
 full = [
-    "client",
-    "http1",
-    "http2",
-    "server",
+  "client",
+  "http1",
+  "http2",
+  "server",
 ]
 
 # HTTP versions
@@ -107,6 +98,11 @@ incremental = false
 [profile.bench]
 codegen-units = 1
 incremental = false
+
+[[example]]
+name = "multi_layer_proxy"
+path = "examples/multi_layer_proxy.rs"
+required-features = ["full"]
 
 [[example]]
 name = "client"
