@@ -512,6 +512,7 @@ where
                 Err(e) => Poll::Ready(Err(e)),
             }
         } else {
+            // inner is `None`, meaning the connection was upgraded, thus it's `Poll::Ready(Ok(()))`
             Poll::Ready(Ok(()))
         }
     }
