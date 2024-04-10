@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712339987125,
+  "lastUpdate": 1712789896312,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7739,6 +7739,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46310,
             "range": "± 8406",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "artem.medvedev@workato.com",
+            "name": "Artem Medvedev",
+            "username": "DDtKey"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b79be911696f6a93e8d408080ebbf558b612ce3c",
+          "message": "fix(server): avoid unwrapping for the `Future` impl of HTTP/1 `UpgradeableConnection` (#3627)\n\n\n\nCloses #3621",
+          "timestamp": "2024-04-10T18:57:23-04:00",
+          "tree_id": "daaa3e7829d6a5516786529abd1e432476ba4214",
+          "url": "https://github.com/hyperium/hyper/commit/b79be911696f6a93e8d408080ebbf558b612ce3c"
+        },
+        "date": 1712789893343,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45384,
+            "range": "± 8894",
             "unit": "ns/iter"
           }
         ]
