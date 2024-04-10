@@ -501,14 +501,19 @@ where
     type Output = crate::Result<()>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match ready!(Pin::new(&mut self.inner.as_mut().unwrap().conn).poll(cx)) {
-            Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
-            Ok(proto::Dispatched::Upgrade(pending)) => {
-                let (io, buf, _) = self.inner.take().unwrap().conn.into_inner();
-                pending.fulfill(Upgraded::new(io, buf));
-                Poll::Ready(Ok(()))
+        if let Some(conn) = self.inner.as_mut() {
+            match ready!(Pin::new(&mut conn.conn).poll(cx)) {
+                Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
+                Ok(proto::Dispatched::Upgrade(pending)) => {
+                    let (io, buf, _) = self.inner.take().unwrap().conn.into_inner();
+                    pending.fulfill(Upgraded::new(io, buf));
+                    Poll::Ready(Ok(()))
+                }
+                Err(e) => Poll::Ready(Err(e)),
             }
-            Err(e) => Poll::Ready(Err(e)),
+        } else {
+            // inner is `None`, meaning the connection was upgraded, thus it's `Poll::Ready(Ok(()))`
+            Poll::Ready(Ok(()))
         }
     }
 }
