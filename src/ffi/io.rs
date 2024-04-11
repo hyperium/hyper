@@ -1,3 +1,5 @@
+#![allow(clippy::unused_unit)]
+#![allow(non_camel_case_types)]
 use std::ffi::c_void;
 use std::pin::Pin;
 use std::task::{Context, Poll};

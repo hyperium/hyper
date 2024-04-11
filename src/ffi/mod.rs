@@ -1,3 +1,4 @@
+#![allow(clippy::unused_unit)]
 // We have a lot of c-types in here, stop warning about their names!
 #![allow(non_camel_case_types)]
 // fmt::Debug isn't helpful on FFI types

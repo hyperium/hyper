@@ -1,3 +1,4 @@
+#![allow(clippy::unused_unit)]
 use libc::size_t;
 
 /// A more detailed error object returned by some hyper functions.
