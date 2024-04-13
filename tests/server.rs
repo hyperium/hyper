@@ -2656,7 +2656,7 @@ async fn http2_keep_alive_count_server_pings() {
 }
 
 #[test]
-fn http1_trailer_fields() {
+fn http1_trailer_send_fields() {
     let body = futures_util::stream::once(async move { Ok("hello".into()) });
     let mut headers = HeaderMap::new();
     headers.insert("chunky-trailer", "header data".parse().unwrap());
@@ -2741,6 +2741,31 @@ fn http1_trailer_fields_not_allowed() {
     // no trailer fields should be sent because TE: trailers was not in request headers
     let expected_body = "5\r\nhello\r\n0\r\n\r\n";
     assert_eq!(body, expected_body);
+}
+
+#[test]
+fn http1_trailer_recv_fields() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        trailer: chunky-trailer\r\n\
+        host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        5\r\n\
+        hello\r\n\
+        0\r\n\
+        chunky-trailer: header data\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    assert_eq!(server.body(), b"hello");
+
+    // FIXME: add support for checking trailers that server received
 }
 
 // -------------------------------------------------

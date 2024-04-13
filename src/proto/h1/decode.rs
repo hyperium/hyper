@@ -4,8 +4,10 @@ use std::io;
 use std::task::{Context, Poll};
 use std::usize;
 
-use bytes::Bytes;
+use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::ready;
+use http::{HeaderMap, HeaderName, HeaderValue};
+use http_body::Frame;
 
 use super::io::MemRead;
 use super::DecodedLength;
@@ -26,7 +28,8 @@ pub(crate) struct Decoder {
     kind: Kind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+// FIXME: can we keep Copy trait?
+#[derive(Debug, Clone, PartialEq)]
 enum Kind {
     /// A Reader used when a Content-Length header is passed with a positive integer.
     Length(u64),
@@ -35,6 +38,8 @@ enum Kind {
         state: ChunkedState,
         chunk_len: u64,
         extensions_cnt: u64,
+        trailers_buf: Option<BytesMut>,
+        trailers_cnt: u64,
     },
     /// A Reader used for responses that don't indicate a length or chunked.
     ///
@@ -87,6 +92,8 @@ impl Decoder {
                 state: ChunkedState::new(),
                 chunk_len: 0,
                 extensions_cnt: 0,
+                trailers_buf: None,
+                trailers_cnt: 0,
             },
         }
     }
@@ -123,12 +130,12 @@ impl Decoder {
         &mut self,
         cx: &mut Context<'_>,
         body: &mut R,
-    ) -> Poll<Result<Bytes, io::Error>> {
+    ) -> Poll<Result<Frame<Bytes>, io::Error>> {
         trace!("decode; state={:?}", self.kind);
         match self.kind {
             Length(ref mut remaining) => {
                 if *remaining == 0 {
-                    Poll::Ready(Ok(Bytes::new()))
+                    Poll::Ready(Ok(Frame::data(Bytes::new())))
                 } else {
                     let to_read = *remaining as usize;
                     let buf = ready!(body.read_mem(cx, to_read))?;
@@ -143,37 +150,64 @@ impl Decoder {
                     } else {
                         *remaining -= num;
                     }
-                    Poll::Ready(Ok(buf))
+                    Poll::Ready(Ok(Frame::data(buf)))
                 }
             }
             Chunked {
                 ref mut state,
                 ref mut chunk_len,
                 ref mut extensions_cnt,
+                ref mut trailers_buf,
+                ref mut trailers_cnt,
             } => {
                 loop {
                     let mut buf = None;
                     // advances the chunked state
-                    *state = ready!(state.step(cx, body, chunk_len, extensions_cnt, &mut buf))?;
+                    *state = ready!(state.step(
+                        cx,
+                        body,
+                        chunk_len,
+                        extensions_cnt,
+                        &mut buf,
+                        trailers_buf,
+                        trailers_cnt,
+                    ))?;
                     if *state == ChunkedState::End {
                         trace!("end of chunked");
-                        return Poll::Ready(Ok(Bytes::new()));
+
+                        if trailers_buf.is_some() {
+                            trace!("found possible trailers");
+                            match decode_trailers(
+                                &mut trailers_buf.take().expect("Trailer is None"),
+                                // decoder enforces that trailers count will not exceed usize::MAX
+                                *trailers_cnt as usize,
+                            ) {
+                                Ok(headers) => {
+                                    return Poll::Ready(Ok(Frame::trailers(headers)));
+                                }
+                                Err(e) => {
+                                    return Poll::Ready(Err(e));
+                                }
+                            }
+                        }
+
+                        return Poll::Ready(Ok(Frame::data(Bytes::new())));
                     }
                     if let Some(buf) = buf {
-                        return Poll::Ready(Ok(buf));
+                        return Poll::Ready(Ok(Frame::data(buf)));
                     }
                 }
             }
             Eof(ref mut is_eof) => {
                 if *is_eof {
-                    Poll::Ready(Ok(Bytes::new()))
+                    Poll::Ready(Ok(Frame::data(Bytes::new())))
                 } else {
                     // 8192 chosen because its about 2 packets, there probably
                     // won't be that much available, so don't have MemReaders
                     // allocate buffers to big
                     body.read_mem(cx, 8192).map_ok(|slice| {
                         *is_eof = slice.is_empty();
-                        slice
+                        Frame::data(slice)
                     })
                 }
             }
@@ -181,7 +215,7 @@ impl Decoder {
     }
 
     #[cfg(test)]
-    async fn decode_fut<R: MemRead>(&mut self, body: &mut R) -> Result<Bytes, io::Error> {
+    async fn decode_fut<R: MemRead>(&mut self, body: &mut R) -> Result<Frame<Bytes>, io::Error> {
         futures_util::future::poll_fn(move |cx| self.decode(cx, body)).await
     }
 }
@@ -227,6 +261,8 @@ impl ChunkedState {
         size: &mut u64,
         extensions_cnt: &mut u64,
         buf: &mut Option<Bytes>,
+        trailers_buf: &mut Option<BytesMut>,
+        trailers_cnt: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
@@ -238,10 +274,10 @@ impl ChunkedState {
             Body => ChunkedState::read_body(cx, body, size, buf),
             BodyCr => ChunkedState::read_body_cr(cx, body),
             BodyLf => ChunkedState::read_body_lf(cx, body),
-            Trailer => ChunkedState::read_trailer(cx, body),
-            TrailerLf => ChunkedState::read_trailer_lf(cx, body),
-            EndCr => ChunkedState::read_end_cr(cx, body),
-            EndLf => ChunkedState::read_end_lf(cx, body),
+            Trailer => ChunkedState::read_trailer(cx, body, trailers_buf),
+            TrailerLf => ChunkedState::read_trailer_lf(cx, body, trailers_buf, trailers_cnt),
+            EndCr => ChunkedState::read_end_cr(cx, body, trailers_buf),
+            EndLf => ChunkedState::read_end_lf(cx, body, trailers_buf),
             End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
@@ -442,19 +478,46 @@ impl ChunkedState {
     fn read_trailer<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
+        trailers_buf: &mut Option<BytesMut>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_trailer");
-        match byte!(rdr, cx) {
+        let byte = byte!(rdr, cx);
+
+        trailers_buf
+            .as_mut()
+            .expect("trailers_buf is None")
+            .put_u8(byte);
+
+        match byte {
             b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
             _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
+
     fn read_trailer_lf<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
+        trailers_buf: &mut Option<BytesMut>,
+        trailers_cnt: &mut u64,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr, cx) {
-            b'\n' => Poll::Ready(Ok(ChunkedState::EndCr)),
+        let byte = byte!(rdr, cx);
+        match byte {
+            b'\n' => {
+                if *trailers_cnt == usize::MAX as u64 {
+                    return Poll::Ready(Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "chunk trailers count overflow",
+                    )));
+                }
+                *trailers_cnt += 1;
+
+                trailers_buf
+                    .as_mut()
+                    .expect("trailers_buf is None")
+                    .put_u8(byte);
+
+                Poll::Ready(Ok(ChunkedState::EndCr))
+            }
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid trailer end LF",
@@ -465,23 +528,93 @@ impl ChunkedState {
     fn read_end_cr<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
+        trailers_buf: &mut Option<BytesMut>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr, cx) {
-            b'\r' => Poll::Ready(Ok(ChunkedState::EndLf)),
-            _ => Poll::Ready(Ok(ChunkedState::Trailer)),
+        let byte = byte!(rdr, cx);
+        match byte {
+            b'\r' => {
+                if let Some(trailers_buf) = trailers_buf {
+                    trailers_buf.put_u8(byte);
+                }
+                Poll::Ready(Ok(ChunkedState::EndLf))
+            }
+            byte => {
+                match trailers_buf {
+                    None => {
+                        // 64 will fit a single Expires header without reallocating
+                        let mut buf = BytesMut::with_capacity(64);
+                        buf.put_u8(byte);
+                        *trailers_buf = Some(buf);
+                    }
+                    Some(ref mut trailers_buf) => {
+                        trailers_buf.put_u8(byte);
+                    }
+                }
+
+                Poll::Ready(Ok(ChunkedState::Trailer))
+            }
         }
     }
     fn read_end_lf<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
+        trailers_buf: &mut Option<BytesMut>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        match byte!(rdr, cx) {
-            b'\n' => Poll::Ready(Ok(ChunkedState::End)),
+        let byte = byte!(rdr, cx);
+        match byte {
+            b'\n' => {
+                if let Some(trailers_buf) = trailers_buf {
+                    trailers_buf.put_u8(byte);
+                }
+                Poll::Ready(Ok(ChunkedState::End))
+            }
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk end LF",
             ))),
         }
+    }
+}
+
+// TODO: disallow Transfer-Encoding, Content-Length, Trailer, etc in trailers ??
+fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Error> {
+    let mut trailers = HeaderMap::new();
+    let mut headers = vec![httparse::EMPTY_HEADER; count];
+    let res = httparse::parse_headers(&buf, &mut headers);
+    match res {
+        Ok(httparse::Status::Complete((_, headers))) => {
+            for header in headers.iter() {
+                use std::convert::TryFrom;
+                let name = match HeaderName::try_from(header.name) {
+                    Ok(name) => name,
+                    Err(_) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("Invalid header name: {:?}", &header),
+                        ));
+                    }
+                };
+
+                let value = match HeaderValue::from_bytes(header.value) {
+                    Ok(value) => value,
+                    Err(_) => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            format!("Invalid header value: {:?}", &header),
+                        ));
+                    }
+                };
+
+                trailers.insert(name, value);
+            }
+
+            Ok(trailers)
+        }
+        Ok(httparse::Status::Partial) => Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "Partial header",
+        )),
+        Err(e) => Err(io::Error::new(io::ErrorKind::InvalidInput, e)),
     }
 }
 
@@ -554,9 +687,18 @@ mod tests {
             let rdr = &mut s.as_bytes();
             let mut size = 0;
             let mut ext_cnt = 0;
+            let mut trailers_cnt = 0;
             loop {
                 let result = futures_util::future::poll_fn(|cx| {
-                    state.step(cx, rdr, &mut size, &mut ext_cnt, &mut None)
+                    state.step(
+                        cx,
+                        rdr,
+                        &mut size,
+                        &mut ext_cnt,
+                        &mut None,
+                        &mut None,
+                        &mut trailers_cnt,
+                    )
                 })
                 .await;
                 let desc = format!("read_size failed for {:?}", s);
@@ -573,9 +715,18 @@ mod tests {
             let rdr = &mut s.as_bytes();
             let mut size = 0;
             let mut ext_cnt = 0;
+            let mut trailers_cnt = 0;
             loop {
                 let result = futures_util::future::poll_fn(|cx| {
-                    state.step(cx, rdr, &mut size, &mut ext_cnt, &mut None)
+                    state.step(
+                        cx,
+                        rdr,
+                        &mut size,
+                        &mut ext_cnt,
+                        &mut None,
+                        &mut None,
+                        &mut trailers_cnt,
+                    )
                 })
                 .await;
                 state = match result {
@@ -639,7 +790,16 @@ mod tests {
     async fn test_read_sized_early_eof() {
         let mut bytes = &b"foo bar"[..];
         let mut decoder = Decoder::length(10);
-        assert_eq!(decoder.decode_fut(&mut bytes).await.unwrap().len(), 7);
+        assert_eq!(
+            decoder
+                .decode_fut(&mut bytes)
+                .await
+                .unwrap()
+                .data_ref()
+                .unwrap()
+                .len(),
+            7
+        );
         let e = decoder.decode_fut(&mut bytes).await.unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
     }
@@ -652,7 +812,16 @@ mod tests {
             foo bar\
         "[..];
         let mut decoder = Decoder::chunked();
-        assert_eq!(decoder.decode_fut(&mut bytes).await.unwrap().len(), 7);
+        assert_eq!(
+            decoder
+                .decode_fut(&mut bytes)
+                .await
+                .unwrap()
+                .data_ref()
+                .unwrap()
+                .len(),
+            7
+        );
         let e = decoder.decode_fut(&mut bytes).await.unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::UnexpectedEof);
     }
@@ -664,7 +833,9 @@ mod tests {
         let buf = Decoder::chunked()
             .decode_fut(&mut mock_buf)
             .await
-            .expect("decode");
+            .expect("decode")
+            .into_data()
+            .expect("unknown frame type");
         assert_eq!(16, buf.len());
         let result = String::from_utf8(buf.as_ref().to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
@@ -685,7 +856,12 @@ mod tests {
         let mut mock_buf = Bytes::from(scratch);
 
         let mut decoder = Decoder::chunked();
-        let buf1 = decoder.decode_fut(&mut mock_buf).await.expect("decode1");
+        let buf1 = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect("decode1")
+            .into_data()
+            .expect("unknown frame type");
         assert_eq!(&buf1[..], b"A");
 
         let err = decoder
@@ -713,17 +889,32 @@ mod tests {
         let mut decoder = Decoder::chunked();
 
         // normal read
-        let buf = decoder.decode_fut(&mut mock_buf).await.unwrap();
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .unwrap()
+            .into_data()
+            .expect("unknown frame type");
         assert_eq!(16, buf.len());
         let result = String::from_utf8(buf.as_ref().to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
 
         // eof read
-        let buf = decoder.decode_fut(&mut mock_buf).await.expect("decode");
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect("decode")
+            .into_data()
+            .expect("unknown frame type");
         assert_eq!(0, buf.len());
 
         // ensure read after eof also returns eof
-        let buf = decoder.decode_fut(&mut mock_buf).await.expect("decode");
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect("decode")
+            .into_data()
+            .expect("unknown frame type");
         assert_eq!(0, buf.len());
     }
 
@@ -751,7 +942,9 @@ mod tests {
             let buf = decoder
                 .decode_fut(&mut ins)
                 .await
-                .expect("unexpected decode error");
+                .expect("unexpected decode error")
+                .into_data()
+                .expect("unexpected frame type");
             if buf.is_empty() {
                 break; // eof
             }
@@ -811,7 +1004,12 @@ mod tests {
             let mut decoder = Decoder::chunked();
             rt.block_on(async {
                 let mut raw = content.clone();
-                let chunk = decoder.decode_fut(&mut raw).await.unwrap();
+                let chunk = decoder
+                    .decode_fut(&mut raw)
+                    .await
+                    .unwrap()
+                    .into_data()
+                    .unwrap();
                 assert_eq!(chunk.len(), LEN);
             });
         });
@@ -830,7 +1028,12 @@ mod tests {
             let mut decoder = Decoder::length(LEN as u64);
             rt.block_on(async {
                 let mut raw = content.clone();
-                let chunk = decoder.decode_fut(&mut raw).await.unwrap();
+                let chunk = decoder
+                    .decode_fut(&mut raw)
+                    .await
+                    .unwrap()
+                    .into_data()
+                    .unwrap();
                 assert_eq!(chunk.len(), LEN);
             });
         });
@@ -842,5 +1045,20 @@ mod tests {
             .enable_all()
             .build()
             .expect("rt build")
+    }
+
+    #[test]
+    fn decode_trailers_test() {
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(
+            b"Expires: Wed, 21 Oct 2015 07:28:00 GMT\r\nX-Stream-Error: failed to decode\r\n\r\n",
+        );
+        let headers = decode_trailers(&mut buf, 2).expect("decode_trailers");
+        assert_eq!(headers.len(), 2);
+        assert_eq!(
+            headers.get("Expires").unwrap(),
+            "Wed, 21 Oct 2015 07:28:00 GMT"
+        );
+        assert_eq!(headers.get("X-Stream-Error").unwrap(), "failed to decode");
     }
 }
