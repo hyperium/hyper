@@ -889,6 +889,30 @@ test! {
 }
 
 test! {
+    name: client_post_empty_auto_length,
+
+    server:
+        expected: "\
+            POST /empty HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            content-length: 0\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: POST,
+            url: "http://{addr}/empty",
+            headers: {},
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
     name: client_head_ignores_body,
 
     server:
