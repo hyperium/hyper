@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713180480680,
+  "lastUpdate": 1713183071984,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7799,6 +7799,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45999,
             "range": "± 7945",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "6aee2e6e260e7d407256d6b7da6a0d90c1bb9c67",
+          "message": "feat(service): expose Service and HttpService trait unconditionally",
+          "timestamp": "2024-04-15T08:10:15-04:00",
+          "tree_id": "1cf67395f9b714c5cd92363716072a025c64d9db",
+          "url": "https://github.com/hyperium/hyper/commit/6aee2e6e260e7d407256d6b7da6a0d90c1bb9c67"
+        },
+        "date": 1713183068920,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 53374,
+            "range": "± 9617",
             "unit": "ns/iter"
           }
         ]
