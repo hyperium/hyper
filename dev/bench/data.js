@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1712789957117,
+  "lastUpdate": 1713180423861,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7769,6 +7769,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45384,
             "range": "± 8894",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "172fdfaf0e0d9222917f271a83339238082e2657",
+          "message": "fix(client): send content-length even with no body\n\nMost request methods define a payload. If hyper detects that no body has\nbeen included, it will now include a `content-length: 0` header\nautomatically.\n\nIt will not do this for methods that don't have defined payloads (GET,\nHEAD, and CONNECT).",
+          "timestamp": "2024-04-15T07:26:12-04:00",
+          "tree_id": "b39e8187d736cae7bd2331a53d8b73eb37b14a28",
+          "url": "https://github.com/hyperium/hyper/commit/172fdfaf0e0d9222917f271a83339238082e2657"
+        },
+        "date": 1713180421499,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45999,
+            "range": "± 7945",
             "unit": "ns/iter"
           }
         ]
