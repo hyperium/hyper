@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713183145446,
+  "lastUpdate": 1713185950665,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7829,6 +7829,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 53374,
             "range": "± 9617",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "dc27043aa319c0e630b7385a36aca0f3bee70670",
+          "message": "feat(ext): implement From ReasonPhrase for Bytes",
+          "timestamp": "2024-04-15T08:58:18-04:00",
+          "tree_id": "b9497b0a9bbb398743e5cdce00a4b17c8cf96d8d",
+          "url": "https://github.com/hyperium/hyper/commit/dc27043aa319c0e630b7385a36aca0f3bee70670"
+        },
+        "date": 1713185948579,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49637,
+            "range": "± 9041",
             "unit": "ns/iter"
           }
         ]
