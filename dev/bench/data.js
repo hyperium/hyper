@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713180423861,
+  "lastUpdate": 1713180480680,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -41875,6 +41875,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5143442,
             "range": "± 295333",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "172fdfaf0e0d9222917f271a83339238082e2657",
+          "message": "fix(client): send content-length even with no body\n\nMost request methods define a payload. If hyper detects that no body has\nbeen included, it will now include a `content-length: 0` header\nautomatically.\n\nIt will not do this for methods that don't have defined payloads (GET,\nHEAD, and CONNECT).",
+          "timestamp": "2024-04-15T07:26:12-04:00",
+          "tree_id": "b39e8187d736cae7bd2331a53d8b73eb37b14a28",
+          "url": "https://github.com/hyperium/hyper/commit/172fdfaf0e0d9222917f271a83339238082e2657"
+        },
+        "date": 1713180478409,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69113,
+            "range": "± 1345",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4251502,
+            "range": "± 433602",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21623,
+            "range": "± 1657",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23915,
+            "range": "± 2920",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33417,
+            "range": "± 3051",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100841,
+            "range": "± 1584",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37340,
+            "range": "± 1186",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 94933,
+            "range": "± 3043",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24010867,
+            "range": "± 32801266",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7784425,
+            "range": "± 124031",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7398518,
+            "range": "± 59173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48003522,
+            "range": "± 1492785",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49201183,
+            "range": "± 538535",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5025418,
+            "range": "± 47444",
             "unit": "ns/iter"
           }
         ]
