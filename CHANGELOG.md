@@ -1,3 +1,27 @@
+## v1.3.0 (2024-04-15)
+
+
+#### Bug Fixes
+
+* **client:** send content-length even with no body ([172fdfaf](https://github.com/hyperium/hyper/commit/172fdfaf0e0d9222917f271a83339238082e2657))
+* **http2:**
+  * `max_header_list_size(num)` defaults to 16kb ([203d1b09](https://github.com/hyperium/hyper/commit/203d1b090d0d0349c7e373e881ac4ddba72129be))
+  * `initial_max_send_streams` defaults to 100 ([2d1bd708](https://github.com/hyperium/hyper/commit/2d1bd7085e37a55ed6393f0e3f1b9a0b06db4d5d))
+* **server:**
+  * avoid unwrapping for the `Future` impl of HTTP/1 `UpgradeableConnection` (#3627) ([b79be911](https://github.com/hyperium/hyper/commit/b79be911696f6a93e8d408080ebbf558b612ce3c), closes [#3621](https://github.com/hyperium/hyper/issues/3621))
+  * avoid  `graceful_shutdown` panic on upgraded H1 connection (#3616) ([6ecf8521](https://github.com/hyperium/hyper/commit/6ecf85218fb24531184c53d5ed0eb7caf13cdcef))
+
+
+#### Features
+
+* **client:**
+  * add `max_header_list_size(num)` to `http2::Builder`. ([1c5b1b87](https://github.com/hyperium/hyper/commit/1c5b1b87ae1497a702e30ea82a486fb61a3f8133))
+  * add `max_pending_accept_reset_streams` HTTP2 option (#3617) ([330ddf1d](https://github.com/hyperium/hyper/commit/330ddf1de1ca2841469d30d24143902e5ff06365))
+* **ext:** implement From ReasonPhrase for Bytes ([dc27043a](https://github.com/hyperium/hyper/commit/dc27043aa319c0e630b7385a36aca0f3bee70670))
+* **service:** expose Service and HttpService trait unconditionally ([6aee2e6e](https://github.com/hyperium/hyper/commit/6aee2e6e260e7d407256d6b7da6a0d90c1bb9c67))
+* **server:** relax `'static` from connection IO trait bounds  (#3595) ([0013bdda](https://github.com/hyperium/hyper/commit/0013bdda5cd34ed6fca089eceb0133395b7be041))
+
+
 ## v1.2.0 (2024-02-21)
 
 
