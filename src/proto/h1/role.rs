@@ -1288,13 +1288,6 @@ impl Client {
             body
         } else {
             head.headers.remove(header::TRANSFER_ENCODING);
-            // If we know there's body coming, set a content-length.
-            // But only if the method normally has a body.
-            // GET, HEAD, and CONNECT are assumed empty.
-            if !is_method_assumed_empty(&head.subject.0) {
-                head.headers
-                    .insert(header::CONTENT_LENGTH, HeaderValue::from_static("0"));
-            }
             return Encoder::length(0);
         };
 
@@ -1368,11 +1361,12 @@ impl Client {
                     // So instead of sending a "chunked" body with a 0-chunk,
                     // assume no body here. If you *must* send a body,
                     // set the headers explicitly.
-                    if is_method_assumed_empty(&head.subject.0) {
-                        Some(Encoder::length(0))
-                    } else {
-                        te.insert(HeaderValue::from_static("chunked"));
-                        Some(Encoder::chunked())
+                    match head.subject.0 {
+                        Method::GET | Method::HEAD | Method::CONNECT => Some(Encoder::length(0)),
+                        _ => {
+                            te.insert(HeaderValue::from_static("chunked"));
+                            Some(Encoder::chunked())
+                        }
                     }
                 } else {
                     None
@@ -1472,11 +1466,6 @@ impl Client {
         buf[..unfolded.len()].copy_from_slice(&unfolded);
         idx.value.1 = idx.value.0 + unfolded.len();
     }
-}
-
-#[cfg(feature = "client")]
-fn is_method_assumed_empty(method: &Method) -> bool {
-    matches!(method, &Method::GET | &Method::HEAD | &Method::CONNECT)
 }
 
 #[cfg(feature = "client")]
