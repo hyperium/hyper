@@ -889,13 +889,39 @@ test! {
 }
 
 test! {
-    name: client_post_empty_auto_length,
+    name: client_post_empty_auto_length_when_content_type_present,
+
+    server:
+        expected: "\
+            POST /empty HTTP/1.1\r\n\
+            content-type: application/json\r\n\
+            host: {addr}\r\n\
+            content-length: 0\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: POST,
+            url: "http://{addr}/empty",
+            headers: {
+                "Content-Type" => "application/json",
+            },
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
+test! {
+    name: client_post_empty_without_content_type,
 
     server:
         expected: "\
             POST /empty HTTP/1.1\r\n\
             host: {addr}\r\n\
-            content-length: 0\r\n\
             \r\n\
             ",
         reply: REPLY_OK,

@@ -1283,6 +1283,7 @@ impl Client {
             Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
         }
     }
+
     fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
         let body = if let Some(body) = body {
             body
@@ -1291,7 +1292,9 @@ impl Client {
             // If we know there's body coming, set a content-length.
             // But only if the method normally has a body.
             // GET, HEAD, and CONNECT are assumed empty.
-            if !is_method_assumed_empty(&head.subject.0) {
+            if !is_method_assumed_empty(&head.subject.0)
+                && head.headers.contains_key(header::CONTENT_TYPE)
+            {
                 head.headers
                     .insert(header::CONTENT_LENGTH, HeaderValue::from_static("0"));
             }
