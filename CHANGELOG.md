@@ -1,3 +1,10 @@
+### v1.3.1 (2024-04-16)
+
+#### Bug Fixes
+
+* **client:** revert auto content-length header for some requests (#3633)
+
+
 ## v1.3.0 (2024-04-15)
 
 
