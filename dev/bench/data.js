@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713188711401,
+  "lastUpdate": 1713271072607,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -7889,6 +7889,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45868,
             "range": "± 7634",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "3705a7e430f5ce8d9e47a87c8cae4cf0b2566120",
+          "message": "Revert \"fix(client): send content-length even with no body\"\n\nThis reverts commit 172fdfaf0e0d9222917f271a83339238082e2657.",
+          "timestamp": "2024-04-16T08:36:54-04:00",
+          "tree_id": "f8ed4e0c5734832528710ddad57e07fb1c91b5ec",
+          "url": "https://github.com/hyperium/hyper/commit/3705a7e430f5ce8d9e47a87c8cae4cf0b2566120"
+        },
+        "date": 1713271070292,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46339,
+            "range": "± 9570",
             "unit": "ns/iter"
           }
         ]
