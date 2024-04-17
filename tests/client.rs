@@ -785,7 +785,7 @@ test! {
                 "chunky-trailer3" => "header data3",
                 "chunky-trailer4" => "header data4",
                 "chunky-trailer5" => "header data5",
-                "sneaky-trailer" => "i should not be sent",
+                "sneaky-trailer" => "not in trailer header",
                 "transfer-encoding" => "chunked",
                 "content-length" => "5",
                 "trailer" => "foo",
