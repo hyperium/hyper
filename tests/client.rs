@@ -758,7 +758,7 @@ test! {
             chunky-trailer3: header data3\r\n\
             chunky-trailer4: header data4\r\n\
             chunky-trailer5: header data5\r\n\
-            sneaky-trailer: i should not be sent\r\n\
+            sneaky-trailer: not in trailer header\r\n\
             transfer-encoding: chunked\r\n\
             content-length: 5\r\n\
             trailer: foo\r\n\
