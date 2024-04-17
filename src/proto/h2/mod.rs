@@ -54,8 +54,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     if is_request {
         if headers
             .get(TE)
-            .map(|te_header| te_header != "trailers")
-            .unwrap_or(false)
+            .map_or(false, |te_header| te_header != "trailers")
         {
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
             headers.remove(TE);
