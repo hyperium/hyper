@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713621276055,
+  "lastUpdate": 1713621325236,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -42979,6 +42979,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5125512,
             "range": "± 127562",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "herman@hermanradtke.com",
+            "name": "Herman J. Radtke III",
+            "username": "hjr3"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "226305d0fc78ab780aa5a1084e013a3b0a39e4d8",
+          "message": "fix(http1): improve debug messages when sending trailers\n\nWhen the \"trailer\" header was not found in the response, the debug\nmessage would say \"attempted to encode trailers for non-chunked\nresponse\". This was quite misleading as the response was chunked. We\nnow include a better debug message that hints to the user that the\n\"trailer\" header was not specified.\n\nWhen a chunked response contained a trailer header that did not match\nthe header names specified in the \"trailer\" response header, there was\nno debug message to the user. We now include debug messages that tell\nthe user if the header name is not allowed and if the header name was\nnot specified in the \"trailer\" response header.",
+          "timestamp": "2024-04-20T09:53:42-04:00",
+          "tree_id": "5569960a3884faef514416c724fc40289bf9e1bc",
+          "url": "https://github.com/hyperium/hyper/commit/226305d0fc78ab780aa5a1084e013a3b0a39e4d8"
+        },
+        "date": 1713621323045,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68025,
+            "range": "± 3759",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3962743,
+            "range": "± 251275",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21769,
+            "range": "± 646",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23895,
+            "range": "± 506",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33025,
+            "range": "± 621",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 98791,
+            "range": "± 2675",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37454,
+            "range": "± 1814",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 94598,
+            "range": "± 2299",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23999746,
+            "range": "± 32977697",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7771213,
+            "range": "± 111173",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7566046,
+            "range": "± 98967",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49185820,
+            "range": "± 540417",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49293344,
+            "range": "± 491326",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5043060,
+            "range": "± 52346",
             "unit": "ns/iter"
           }
         ]
