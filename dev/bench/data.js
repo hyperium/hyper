@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713359855302,
+  "lastUpdate": 1713621276055,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8009,6 +8009,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47689,
             "range": "± 8678",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "herman@hermanradtke.com",
+            "name": "Herman J. Radtke III",
+            "username": "hjr3"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "226305d0fc78ab780aa5a1084e013a3b0a39e4d8",
+          "message": "fix(http1): improve debug messages when sending trailers\n\nWhen the \"trailer\" header was not found in the response, the debug\nmessage would say \"attempted to encode trailers for non-chunked\nresponse\". This was quite misleading as the response was chunked. We\nnow include a better debug message that hints to the user that the\n\"trailer\" header was not specified.\n\nWhen a chunked response contained a trailer header that did not match\nthe header names specified in the \"trailer\" response header, there was\nno debug message to the user. We now include debug messages that tell\nthe user if the header name is not allowed and if the header name was\nnot specified in the \"trailer\" response header.",
+          "timestamp": "2024-04-20T09:53:42-04:00",
+          "tree_id": "5569960a3884faef514416c724fc40289bf9e1bc",
+          "url": "https://github.com/hyperium/hyper/commit/226305d0fc78ab780aa5a1084e013a3b0a39e4d8"
+        },
+        "date": 1713621273198,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47019,
+            "range": "± 8097",
             "unit": "ns/iter"
           }
         ]
