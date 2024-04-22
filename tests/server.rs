@@ -2529,6 +2529,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
         .timer(TokioTimer)
         .keep_alive_interval(Duration::from_secs(1))
         .keep_alive_timeout(Duration::from_secs(1))
+        .add_date_header(true)
         .serve_connection(socket, unreachable_service())
         .await
         .expect_err("serve_connection should error");
@@ -2567,6 +2568,42 @@ async fn http2_keep_alive_with_responsive_client() {
 
     let req = http::Request::new(Empty::<Bytes>::new());
     client.send_request(req).await.expect("client.send_request");
+}
+
+#[tokio::test]
+async fn http2_check_date_header_disabled() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
+
+        http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .keep_alive_interval(Duration::from_secs(1))
+            .add_date_header(false)
+            .keep_alive_timeout(Duration::from_secs(1))
+            .serve_connection(socket, HelloWorld)
+            .await
+            .expect("serve_connection");
+    });
+
+    let tcp = TokioIo::new(connect_async(addr).await);
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
+        .handshake(tcp)
+        .await
+        .expect("http handshake");
+
+    tokio::spawn(async move {
+        conn.await.expect("client conn");
+    });
+
+    TokioTimer.sleep(Duration::from_secs(4)).await;
+
+    let req = http::Request::new(Empty::<Bytes>::new());
+    let resp = client.send_request(req).await.expect("client.send_request");
+
+    assert!(resp.headers().get("Date").is_none());
 }
 
 fn is_ping_frame(buf: &[u8]) -> bool {
