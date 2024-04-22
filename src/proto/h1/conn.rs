@@ -62,6 +62,8 @@ where
                 #[cfg(feature = "server")]
                 h1_header_read_timeout_running: false,
                 #[cfg(feature = "server")]
+                date_header: true,
+                #[cfg(feature = "server")]
                 timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
@@ -564,6 +566,8 @@ where
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
+                #[cfg(feature = "server")]
+                date_header: self.state.date_header
             },
             buf,
         ) {
@@ -858,6 +862,8 @@ struct State {
     h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
     #[cfg(feature = "server")]
     h1_header_read_timeout_running: bool,
+    #[cfg(feature = "server")]
+    date_header: bool,
     #[cfg(feature = "server")]
     timer: Time,
     preserve_header_case: bool,
