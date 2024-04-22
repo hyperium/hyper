@@ -21,9 +21,11 @@ use super::task::{hyper_executor, hyper_task, hyper_task_return_type, AsTaskType
 /// - hyper_clientconn_options_set_preserve_header_case:  Set whether header case is preserved.
 /// - hyper_clientconn_options_set_preserve_header_order: Set whether header order is preserved.
 /// - hyper_clientconn_options_http1_allow_multiline_headers: Set whether HTTP/1 connections accept obsolete line folding for header values.
+/// - hyper_client_conn_options_http1_allow_spaces_before_first_header: Set whether HTTP/1 connections accept leading whitespaces before first header.
 /// - hyper_clientconn_options_free:    Free a set of HTTP clientconn options.
 pub struct hyper_clientconn_options {
     http1_allow_obsolete_multiline_headers_in_responses: bool,
+    http1_allow_spaces_before_first_header_name: bool,
     http1_preserve_header_case: bool,
     http1_preserve_header_order: bool,
     http2: bool,
@@ -116,6 +118,7 @@ ffi_fn! {
 
             conn::http1::Builder::new()
                 .allow_obsolete_multiline_headers_in_responses(options.http1_allow_obsolete_multiline_headers_in_responses)
+                .allow_spaces_before_first_header_name(options.http1_allow_spaces_before_first_header_name)
                 .preserve_header_case(options.http1_preserve_header_case)
                 .preserve_header_order(options.http1_preserve_header_order)
                 .handshake::<_, crate::body::Incoming>(io)
@@ -270,6 +273,19 @@ ffi_fn! {
     fn hyper_clientconn_options_http1_allow_multiline_headers(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
         let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
         opts.http1_allow_obsolete_multiline_headers_in_responses = enabled != 0;
+        hyper_code::HYPERE_OK
+    }
+
+}
+
+ffi_fn! {
+    /// Set whether HTTP/1 connections accept leading whitespaces before first header.
+    ///
+    /// Pass `0` to disable, `1` to enable.
+    ///
+    fn hyper_clientconn_options_http1_allow_spaces_before_first_header_name(opts: *mut hyper_clientconn_options, enabled: c_int) -> hyper_code {
+        let opts = non_null! { &mut *opts ?= hyper_code::HYPERE_INVALID_ARG };
+        opts.http1_allow_spaces_before_first_header_name = enabled != 0;
         hyper_code::HYPERE_OK
     }
 }

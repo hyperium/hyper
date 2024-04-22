@@ -387,6 +387,16 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections will allow spaces before the first header,
+    /// which is not allowed by spec.
+    ///
+    /// Default is false.
+    pub fn allow_spaces_before_first_header_name(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_parser_config
+            .allow_space_before_first_header_name(enabled);
+        self
+    }
+
     /// Set whether HTTP/1 connections should try to use vectored writes,
     /// or always flatten into a single buffer.
     ///
