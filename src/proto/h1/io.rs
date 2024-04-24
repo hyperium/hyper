@@ -450,7 +450,7 @@ fn prev_power_of_two(n: usize) -> usize {
     // Only way this shift can underflow is if n is less than 4.
     // (Which would means `usize::MAX >> 64` and underflowed!)
     debug_assert!(n >= 4);
-    (::std::usize::MAX >> (n.leading_zeros() + 2)) + 1
+    (usize::MAX >> (n.leading_zeros() + 2)) + 1
 }
 
 impl Default for ReadStrategy {
@@ -763,7 +763,7 @@ mod tests {
         assert_eq!(strategy.next(), 32768);
 
         // Enormous records still increment at same rate
-        strategy.record(::std::usize::MAX);
+        strategy.record(usize::MAX);
         assert_eq!(strategy.next(), 65536);
 
         let max = strategy.max();
@@ -833,7 +833,7 @@ mod tests {
         fn fuzz(max: usize) {
             let mut strategy = ReadStrategy::with_max(max);
             while strategy.next() < max {
-                strategy.record(::std::usize::MAX);
+                strategy.record(usize::MAX);
             }
             let mut next = strategy.next();
             while next > 8192 {
@@ -854,7 +854,7 @@ mod tests {
             fuzz(max);
             max = (max / 2).saturating_mul(3);
         }
-        fuzz(::std::usize::MAX);
+        fuzz(usize::MAX);
     }
 
     #[test]
