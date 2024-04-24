@@ -567,7 +567,7 @@ where
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
                 #[cfg(feature = "server")]
-                date_header: self.state.date_header
+                date_header: self.state.date_header,
             },
             buf,
         ) {

@@ -2736,7 +2736,7 @@ mod tests {
             },
             &mut vec,
         )
-            .unwrap();
+        .unwrap();
 
         let expected_response =
             b"HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 10\r\nContent-Type: application/json\r\n\r\n";

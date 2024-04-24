@@ -171,7 +171,7 @@ where
                 hs: handshake,
             },
             service,
-            date_header: config.date_header
+            date_header: config.date_header,
         }
     }
 
@@ -224,7 +224,7 @@ where
                         ping,
                         conn,
                         closing: None,
-                        date_header: me.date_header
+                        date_header: me.date_header,
                     })
                 }
                 State::Serving(ref mut srv) => {
@@ -308,7 +308,13 @@ where
                             req.extensions_mut().insert(Protocol::from_inner(protocol));
                         }
 
-                        let fut = H2Stream::new(service.call(req), connect_parts, respond, self.date_header);
+                        let fut = H2Stream::new(
+                            service.call(req),
+                            connect_parts,
+                            respond,
+                            self.date_header,
+                        );
+
                         exec.execute_h2stream(fut);
                     }
                     Some(Err(e)) => {
