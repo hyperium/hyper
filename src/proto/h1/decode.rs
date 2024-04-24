@@ -19,6 +19,9 @@ use self::Kind::{Chunked, Eof, Length};
 /// This limit is currentlty applied for the entire body, not per chunk.
 const CHUNKED_EXTENSIONS_LIMIT: u64 = 1024 * 16;
 
+/// Maximum number of trailers allowed in a chunked body.
+const TRAILERS_LIMIT: u64 = 1024;
+
 /// Decoders to handle different Transfer-Encodings.
 ///
 /// If a message body does not include a Transfer-Encoding, it *should*
@@ -28,7 +31,6 @@ pub(crate) struct Decoder {
     kind: Kind,
 }
 
-// FIXME: can we keep Copy trait?
 #[derive(Debug, Clone, PartialEq)]
 enum Kind {
     /// A Reader used when a Content-Length header is passed with a positive integer.
@@ -177,9 +179,18 @@ impl Decoder {
 
                         if trailers_buf.is_some() {
                             trace!("found possible trailers");
+
+                            // decoder enforces that trailers count will not exceed TRAILERS_LIMIT
+                            // which is also less than usize::MAX
+                            if *trailers_cnt >= TRAILERS_LIMIT || *trailers_cnt > usize::MAX as u64
+                            {
+                                return Poll::Ready(Err(io::Error::new(
+                                    io::ErrorKind::InvalidData,
+                                    "chunk trailers count overflow",
+                                )));
+                            }
                             match decode_trailers(
                                 &mut trailers_buf.take().expect("Trailer is None"),
-                                // decoder enforces that trailers count will not exceed usize::MAX
                                 *trailers_cnt as usize,
                             ) {
                                 Ok(headers) => {
@@ -503,7 +514,7 @@ impl ChunkedState {
         let byte = byte!(rdr, cx);
         match byte {
             b'\n' => {
-                if *trailers_cnt == usize::MAX as u64 {
+                if *trailers_cnt == TRAILERS_LIMIT {
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "chunk trailers count overflow",
@@ -1048,7 +1059,7 @@ mod tests {
     }
 
     #[test]
-    fn decode_trailers_test() {
+    fn test_decode_trailers() {
         let mut buf = BytesMut::new();
         buf.extend_from_slice(
             b"Expires: Wed, 21 Oct 2015 07:28:00 GMT\r\nX-Stream-Error: failed to decode\r\n\r\n",
@@ -1060,5 +1071,34 @@ mod tests {
             "Wed, 21 Oct 2015 07:28:00 GMT"
         );
         assert_eq!(headers.get("X-Stream-Error").unwrap(), "failed to decode");
+    }
+
+    #[tokio::test]
+    async fn test_trailer_limit_enforced() {
+        let mut scratch = vec![];
+        scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
+        for i in 0..=TRAILERS_LIMIT {
+            scratch.extend(format!("trailer{}: {}\r\n", i, i).as_bytes());
+        }
+        scratch.extend(b"\r\n");
+        let mut mock_buf = Bytes::from(scratch);
+
+        let mut decoder = Decoder::chunked();
+
+        // ready chunked body
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .unwrap()
+            .into_data()
+            .expect("unknown frame type");
+        assert_eq!(16, buf.len());
+
+        // eof read
+        let err = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect_err("trailers over limit");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
     }
 }
