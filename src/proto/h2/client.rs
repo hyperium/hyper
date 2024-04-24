@@ -340,6 +340,7 @@ where
             // and then close.
             trace!("send_request dropped, starting conn shutdown");
             drop(this.cancel_tx.take().expect("ConnTask Future polled twice"));
+            return Poll::Ready(());
         }
 
         Poll::Pending
