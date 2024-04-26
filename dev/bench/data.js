@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1713621325236,
+  "lastUpdate": 1714145660016,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8039,6 +8039,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47019,
             "range": "± 8097",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lqs@lqs.me",
+            "name": "Qishuai Liu",
+            "username": "lqs"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a3269f7ab285dbeb44a3a7dbc163fcadd65087f9",
+          "message": "fix(http2): stop removing \"Trailer\" header in HTTP/2 responses as per RFC 9110 (#3648)",
+          "timestamp": "2024-04-26T15:33:30Z",
+          "tree_id": "dee73ecf0585f703bb8592e2da82b5bff959fece",
+          "url": "https://github.com/hyperium/hyper/commit/a3269f7ab285dbeb44a3a7dbc163fcadd65087f9"
+        },
+        "date": 1714145657661,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45858,
+            "range": "± 3808",
             "unit": "ns/iter"
           }
         ]
