@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714145660016,
+  "lastUpdate": 1714145716058,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -43117,6 +43117,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5043060,
             "range": "± 52346",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lqs@lqs.me",
+            "name": "Qishuai Liu",
+            "username": "lqs"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a3269f7ab285dbeb44a3a7dbc163fcadd65087f9",
+          "message": "fix(http2): stop removing \"Trailer\" header in HTTP/2 responses as per RFC 9110 (#3648)",
+          "timestamp": "2024-04-26T15:33:30Z",
+          "tree_id": "dee73ecf0585f703bb8592e2da82b5bff959fece",
+          "url": "https://github.com/hyperium/hyper/commit/a3269f7ab285dbeb44a3a7dbc163fcadd65087f9"
+        },
+        "date": 1714145713685,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68856,
+            "range": "± 5501",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4192268,
+            "range": "± 557335",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21553,
+            "range": "± 780",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24199,
+            "range": "± 559",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33224,
+            "range": "± 815",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 98826,
+            "range": "± 3916",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37061,
+            "range": "± 3925",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 93746,
+            "range": "± 2984",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24790905,
+            "range": "± 33987550",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7808819,
+            "range": "± 147970",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7606050,
+            "range": "± 99816",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49144822,
+            "range": "± 287804",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49056582,
+            "range": "± 645413",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5004332,
+            "range": "± 152445",
             "unit": "ns/iter"
           }
         ]
