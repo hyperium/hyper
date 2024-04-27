@@ -8,7 +8,7 @@ use std::task::{Context, Poll};
 use bytes::{Buf, Bytes};
 use futures_util::ready;
 use h2::{Reason, RecvStream, SendStream};
-use http::header::{HeaderName, CONNECTION, TE, TRAILER, TRANSFER_ENCODING, UPGRADE};
+use http::header::{HeaderName, CONNECTION, TE, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
 
@@ -31,15 +31,13 @@ cfg_server! {
 /// Default initial stream window size defined in HTTP2 spec.
 pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 
-// List of connection headers from:
-// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+// List of connection headers from RFC 9110 Section 7.6.1
 //
 // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
 // tested separately.
-static CONNECTION_HEADERS: [HeaderName; 5] = [
+static CONNECTION_HEADERS: [HeaderName; 4] = [
     HeaderName::from_static("keep-alive"),
     HeaderName::from_static("proxy-connection"),
-    TRAILER,
     TRANSFER_ENCODING,
     UPGRADE,
 ];
