@@ -261,8 +261,7 @@ where
                 let body = match body_len {
                     DecodedLength::ZERO => IncomingBody::empty(),
                     other => {
-                        let (tx, rx) =
-                            IncomingBody::new_channel(other, wants.contains(Wants::EXPECT));
+                        let (tx, rx) = IncomingBody::channel(other, wants.contains(Wants::EXPECT));
                         self.body_tx = Some(tx);
                         rx
                     }
@@ -733,7 +732,7 @@ mod tests {
         let _dispatcher = tokio::spawn(async move { dispatcher.await });
 
         let body = {
-            let (mut tx, body) = IncomingBody::new_channel(DecodedLength::new(4), false);
+            let (mut tx, body) = IncomingBody::channel(DecodedLength::new(4), false);
             tx.try_send_data("reee".into()).unwrap();
             body
         };
@@ -764,7 +763,8 @@ mod tests {
         assert!(dispatcher.poll().is_pending());
 
         let body = {
-            let (mut tx, body) = IncomingBody::channel();
+            let (mut tx, body) =
+                IncomingBody::channel(DecodedLength::CHUNKED, /*wanter =*/ false);
             tx.try_send_data("".into()).unwrap();
             body
         };
