@@ -19,8 +19,11 @@ use self::Kind::{Chunked, Eof, Length};
 /// This limit is currentlty applied for the entire body, not per chunk.
 const CHUNKED_EXTENSIONS_LIMIT: u64 = 1024 * 16;
 
-/// Maximum number of trailers allowed in a chunked body.
-const TRAILERS_LIMIT: u64 = 1024;
+/// Maximum number of trailer fields allowed in a chunked body.
+const TRAILERS_FIELD_LIMIT: u64 = 1024;
+
+/// Maximum number of bytes allowed for all trailer fields.
+const TRAILER_LIMIT: u64 = TRAILERS_FIELD_LIMIT * 64;
 
 /// Decoders to handle different Transfer-Encodings.
 ///
@@ -180,9 +183,10 @@ impl Decoder {
                         if trailers_buf.is_some() {
                             trace!("found possible trailers");
 
-                            // decoder enforces that trailers count will not exceed TRAILERS_LIMIT
+                            // decoder enforces that trailers count will not exceed TRAILERS_FIELD_LIMIT
                             // which is also less than usize::MAX
-                            if *trailers_cnt >= TRAILERS_LIMIT || *trailers_cnt > usize::MAX as u64
+                            if *trailers_cnt >= TRAILERS_FIELD_LIMIT
+                                || *trailers_cnt > usize::MAX as u64
                             {
                                 return Poll::Ready(Err(io::Error::new(
                                     io::ErrorKind::InvalidData,
@@ -259,6 +263,20 @@ macro_rules! or_overflow {
             ))),
         }
     )
+}
+
+macro_rules! put_u8 {
+    ($trailers_buf:expr, $byte:expr) => {
+        $trailers_buf.put_u8($byte);
+
+        // check if trailer_buf exceeds TRAILER_LIMIT
+        if $trailers_buf.len() as u64 >= TRAILER_LIMIT {
+            return Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "chunk trailers bytes over limit",
+            )));
+        }
+    };
 }
 
 impl ChunkedState {
@@ -494,10 +512,7 @@ impl ChunkedState {
         trace!("read_trailer");
         let byte = byte!(rdr, cx);
 
-        trailers_buf
-            .as_mut()
-            .expect("trailers_buf is None")
-            .put_u8(byte);
+        put_u8!(trailers_buf.as_mut().expect("trailers_buf is None"), byte);
 
         match byte {
             b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
@@ -514,7 +529,7 @@ impl ChunkedState {
         let byte = byte!(rdr, cx);
         match byte {
             b'\n' => {
-                if *trailers_cnt == TRAILERS_LIMIT {
+                if *trailers_cnt == TRAILERS_FIELD_LIMIT {
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "chunk trailers count overflow",
@@ -522,10 +537,7 @@ impl ChunkedState {
                 }
                 *trailers_cnt += 1;
 
-                trailers_buf
-                    .as_mut()
-                    .expect("trailers_buf is None")
-                    .put_u8(byte);
+                put_u8!(trailers_buf.as_mut().expect("trailers_buf is None"), byte);
 
                 Poll::Ready(Ok(ChunkedState::EndCr))
             }
@@ -545,7 +557,7 @@ impl ChunkedState {
         match byte {
             b'\r' => {
                 if let Some(trailers_buf) = trailers_buf {
-                    trailers_buf.put_u8(byte);
+                    put_u8!(trailers_buf, byte);
                 }
                 Poll::Ready(Ok(ChunkedState::EndLf))
             }
@@ -558,7 +570,7 @@ impl ChunkedState {
                         *trailers_buf = Some(buf);
                     }
                     Some(ref mut trailers_buf) => {
-                        trailers_buf.put_u8(byte);
+                        put_u8!(trailers_buf, byte);
                     }
                 }
 
@@ -575,7 +587,7 @@ impl ChunkedState {
         match byte {
             b'\n' => {
                 if let Some(trailers_buf) = trailers_buf {
-                    trailers_buf.put_u8(byte);
+                    put_u8!(trailers_buf, byte);
                 }
                 Poll::Ready(Ok(ChunkedState::End))
             }
@@ -1074,12 +1086,76 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trailer_limit_enforced() {
+    async fn test_trailer_field_limit_enforced() {
         let mut scratch = vec![];
         scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
-        for i in 0..=TRAILERS_LIMIT {
+        for i in 0..=TRAILERS_FIELD_LIMIT {
             scratch.extend(format!("trailer{}: {}\r\n", i, i).as_bytes());
         }
+        scratch.extend(b"\r\n");
+        let mut mock_buf = Bytes::from(scratch);
+
+        let mut decoder = Decoder::chunked();
+
+        // ready chunked body
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .unwrap()
+            .into_data()
+            .expect("unknown frame type");
+        assert_eq!(16, buf.len());
+
+        // eof read
+        let err = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect_err("trailer fields over limit");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn test_trailer_limit_huge_trailer() {
+        let mut scratch = vec![];
+        scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
+        scratch.extend(
+            format!(
+                "huge_trailer: {}\r\n",
+                "x".repeat(TRAILER_LIMIT.try_into().unwrap())
+            )
+            .as_bytes(),
+        );
+        scratch.extend(b"\r\n");
+        let mut mock_buf = Bytes::from(scratch);
+
+        let mut decoder = Decoder::chunked();
+
+        // ready chunked body
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .unwrap()
+            .into_data()
+            .expect("unknown frame type");
+        assert_eq!(16, buf.len());
+
+        // eof read
+        let err = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect_err("trailers over limit");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidData);
+    }
+
+    #[tokio::test]
+    async fn test_trailer_limit_many_small_trailers() {
+        let mut scratch = vec![];
+        scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
+
+        for i in 0..=TRAILERS_FIELD_LIMIT {
+            scratch.extend(format!("trailer{}: {}\r\n", i, "x".repeat(64)).as_bytes());
+        }
+
         scratch.extend(b"\r\n");
         let mut mock_buf = Bytes::from(scratch);
 
