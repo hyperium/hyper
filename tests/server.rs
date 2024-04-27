@@ -2529,7 +2529,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
         .timer(TokioTimer)
         .keep_alive_interval(Duration::from_secs(1))
         .keep_alive_timeout(Duration::from_secs(1))
-        .add_date_header(true)
+        .auto_date_header(true)
         .serve_connection(socket, unreachable_service())
         .await
         .expect_err("serve_connection should error");
@@ -2581,7 +2581,7 @@ async fn http2_check_date_header_disabled() {
         http2::Builder::new(TokioExecutor)
             .timer(TokioTimer)
             .keep_alive_interval(Duration::from_secs(1))
-            .add_date_header(false)
+            .auto_date_header(false)
             .keep_alive_timeout(Duration::from_secs(1))
             .serve_connection(socket, HelloWorld)
             .await

@@ -366,7 +366,7 @@ impl Builder {
     /// Note that including the `date` header is recommended by RFC 7231.
     ///
     /// Default is true.
-    pub fn add_date_header(&mut self, enabled: bool) -> &mut Self {
+    pub fn auto_date_header(&mut self, enabled: bool) -> &mut Self {
         self.date_header = enabled;
         self
     }
