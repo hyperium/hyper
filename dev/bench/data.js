@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714145716058,
+  "lastUpdate": 1714414392347,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8069,6 +8069,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45858,
             "range": "± 3808",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "edwardwc@protonmail.com",
+            "name": "Edward C",
+            "username": "edwardwc"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "721785efad8537513e48d900a85c05ce79483018",
+          "message": "feat(server): add `Builder::auto_date_header(bool)` to allow disabling Date headers\n\nThe default is enabled `true`. The method exists on both HTTP/1 and HTTP/2 builders.",
+          "timestamp": "2024-04-29T14:12:22-04:00",
+          "tree_id": "6b29c7c754a72f3a59c9d8246524ba6ef2cd677e",
+          "url": "https://github.com/hyperium/hyper/commit/721785efad8537513e48d900a85c05ce79483018"
+        },
+        "date": 1714414389884,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46545,
+            "range": "± 9610",
             "unit": "ns/iter"
           }
         ]
