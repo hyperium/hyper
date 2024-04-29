@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714414392347,
+  "lastUpdate": 1714414457135,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -43255,6 +43255,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5004332,
             "range": "± 152445",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "edwardwc@protonmail.com",
+            "name": "Edward C",
+            "username": "edwardwc"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "721785efad8537513e48d900a85c05ce79483018",
+          "message": "feat(server): add `Builder::auto_date_header(bool)` to allow disabling Date headers\n\nThe default is enabled `true`. The method exists on both HTTP/1 and HTTP/2 builders.",
+          "timestamp": "2024-04-29T14:12:22-04:00",
+          "tree_id": "6b29c7c754a72f3a59c9d8246524ba6ef2cd677e",
+          "url": "https://github.com/hyperium/hyper/commit/721785efad8537513e48d900a85c05ce79483018"
+        },
+        "date": 1714414455055,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69353,
+            "range": "± 2009",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4466728,
+            "range": "± 335929",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21794,
+            "range": "± 570",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24538,
+            "range": "± 643",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33187,
+            "range": "± 720",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100518,
+            "range": "± 2206",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37089,
+            "range": "± 5380",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 94916,
+            "range": "± 4288",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 25597059,
+            "range": "± 34575117",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 43196810,
+            "range": "± 44211908",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7628456,
+            "range": "± 81168",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49312761,
+            "range": "± 1007930",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49899912,
+            "range": "± 1193063",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5103560,
+            "range": "± 277632",
             "unit": "ns/iter"
           }
         ]
