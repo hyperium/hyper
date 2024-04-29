@@ -277,6 +277,16 @@ impl<E> Builder<E> {
         self
     }
 
+    /// Set whether the `date` header should be included in HTTP responses.
+    ///
+    /// Note that including the `date` header is recommended by RFC 7231.
+    ///
+    /// Default is true.
+    pub fn auto_date_header(&mut self, enabled: bool) -> &mut Self {
+        self.h2_builder.date_header = enabled;
+        self
+    }
+
     /// Bind a connection together with a [`Service`](crate::service::Service).
     ///
     /// This returns a Future that must be polled in order for HTTP to be
