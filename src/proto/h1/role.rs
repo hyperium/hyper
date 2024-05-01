@@ -30,7 +30,7 @@ use crate::proto::h1::{
 use crate::proto::RequestHead;
 use crate::proto::{BodyLength, MessageHead, RequestLine};
 
-const DEFAULT_MAX_HEADERS: usize = 100;
+pub(crate) const DEFAULT_MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 #[cfg(feature = "server")]
 const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;

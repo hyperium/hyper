@@ -10,6 +10,7 @@ use http::{HeaderMap, HeaderName, HeaderValue};
 use http_body::Frame;
 
 use super::io::MemRead;
+use super::role::DEFAULT_MAX_HEADERS;
 use super::DecodedLength;
 
 use self::Kind::{Chunked, Eof, Length};
@@ -19,11 +20,10 @@ use self::Kind::{Chunked, Eof, Length};
 /// This limit is currentlty applied for the entire body, not per chunk.
 const CHUNKED_EXTENSIONS_LIMIT: u64 = 1024 * 16;
 
-/// Maximum number of trailer fields allowed in a chunked body.
-const TRAILERS_FIELD_LIMIT: u64 = 1024;
-
 /// Maximum number of bytes allowed for all trailer fields.
-const TRAILER_LIMIT: u64 = TRAILERS_FIELD_LIMIT * 64;
+///
+/// TODO: remove this when we land h1_max_header_size support
+const TRAILER_LIMIT: usize = 1024 * 16;
 
 /// Decoders to handle different Transfer-Encodings.
 ///
@@ -44,7 +44,9 @@ enum Kind {
         chunk_len: u64,
         extensions_cnt: u64,
         trailers_buf: Option<BytesMut>,
-        trailers_cnt: u64,
+        trailers_cnt: usize,
+        h1_max_headers: Option<usize>,
+        h1_max_header_size: Option<usize>,
     },
     /// A Reader used for responses that don't indicate a length or chunked.
     ///
@@ -91,7 +93,10 @@ impl Decoder {
         }
     }
 
-    pub(crate) fn chunked() -> Decoder {
+    pub(crate) fn chunked(
+        h1_max_headers: Option<usize>,
+        h1_max_header_size: Option<usize>,
+    ) -> Decoder {
         Decoder {
             kind: Kind::Chunked {
                 state: ChunkedState::new(),
@@ -99,6 +104,8 @@ impl Decoder {
                 extensions_cnt: 0,
                 trailers_buf: None,
                 trailers_cnt: 0,
+                h1_max_headers,
+                h1_max_header_size,
             },
         }
     }
@@ -109,9 +116,13 @@ impl Decoder {
         }
     }
 
-    pub(super) fn new(len: DecodedLength) -> Self {
+    pub(super) fn new(
+        len: DecodedLength,
+        h1_max_headers: Option<usize>,
+        h1_max_header_size: Option<usize>,
+    ) -> Self {
         match len {
-            DecodedLength::CHUNKED => Decoder::chunked(),
+            DecodedLength::CHUNKED => Decoder::chunked(h1_max_headers, h1_max_header_size),
             DecodedLength::CLOSE_DELIMITED => Decoder::eof(),
             length => Decoder::length(length.danger_len()),
         }
@@ -164,7 +175,11 @@ impl Decoder {
                 ref mut extensions_cnt,
                 ref mut trailers_buf,
                 ref mut trailers_cnt,
+                ref h1_max_headers,
+                ref h1_max_header_size,
             } => {
+                let h1_max_headers = h1_max_headers.unwrap_or(DEFAULT_MAX_HEADERS);
+                let h1_max_header_size = h1_max_header_size.unwrap_or(TRAILER_LIMIT);
                 loop {
                     let mut buf = None;
                     // advances the chunked state
@@ -176,6 +191,8 @@ impl Decoder {
                         &mut buf,
                         trailers_buf,
                         trailers_cnt,
+                        h1_max_headers,
+                        h1_max_header_size
                     ))?;
                     if *state == ChunkedState::End {
                         trace!("end of chunked");
@@ -183,11 +200,8 @@ impl Decoder {
                         if trailers_buf.is_some() {
                             trace!("found possible trailers");
 
-                            // decoder enforces that trailers count will not exceed TRAILERS_FIELD_LIMIT
-                            // which is also less than usize::MAX
-                            if *trailers_cnt >= TRAILERS_FIELD_LIMIT
-                                || *trailers_cnt > usize::MAX as u64
-                            {
+                            // decoder enforces that trailers count will not exceed h1_max_headers
+                            if *trailers_cnt >= h1_max_headers {
                                 return Poll::Ready(Err(io::Error::new(
                                     io::ErrorKind::InvalidData,
                                     "chunk trailers count overflow",
@@ -195,7 +209,7 @@ impl Decoder {
                             }
                             match decode_trailers(
                                 &mut trailers_buf.take().expect("Trailer is None"),
-                                *trailers_cnt as usize,
+                                *trailers_cnt,
                             ) {
                                 Ok(headers) => {
                                     return Poll::Ready(Ok(Frame::trailers(headers)));
@@ -266,11 +280,10 @@ macro_rules! or_overflow {
 }
 
 macro_rules! put_u8 {
-    ($trailers_buf:expr, $byte:expr) => {
+    ($trailers_buf:expr, $byte:expr, $limit:expr) => {
         $trailers_buf.put_u8($byte);
 
-        // check if trailer_buf exceeds TRAILER_LIMIT
-        if $trailers_buf.len() as u64 >= TRAILER_LIMIT {
+        if $trailers_buf.len() >= $limit {
             return Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 "chunk trailers bytes over limit",
@@ -291,7 +304,9 @@ impl ChunkedState {
         extensions_cnt: &mut u64,
         buf: &mut Option<Bytes>,
         trailers_buf: &mut Option<BytesMut>,
-        trailers_cnt: &mut u64,
+        trailers_cnt: &mut usize,
+        h1_max_headers: usize,
+        h1_max_header_size: usize,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
@@ -303,10 +318,17 @@ impl ChunkedState {
             Body => ChunkedState::read_body(cx, body, size, buf),
             BodyCr => ChunkedState::read_body_cr(cx, body),
             BodyLf => ChunkedState::read_body_lf(cx, body),
-            Trailer => ChunkedState::read_trailer(cx, body, trailers_buf),
-            TrailerLf => ChunkedState::read_trailer_lf(cx, body, trailers_buf, trailers_cnt),
-            EndCr => ChunkedState::read_end_cr(cx, body, trailers_buf),
-            EndLf => ChunkedState::read_end_lf(cx, body, trailers_buf),
+            Trailer => ChunkedState::read_trailer(cx, body, trailers_buf, h1_max_header_size),
+            TrailerLf => ChunkedState::read_trailer_lf(
+                cx,
+                body,
+                trailers_buf,
+                trailers_cnt,
+                h1_max_headers,
+                h1_max_header_size,
+            ),
+            EndCr => ChunkedState::read_end_cr(cx, body, trailers_buf, h1_max_header_size),
+            EndLf => ChunkedState::read_end_lf(cx, body, trailers_buf, h1_max_header_size),
             End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
@@ -508,11 +530,16 @@ impl ChunkedState {
         cx: &mut Context<'_>,
         rdr: &mut R,
         trailers_buf: &mut Option<BytesMut>,
+        h1_max_header_size: usize,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         trace!("read_trailer");
         let byte = byte!(rdr, cx);
 
-        put_u8!(trailers_buf.as_mut().expect("trailers_buf is None"), byte);
+        put_u8!(
+            trailers_buf.as_mut().expect("trailers_buf is None"),
+            byte,
+            h1_max_header_size
+        );
 
         match byte {
             b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
@@ -524,12 +551,14 @@ impl ChunkedState {
         cx: &mut Context<'_>,
         rdr: &mut R,
         trailers_buf: &mut Option<BytesMut>,
-        trailers_cnt: &mut u64,
+        trailers_cnt: &mut usize,
+        h1_max_headers: usize,
+        h1_max_header_size: usize,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         let byte = byte!(rdr, cx);
         match byte {
             b'\n' => {
-                if *trailers_cnt == TRAILERS_FIELD_LIMIT {
+                if *trailers_cnt >= h1_max_headers {
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::InvalidData,
                         "chunk trailers count overflow",
@@ -537,7 +566,11 @@ impl ChunkedState {
                 }
                 *trailers_cnt += 1;
 
-                put_u8!(trailers_buf.as_mut().expect("trailers_buf is None"), byte);
+                put_u8!(
+                    trailers_buf.as_mut().expect("trailers_buf is None"),
+                    byte,
+                    h1_max_header_size
+                );
 
                 Poll::Ready(Ok(ChunkedState::EndCr))
             }
@@ -552,12 +585,13 @@ impl ChunkedState {
         cx: &mut Context<'_>,
         rdr: &mut R,
         trailers_buf: &mut Option<BytesMut>,
+        h1_max_header_size: usize,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         let byte = byte!(rdr, cx);
         match byte {
             b'\r' => {
                 if let Some(trailers_buf) = trailers_buf {
-                    put_u8!(trailers_buf, byte);
+                    put_u8!(trailers_buf, byte, h1_max_header_size);
                 }
                 Poll::Ready(Ok(ChunkedState::EndLf))
             }
@@ -570,7 +604,7 @@ impl ChunkedState {
                         *trailers_buf = Some(buf);
                     }
                     Some(ref mut trailers_buf) => {
-                        put_u8!(trailers_buf, byte);
+                        put_u8!(trailers_buf, byte, h1_max_header_size);
                     }
                 }
 
@@ -582,12 +616,13 @@ impl ChunkedState {
         cx: &mut Context<'_>,
         rdr: &mut R,
         trailers_buf: &mut Option<BytesMut>,
+        h1_max_header_size: usize,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         let byte = byte!(rdr, cx);
         match byte {
             b'\n' => {
                 if let Some(trailers_buf) = trailers_buf {
-                    put_u8!(trailers_buf, byte);
+                    put_u8!(trailers_buf, byte, h1_max_header_size);
                 }
                 Poll::Ready(Ok(ChunkedState::End))
             }
@@ -721,6 +756,8 @@ mod tests {
                         &mut None,
                         &mut None,
                         &mut trailers_cnt,
+                        DEFAULT_MAX_HEADERS,
+                        TRAILER_LIMIT,
                     )
                 })
                 .await;
@@ -749,6 +786,8 @@ mod tests {
                         &mut None,
                         &mut None,
                         &mut trailers_cnt,
+                        DEFAULT_MAX_HEADERS,
+                        TRAILER_LIMIT,
                     )
                 })
                 .await;
@@ -834,7 +873,7 @@ mod tests {
             9\r\n\
             foo bar\
         "[..];
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(None, None);
         assert_eq!(
             decoder
                 .decode_fut(&mut bytes)
@@ -853,7 +892,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_chunked_single_read() {
         let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\n"[..];
-        let buf = Decoder::chunked()
+        let buf = Decoder::chunked(None, None)
             .decode_fut(&mut mock_buf)
             .await
             .expect("decode")
@@ -878,7 +917,7 @@ mod tests {
         scratch.extend(b"0\r\n\r\n");
         let mut mock_buf = Bytes::from(scratch);
 
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(None, None);
         let buf1 = decoder
             .decode_fut(&mut mock_buf)
             .await
@@ -899,7 +938,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_chunked_trailer_with_missing_lf() {
         let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\nbad\r\r\n"[..];
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(None, None);
         decoder.decode_fut(&mut mock_buf).await.expect("decode");
         let e = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
@@ -909,7 +948,7 @@ mod tests {
     #[tokio::test]
     async fn test_read_chunked_after_eof() {
         let mut mock_buf = &b"10\r\n1234567890abcdef\r\n0\r\n\r\n"[..];
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(None, None);
 
         // normal read
         let buf = decoder
@@ -999,7 +1038,7 @@ mod tests {
     async fn test_read_chunked_async() {
         let content = "3\r\nfoo\r\n3\r\nbar\r\n0\r\n\r\n";
         let expected = "foobar";
-        all_async_cases(content, expected, Decoder::chunked()).await;
+        all_async_cases(content, expected, Decoder::chunked(None, None)).await;
     }
 
     #[cfg(not(miri))]
@@ -1086,16 +1125,17 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trailer_field_limit_enforced() {
+    async fn test_trailer_max_headers_enforced() {
+        let h1_max_headers = 10;
         let mut scratch = vec![];
         scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
-        for i in 0..=TRAILERS_FIELD_LIMIT {
+        for i in 0..h1_max_headers {
             scratch.extend(format!("trailer{}: {}\r\n", i, i).as_bytes());
         }
         scratch.extend(b"\r\n");
         let mut mock_buf = Bytes::from(scratch);
 
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(Some(h1_max_headers), None);
 
         // ready chunked body
         let buf = decoder
@@ -1115,20 +1155,15 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trailer_limit_huge_trailer() {
+    async fn test_trailer_max_header_size_huge_trailer() {
+        let max_header_size = 1024;
         let mut scratch = vec![];
         scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
-        scratch.extend(
-            format!(
-                "huge_trailer: {}\r\n",
-                "x".repeat(TRAILER_LIMIT.try_into().unwrap())
-            )
-            .as_bytes(),
-        );
+        scratch.extend(format!("huge_trailer: {}\r\n", "x".repeat(max_header_size)).as_bytes());
         scratch.extend(b"\r\n");
         let mut mock_buf = Bytes::from(scratch);
 
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(None, Some(max_header_size));
 
         // ready chunked body
         let buf = decoder
@@ -1148,18 +1183,20 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_trailer_limit_many_small_trailers() {
+    async fn test_trailer_max_header_size_many_small_trailers() {
+        let max_headers = 10;
+        let header_size = 64;
         let mut scratch = vec![];
         scratch.extend(b"10\r\n1234567890abcdef\r\n0\r\n");
 
-        for i in 0..=TRAILERS_FIELD_LIMIT {
-            scratch.extend(format!("trailer{}: {}\r\n", i, "x".repeat(64)).as_bytes());
+        for i in 0..max_headers {
+            scratch.extend(format!("trailer{}: {}\r\n", i, "x".repeat(header_size)).as_bytes());
         }
 
         scratch.extend(b"\r\n");
         let mut mock_buf = Bytes::from(scratch);
 
-        let mut decoder = Decoder::chunked();
+        let mut decoder = Decoder::chunked(None, Some(max_headers * header_size));
 
         // ready chunked body
         let buf = decoder

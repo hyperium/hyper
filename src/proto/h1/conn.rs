@@ -267,10 +267,20 @@ where
                 self.try_keep_alive(cx);
             }
         } else if msg.expect_continue && msg.head.version.gt(&Version::HTTP_10) {
-            self.state.reading = Reading::Continue(Decoder::new(msg.decode));
+            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            self.state.reading = Reading::Continue(Decoder::new(
+                msg.decode,
+                self.state.h1_max_headers,
+                h1_max_header_size,
+            ));
             wants = wants.add(Wants::EXPECT);
         } else {
-            self.state.reading = Reading::Body(Decoder::new(msg.decode));
+            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            self.state.reading = Reading::Body(Decoder::new(
+                msg.decode,
+                self.state.h1_max_headers,
+                h1_max_header_size,
+            ));
         }
 
         self.state.allow_trailer_fields = msg
