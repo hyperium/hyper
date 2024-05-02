@@ -1063,7 +1063,7 @@ mod tests {
         b.bytes = LEN as u64;
 
         b.iter(|| {
-            let mut decoder = Decoder::chunked();
+            let mut decoder = Decoder::chunked(None, None);
             rt.block_on(async {
                 let mut raw = content.clone();
                 let chunk = decoder
