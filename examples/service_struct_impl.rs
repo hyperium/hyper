@@ -65,8 +65,7 @@ impl Service<Request<IncomingBody>> for Svc {
                 "authors extraordinare! counter = {:?}",
                 self.counter
             )),
-            // Return the 404 Not Found for other routes, and don't increment counter.
-            _ => return Box::pin(async { mk_response("oh no! not found".into()) }),
+            _ => mk_response("oh no! not found".into()),
         };
 
         Box::pin(async { res })

@@ -1,7 +1,7 @@
-use std::{fmt, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 #[cfg(feature = "client")]
-use std::fmt::Write;
+use std::fmt::{self, Write as _};
 #[cfg(feature = "server")]
 use std::time::Instant;
 
@@ -934,7 +934,8 @@ impl Server {
         }
 
         // cached date is much faster than formatting every request
-        if !wrote_date {
+        // don't force the write if disabled
+        if !wrote_date && msg.date_header {
             dst.reserve(date::DATE_VALUE_LENGTH + 8);
             header_name_writer.write_header_name_with_colon(dst, "date: ", header::DATE);
             date::extend(dst);
@@ -1604,8 +1605,10 @@ fn write_headers_original_case(
     }
 }
 
+#[cfg(feature = "client")]
 struct FastWrite<'a>(&'a mut Vec<u8>);
 
+#[cfg(feature = "client")]
 impl<'a> fmt::Write for FastWrite<'a> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
@@ -2503,6 +2506,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                date_header: true,
             },
             &mut vec,
         )
@@ -2534,6 +2538,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: false,
+                date_header: true,
             },
             &mut vec,
         )
@@ -2568,6 +2573,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                date_header: true,
             },
             &mut vec,
         )
@@ -2592,6 +2598,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut Some(Method::CONNECT),
                 title_case_headers: false,
+                date_header: true,
             },
             &mut vec,
         )
@@ -2621,6 +2628,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                date_header: true,
             },
             &mut vec,
         )
@@ -2655,6 +2663,7 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: false,
+                date_header: true,
             },
             &mut vec,
         )
@@ -2689,15 +2698,52 @@ mod tests {
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                date_header: true,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        // this will also test that the date does exist
+        let expected_response =
+            b"HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 10\r\nContent-Type: application/json\r\nDate: ";
+
+        assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
+    }
+
+    #[test]
+    fn test_disabled_date_header() {
+        use crate::proto::BodyLength;
+        use http::header::{HeaderValue, CONTENT_LENGTH};
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert("content-length", HeaderValue::from_static("10"));
+        head.headers
+            .insert("content-type", HeaderValue::from_static("application/json"));
+
+        let mut orig_headers = HeaderCaseMap::default();
+        orig_headers.insert(CONTENT_LENGTH, "CONTENT-LENGTH".into());
+        head.extensions.insert(orig_headers);
+
+        let mut vec = Vec::new();
+        Server::encode(
+            Encode {
+                head: &mut head,
+                body: Some(BodyLength::Known(10)),
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: true,
+                date_header: false,
             },
             &mut vec,
         )
         .unwrap();
 
         let expected_response =
-            b"HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 10\r\nContent-Type: application/json\r\nDate: ";
+            b"HTTP/1.1 200 OK\r\nCONTENT-LENGTH: 10\r\nContent-Type: application/json\r\n\r\n";
 
-        assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
+        assert_eq!(&vec, &expected_response);
     }
 
     #[test]
@@ -3037,6 +3083,7 @@ mod tests {
                     keep_alive: true,
                     req_method: &mut Some(Method::GET),
                     title_case_headers: false,
+                    date_header: true,
                 },
                 &mut vec,
             )
@@ -3065,6 +3112,7 @@ mod tests {
                     keep_alive: true,
                     req_method: &mut Some(Method::GET),
                     title_case_headers: false,
+                    date_header: true,
                 },
                 &mut vec,
             )

@@ -79,6 +79,7 @@ pub struct Builder {
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
+    date_header: bool,
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -246,6 +247,7 @@ impl Builder {
             h1_writev: None,
             max_buf_size: None,
             pipeline_flush: false,
+            date_header: true,
         }
     }
     /// Set whether HTTP/1 connections should support half-closures.
@@ -356,6 +358,16 @@ impl Builder {
             "the max_buf_size cannot be smaller than the minimum that h1 specifies."
         );
         self.max_buf_size = Some(max);
+        self
+    }
+
+    /// Set whether the `date` header should be included in HTTP responses.
+    ///
+    /// Note that including the `date` header is recommended by RFC 7231.
+    ///
+    /// Default is true.
+    pub fn auto_date_header(&mut self, enabled: bool) -> &mut Self {
+        self.date_header = enabled;
         self
     }
 

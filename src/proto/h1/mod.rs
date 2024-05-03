@@ -103,6 +103,8 @@ pub(crate) struct Encode<'a, T> {
     keep_alive: bool,
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,
+    #[cfg(feature = "server")]
+    date_header: bool,
 }
 
 /// Extra flags that a request "wants", like expect-continue or upgrades.
