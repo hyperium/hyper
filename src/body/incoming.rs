@@ -317,6 +317,13 @@ impl Body for Incoming {
 
 impl fmt::Debug for Incoming {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[cfg(any(
+            all(
+                any(feature = "http1", feature = "http2"),
+                any(feature = "client", feature = "server")
+            ),
+            feature = "ffi"
+        ))]
         #[derive(Debug)]
         struct Streaming;
         #[derive(Debug)]
