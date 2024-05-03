@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714770949363,
+  "lastUpdate": 1714771302065,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8129,6 +8129,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46948,
             "range": "± 8337",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Tacklebox@users.noreply.github.com",
+            "name": "Maxwell Borden",
+            "username": "Tacklebox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c62ea805b5b7ecdd56d69106387048218b4521ba",
+          "message": "docs(example): remove incorrect comment in example (#3656)\n\nThere was a comment in the service_struct_impl.rs example indicating\r\nthat the default match arm would somehow return a 404 and not increment\r\nthe counter. This wasn't the case. That arm also had a redundant return.",
+          "timestamp": "2024-05-03T17:20:44-04:00",
+          "tree_id": "ae1346e37a73d74f426c311d1272a2e792e97211",
+          "url": "https://github.com/hyperium/hyper/commit/c62ea805b5b7ecdd56d69106387048218b4521ba"
+        },
+        "date": 1714771299058,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46428,
+            "range": "± 9277",
             "unit": "ns/iter"
           }
         ]
