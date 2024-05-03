@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714771302065,
+  "lastUpdate": 1714771357121,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -43531,6 +43531,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5120496,
             "range": "± 543354",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Tacklebox@users.noreply.github.com",
+            "name": "Maxwell Borden",
+            "username": "Tacklebox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c62ea805b5b7ecdd56d69106387048218b4521ba",
+          "message": "docs(example): remove incorrect comment in example (#3656)\n\nThere was a comment in the service_struct_impl.rs example indicating\r\nthat the default match arm would somehow return a 404 and not increment\r\nthe counter. This wasn't the case. That arm also had a redundant return.",
+          "timestamp": "2024-05-03T17:20:44-04:00",
+          "tree_id": "ae1346e37a73d74f426c311d1272a2e792e97211",
+          "url": "https://github.com/hyperium/hyper/commit/c62ea805b5b7ecdd56d69106387048218b4521ba"
+        },
+        "date": 1714771354441,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70453,
+            "range": "± 1514",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4329290,
+            "range": "± 344226",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21678,
+            "range": "± 466",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24497,
+            "range": "± 533",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 32377,
+            "range": "± 1029",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99414,
+            "range": "± 1438",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 36685,
+            "range": "± 2042",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 94017,
+            "range": "± 2872",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24768569,
+            "range": "± 34056583",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7776711,
+            "range": "± 107787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7576995,
+            "range": "± 203432",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49097425,
+            "range": "± 399813",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49239836,
+            "range": "± 585052",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5037157,
+            "range": "± 222400",
             "unit": "ns/iter"
           }
         ]
