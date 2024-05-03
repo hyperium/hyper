@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714414457135,
+  "lastUpdate": 1714770889813,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8099,6 +8099,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46545,
             "range": "± 9610",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "39b88d5c991c59497149ea0572a7386660ceb6d6",
+          "message": "refactor(lib): fix some unused warnings (#3657)",
+          "timestamp": "2024-05-03T17:14:00-04:00",
+          "tree_id": "8b36f8659cf28757c93541be943f2926095d1052",
+          "url": "https://github.com/hyperium/hyper/commit/39b88d5c991c59497149ea0572a7386660ceb6d6"
+        },
+        "date": 1714770887303,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46948,
+            "range": "± 8337",
             "unit": "ns/iter"
           }
         ]
