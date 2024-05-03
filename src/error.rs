@@ -98,6 +98,7 @@ pub(super) enum Parse {
     #[cfg(feature = "http1")]
     Header(Header),
     #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg_attr(feature = "http2", allow(unused))]
     TooLarge,
     Status,
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
