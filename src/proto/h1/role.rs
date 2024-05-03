@@ -1,7 +1,7 @@
-use std::{fmt, mem::MaybeUninit};
+use std::mem::MaybeUninit;
 
 #[cfg(feature = "client")]
-use std::fmt::Write;
+use std::fmt::{self, Write as _};
 #[cfg(feature = "server")]
 use std::time::Instant;
 
@@ -1605,8 +1605,10 @@ fn write_headers_original_case(
     }
 }
 
+#[cfg(feature = "client")]
 struct FastWrite<'a>(&'a mut Vec<u8>);
 
+#[cfg(feature = "client")]
 impl<'a> fmt::Write for FastWrite<'a> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
