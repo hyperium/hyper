@@ -49,6 +49,13 @@ impl Timer for TokioTimer {
     }
 }
 
+impl TokioTimer {
+    /// Create a new TokioTimer
+    pub fn new() -> Self {
+        Self {}
+    }
+}
+
 // Use TokioSleep to get tokio::time::Sleep to implement Unpin.
 // see https://docs.rs/tokio/latest/tokio/time/struct.Sleep.html
 pin_project! {
