@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1714771357121,
+  "lastUpdate": 1715171511660,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8159,6 +8159,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46428,
             "range": "± 9277",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "56ef0cc791949b9ce9d2aaf202fa13af3a776b52",
+          "message": "chore(lib): fix unexpected cfg warning (#3660)",
+          "timestamp": "2024-05-08T08:31:01-04:00",
+          "tree_id": "e0c1290b1b88cde62ca4e16440509ae9524ae3c8",
+          "url": "https://github.com/hyperium/hyper/commit/56ef0cc791949b9ce9d2aaf202fa13af3a776b52"
+        },
+        "date": 1715171509524,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47059,
+            "range": "± 9938",
             "unit": "ns/iter"
           }
         ]
