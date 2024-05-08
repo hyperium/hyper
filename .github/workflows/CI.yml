@@ -23,6 +23,7 @@ jobs:
       - features
       - ffi
       - ffi-header
+      - unexpected-cfgs
       - doc
       - check-external-types
       - udeps
@@ -219,6 +220,22 @@ jobs:
 
       - name: Ensure that hyper.h is up to date
         run: ./capi/gen_header.sh --verify
+
+  unexpected-cfgs:
+    runs-on: ubuntu-latest
+    needs: [style]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo check --all-features
+        env:
+          RUSTFLAGS: >-
+            -D unexpected_cfgs
+            --cfg hyper_internal_check_unexpected_cfgs
+            --cfg hyper_unstable_tracing
+            --cfg hyper_unstable_ffi
+            --check-cfg=cfg(hyper_internal_check_unexpected_cfgs,hyper_unstable_tracing,hyper_unstable_ffi)
 
   doc:
     name: Build docs
