@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1715171565214,
+  "lastUpdate": 1715311501269,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8189,6 +8189,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47059,
             "range": "± 9938",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "krakow20@gmail.com",
+            "name": "krakow10",
+            "username": "krakow10"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e77cefe3de34ad72fc0a97f5212055a41e343638",
+          "message": "fix(example): change TokioTimer usage to match hyper-util end-user experience (#3658)",
+          "timestamp": "2024-05-10T11:24:07+08:00",
+          "tree_id": "0a265192ee11c82bb44e42dbd2f789fc22bce104",
+          "url": "https://github.com/hyperium/hyper/commit/e77cefe3de34ad72fc0a97f5212055a41e343638"
+        },
+        "date": 1715311498996,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45987,
+            "range": "± 9012",
             "unit": "ns/iter"
           }
         ]
