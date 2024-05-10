@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1715311501269,
+  "lastUpdate": 1715311561947,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -43807,6 +43807,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5019955,
             "range": "± 97185",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "krakow20@gmail.com",
+            "name": "krakow10",
+            "username": "krakow10"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e77cefe3de34ad72fc0a97f5212055a41e343638",
+          "message": "fix(example): change TokioTimer usage to match hyper-util end-user experience (#3658)",
+          "timestamp": "2024-05-10T11:24:07+08:00",
+          "tree_id": "0a265192ee11c82bb44e42dbd2f789fc22bce104",
+          "url": "https://github.com/hyperium/hyper/commit/e77cefe3de34ad72fc0a97f5212055a41e343638"
+        },
+        "date": 1715311559793,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70680,
+            "range": "± 922",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4381851,
+            "range": "± 248939",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21620,
+            "range": "± 342",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24537,
+            "range": "± 402",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 32608,
+            "range": "± 1431",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99215,
+            "range": "± 3787",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 36914,
+            "range": "± 1647",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 94095,
+            "range": "± 2356",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23964077,
+            "range": "± 32540871",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7778815,
+            "range": "± 112848",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7571754,
+            "range": "± 87994",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48635281,
+            "range": "± 399449",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50295921,
+            "range": "± 1536282",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5042305,
+            "range": "± 182841",
             "unit": "ns/iter"
           }
         ]
