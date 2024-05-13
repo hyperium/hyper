@@ -2693,7 +2693,7 @@ async fn http2_keep_alive_count_server_pings() {
 }
 
 #[test]
-fn http1_trailer_fields() {
+fn http1_trailer_send_fields() {
     let body = futures_util::stream::once(async move { Ok("hello".into()) });
     let mut headers = HeaderMap::new();
     headers.insert("chunky-trailer", "header data".parse().unwrap());
@@ -2780,6 +2780,35 @@ fn http1_trailer_fields_not_allowed() {
     assert_eq!(body, expected_body);
 }
 
+#[test]
+fn http1_trailer_recv_fields() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        trailer: chunky-trailer\r\n\
+        host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        5\r\n\
+        hello\r\n\
+        0\r\n\
+        chunky-trailer: header data\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    assert_eq!(server.body(), b"hello");
+
+    let trailers = server.trailers();
+    assert_eq!(
+        trailers.get("chunky-trailer"),
+        Some(&"header data".parse().unwrap())
+    );
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -2787,6 +2816,7 @@ fn http1_trailer_fields_not_allowed() {
 struct Serve {
     addr: SocketAddr,
     msg_rx: mpsc::Receiver<Msg>,
+    trailers_rx: mpsc::Receiver<HeaderMap>,
     reply_tx: Mutex<spmc::Sender<Reply>>,
     shutdown_signal: Option<oneshot::Sender<()>>,
     thread: Option<thread::JoinHandle<()>>,
@@ -2818,6 +2848,10 @@ impl Serve {
             }
         }
         Ok(buf)
+    }
+
+    fn trailers(&self) -> HeaderMap {
+        self.trailers_rx.recv().expect("trailers")
     }
 
     fn reply(&self) -> ReplyBuilder<'_> {
@@ -2933,6 +2967,7 @@ impl Drop for Serve {
 #[derive(Clone)]
 struct TestService {
     tx: mpsc::Sender<Msg>,
+    trailers_tx: mpsc::Sender<HeaderMap>,
     reply: spmc::Receiver<Reply>,
 }
 
@@ -2963,6 +2998,7 @@ impl Service<Request<IncomingBody>> for TestService {
 
     fn call(&self, mut req: Request<IncomingBody>) -> Self::Future {
         let tx = self.tx.clone();
+        let trailers_tx = self.trailers_tx.clone();
         let replies = self.reply.clone();
 
         Box::pin(async move {
@@ -2972,6 +3008,9 @@ impl Service<Request<IncomingBody>> for TestService {
                         if frame.is_data() {
                             tx.send(Msg::Chunk(frame.into_data().unwrap().to_vec()))
                                 .unwrap();
+                        } else if frame.is_trailers() {
+                            let trailers = frame.into_trailers().unwrap();
+                            trailers_tx.send(trailers).unwrap();
                         }
                     }
                     Err(err) => {
@@ -3100,6 +3139,7 @@ impl ServeOptions {
 
         let (addr_tx, addr_rx) = mpsc::channel();
         let (msg_tx, msg_rx) = mpsc::channel();
+        let (trailers_tx, trailers_rx) = mpsc::channel();
         let (reply_tx, reply_rx) = spmc::channel();
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
@@ -3123,6 +3163,7 @@ impl ServeOptions {
 
                     loop {
                         let msg_tx = msg_tx.clone();
+                        let trailers_tx = trailers_tx.clone();
                         let reply_rx = reply_rx.clone();
 
                         tokio::select! {
@@ -3135,6 +3176,7 @@ impl ServeOptions {
                                     let reply_rx = reply_rx.clone();
                                     let service = TestService {
                                         tx: msg_tx,
+                                        trailers_tx,
                                         reply: reply_rx,
                                     };
 
@@ -3162,6 +3204,7 @@ impl ServeOptions {
 
         Serve {
             msg_rx,
+            trailers_rx,
             reply_tx: Mutex::new(reply_tx),
             addr,
             shutdown_signal: Some(shutdown_tx),
