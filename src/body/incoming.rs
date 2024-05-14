@@ -420,7 +420,7 @@ impl Sender {
             None => return Err(None),
         };
 
-        tx.send(trailers).map_err(|err| Some(err))
+        tx.send(trailers).map_err(Some)
     }
 
     #[cfg(test)]
