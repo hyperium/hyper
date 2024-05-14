@@ -167,8 +167,8 @@ impl Encoder {
     ) -> Option<EncodedBuf<B>> {
         trace!("encoding trailers");
         match &self.kind {
-            Kind::Chunked(Some(ref allowed_trailer_fields)) => {
-                let allowed_trailer_field_map = allowed_trailer_field_map(&allowed_trailer_fields);
+            Kind::Chunked(Some(allowed_trailer_fields)) => {
+                let allowed_trailer_field_map = allowed_trailer_field_map(allowed_trailer_fields);
 
                 let mut cur_name = None;
                 let mut allowed_trailers = HeaderMap::new();
