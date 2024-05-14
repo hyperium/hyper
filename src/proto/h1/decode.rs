@@ -637,7 +637,7 @@ impl ChunkedState {
 fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Error> {
     let mut trailers = HeaderMap::new();
     let mut headers = vec![httparse::EMPTY_HEADER; count];
-    let res = httparse::parse_headers(&buf, &mut headers);
+    let res = httparse::parse_headers(buf, &mut headers);
     match res {
         Ok(httparse::Status::Complete((_, headers))) => {
             for header in headers.iter() {
