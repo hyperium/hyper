@@ -2,7 +2,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::io;
 use std::task::{Context, Poll};
-use std::usize;
 
 use bytes::{BufMut, Bytes, BytesMut};
 use futures_util::ready;

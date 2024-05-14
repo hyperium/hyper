@@ -247,7 +247,7 @@ impl<E> Builder<E> {
     ///
     /// The value must be no larger than `u32::MAX`.
     pub fn max_send_buf_size(&mut self, max: usize) -> &mut Self {
-        assert!(max <= std::u32::MAX as usize);
+        assert!(max <= u32::MAX as usize);
         self.h2_builder.max_send_buffer_size = max;
         self
     }
