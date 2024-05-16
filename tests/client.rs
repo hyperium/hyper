@@ -34,6 +34,17 @@ where
     b.collect().await.map(|c| c.to_bytes())
 }
 
+async fn concat_with_trailers<B>(b: B) -> Result<(Bytes, Option<HeaderMap>), B::Error>
+where
+    B: hyper::body::Body,
+{
+    let collect = b.collect().await?;
+    let trailers = collect.trailers().cloned();
+    let bytes = collect.to_bytes();
+
+    Ok((bytes, trailers))
+}
+
 async fn tcp_connect(addr: &SocketAddr) -> std::io::Result<TokioIo<TcpStream>> {
     TcpStream::connect(*addr).await.map(TokioIo::new)
 }
@@ -122,6 +133,9 @@ macro_rules! test {
                 status: $client_status:ident,
                 headers: { $($response_header_name:expr => $response_header_val:expr,)* },
                 body: $response_body:expr,
+                $(trailers: {$(
+                    $response_trailer_name:expr => $response_trailer_val:expr,
+                )*},)?
     ) => (
         #[test]
         fn $name() {
@@ -158,12 +172,23 @@ macro_rules! test {
                 );
             )*
 
-            let body = rt.block_on(concat(res))
+            let (body, _trailers) = rt.block_on(concat_with_trailers(res))
                 .expect("body concat wait");
 
             let expected_res_body = Option::<&[u8]>::from($response_body)
                 .unwrap_or_default();
             assert_eq!(body.as_ref(), expected_res_body);
+
+            $($(
+                assert_eq!(
+                    _trailers.as_ref().expect("trailers is None")
+                        .get($response_trailer_name)
+                        .expect(concat!("trailer header '", stringify!($response_trailer_name), "'")),
+                    $response_trailer_val,
+                    "trailer '{}'",
+                    stringify!($response_trailer_name),
+                );
+            )*)?
         }
     );
     (
@@ -677,6 +702,94 @@ test! {
             status: OK,
             headers: {},
             body: None,
+}
+
+test! {
+    name: client_res_body_chunked_with_trailer,
+
+    server:
+        expected: "GET / HTTP/1.1\r\nte: trailers\r\nhost: {addr}\r\n\r\n",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            transfer-encoding: chunked\r\n\
+            trailer: chunky-trailer\r\n\
+            \r\n\
+            5\r\n\
+            hello\r\n\
+            0\r\n\
+            chunky-trailer: header data\r\n\
+            \r\n\
+            ",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "te" => "trailers",
+            },
+        },
+        response:
+            status: OK,
+            headers: {
+                "Transfer-Encoding" => "chunked",
+            },
+            body: &b"hello"[..],
+            trailers: {
+                "chunky-trailer" => "header data",
+            },
+}
+
+test! {
+    name: client_res_body_chunked_with_pathological_trailers,
+
+    server:
+        expected: "GET / HTTP/1.1\r\nte: trailers\r\nhost: {addr}\r\n\r\n",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            transfer-encoding: chunked\r\n\
+            trailer: chunky-trailer1, chunky-trailer2, chunky-trailer3, chunky-trailer4, chunky-trailer5\r\n\
+            \r\n\
+            5\r\n\
+            hello\r\n\
+            0\r\n\
+            chunky-trailer1: header data1\r\n\
+            chunky-trailer2: header data2\r\n\
+            chunky-trailer3: header data3\r\n\
+            chunky-trailer4: header data4\r\n\
+            chunky-trailer5: header data5\r\n\
+            sneaky-trailer: not in trailer header\r\n\
+            transfer-encoding: chunked\r\n\
+            content-length: 5\r\n\
+            trailer: foo\r\n\
+            \r\n\
+            ",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "te" => "trailers",
+            },
+        },
+        response:
+            status: OK,
+            headers: {
+                "Transfer-Encoding" => "chunked",
+            },
+            body: &b"hello"[..],
+            trailers: {
+                "chunky-trailer1" => "header data1",
+                "chunky-trailer2" => "header data2",
+                "chunky-trailer3" => "header data3",
+                "chunky-trailer4" => "header data4",
+                "chunky-trailer5" => "header data5",
+                "sneaky-trailer" => "not in trailer header",
+                "transfer-encoding" => "chunked",
+                "content-length" => "5",
+                "trailer" => "foo",
+            },
 }
 
 test! {

@@ -213,17 +213,39 @@ where
                         }
                     }
                     match self.conn.poll_read_body(cx) {
-                        Poll::Ready(Some(Ok(chunk))) => match body.try_send_data(chunk) {
-                            Ok(()) => {
-                                self.body_tx = Some(body);
-                            }
-                            Err(_canceled) => {
-                                if self.conn.can_read_body() {
-                                    trace!("body receiver dropped before eof, closing");
-                                    self.conn.close_read();
+                        Poll::Ready(Some(Ok(frame))) => {
+                            if frame.is_data() {
+                                let chunk = frame.into_data().unwrap_or_else(|_| unreachable!());
+                                match body.try_send_data(chunk) {
+                                    Ok(()) => {
+                                        self.body_tx = Some(body);
+                                    }
+                                    Err(_canceled) => {
+                                        if self.conn.can_read_body() {
+                                            trace!("body receiver dropped before eof, closing");
+                                            self.conn.close_read();
+                                        }
+                                    }
                                 }
+                            } else if frame.is_trailers() {
+                                let trailers =
+                                    frame.into_trailers().unwrap_or_else(|_| unreachable!());
+                                match body.try_send_trailers(trailers) {
+                                    Ok(()) => {
+                                        self.body_tx = Some(body);
+                                    }
+                                    Err(_canceled) => {
+                                        if self.conn.can_read_body() {
+                                            trace!("body receiver dropped before eof, closing");
+                                            self.conn.close_read();
+                                        }
+                                    }
+                                }
+                            } else {
+                                // we should have dropped all unknown frames in poll_read_body
+                                error!("unexpected frame");
                             }
-                        },
+                        }
                         Poll::Ready(None) => {
                             // just drop, the body will close automatically
                         }
