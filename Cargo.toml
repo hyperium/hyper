@@ -102,7 +102,7 @@ check-cfg = [
 
 [package.metadata.docs.rs]
 features = ["ffi", "full", "tracing"]
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
+rustdoc-args = ["--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
 
 [package.metadata.playground]
 features = ["full"]
