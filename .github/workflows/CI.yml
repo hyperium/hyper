@@ -264,12 +264,12 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-02-07  # Compatible version for cargo-check-external-types
+          toolchain: nightly-2024-05-01  # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
         uses: taiki-e/cache-cargo-install-action@v1
         with:
-          tool: cargo-check-external-types@0.1.11
+          tool: cargo-check-external-types@0.1.12
 
       - uses: Swatinem/rust-cache@v2
 
