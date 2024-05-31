@@ -59,7 +59,7 @@ where
 
 impl<T, B> Connection<T, B>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
