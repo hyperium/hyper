@@ -362,7 +362,10 @@ impl Connection for TcpStream {
     fn connected(&self) -> Connected {
         let connected = Connected::new();
         if let (Ok(remote_addr), Ok(local_addr)) = (self.peer_addr(), self.local_addr()) {
-            connected.extra(HttpInfo { remote_addr, local_addr })
+            connected.extra(HttpInfo {
+                remote_addr,
+                local_addr,
+            })
         } else {
             connected
         }
@@ -521,7 +524,9 @@ struct ConnectingTcpRemote {
 
 impl ConnectingTcpRemote {
     fn new(addrs: dns::SocketAddrs, connect_timeout: Option<Duration>) -> Self {
-        let connect_timeout = connect_timeout.map(|t| t / (addrs.len() as u32));
+        let connect_timeout = connect_timeout
+            .map(|t| t.checked_div(addrs.len() as u32))
+            .flatten();
 
         Self {
             addrs,

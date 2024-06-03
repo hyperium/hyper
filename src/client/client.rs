@@ -1,6 +1,10 @@
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::marker::Unpin;
 use std::mem;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use futures_channel::oneshot;
@@ -12,10 +16,7 @@ use tracing::{debug, trace, warn};
 
 use crate::body::{Body, HttpBody};
 use crate::client::connect::CaptureConnectionExtension;
-use crate::common::{
-    exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, task, Future, Lazy, Pin,
-    Poll,
-};
+use crate::common::{exec::BoxSendFuture, lazy as hyper_lazy, sync_wrapper::SyncWrapper, Lazy};
 #[cfg(feature = "http2")]
 use crate::ext::Protocol;
 use crate::rt::Executor;
@@ -253,7 +254,8 @@ where
             if req.version() == Version::HTTP_2 {
                 warn!("Connection is HTTP/1, but request requires HTTP/2");
                 return Err(ClientError::Normal(
-                    crate::Error::new_user_unsupported_version().with_client_connect_info(pooled.conn_info.clone()),
+                    crate::Error::new_user_unsupported_version()
+                        .with_client_connect_info(pooled.conn_info.clone()),
                 ));
             }
 
@@ -552,7 +554,7 @@ where
     type Error = crate::Error;
     type Future = ResponseFuture;
 
-    fn poll_ready(&mut self, _: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -572,7 +574,7 @@ where
     type Error = crate::Error;
     type Future = ResponseFuture;
 
-    fn poll_ready(&mut self, _: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, _: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -606,7 +608,7 @@ impl ResponseFuture {
         F: Future<Output = crate::Result<Response<Body>>> + Send + 'static,
     {
         Self {
-            inner: SyncWrapper::new(Box::pin(value))
+            inner: SyncWrapper::new(Box::pin(value)),
         }
     }
 
@@ -627,7 +629,7 @@ impl fmt::Debug for ResponseFuture {
 impl Future for ResponseFuture {
     type Output = crate::Result<Response<Body>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.inner.get_mut().as_mut().poll(cx)
     }
 }
@@ -649,7 +651,7 @@ enum PoolTx<B> {
 }
 
 impl<B> PoolClient<B> {
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         match self.tx {
             PoolTx::Http1(ref mut tx) => tx.poll_ready(cx),
             #[cfg(feature = "http2")]
@@ -711,7 +713,10 @@ where
 {
     fn is_open(&self) -> bool {
         if self.conn_info.poisoned.poisoned() {
-            trace!("marking {:?} as closed because it was poisoned", self.conn_info);
+            trace!(
+                "marking {:?} as closed because it was poisoned",
+                self.conn_info
+            );
             return false;
         }
         match self.tx {
@@ -1114,10 +1119,7 @@ impl Builder {
     /// line in the input to resume parsing the rest of the headers. An error
     /// will be emitted nonetheless if it finds `\0` or a lone `\r` while
     /// looking for the next line.
-    pub fn http1_ignore_invalid_headers_in_responses(
-        &mut self,
-        val: bool,
-    ) -> &mut Builder {
+    pub fn http1_ignore_invalid_headers_in_responses(&mut self, val: bool) -> &mut Builder {
         self.conn_builder
             .http1_ignore_invalid_headers_in_responses(val);
         self

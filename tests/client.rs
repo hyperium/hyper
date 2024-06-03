@@ -12,6 +12,7 @@ use std::task::{Context, Poll};
 use std::thread;
 use std::time::Duration;
 
+#[allow(deprecated)]
 use hyper::body::to_bytes as concat;
 use hyper::{Body, Client, Method, Request, StatusCode};
 
@@ -3202,7 +3203,7 @@ mod conn {
         let resp = client.send_request(req).await.expect("send_request");
         assert!(resp.status().is_success());
 
-        let body = hyper::body::to_bytes(resp.into_body())
+        let body = concat(resp.into_body())
             .await
             .expect("get response body with no error");
 

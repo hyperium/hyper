@@ -1,4 +1,8 @@
 use std::error::Error as StdError;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use pin_project_lite::pin_project;
 use tokio::io::{AsyncRead, AsyncWrite};
@@ -10,7 +14,6 @@ use super::server::{Server, Watcher};
 use crate::body::{Body, HttpBody};
 use crate::common::drain::{self, Draining, Signal, Watch, Watching};
 use crate::common::exec::{ConnStreamExec, NewSvcExec};
-use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::service::{HttpService, MakeServiceRef};
 
 pin_project! {
@@ -63,7 +66,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             let next = {

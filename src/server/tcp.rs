@@ -1,14 +1,15 @@
+use socket2::TcpKeepalive;
 use std::fmt;
+use std::future::Future;
 use std::io;
 use std::net::{SocketAddr, TcpListener as StdTcpListener};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
-use socket2::TcpKeepalive;
 
 use tokio::net::TcpListener;
 use tokio::time::Sleep;
 use tracing::{debug, error, trace};
-
-use crate::common::{task, Future, Pin, Poll};
 
 #[allow(unreachable_pub)] // https://github.com/rust-lang/rust/issues/57411
 pub use self::addr_stream::AddrStream;
@@ -71,7 +72,7 @@ impl TcpKeepaliveConfig {
         windows,
     )))]
     fn ka_with_interval(ka: TcpKeepalive, _: Duration, _: &mut bool) -> TcpKeepalive {
-        ka  // no-op as keepalive interval is not supported on this platform
+        ka // no-op as keepalive interval is not supported on this platform
     }
 
     #[cfg(any(
@@ -100,7 +101,7 @@ impl TcpKeepaliveConfig {
         target_vendor = "apple",
     )))]
     fn ka_with_retries(ka: TcpKeepalive, _: u32, _: &mut bool) -> TcpKeepalive {
-        ka  // no-op as keepalive retries is not supported on this platform
+        ka // no-op as keepalive retries is not supported on this platform
     }
 }
 
@@ -200,7 +201,7 @@ impl AddrIncoming {
         self.sleep_on_errors = val;
     }
 
-    fn poll_next_(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<AddrStream>> {
+    fn poll_next_(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<AddrStream>> {
         // Check if a previous timeout is active that was set by IO errors.
         if let Some(ref mut to) = self.timeout {
             ready!(Pin::new(to).poll(cx));
@@ -261,7 +262,7 @@ impl Accept for AddrIncoming {
 
     fn poll_accept(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
         let result = ready!(self.poll_next_(cx));
         Poll::Ready(Some(result))
@@ -300,10 +301,10 @@ mod addr_stream {
     use std::net::SocketAddr;
     #[cfg(unix)]
     use std::os::unix::io::{AsRawFd, RawFd};
+    use std::pin::Pin;
+    use std::task::{Context, Poll};
     use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
     use tokio::net::TcpStream;
-
-    use crate::common::{task, Pin, Poll};
 
     pin_project_lite::pin_project! {
         /// A transport returned yieled by `AddrIncoming`.
@@ -352,7 +353,7 @@ mod addr_stream {
         /// not yet available.
         pub fn poll_peek(
             &mut self,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
             buf: &mut tokio::io::ReadBuf<'_>,
         ) -> Poll<io::Result<usize>> {
             self.inner.poll_peek(cx, buf)
@@ -363,7 +364,7 @@ mod addr_stream {
         #[inline]
         fn poll_read(
             self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
             buf: &mut ReadBuf<'_>,
         ) -> Poll<io::Result<()>> {
             self.project().inner.poll_read(cx, buf)
@@ -374,7 +375,7 @@ mod addr_stream {
         #[inline]
         fn poll_write(
             self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             self.project().inner.poll_write(cx, buf)
@@ -383,20 +384,20 @@ mod addr_stream {
         #[inline]
         fn poll_write_vectored(
             self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
             bufs: &[io::IoSlice<'_>],
         ) -> Poll<io::Result<usize>> {
             self.project().inner.poll_write_vectored(cx, bufs)
         }
 
         #[inline]
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             // TCP flush is a noop
             Poll::Ready(Ok(()))
         }
 
         #[inline]
-        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             self.project().inner.poll_shutdown(cx)
         }
 
@@ -420,8 +421,8 @@ mod addr_stream {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use crate::server::tcp::TcpKeepaliveConfig;
+    use std::time::Duration;
 
     #[test]
     fn no_tcp_keepalive_config() {

@@ -59,11 +59,17 @@ pub mod http1;
 #[cfg(all(feature = "backports", feature = "http2"))]
 pub mod http2;
 
+#[cfg(not(all(feature = "http1", feature = "http2")))]
+use std::convert::Infallible;
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 #[cfg(not(all(feature = "http1", feature = "http2")))]
 use std::marker::PhantomData;
+use std::marker::Unpin;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 #[cfg(all(feature = "runtime", feature = "http2"))]
 use std::time::Duration;
 
@@ -77,12 +83,7 @@ use tracing::{debug, trace};
 
 use super::dispatch;
 use crate::body::HttpBody;
-#[cfg(not(all(feature = "http1", feature = "http2")))]
-use crate::common::Never;
-use crate::common::{
-    exec::{BoxSendFuture, Exec},
-    task, Future, Pin, Poll,
-};
+use crate::common::exec::{BoxSendFuture, Exec};
 use crate::proto;
 use crate::rt::Executor;
 #[cfg(feature = "http1")]
@@ -94,13 +95,13 @@ type Http1Dispatcher<T, B> =
     proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
 
 #[cfg(not(feature = "http1"))]
-type Http1Dispatcher<T, B> = (Never, PhantomData<(T, Pin<Box<B>>)>);
+type Http1Dispatcher<T, B> = (Infallible, PhantomData<(T, Pin<Box<B>>)>);
 
 #[cfg(feature = "http2")]
 type Http2ClientTask<B> = proto::h2::ClientTask<B>;
 
 #[cfg(not(feature = "http2"))]
-type Http2ClientTask<B> = (Never, PhantomData<Pin<Box<B>>>);
+type Http2ClientTask<B> = (Infallible, PhantomData<Pin<Box<B>>>);
 
 pin_project! {
     #[project = ProtoClientProj]
@@ -257,7 +258,7 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.dispatch.poll_ready(cx)
     }
 
@@ -381,7 +382,7 @@ where
     type Error = crate::Error;
     type Future = ResponseFuture;
 
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
         self.poll_ready(cx)
     }
 
@@ -502,7 +503,7 @@ where
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
-    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         match *self.inner.as_mut().expect("already upgraded") {
             #[cfg(feature = "http1")]
             ProtoClient::H1 { ref mut h1 } => h1.poll_without_shutdown(cx),
@@ -554,7 +555,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
             #[cfg(feature = "http1")]
@@ -710,10 +711,7 @@ impl Builder {
     /// Note that this setting does not affect HTTP/2.
     ///
     /// Default is false.
-    pub fn http1_ignore_invalid_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn http1_ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_responses(enabled);
         self
@@ -1070,7 +1068,7 @@ impl Builder {
 impl Future for ResponseFuture {
     type Output = crate::Result<Response<Body>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.inner {
             ResponseFutureState::Waiting(ref mut rx) => {
                 Pin::new(rx).poll(cx).map(|res| match res {
@@ -1104,7 +1102,7 @@ where
 {
     type Output = crate::Result<proto::Dispatched>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.project() {
             #[cfg(feature = "http1")]
             ProtoClientProj::H1 { h1 } => h1.poll(cx),

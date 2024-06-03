@@ -6,15 +6,13 @@
 //!   connections.
 //! - Utilities like `poll_fn` to ease creating a custom `Accept`.
 
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
 #[cfg(feature = "stream")]
 use futures_core::Stream;
 #[cfg(feature = "stream")]
 use pin_project_lite::pin_project;
-
-use crate::common::{
-    task::{self, Poll},
-    Pin,
-};
 
 /// Asynchronously accept incoming connections.
 pub trait Accept {
@@ -26,7 +24,7 @@ pub trait Accept {
     /// Poll to accept the next connection.
     fn poll_accept(
         self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Self::Conn, Self::Error>>>;
 }
 
@@ -51,7 +49,7 @@ pub trait Accept {
 /// ```
 pub fn poll_fn<F, IO, E>(func: F) -> impl Accept<Conn = IO, Error = E>
 where
-    F: FnMut(&mut task::Context<'_>) -> Poll<Option<Result<IO, E>>>,
+    F: FnMut(&mut Context<'_>) -> Poll<Option<Result<IO, E>>>,
 {
     struct PollFn<F>(F);
 
@@ -60,13 +58,13 @@ where
 
     impl<F, IO, E> Accept for PollFn<F>
     where
-        F: FnMut(&mut task::Context<'_>) -> Poll<Option<Result<IO, E>>>,
+        F: FnMut(&mut Context<'_>) -> Poll<Option<Result<IO, E>>>,
     {
         type Conn = IO;
         type Error = E;
         fn poll_accept(
             self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
             (self.get_mut().0)(cx)
         }
@@ -101,7 +99,7 @@ where
         type Error = E;
         fn poll_accept(
             self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
         ) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
             self.project().stream.poll_next(cx)
         }

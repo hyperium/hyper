@@ -4,14 +4,15 @@ use http::header::{HeaderName, CONNECTION, TE, TRAILER, TRANSFER_ENCODING, UPGRA
 use http::HeaderMap;
 use pin_project_lite::pin_project;
 use std::error::Error as StdError;
+use std::future::Future;
 use std::io::{self, Cursor, IoSlice};
 use std::mem;
-use std::task::Context;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tracing::{debug, trace, warn};
 
 use crate::body::HttpBody;
-use crate::common::{task, Future, Pin, Poll};
 use crate::proto::h2::ping::Recorder;
 
 pub(crate) mod ping;
@@ -116,7 +117,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             if !*me.data_done {
@@ -383,14 +384,12 @@ where
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), io::Error>> {
         if self.send_stream.write(&[], true).is_ok() {
-            return Poll::Ready(Ok(()))
+            return Poll::Ready(Ok(()));
         }
 
         Poll::Ready(Err(h2_to_io_error(
             match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) => {
-                    return Poll::Ready(Ok(()))
-                }
+                Ok(Reason::NO_ERROR) => return Poll::Ready(Ok(())),
                 Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
                     return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
                 }

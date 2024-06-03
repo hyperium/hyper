@@ -1,5 +1,8 @@
 use std::error::Error as StdError;
+use std::future::Future;
 use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 #[cfg(feature = "runtime")]
 use std::time::Duration;
 
@@ -13,8 +16,8 @@ use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::HttpBody;
+use crate::common::date;
 use crate::common::exec::ConnStreamExec;
-use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
@@ -35,8 +38,8 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
-// 16 MB "sane default" taken from golang http2
-const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
+const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20; // 16 MB "sane default" taken from golang http2
+const DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS: usize = 1024;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -47,6 +50,7 @@ pub(crate) struct Config {
     pub(crate) enable_connect_protocol: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
     pub(crate) max_pending_accept_reset_streams: Option<usize>,
+    pub(crate) max_local_error_reset_streams: Option<usize>,
     #[cfg(feature = "runtime")]
     pub(crate) keep_alive_interval: Option<Duration>,
     #[cfg(feature = "runtime")]
@@ -65,6 +69,7 @@ impl Default for Config {
             enable_connect_protocol: false,
             max_concurrent_streams: None,
             max_pending_accept_reset_streams: None,
+            max_local_error_reset_streams: Some(DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS),
             #[cfg(feature = "runtime")]
             keep_alive_interval: None,
             #[cfg(feature = "runtime")]
@@ -123,6 +128,7 @@ where
             .initial_connection_window_size(config.initial_conn_window_size)
             .max_frame_size(config.max_frame_size)
             .max_header_list_size(config.max_header_list_size)
+            .max_local_error_reset_streams(config.max_local_error_reset_streams)
             .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
@@ -193,7 +199,7 @@ where
 {
     type Output = crate::Result<Dispatched>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let me = &mut *self;
         loop {
             let next = match me.state {
@@ -236,7 +242,7 @@ where
 {
     fn poll_server<S, E>(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         service: &mut S,
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
@@ -356,7 +362,7 @@ where
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
 
-    fn poll_ping(&mut self, cx: &mut task::Context<'_>) {
+    fn poll_ping(&mut self, cx: &mut Context<'_>) {
         if let Some((_, ref mut estimator)) = self.ping {
             match estimator.poll(cx) {
                 Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
@@ -447,7 +453,7 @@ where
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll2(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         let mut me = self.project();
         loop {
             let next = match me.state.as_mut().project() {
@@ -542,7 +548,7 @@ where
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
             if let Err(e) = res {
                 debug!("stream error: {}", e);

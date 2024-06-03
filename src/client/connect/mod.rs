@@ -81,8 +81,8 @@
 //! [`Connection`]: Connection
 use std::fmt;
 use std::fmt::{Debug, Formatter};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::ops::Deref;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 use ::http::Extensions;
@@ -129,7 +129,12 @@ pub(crate) struct PoisonPill {
 impl Debug for PoisonPill {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         // print the address of the pill—this makes debugging issues much easier
-        write!(f, "PoisonPill@{:p} {{ poisoned: {} }}", self.poisoned, self.poisoned.load(Ordering::Relaxed))
+        write!(
+            f,
+            "PoisonPill@{:p} {{ poisoned: {} }}",
+            self.poisoned,
+            self.poisoned.load(Ordering::Relaxed)
+        )
     }
 }
 
@@ -422,12 +427,13 @@ where
 #[cfg(any(feature = "http1", feature = "http2"))]
 pub(super) mod sealed {
     use std::error::Error as StdError;
+    use std::future::Future;
+    use std::marker::Unpin;
 
     use ::http::Uri;
     use tokio::io::{AsyncRead, AsyncWrite};
 
     use super::Connection;
-    use crate::common::{Future, Unpin};
 
     /// Connect to a destination, returning an IO transport.
     ///
@@ -448,6 +454,7 @@ pub(super) mod sealed {
         fn connect(self, internal_only: Internal, dst: Uri) -> <Self::_Svc as ConnectSvc>::Future;
     }
 
+    #[allow(unreachable_pub)]
     pub trait ConnectSvc {
         type Connection: AsyncRead + AsyncWrite + Connection + Unpin + Send + 'static;
         type Error: Into<Box<dyn StdError + Send + Sync>>;

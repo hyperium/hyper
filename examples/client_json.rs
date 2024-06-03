@@ -28,6 +28,7 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
     let res = client.get(url).await?;
 
     // asynchronously aggregate the chunks of the body
+    #[allow(deprecated)]
     let body = hyper::body::aggregate(res).await?;
 
     // try to parse as json with serde_json

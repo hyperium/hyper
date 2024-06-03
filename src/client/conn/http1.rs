@@ -2,17 +2,18 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::Bytes;
 use http::{Request, Response};
 use httparse::ParserConfig;
 use tokio::io::{AsyncRead, AsyncWrite};
 
-use crate::body::{Body as IncomingBody, HttpBody as Body};
 use super::super::dispatch;
-use crate::common::{
-    task, Future, Pin, Poll,
-};
+use crate::body::{Body as IncomingBody, HttpBody as Body};
 use crate::proto;
 use crate::upgrade::Upgraded;
 
@@ -43,7 +44,6 @@ pub struct Parts<T> {
     pub read_buf: Bytes,
     _inner: (),
 }
-
 
 /// A future that processes all HTTP state for the IO object.
 ///
@@ -87,8 +87,21 @@ where
     /// Use [`poll_fn`](https://docs.rs/futures/0.1.25/futures/future/fn.poll_fn.html)
     /// and [`try_ready!`](https://docs.rs/futures/0.1.25/futures/macro.try_ready.html)
     /// to work with this function; or use the `without_shutdown` wrapper.
-    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        self.inner.as_mut().expect("algready upgraded").poll_without_shutdown(cx)
+    pub fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+        self.inner
+            .as_mut()
+            .expect("algready upgraded")
+            .poll_without_shutdown(cx)
+    }
+
+    /// Prevent shutdown of the underlying IO object at the end of service the request,
+    /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
+    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<T>>> {
+        let mut conn = Some(self);
+        futures_util::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
+            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(conn.take().unwrap().into_parts()))
+        })
     }
 }
 
@@ -112,9 +125,7 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<T, B>(
-    io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
     B: Body + 'static,
@@ -130,7 +141,7 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.dispatch.poll_ready(cx)
     }
 
@@ -260,7 +271,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(self.inner.as_mut().unwrap()).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
             proto::Dispatched::Upgrade(pending) => match self.inner.take() {
@@ -324,10 +335,7 @@ impl Builder {
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn allow_spaces_after_header_name_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn allow_spaces_after_header_name_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .allow_spaces_after_header_name_in_responses(enabled);
         self
@@ -365,10 +373,7 @@ impl Builder {
     /// Default is false.
     ///
     /// [RFC 7230 Section 3.2.4.]: https://tools.ietf.org/html/rfc7230#section-3.2.4
-    pub fn allow_obsolete_multiline_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn allow_obsolete_multiline_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .allow_obsolete_multiline_headers_in_responses(enabled);
         self
@@ -381,10 +386,7 @@ impl Builder {
     /// and no error will be reported.
     ///
     /// Default is false.
-    pub fn ignore_invalid_headers_in_responses(
-        &mut self,
-        enabled: bool,
-    ) -> &mut Builder {
+    pub fn ignore_invalid_headers_in_responses(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_responses(enabled);
         self

@@ -1,8 +1,12 @@
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::marker::Unpin;
 use std::ops::{Deref, DerefMut};
+use std::pin::Pin;
 use std::sync::{Arc, Mutex, Weak};
+use std::task::{Context, Poll};
 
 #[cfg(not(feature = "runtime"))]
 use std::time::{Duration, Instant};
@@ -13,7 +17,7 @@ use tokio::time::{Duration, Instant, Interval};
 use tracing::{debug, trace};
 
 use super::client::Ver;
-use crate::common::{exec::Exec, task, Future, Pin, Poll, Unpin};
+use crate::common::exec::Exec;
 
 // FIXME: allow() required due to `impl Trait` leaking types to this lint
 #[allow(missing_debug_implementations)]
@@ -79,7 +83,7 @@ struct PoolInner<T> {
     // A oneshot channel is used to allow the interval to be notified when
     // the Pool completely drops. That way, the interval can cancel immediately.
     #[cfg(feature = "runtime")]
-    idle_interval_ref: Option<oneshot::Sender<crate::common::Never>>,
+    idle_interval_ref: Option<oneshot::Sender<std::convert::Infallible>>,
     #[cfg(feature = "runtime")]
     exec: Exec,
     timeout: Option<Duration>,
@@ -113,7 +117,7 @@ impl<T> Pool<T> {
                 waiters: HashMap::new(),
                 #[cfg(feature = "runtime")]
                 exec: __exec.clone(),
-                timeout: config.idle_timeout,
+                timeout: config.idle_timeout.filter(|&t| t > Duration::ZERO),
             })))
         } else {
             None
@@ -576,10 +580,7 @@ impl fmt::Display for CheckoutIsClosedError {
 }
 
 impl<T: Poolable> Checkout<T> {
-    fn poll_waiter(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<crate::Result<Pooled<T>>>> {
+    fn poll_waiter(&mut self, cx: &mut Context<'_>) -> Poll<Option<crate::Result<Pooled<T>>>> {
         if let Some(mut rx) = self.waiter.take() {
             match Pin::new(&mut rx).poll(cx) {
                 Poll::Ready(Ok(value)) => {
@@ -604,7 +605,7 @@ impl<T: Poolable> Checkout<T> {
         }
     }
 
-    fn checkout(&mut self, cx: &mut task::Context<'_>) -> Option<Pooled<T>> {
+    fn checkout(&mut self, cx: &mut Context<'_>) -> Option<Pooled<T>> {
         let entry = {
             let mut inner = self.pool.inner.as_ref()?.lock().unwrap();
             let expiration = Expiration::new(inner.timeout);
@@ -657,7 +658,7 @@ impl<T: Poolable> Checkout<T> {
 impl<T: Poolable> Future for Checkout<T> {
     type Output = crate::Result<Pooled<T>>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(pooled) = ready!(self.poll_waiter(cx)?) {
             return Poll::Ready(Ok(pooled));
         }
@@ -740,7 +741,7 @@ pin_project_lite::pin_project! {
         // Pool is fully dropped, and shutdown. This channel is never sent on,
         // but Err(Canceled) will be received when the Pool is dropped.
         #[pin]
-        pool_drop_notifier: oneshot::Receiver<crate::common::Never>,
+        pool_drop_notifier: oneshot::Receiver<std::convert::Infallible>,
     }
 }
 
@@ -748,7 +749,7 @@ pin_project_lite::pin_project! {
 impl<T: Poolable + 'static> Future for IdleTask<T> {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
         loop {
             match this.pool_drop_notifier.as_mut().poll(cx) {
@@ -790,11 +791,14 @@ impl<T> WeakOpt<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::future::Future;
+    use std::pin::Pin;
+    use std::task::Context;
     use std::task::Poll;
     use std::time::Duration;
 
     use super::{Connecting, Key, Pool, Poolable, Reservation, WeakOpt};
-    use crate::common::{exec::Exec, task, Future, Pin};
+    use crate::common::exec::Exec;
 
     /// Test unique reservations.
     #[derive(Debug, PartialEq, Eq)]
@@ -864,7 +868,7 @@ mod tests {
     {
         type Output = Option<()>;
 
-        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             match Pin::new(&mut self.0).poll(cx) {
                 Poll::Ready(Ok(_)) => Poll::Ready(Some(())),
                 Poll::Ready(Err(_)) => Poll::Ready(Some(())),

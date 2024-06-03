@@ -2,19 +2,20 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::marker::PhantomData;
+use std::marker::Unpin;
+use std::pin::Pin;
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use http::{Request, Response};
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use super::super::dispatch;
-use crate::body::{HttpBody as Body, Body as IncomingBody};
-use crate::common::{
-    exec::{BoxSendFuture, Exec},
-    task, Future, Pin, Poll,
-};
+use crate::body::{Body as IncomingBody, HttpBody as Body};
+use crate::common::exec::{BoxSendFuture, Exec};
 use crate::proto;
 use crate::rt::Executor;
 
@@ -25,7 +26,9 @@ pub struct SendRequest<B> {
 
 impl<B> Clone for SendRequest<B> {
     fn clone(&self) -> SendRequest<B> {
-        SendRequest { dispatch: self.dispatch.clone() }
+        SendRequest {
+            dispatch: self.dispatch.clone(),
+        }
     }
 }
 
@@ -55,10 +58,7 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
-pub async fn handshake<E, T, B>(
-    exec: E,
-    io: T,
-) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
+pub async fn handshake<E, T, B>(exec: E, io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     E: Executor<BoxSendFuture> + Send + Sync + 'static,
     T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
@@ -75,7 +75,7 @@ impl<B> SendRequest<B> {
     /// Polls to determine whether this sender can be used yet for a request.
     ///
     /// If the associated connection is closed, this returns an Error.
-    pub fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    pub fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         if self.is_closed() {
             Poll::Ready(Err(crate::Error::new_closed()))
         } else {
@@ -230,7 +230,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.inner.1).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
             #[cfg(feature = "http1")]
@@ -244,7 +244,7 @@ where
 impl Builder {
     /// Creates a new connection builder.
     #[inline]
-    pub fn new<E>(exec: E) -> Builder 
+    pub fn new<E>(exec: E) -> Builder
     where
         E: Executor<BoxSendFuture> + Send + Sync + 'static,
     {
@@ -285,10 +285,7 @@ impl Builder {
     /// Passing `None` will do nothing.
     ///
     /// If not set, hyper will use a default.
-    pub fn initial_connection_window_size(
-        &mut self,
-        sz: impl Into<Option<u32>>,
-    ) -> &mut Self {
+    pub fn initial_connection_window_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         if let Some(sz) = sz.into() {
             self.h2_builder.adaptive_window = false;
             self.h2_builder.initial_conn_window_size = sz;
@@ -331,10 +328,7 @@ impl Builder {
     ///
     /// Default is currently disabled.
     #[cfg(feature = "runtime")]
-    pub fn keep_alive_interval(
-        &mut self,
-        interval: impl Into<Option<Duration>>,
-    ) -> &mut Self {
+    pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
     }
@@ -412,8 +406,7 @@ impl Builder {
             tracing::trace!("client handshake HTTP/1");
 
             let (tx, rx) = dispatch::channel();
-            let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec)
-                .await?;
+            let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec).await?;
             Ok((
                 SendRequest {
                     dispatch: tx.unbound(),

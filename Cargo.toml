@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "0.14.27"
+version = "0.14.28"
 description = "A fast and correct HTTP library."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -28,7 +28,7 @@ http = "0.2"
 http-body = "0.4"
 httpdate = "1.0"
 httparse = "1.8"
-h2 = { version = "0.3.17", optional = true }
+h2 = { version = "0.3.24", optional = true }
 itoa = "1"
 tracing = { version = "0.1", default-features = false, features = ["std"] }
 pin-project-lite = "0.2.4"
@@ -39,7 +39,7 @@ want = "0.3"
 # Optional
 
 libc = { version = "0.2", optional = true }
-socket2 = { version = "0.4.7", optional = true, features = ["all"] }
+socket2 = { version = ">=0.4.7, <0.6.0", optional = true, features = ["all"] }
 
 [dev-dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
@@ -197,7 +197,7 @@ required-features = ["full"]
 [[example]]
 name = "tower_client"
 path = "examples/tower_client.rs"
-required-features = ["full"]
+required-features = ["full", "backports"]
 
 [[example]]
 name = "tower_server"

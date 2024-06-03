@@ -1,4 +1,8 @@
 use std::error::Error as StdError;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 
 use bytes::{Buf, Bytes};
 use http::Request;
@@ -7,10 +11,8 @@ use tracing::{debug, trace};
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, HttpBody};
-use crate::common::{task, Future, Pin, Poll, Unpin};
-use crate::proto::{
-    BodyLength, Conn, Dispatched, MessageHead, RequestHead,
-};
+use crate::common;
+use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
 pub(crate) struct Dispatcher<D, Bs: HttpBody, I, T> {
@@ -28,10 +30,10 @@ pub(crate) trait Dispatch {
     type RecvItem;
     fn poll_msg(
         self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, Body)>) -> crate::Result<()>;
-    fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>>;
+    fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
 
@@ -60,10 +62,10 @@ cfg_client! {
 impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-        PollItem = MessageHead<T::Outgoing>,
-        PollBody = Bs,
-        RecvItem = MessageHead<T::Incoming>,
-    > + Unpin,
+            PollItem = MessageHead<T::Outgoing>,
+            PollBody = Bs,
+            RecvItem = MessageHead<T::Incoming>,
+        > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
@@ -98,10 +100,7 @@ where
     ///
     /// This is useful for old-style HTTP upgrades, but ignores
     /// newer-style upgrade API.
-    pub(crate) fn poll_without_shutdown(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<crate::Result<()>>
+    pub(crate) fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>>
     where
         Self: Unpin,
     {
@@ -114,7 +113,7 @@ where
 
     fn poll_catch(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
         Poll::Ready(ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
@@ -133,7 +132,7 @@ where
 
     fn poll_inner(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
         T::update_date();
@@ -154,7 +153,7 @@ where
         }
     }
 
-    fn poll_loop(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_loop(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         // Limit the looping on this connection, in case it is ready far too
         // often, so that other futures don't starve.
         //
@@ -181,10 +180,10 @@ where
 
         trace!("poll_loop yielding (self = {:p})", self);
 
-        task::yield_now(cx).map(|never| match never {})
+        common::task::yield_now(cx).map(|never| match never {})
     }
 
-    fn poll_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_read(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         loop {
             if self.is_closing {
                 return Poll::Ready(Ok(()));
@@ -238,7 +237,7 @@ where
         }
     }
 
-    fn poll_read_head(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_read_head(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         // can dispatch receive, or does it still care about, an incoming message?
         match ready!(self.dispatch.poll_ready(cx)) {
             Ok(()) => (),
@@ -262,7 +261,10 @@ where
                 if wants.contains(Wants::UPGRADE) {
                     let upgrade = self.conn.on_upgrade();
                     debug_assert!(!upgrade.is_none(), "empty upgrade");
-                    debug_assert!(head.extensions.get::<OnUpgrade>().is_none(), "OnUpgrade already set");
+                    debug_assert!(
+                        head.extensions.get::<OnUpgrade>().is_none(),
+                        "OnUpgrade already set"
+                    );
                     head.extensions.insert(upgrade);
                 }
                 self.dispatch.recv_msg(Ok((head, body)))?;
@@ -290,7 +292,7 @@ where
         }
     }
 
-    fn poll_write(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_write(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         loop {
             if self.is_closing {
                 return Poll::Ready(Ok(()));
@@ -382,7 +384,7 @@ where
         }
     }
 
-    fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         self.conn.poll_flush(cx).map_err(|err| {
             debug!("error writing: {}", err);
             crate::Error::new_body_write(err)
@@ -416,10 +418,10 @@ where
 impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
 where
     D: Dispatch<
-        PollItem = MessageHead<T::Outgoing>,
-        PollBody = Bs,
-        RecvItem = MessageHead<T::Incoming>,
-    > + Unpin,
+            PollItem = MessageHead<T::Outgoing>,
+            PollBody = Bs,
+            RecvItem = MessageHead<T::Incoming>,
+        > + Unpin,
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: AsyncRead + AsyncWrite + Unpin,
     T: Http1Transaction + Unpin,
@@ -429,7 +431,7 @@ where
     type Output = crate::Result<Dispatched>;
 
     #[inline]
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.poll_catch(cx, true)
     }
 }
@@ -493,7 +495,7 @@ cfg_server! {
 
         fn poll_msg(
             mut self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
+            cx: &mut Context<'_>,
         ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
             let mut this = self.as_mut();
             let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
@@ -528,7 +530,7 @@ cfg_server! {
             Ok(())
         }
 
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>> {
             if self.in_flight.is_some() {
                 Poll::Pending
             } else {
@@ -564,13 +566,13 @@ cfg_client! {
     {
         type PollItem = RequestHead;
         type PollBody = B;
-        type PollError = crate::common::Never;
+        type PollError = std::convert::Infallible;
         type RecvItem = crate::proto::ResponseHead;
 
         fn poll_msg(
             mut self: Pin<&mut Self>,
-            cx: &mut task::Context<'_>,
-        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), crate::common::Never>>> {
+            cx: &mut Context<'_>,
+        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
             let mut this = self.as_mut();
             debug_assert!(!this.rx_closed);
             match this.rx.poll_recv(cx) {
@@ -640,7 +642,7 @@ cfg_client! {
             }
         }
 
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), ()>> {
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>> {
             match self.callback {
                 Some(ref mut cb) => match cb.poll_canceled(cx) {
                     Poll::Ready(()) => {

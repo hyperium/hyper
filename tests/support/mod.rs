@@ -13,7 +13,9 @@ use hyper::{Body, Client, Request, Response, Server, Version};
 pub use futures_util::{
     future, FutureExt as _, StreamExt as _, TryFutureExt as _, TryStreamExt as _,
 };
-pub use hyper::{ext::Protocol, http::Extensions, HeaderMap, StatusCode};
+pub use hyper::{ext::Protocol, HeaderMap};
+#[allow(unused_imports)]
+pub use hyper::{http::Extensions, StatusCode};
 pub use std::net::SocketAddr;
 
 #[allow(unused_macros)]
@@ -372,6 +374,7 @@ async fn async_test(cfg: __TestConfig) {
                 func(&req.headers());
             }
             let sbody = sreq.body;
+            #[allow(deprecated)]
             hyper::body::to_bytes(req).map_ok(move |body| {
                 assert_eq!(body.as_ref(), sbody.as_slice(), "client body");
 
@@ -431,6 +434,7 @@ async fn async_test(cfg: __TestConfig) {
                     for func in &cheaders {
                         func(&res.headers());
                     }
+                    #[allow(deprecated)]
                     hyper::body::to_bytes(res)
                 })
                 .map_ok(move |body| {

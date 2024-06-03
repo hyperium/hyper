@@ -44,6 +44,13 @@ use super::HttpBody;
 /// # Ok(())
 /// # }
 /// ```
+#[cfg_attr(
+    feature = "deprecated",
+    deprecated(
+        note = "This function has been replaced by a method on the `hyper::body::HttpBody` trait. Use `.collect().await?.to_bytes()` instead."
+    )
+)]
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
 pub async fn to_bytes<T>(body: T) -> Result<Bytes, T::Error>
 where
     T: HttpBody,

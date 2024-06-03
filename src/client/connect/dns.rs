@@ -26,7 +26,7 @@ use std::future::Future;
 use std::net::{Ipv4Addr, Ipv6Addr, SocketAddr, SocketAddrV4, SocketAddrV6, ToSocketAddrs};
 use std::pin::Pin;
 use std::str::FromStr;
-use std::task::{self, Poll};
+use std::task::{Context, Poll};
 use std::{fmt, io, vec};
 
 use tokio::task::JoinHandle;
@@ -113,7 +113,7 @@ impl Service<Name> for GaiResolver {
     type Error = io::Error;
     type Future = GaiFuture;
 
-    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -138,7 +138,7 @@ impl fmt::Debug for GaiResolver {
 impl Future for GaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         Pin::new(&mut self.inner).poll(cx).map(|res| match res {
             Ok(Ok(addrs)) => Ok(GaiAddrs { inner: addrs }),
             Ok(Err(err)) => Err(err),
@@ -286,7 +286,7 @@ impl Service<Name> for TokioThreadpoolGaiResolver {
     type Error = io::Error;
     type Future = TokioThreadpoolGaiFuture;
 
-    fn poll_ready(&mut self, _cx: &mut task::Context<'_>) -> Poll<Result<(), io::Error>> {
+    fn poll_ready(&mut self, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
         Poll::Ready(Ok(()))
     }
 
@@ -299,7 +299,7 @@ impl Service<Name> for TokioThreadpoolGaiResolver {
 impl Future for TokioThreadpoolGaiFuture {
     type Output = Result<GaiAddrs, io::Error>;
 
-    fn poll(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(tokio_executor::threadpool::blocking(|| (
             self.name.as_str(),
             0
@@ -318,8 +318,10 @@ impl Future for TokioThreadpoolGaiFuture {
 */
 
 mod sealed {
-    use super::{SocketAddr, Name};
-    use crate::common::{task, Future, Poll};
+    use std::future::Future;
+    use std::task::{Context, Poll};
+
+    use super::{Name, SocketAddr};
     use tower_service::Service;
 
     // "Trait alias" for `Service<Name, Response = Addrs>`
@@ -328,7 +330,7 @@ mod sealed {
         type Error: Into<Box<dyn std::error::Error + Send + Sync>>;
         type Future: Future<Output = Result<Self::Addrs, Self::Error>>;
 
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>>;
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>>;
         fn resolve(&mut self, name: Name) -> Self::Future;
     }
 
@@ -342,7 +344,7 @@ mod sealed {
         type Error = S::Error;
         type Future = S::Future;
 
-        fn poll_ready(&mut self, cx: &mut task::Context<'_>) -> Poll<Result<(), Self::Error>> {
+        fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), Self::Error>> {
             Service::poll_ready(self, cx)
         }
 

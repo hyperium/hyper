@@ -2,13 +2,16 @@
 
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
+use std::marker::Unpin;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
 use tokio::io::{AsyncRead, AsyncWrite};
 
 use crate::body::{Body as IncomingBody, HttpBody as Body};
-use crate::common::{task, Future, Pin, Poll, Unpin};
 use crate::proto;
 use crate::service::HttpService;
 
@@ -126,7 +129,7 @@ where
     /// upgrade. Once the upgrade is completed, the connection would be "done",
     /// but it is not desired to actually shutdown the IO object. Instead you
     /// would take it back using `into_parts`.
-    pub fn poll_without_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>>
+    pub fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>>
     where
         S: Unpin,
         S::Future: Unpin,
@@ -175,7 +178,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.conn).poll(cx)) {
             Ok(done) => {
                 match done {
@@ -431,7 +434,7 @@ mod upgrades {
     {
         type Output = crate::Result<()>;
 
-        fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+        fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
             match ready!(Pin::new(&mut self.inner.as_mut().unwrap().conn).poll(cx)) {
                 Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
                 Ok(proto::Dispatched::Upgrade(pending)) => {

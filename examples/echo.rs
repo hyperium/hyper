@@ -34,6 +34,7 @@ async fn echo(req: Request<Body>) -> Result<Response<Body>, hyper::Error> {
         // So here we do `.await` on the future, waiting on concatenating the full body,
         // then afterwards the content can be reversed. Only then can we return a `Response`.
         (&Method::POST, "/echo/reversed") => {
+            #[allow(deprecated)]
             let whole_body = hyper::body::to_bytes(req.into_body()).await?;
 
             let reversed_body = whole_body.iter().rev().cloned().collect::<Vec<u8>>();
