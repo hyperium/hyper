@@ -1,7 +1,5 @@
 use std::cmp;
 use std::fmt;
-#[cfg(feature = "server")]
-use std::future::Future;
 use std::io::{self, IoSlice};
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -183,14 +181,6 @@ where
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
                     h1_max_headers: parse_ctx.h1_max_headers,
-                    #[cfg(feature = "server")]
-                    h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
-                    #[cfg(feature = "server")]
-                    h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
-                    #[cfg(feature = "server")]
-                    h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
-                    #[cfg(feature = "server")]
-                    timer: parse_ctx.timer.clone(),
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
@@ -201,12 +191,6 @@ where
             )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
-
-                    #[cfg(feature = "server")]
-                    {
-                        *parse_ctx.h1_header_read_timeout_running = false;
-                        parse_ctx.h1_header_read_timeout_fut.take();
-                    }
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
@@ -214,20 +198,6 @@ where
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
-                    }
-
-                    #[cfg(feature = "server")]
-                    if *parse_ctx.h1_header_read_timeout_running {
-                        if let Some(h1_header_read_timeout_fut) =
-                            parse_ctx.h1_header_read_timeout_fut
-                        {
-                            if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
-                                *parse_ctx.h1_header_read_timeout_running = false;
-
-                                warn!("read header from client timeout");
-                                return Poll::Ready(Err(crate::Error::new_header_timeout()));
-                            }
-                        }
                     }
                 }
             }
@@ -660,10 +630,8 @@ enum WriteStrategy {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::io::Compat;
-    use crate::common::time::Time;
-
     use super::*;
+    use crate::common::io::Compat;
     use std::time::Duration;
 
     use tokio_test::io::Builder as Mock;
@@ -726,10 +694,6 @@ mod tests {
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
-                h1_header_read_timeout: None,
-                h1_header_read_timeout_fut: &mut None,
-                h1_header_read_timeout_running: &mut false,
-                timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
