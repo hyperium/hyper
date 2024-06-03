@@ -1509,6 +1509,27 @@ async fn header_read_timeout_slow_writes() {
 }
 
 #[tokio::test]
+async fn header_read_timeout_starts_immediately() {
+    let (listener, addr) = setup_tcp_listener();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        thread::sleep(Duration::from_secs(3));
+        let mut buf = [0u8; 256];
+        let n = tcp.read(&mut buf).expect("read 1");
+        assert_eq!(n, 0); //eof
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http1::Builder::new()
+        .timer(TokioTimer)
+        .header_read_timeout(Duration::from_secs(2))
+        .serve_connection(socket, unreachable_service());
+    conn.await.expect_err("header timeout");
+}
+
+#[tokio::test]
 async fn header_read_timeout_slow_writes_multiple_requests() {
     let (listener, addr) = setup_tcp_listener();
 
