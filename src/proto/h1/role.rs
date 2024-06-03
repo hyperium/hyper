@@ -67,17 +67,12 @@ pub(super) fn parse_headers<T>(
 where
     T: Http1Transaction,
 {
-    // If the buffer is empty, don't bother entering the span, it's just noise.
-    if bytes.is_empty() {
-        return Ok(None);
-    }
-
-    let span = trace_span!("parse_headers");
-    let _s = span.enter();
-
     #[cfg(all(feature = "server", feature = "runtime"))]
     if !*ctx.h1_header_read_timeout_running {
         if let Some(h1_header_read_timeout) = ctx.h1_header_read_timeout {
+            let span = trace_span!("parse_headers");
+            let _s = span.enter();
+
             let deadline = Instant::now() + h1_header_read_timeout;
             *ctx.h1_header_read_timeout_running = true;
             match ctx.h1_header_read_timeout_fut {
@@ -93,6 +88,14 @@ where
             }
         }
     }
+
+    // If the buffer is empty, don't bother entering the span, it's just noise.
+    if bytes.is_empty() {
+        return Ok(None);
+    }
+
+    let span = trace_span!("parse_headers");
+    let _s = span.enter();
 
     T::parse(bytes, ctx)
 }
