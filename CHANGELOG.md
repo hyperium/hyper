@@ -1,3 +1,16 @@
+### v0.14.29 (2024-06-03)
+
+
+#### Bug Fixes
+
+* **http1:** start header read timeout immediately (#3305) ([b5c2592f](https://github.com/hyperium/hyper/commit/b5c2592fde5e20d29c69428c85aef3d682ee36bc))
+
+
+#### Features
+
+* **http2:** add config for `max_local_error_reset_streams` in server (#3528) ([dedcb674](https://github.com/hyperium/hyper/commit/dedcb674f35eaec765a42b550caabe6f694d86d1))
+
+
 ### v0.14.28 (2023-12-18)
 
 
