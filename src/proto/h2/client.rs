@@ -611,7 +611,7 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     T: Read + Write + Unpin,
 {
     type Output = crate::Result<Dispatched>;
