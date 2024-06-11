@@ -550,7 +550,11 @@ where
             self.state.busy();
         }
 
-        self.enforce_version(&mut head);
+        if let Err(err) = self.enforce_version(&mut head) {
+            self.state.error = Some(err.into());
+            self.state.writing = Writing::Closed;
+            return None;
+        }
 
         let buf = self.io.headers_buf();
         match super::role::encode_headers::<T>(
@@ -586,7 +590,7 @@ where
     }
 
     // Fix keep-alive when Connection: keep-alive header is not present
-    fn fix_keep_alive(&mut self, head: &mut MessageHead<T::Outgoing>) {
+    fn fix_keep_alive(&mut self, head: &mut MessageHead<T::Outgoing>) -> Result<(), http::Error> {
         let outgoing_is_keep_alive = head
             .headers
             .get(CONNECTION)
@@ -603,20 +607,22 @@ where
                 Version::HTTP_11 => {
                     if self.state.wants_keep_alive() {
                         head.headers
-                            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+                            .try_insert(CONNECTION, HeaderValue::from_static("keep-alive"))?;
                     }
                 }
                 _ => (),
             }
         }
+
+        Ok(())
     }
 
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
-    fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
+    fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) -> Result<(), http::Error> {
         if let Version::HTTP_10 = self.state.version {
             // Fixes response or connection when keep-alive header is not present
-            self.fix_keep_alive(head);
+            self.fix_keep_alive(head)?;
             // If the remote only knows HTTP/1.0, we should force ourselves
             // to do only speak HTTP/1.0 as well.
             head.version = Version::HTTP_10;
@@ -624,6 +630,8 @@ where
         // If the remote speaks HTTP/1.1, then it *should* be fine with
         // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let
         // the user's headers be.
+
+        Ok(())
     }
 
     pub(crate) fn write_body(&mut self, chunk: B) {
@@ -1060,7 +1068,7 @@ mod tests {
         let io = tokio_test::io::Builder::new().build();
         let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
-        conn.state.cached_headers = Some(HeaderMap::with_capacity(2));
+        conn.state.cached_headers = Some(HeaderMap::try_with_capacity(2).unwrap());
 
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()

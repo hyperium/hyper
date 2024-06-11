@@ -3003,7 +3003,7 @@ impl TestService {
                     *res.version_mut() = v;
                 }
                 Reply::Header(name, value) => {
-                    res.headers_mut().insert(name, value);
+                    res.headers_mut().try_insert(name, value)?;
                 }
                 Reply::Body(body) => {
                     *res.body_mut() = body;

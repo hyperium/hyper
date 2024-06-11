@@ -2,7 +2,7 @@
 use bytes::BytesMut;
 use http::header::CONTENT_LENGTH;
 use http::header::{HeaderValue, ValueIter};
-use http::HeaderMap;
+use http::{CapacityOverflow, HeaderMap};
 #[cfg(all(feature = "http2", feature = "client"))]
 use http::Method;
 
@@ -100,10 +100,18 @@ pub(super) fn method_has_defined_payload_semantics(method: &Method) -> bool {
 }
 
 #[cfg(feature = "http2")]
-pub(super) fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) {
-    headers
-        .entry(CONTENT_LENGTH)
-        .or_insert_with(|| HeaderValue::from(len));
+pub(super) fn set_content_length_if_missing(headers: &mut HeaderMap, len: u64) -> Result<(), CapacityOverflow> {
+    match headers
+        .try_entry(CONTENT_LENGTH){
+        Err(e) if e.is::<CapacityOverflow>() => return Err(CapacityOverflow::new()),
+        Err(_) => {
+            unreachable!()
+        },
+        Ok(e) => {
+            e.or_try_insert_with(|| HeaderValue::from(len))?;
+        }
+    };
+    Ok(())
 }
 
 #[cfg(feature = "http1")]

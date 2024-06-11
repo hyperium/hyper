@@ -218,7 +218,7 @@ macro_rules! __internal_req_res_prop {
 macro_rules! __internal_headers_map {
     ($headers:ident, { $($name:expr => $val:expr,)* }) => {
         $(
-        $headers.insert($name, $val.to_string().parse().expect("header value"));
+        $headers.try_insert($name, $val.to_string().parse().expect("header value")).unwrap();
         )*
     }
 }
