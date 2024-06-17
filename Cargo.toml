@@ -93,9 +93,16 @@ tracing = ["dep:tracing"]
 # internal features used in CI
 nightly = []
 
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    'cfg(hyper_unstable_tracing)',
+    'cfg(hyper_unstable_ffi)'
+]
+
 [package.metadata.docs.rs]
 features = ["ffi", "full", "tracing"]
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
+rustdoc-args = ["--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
 
 [package.metadata.playground]
 features = ["full"]
