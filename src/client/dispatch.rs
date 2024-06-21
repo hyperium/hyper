@@ -226,26 +226,29 @@ pub(crate) enum Callback<T, U> {
 
 impl<T, U> Drop for Callback<T, U> {
     fn drop(&mut self) {
-        // FIXME(nox): What errors do we want here?
-        let error = crate::Error::new_user_dispatch_gone().with(if std::thread::panicking() {
-            "user code panicked"
-        } else {
-            "runtime dropped the dispatch task"
-        });
-
         match self {
             Callback::Retry(tx) => {
                 if let Some(tx) = tx.take() {
-                    let _ = tx.send(Err((error, None)));
+                    let _ = tx.send(Err((dispatch_gone(), None)));
                 }
             }
             Callback::NoRetry(tx) => {
                 if let Some(tx) = tx.take() {
-                    let _ = tx.send(Err(error));
+                    let _ = tx.send(Err(dispatch_gone()));
                 }
             }
         }
     }
+}
+
+#[cold]
+fn dispatch_gone() -> crate::Error {
+    // FIXME(nox): What errors do we want here?
+    crate::Error::new_user_dispatch_gone().with(if std::thread::panicking() {
+        "user code panicked"
+    } else {
+        "runtime dropped the dispatch task"
+    })
 }
 
 impl<T, U> Callback<T, U> {
