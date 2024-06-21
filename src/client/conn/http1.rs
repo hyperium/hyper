@@ -376,7 +376,7 @@ impl Builder {
 
     /// Set whether HTTP/1 connections will silently ignored malformed header lines.
     ///
-    /// If this is enabled and and a header line does not start with a valid header
+    /// If this is enabled and a header line does not start with a valid header
     /// name, or does not include a colon at all, the line will be silently ignored
     /// and no error will be reported.
     ///
