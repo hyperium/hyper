@@ -30,6 +30,7 @@ cfg_server! {
 pub(crate) trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
+    #[cfg(feature = "tracing")]
     const LOG: &'static str;
     fn parse(bytes: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<Self::Incoming>;
     fn encode(enc: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
