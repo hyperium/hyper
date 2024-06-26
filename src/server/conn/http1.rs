@@ -176,8 +176,7 @@ where
     /// # Error
     ///
     /// This errors if the underlying connection protocol is not HTTP/1.
-    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>>
-    {
+    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> {
         let mut zelf = Some(self);
         futures_util::future::poll_fn(move |cx| {
             ready!(zelf.as_mut().unwrap().conn.poll_without_shutdown(cx))?;
