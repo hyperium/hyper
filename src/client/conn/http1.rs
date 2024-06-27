@@ -176,8 +176,15 @@ where
     ///
     /// `req` must have a `Host` header.
     ///
-    /// Absolute-form `Uri`s are not required. If received, they will be serialized
-    /// as-is.
+    /// # Uri
+    ///
+    /// - The `Uri` of the request is serialized as-is;
+    /// - Usually you want absolute-path form (`/path?query`), as that is in general
+    ///   expected for non CONNECT requests.
+    /// - For CONNECT requests, you do want an absolute-form `Uri`.
+    ///
+    /// This is however not enforced or validated and it is up to the user
+    /// of this method to ensure the `Uri` is correct for their intended purpose.
     pub fn send_request(
         &mut self,
         req: Request<B>,
