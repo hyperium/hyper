@@ -63,7 +63,7 @@ pub struct Builder<Ex> {
 
 /// Returns a handshake future over some IO.
 ///
-/// This is a shortcut for `Builder::new().handshake(io)`.
+/// This is a shortcut for `Builder::new(exec).handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
 pub async fn handshake<E, T, B>(
     exec: E,
