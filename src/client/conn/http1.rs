@@ -12,7 +12,7 @@ use futures_util::ready;
 use http::{Request, Response};
 use httparse::ParserConfig;
 
-use super::super::dispatch;
+use super::super::dispatch::{self, TrySendError};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
 
@@ -208,33 +208,38 @@ where
         }
     }
 
-    /*
-    pub(super) fn send_request_retryable(
+    /// Sends a `Request` on the associated connection.
+    ///
+    /// Returns a future that if successful, yields the `Response`.
+    ///
+    /// # Error
+    ///
+    /// If there was an error before trying to serialize the request to the
+    /// connection, the message will be returned as part of this error.
+    pub fn try_send_request(
         &mut self,
         req: Request<B>,
-    ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>> + Unpin
-    where
-        B: Send,
-    {
-        match self.dispatch.try_send(req) {
-            Ok(rx) => {
-                Either::Left(rx.then(move |res| {
-                    match res {
-                        Ok(Ok(res)) => future::ok(res),
-                        Ok(Err(err)) => future::err(err),
-                        // this is definite bug if it happens, but it shouldn't happen!
-                        Err(_) => panic!("dispatch dropped without returning error"),
-                    }
-                }))
-            }
-            Err(req) => {
-                debug!("connection was not ready");
-                let err = crate::Error::new_canceled().with("connection was not ready");
-                Either::Right(future::err((err, Some(req))))
+    ) -> impl Future<Output = Result<Response<IncomingBody>, TrySendError<Request<B>>>> {
+        let sent = self.dispatch.try_send(req);
+        async move {
+            match sent {
+                Ok(rx) => match rx.await {
+                    Ok(Ok(res)) => Ok(res),
+                    Ok(Err(err)) => Err(err),
+                    // this is definite bug if it happens, but it shouldn't happen!
+                    Err(_) => panic!("dispatch dropped without returning error"),
+                },
+                Err(req) => {
+                    debug!("connection was not ready");
+                    let error = crate::Error::new_canceled().with("connection was not ready");
+                    Err(TrySendError {
+                        error,
+                        message: Some(req),
+                    })
+                }
             }
         }
     }
-    */
 }
 
 impl<B> fmt::Debug for SendRequest<B> {
