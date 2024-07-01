@@ -1,3 +1,23 @@
+## v1.4.0 (2024-07-01)
+
+
+#### Bug Fixes
+
+* **http2:** stop removing "Trailer" header in HTTP/2 responses as per RFC 9110 (#3648) ([a3269f7a](https://github.com/hyperium/hyper/commit/a3269f7ab285dbeb44a3a7dbc163fcadd65087f9))
+* **server:** start header read timeout immediately (#3185) ([0eb1b6cf](https://github.com/hyperium/hyper/commit/0eb1b6cf4d914ce9c3f8e92a8b43754eba27a327))
+
+
+#### Features
+
+* **client:**
+  * add `SendRequest::try_send_request()` method (#3691) ([4ffaad53](https://github.com/hyperium/hyper/commit/4ffaad53c78572c500584e0cb5d76ae6ffc6adb6))
+  * remove `Send +Sync` bounds requirement of `http2::Connection` executor (#3682) ([56c3cd56](https://github.com/hyperium/hyper/commit/56c3cd560bc10671d3d8b638f3f17a304f920c6b))
+  * remove `'static` lifetime bound on http1/2 client IO (#3667) ([9580b357](https://github.com/hyperium/hyper/commit/9580b357635031f3d631303f3afffc2afae77933))
+* **http1:** add support for receiving trailer fields (#3637) ([ac84af6b](https://github.com/hyperium/hyper/commit/ac84af6b32a5d37d9343013ace088aaae47587b6), closes [#2703](https://github.com/hyperium/hyper/issues/2703))
+* **server:** add `Builder::auto_date_header(bool)` to allow disabling Date headers ([721785ef](https://github.com/hyperium/hyper/commit/721785efad8537513e48d900a85c05ce79483018))
+* **service:** implement Service for reference types (#3607) ([eade122d](https://github.com/hyperium/hyper/commit/eade122db25f51619aee5db845de2a61b7ff2f74))
+
+
 ### v1.3.1 (2024-04-16)
 
 #### Bug Fixes
