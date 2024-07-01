@@ -51,7 +51,7 @@ pub struct Parts<T> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B>
 where
-    T: Read + Write + 'static,
+    T: Read + Write,
     B: Body + 'static,
 {
     inner: Dispatcher<T, B>,
@@ -59,7 +59,7 @@ where
 
 impl<T, B> Connection<T, B>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -124,7 +124,7 @@ pub struct Builder {
 /// See [`client::conn`](crate::client::conn) for more.
 pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -247,7 +247,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 
 impl<T, B> Connection<T, B>
 where
-    T: Read + Write + Unpin + Send + 'static,
+    T: Read + Write + Unpin + Send,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -261,7 +261,7 @@ where
 
 impl<T, B> fmt::Debug for Connection<T, B>
 where
-    T: Read + Write + fmt::Debug + 'static,
+    T: Read + Write + fmt::Debug,
     B: Body + 'static,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -271,7 +271,7 @@ where
 
 impl<T, B> Future for Connection<T, B>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
@@ -509,7 +509,7 @@ impl Builder {
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
-        T: Read + Write + Unpin + 'static,
+        T: Read + Write + Unpin,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,

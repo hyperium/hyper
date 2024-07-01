@@ -137,7 +137,7 @@ pub(crate) async fn handshake<T, B, E>(
     timer: Time,
 ) -> crate::Result<ClientTask<B, E, T>>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,

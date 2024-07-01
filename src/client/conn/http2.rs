@@ -40,7 +40,7 @@ impl<B> Clone for SendRequest<B> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
-    T: Read + Write + 'static + Unpin,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -70,7 +70,7 @@ pub async fn handshake<E, T, B>(
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -432,7 +432,7 @@ where
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>>
     where
-        T: Read + Write + Unpin + 'static,
+        T: Read + Write + Unpin,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn Error + Send + Sync>>,
