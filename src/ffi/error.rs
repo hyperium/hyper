@@ -1,4 +1,4 @@
-use libc::size_t;
+use crate::ffi::size_t;
 
 /// A more detailed error object returned by some hyper functions.
 ///
