@@ -1,3 +1,11 @@
+### v1.4.1 (2024-07-09)
+
+
+#### Bug Fixes
+
+* **http1:** reject final chunked if missing 0 ([8e5de1bb](https://github.com/hyperium/hyper/commit/8e5de1bb57e10b5bd9e70ab22489da787517238a))
+
+
 ## v1.4.0 (2024-07-01)
 
 
