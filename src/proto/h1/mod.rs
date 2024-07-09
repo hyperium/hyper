@@ -88,8 +88,7 @@ pub(crate) struct ParseContext<'a> {
     h09_responses: bool,
     #[cfg(feature = "ffi")]
     on_informational: &'a mut Option<crate::ffi::OnInformational>,
-    #[cfg(feature = "ffi")]
-    raw_headers: bool,
+    h1_raw_message: bool,
 }
 
 /// Passed to Http1Transaction::encode
