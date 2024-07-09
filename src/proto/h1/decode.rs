@@ -517,7 +517,7 @@ impl ChunkedState {
         rdr: &mut R,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         match byte!(rdr, cx) {
-            b'\n' => Poll::Ready(Ok(ChunkedState::Size)),
+            b'\n' => Poll::Ready(Ok(ChunkedState::Start)),
             _ => Poll::Ready(Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
                 "Invalid chunk body LF",
@@ -900,6 +900,26 @@ mod tests {
         assert_eq!(16, buf.len());
         let result = String::from_utf8(buf.as_ref().to_vec()).expect("decode String");
         assert_eq!("1234567890abcdef", &result);
+    }
+
+    #[tokio::test]
+    async fn test_read_chunked_with_missing_zero_digit() {
+        // After reading a valid chunk, the ending is missing a zero.
+        let mut mock_buf = &b"1\r\nZ\r\n\r\n\r\n"[..];
+        let mut decoder = Decoder::chunked(None, None);
+        let buf = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect("decode")
+            .into_data()
+            .expect("unknown frame type");
+        assert_eq!("Z", buf);
+
+        let err = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .expect_err("decode 2");
+        assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
     }
 
     #[tokio::test]

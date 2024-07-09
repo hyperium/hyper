@@ -573,6 +573,29 @@ fn post_with_incomplete_body() {
 }
 
 #[test]
+fn post_with_chunked_missing_final_digit() {
+    let _ = pretty_env_logger::try_init();
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        1\r\n\
+        Z\r\n\
+        \r\n\r\n\
+    ",
+    )
+    .expect("write");
+
+    server.body_err();
+
+    req.read(&mut [0; 256]).expect("read");
+}
+
+#[test]
 fn head_response_can_send_content_length() {
     let _ = pretty_env_logger::try_init();
     let server = serve();
