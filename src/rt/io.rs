@@ -244,19 +244,29 @@ impl<'data> ReadBufCursor<'data> {
         self.buf.init = self.buf.filled.max(self.buf.init);
     }
 
+    /// Returns the number of bytes that can be written from the current
+    /// position until the end of the buffer is reached.
+    ///
+    /// This value is equal to the length of the slice returned by `as_mut()``.
     #[inline]
-    pub(crate) fn remaining(&self) -> usize {
+    pub fn remaining(&self) -> usize {
         self.buf.remaining()
     }
 
+    /// Transfer bytes into `self`` from `src` and advance the cursor
+    /// by the number of bytes written.
+    ///
+    /// # Panics
+    ///
+    /// `self` must have enough remaining capacity to contain all of `src`.
     #[inline]
-    pub(crate) fn put_slice(&mut self, buf: &[u8]) {
+    pub fn put_slice(&mut self, src: &[u8]) {
         assert!(
-            self.buf.remaining() >= buf.len(),
-            "buf.len() must fit in remaining()"
+            self.buf.remaining() >= src.len(),
+            "src.len() must fit in remaining()"
         );
 
-        let amt = buf.len();
+        let amt = src.len();
         // Cannot overflow, asserted above
         let end = self.buf.filled + amt;
 
@@ -265,7 +275,7 @@ impl<'data> ReadBufCursor<'data> {
             self.buf.raw[self.buf.filled..end]
                 .as_mut_ptr()
                 .cast::<u8>()
-                .copy_from_nonoverlapping(buf.as_ptr(), amt);
+                .copy_from_nonoverlapping(src.as_ptr(), amt);
         }
 
         if self.buf.init < end {
