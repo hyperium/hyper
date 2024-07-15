@@ -2042,6 +2042,91 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn test_try_send_request() {
+        use std::future::Future;
+        let (listener, addr) = setup_tk_test_server().await;
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+
+        tokio::spawn(async move {
+            let mut sock = listener.accept().await.unwrap().0;
+            let mut buf = [0u8; 8192];
+            sock.read(&mut buf).await.expect("read 1");
+            sock.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+                .await
+                .expect("write 1");
+            let _ = done_rx.await;
+        });
+
+        // make polling fair by putting both in spawns
+        tokio::spawn(async move {
+            let io = tcp_connect(&addr).await.expect("tcp connect");
+            let (mut client, mut conn) = conn::http1::Builder::new()
+                .handshake::<_, Empty<Bytes>>(io)
+                .await
+                .expect("http handshake");
+
+            // get the conn ready
+            assert!(
+                future::poll_fn(|cx| Poll::Ready(Pin::new(&mut conn).poll(cx)))
+                    .await
+                    .is_pending()
+            );
+            assert!(client.is_ready());
+
+            // use the connection once
+            let mut fut1 = std::pin::pin!(client.send_request(http::Request::new(Empty::new())));
+            let _res1 = future::poll_fn(|cx| loop {
+                if let Poll::Ready(res) = fut1.as_mut().poll(cx) {
+                    return Poll::Ready(res);
+                }
+                return match Pin::new(&mut conn).poll(cx) {
+                    Poll::Ready(_) => panic!("ruh roh"),
+                    Poll::Pending => Poll::Pending,
+                };
+            })
+            .await
+            .expect("resp 1");
+
+            assert!(client.is_ready());
+
+            // simulate the server dropping the conn
+            let _ = done_tx.send(());
+            // let the server task die
+            tokio::task::yield_now().await;
+
+            let mut fut2 =
+                std::pin::pin!(client.try_send_request(http::Request::new(Empty::new())));
+            let poll1 = future::poll_fn(|cx| Poll::Ready(fut2.as_mut().poll(cx))).await;
+            assert!(poll1.is_pending(), "not already known to error");
+
+            let mut conn_opt = Some(conn);
+            // wasn't a known error, req is in queue, and now the next poll, the
+            // conn will be noticed as errored
+            let mut err = future::poll_fn(|cx| {
+                loop {
+                    if let Poll::Ready(res) = fut2.as_mut().poll(cx) {
+                        return Poll::Ready(res);
+                    }
+                    if let Some(ref mut conn) = conn_opt {
+                        match Pin::new(conn).poll(cx) {
+                            Poll::Ready(_) => {
+                                conn_opt = None;
+                            } // ok
+                            Poll::Pending => return Poll::Pending,
+                        };
+                    }
+                }
+            })
+            .await
+            .expect_err("resp 2");
+
+            assert!(err.take_message().is_some(), "request was returned");
+        })
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
     async fn http2_detect_conn_eof() {
         use futures_util::future;
 

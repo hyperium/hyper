@@ -22,7 +22,7 @@ use pin_project_lite::pin_project;
 use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::client::dispatch::{Callback, SendWhen};
+use crate::client::dispatch::{Callback, SendWhen, TrySendError};
 use crate::common::io::Compat;
 use crate::common::time::Time;
 use crate::ext::Protocol;
@@ -137,7 +137,7 @@ pub(crate) async fn handshake<T, B, E>(
     timer: Time,
 ) -> crate::Result<ClientTask<B, E, T>>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
@@ -611,7 +611,7 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
     T: Read + Write + Unpin,
 {
     type Output = crate::Result<Dispatched>;
@@ -662,10 +662,10 @@ where
                             .map_or(false, |len| len != 0)
                     {
                         warn!("h2 connect request with non-zero body not supported");
-                        cb.send(Err((
-                            crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
-                            None,
-                        )));
+                        cb.send(Err(TrySendError {
+                            error: crate::Error::new_h2(h2::Reason::INTERNAL_ERROR.into()),
+                            message: None,
+                        }));
                         continue;
                     }
 
@@ -677,7 +677,10 @@ where
                         Ok(ok) => ok,
                         Err(err) => {
                             debug!("client send request error: {}", err);
-                            cb.send(Err((crate::Error::new_h2(err), None)));
+                            cb.send(Err(TrySendError {
+                                error: crate::Error::new_h2(err),
+                                message: None,
+                            }));
                             continue;
                         }
                     };
@@ -702,7 +705,10 @@ where
                         }
                         Poll::Ready(Ok(())) => (),
                         Poll::Ready(Err(err)) => {
-                            f.cb.send(Err((crate::Error::new_h2(err), None)));
+                            f.cb.send(Err(TrySendError {
+                                error: crate::Error::new_h2(err),
+                                message: None,
+                            }));
                             continue;
                         }
                     }

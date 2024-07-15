@@ -13,9 +13,20 @@ use tokio::sync::{mpsc, oneshot};
 #[cfg(feature = "http2")]
 use crate::{body::Incoming, proto::h2::client::ResponseFutMap};
 
-#[cfg(test)]
-pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, (crate::Error, Option<T>)>>;
+pub(crate) type RetryPromise<T, U> = oneshot::Receiver<Result<U, TrySendError<T>>>;
 pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
+
+/// An error when calling `try_send_request`.
+///
+/// There is a possibility of an error occuring on a connection in-between the
+/// time that a request is queued and when it is actually written to the IO
+/// transport. If that happens, it is safe to return the request back to the
+/// caller, as it was never fully sent.
+#[derive(Debug)]
+pub struct TrySendError<T> {
+    pub(crate) error: crate::Error,
+    pub(crate) message: Option<T>,
+}
 
 pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::unbounded_channel();
@@ -92,7 +103,7 @@ impl<T, U> Sender<T, U> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(feature = "http1")]
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         if !self.can_send() {
             return Err(val);
@@ -135,7 +146,6 @@ impl<T, U> UnboundedSender<T, U> {
         self.giver.is_canceled()
     }
 
-    #[cfg(test)]
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
         let (tx, rx) = oneshot::channel();
         self.inner
@@ -210,17 +220,17 @@ struct Envelope<T, U>(Option<(T, Callback<T, U>)>);
 impl<T, U> Drop for Envelope<T, U> {
     fn drop(&mut self) {
         if let Some((val, cb)) = self.0.take() {
-            cb.send(Err((
-                crate::Error::new_canceled().with("connection closed"),
-                Some(val),
-            )));
+            cb.send(Err(TrySendError {
+                error: crate::Error::new_canceled().with("connection closed"),
+                message: Some(val),
+            }));
         }
     }
 }
 
 pub(crate) enum Callback<T, U> {
     #[allow(unused)]
-    Retry(Option<oneshot::Sender<Result<U, (crate::Error, Option<T>)>>>),
+    Retry(Option<oneshot::Sender<Result<U, TrySendError<T>>>>),
     NoRetry(Option<oneshot::Sender<Result<U, crate::Error>>>),
 }
 
@@ -229,7 +239,10 @@ impl<T, U> Drop for Callback<T, U> {
         match self {
             Callback::Retry(tx) => {
                 if let Some(tx) = tx.take() {
-                    let _ = tx.send(Err((dispatch_gone(), None)));
+                    let _ = tx.send(Err(TrySendError {
+                        error: dispatch_gone(),
+                        message: None,
+                    }));
                 }
             }
             Callback::NoRetry(tx) => {
@@ -269,15 +282,31 @@ impl<T, U> Callback<T, U> {
         }
     }
 
-    pub(crate) fn send(mut self, val: Result<U, (crate::Error, Option<T>)>) {
+    pub(crate) fn send(mut self, val: Result<U, TrySendError<T>>) {
         match self {
             Callback::Retry(ref mut tx) => {
                 let _ = tx.take().unwrap().send(val);
             }
             Callback::NoRetry(ref mut tx) => {
-                let _ = tx.take().unwrap().send(val.map_err(|e| e.0));
+                let _ = tx.take().unwrap().send(val.map_err(|e| e.error));
             }
         }
+    }
+}
+
+impl<T> TrySendError<T> {
+    /// Take the message from this error.
+    ///
+    /// The message will not always have been recovered. If an error occurs
+    /// after the message has been serialized onto the connection, it will not
+    /// be available here.
+    pub fn take_message(&mut self) -> Option<T> {
+        self.message.take()
+    }
+
+    /// Consumes this to return the inner error.
+    pub fn into_error(self) -> crate::Error {
+        self.error
     }
 }
 
@@ -325,8 +354,8 @@ where
                 trace!("send_when canceled");
                 Poll::Ready(())
             }
-            Poll::Ready(Err(err)) => {
-                call_back.send(Err(err));
+            Poll::Ready(Err((error, message))) => {
+                call_back.send(Err(TrySendError { error, message }));
                 Poll::Ready(())
             }
         }
@@ -389,8 +418,8 @@ mod tests {
         let err = fulfilled
             .expect("fulfilled")
             .expect_err("promise should error");
-        match (err.0.kind(), err.1) {
-            (&crate::error::Kind::Canceled, Some(_)) => (),
+        match (err.error.is_canceled(), err.message) {
+            (true, Some(_)) => (),
             e => panic!("expected Error::Cancel(_), found {:?}", e),
         }
     }

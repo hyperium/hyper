@@ -13,7 +13,7 @@ use crate::rt::{Read, Write};
 use futures_util::ready;
 use http::{Request, Response};
 
-use super::super::dispatch;
+use super::super::dispatch::{self, TrySendError};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
 use crate::proto;
@@ -40,7 +40,7 @@ impl<B> Clone for SendRequest<B> {
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
-    T: Read + Write + 'static + Unpin,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -70,7 +70,7 @@ pub async fn handshake<E, T, B>(
     io: T,
 ) -> crate::Result<(SendRequest<B>, Connection<T, B, E>)>
 where
-    T: Read + Write + Unpin + 'static,
+    T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -152,33 +152,38 @@ where
         }
     }
 
-    /*
-    pub(super) fn send_request_retryable(
+    /// Sends a `Request` on the associated connection.
+    ///
+    /// Returns a future that if successful, yields the `Response`.
+    ///
+    /// # Error
+    ///
+    /// If there was an error before trying to serialize the request to the
+    /// connection, the message will be returned as part of this error.
+    pub fn try_send_request(
         &mut self,
         req: Request<B>,
-    ) -> impl Future<Output = Result<Response<Body>, (crate::Error, Option<Request<B>>)>> + Unpin
-    where
-        B: Send,
-    {
-        match self.dispatch.try_send(req) {
-            Ok(rx) => {
-                Either::Left(rx.then(move |res| {
-                    match res {
-                        Ok(Ok(res)) => future::ok(res),
-                        Ok(Err(err)) => future::err(err),
-                        // this is definite bug if it happens, but it shouldn't happen!
-                        Err(_) => panic!("dispatch dropped without returning error"),
-                    }
-                }))
-            }
-            Err(req) => {
-                debug!("connection was not ready");
-                let err = crate::Error::new_canceled().with("connection was not ready");
-                Either::Right(future::err((err, Some(req))))
+    ) -> impl Future<Output = Result<Response<IncomingBody>, TrySendError<Request<B>>>> {
+        let sent = self.dispatch.try_send(req);
+        async move {
+            match sent {
+                Ok(rx) => match rx.await {
+                    Ok(Ok(res)) => Ok(res),
+                    Ok(Err(err)) => Err(err),
+                    // this is definite bug if it happens, but it shouldn't happen!
+                    Err(_) => panic!("dispatch dropped without returning error"),
+                },
+                Err(req) => {
+                    debug!("connection was not ready");
+                    let error = crate::Error::new_canceled().with("connection was not ready");
+                    Err(TrySendError {
+                        error,
+                        message: Some(req),
+                    })
+                }
             }
         }
     }
-    */
 }
 
 impl<B> fmt::Debug for SendRequest<B> {
@@ -230,7 +235,7 @@ where
     B::Data: Send,
     E: Unpin,
     B::Error: Into<Box<dyn Error + Send + Sync>>,
-    E: Http2ClientConnExec<B, T> + 'static + Send + Sync + Unpin,
+    E: Http2ClientConnExec<B, T> + Unpin,
 {
     type Output = crate::Result<()>;
 
@@ -432,7 +437,7 @@ where
         io: T,
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B, Ex>)>>
     where
-        T: Read + Write + Unpin + 'static,
+        T: Read + Write + Unpin,
         B: Body + 'static,
         B::Data: Send,
         B::Error: Into<Box<dyn Error + Send + Sync>>,
@@ -454,6 +459,222 @@ where
                     inner: (PhantomData, h2),
                 },
             ))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[tokio::test]
+    #[ignore] // only compilation is checked
+    async fn send_sync_executor_of_non_send_futures() {
+        #[derive(Clone)]
+        struct LocalTokioExecutor;
+
+        impl<F> crate::rt::Executor<F> for LocalTokioExecutor
+        where
+            F: std::future::Future + 'static, // not requiring `Send`
+        {
+            fn execute(&self, fut: F) {
+                // This will spawn into the currently running `LocalSet`.
+                tokio::task::spawn_local(fut);
+            }
+        }
+
+        #[allow(unused)]
+        async fn run(io: impl crate::rt::Read + crate::rt::Write + Unpin + 'static) {
+            let (_sender, conn) = crate::client::conn::http2::handshake::<
+                _,
+                _,
+                http_body_util::Empty<bytes::Bytes>,
+            >(LocalTokioExecutor, io)
+            .await
+            .unwrap();
+
+            tokio::task::spawn_local(async move {
+                conn.await.unwrap();
+            });
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // only compilation is checked
+    async fn not_send_not_sync_executor_of_not_send_futures() {
+        #[derive(Clone)]
+        struct LocalTokioExecutor {
+            _x: std::marker::PhantomData<std::rc::Rc<()>>,
+        }
+
+        impl<F> crate::rt::Executor<F> for LocalTokioExecutor
+        where
+            F: std::future::Future + 'static, // not requiring `Send`
+        {
+            fn execute(&self, fut: F) {
+                // This will spawn into the currently running `LocalSet`.
+                tokio::task::spawn_local(fut);
+            }
+        }
+
+        #[allow(unused)]
+        async fn run(io: impl crate::rt::Read + crate::rt::Write + Unpin + 'static) {
+            let (_sender, conn) =
+                crate::client::conn::http2::handshake::<_, _, http_body_util::Empty<bytes::Bytes>>(
+                    LocalTokioExecutor {
+                        _x: Default::default(),
+                    },
+                    io,
+                )
+                .await
+                .unwrap();
+
+            tokio::task::spawn_local(async move {
+                conn.await.unwrap();
+            });
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // only compilation is checked
+    async fn send_not_sync_executor_of_not_send_futures() {
+        #[derive(Clone)]
+        struct LocalTokioExecutor {
+            _x: std::marker::PhantomData<std::cell::Cell<()>>,
+        }
+
+        impl<F> crate::rt::Executor<F> for LocalTokioExecutor
+        where
+            F: std::future::Future + 'static, // not requiring `Send`
+        {
+            fn execute(&self, fut: F) {
+                // This will spawn into the currently running `LocalSet`.
+                tokio::task::spawn_local(fut);
+            }
+        }
+
+        #[allow(unused)]
+        async fn run(io: impl crate::rt::Read + crate::rt::Write + Unpin + 'static) {
+            let (_sender, conn) =
+                crate::client::conn::http2::handshake::<_, _, http_body_util::Empty<bytes::Bytes>>(
+                    LocalTokioExecutor {
+                        _x: Default::default(),
+                    },
+                    io,
+                )
+                .await
+                .unwrap();
+
+            tokio::task::spawn_local(async move {
+                conn.await.unwrap();
+            });
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // only compilation is checked
+    async fn send_sync_executor_of_send_futures() {
+        #[derive(Clone)]
+        struct TokioExecutor;
+
+        impl<F> crate::rt::Executor<F> for TokioExecutor
+        where
+            F: std::future::Future + 'static + Send,
+            F::Output: Send + 'static,
+        {
+            fn execute(&self, fut: F) {
+                tokio::task::spawn(fut);
+            }
+        }
+
+        #[allow(unused)]
+        async fn run(io: impl crate::rt::Read + crate::rt::Write + Send + Unpin + 'static) {
+            let (_sender, conn) = crate::client::conn::http2::handshake::<
+                _,
+                _,
+                http_body_util::Empty<bytes::Bytes>,
+            >(TokioExecutor, io)
+            .await
+            .unwrap();
+
+            tokio::task::spawn(async move {
+                conn.await.unwrap();
+            });
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // only compilation is checked
+    async fn not_send_not_sync_executor_of_send_futures() {
+        #[derive(Clone)]
+        struct TokioExecutor {
+            // !Send, !Sync
+            _x: std::marker::PhantomData<std::rc::Rc<()>>,
+        }
+
+        impl<F> crate::rt::Executor<F> for TokioExecutor
+        where
+            F: std::future::Future + 'static + Send,
+            F::Output: Send + 'static,
+        {
+            fn execute(&self, fut: F) {
+                tokio::task::spawn(fut);
+            }
+        }
+
+        #[allow(unused)]
+        async fn run(io: impl crate::rt::Read + crate::rt::Write + Send + Unpin + 'static) {
+            let (_sender, conn) =
+                crate::client::conn::http2::handshake::<_, _, http_body_util::Empty<bytes::Bytes>>(
+                    TokioExecutor {
+                        _x: Default::default(),
+                    },
+                    io,
+                )
+                .await
+                .unwrap();
+
+            tokio::task::spawn_local(async move {
+                // can't use spawn here because when executor is !Send
+                conn.await.unwrap();
+            });
+        }
+    }
+
+    #[tokio::test]
+    #[ignore] // only compilation is checked
+    async fn send_not_sync_executor_of_send_futures() {
+        #[derive(Clone)]
+        struct TokioExecutor {
+            // !Sync
+            _x: std::marker::PhantomData<std::cell::Cell<()>>,
+        }
+
+        impl<F> crate::rt::Executor<F> for TokioExecutor
+        where
+            F: std::future::Future + 'static + Send,
+            F::Output: Send + 'static,
+        {
+            fn execute(&self, fut: F) {
+                tokio::task::spawn(fut);
+            }
+        }
+
+        #[allow(unused)]
+        async fn run(io: impl crate::rt::Read + crate::rt::Write + Send + Unpin + 'static) {
+            let (_sender, conn) =
+                crate::client::conn::http2::handshake::<_, _, http_body_util::Empty<bytes::Bytes>>(
+                    TokioExecutor {
+                        _x: Default::default(),
+                    },
+                    io,
+                )
+                .await
+                .unwrap();
+
+            tokio::task::spawn_local(async move {
+                // can't use spawn here because when executor is !Send
+                conn.await.unwrap();
+            });
         }
     }
 }
