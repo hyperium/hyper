@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1720532490129,
+  "lastUpdate": 1721068003307,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8249,6 +8249,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45610,
             "range": "± 7324.28",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5a13041ed7033c9dab6e2adafd08b6af20cd33fb",
+          "message": "feat(rt): add `ReadBufCursor` methods `remaining()` and `put_slice()` (#3700)\n\nThere is currently no way to write to ReadBufCursor without\r\nunsafe code, even though writing a slice to it like one would\r\ndo to a Buf shouldn't require unsafe code.",
+          "timestamp": "2024-07-15T14:25:49-04:00",
+          "tree_id": "d2345d27e5667f8e84c1005f072528add8229e82",
+          "url": "https://github.com/hyperium/hyper/commit/5a13041ed7033c9dab6e2adafd08b6af20cd33fb"
+        },
+        "date": 1721068000050,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45858,
+            "range": "± 7310.45",
             "unit": "ns/iter"
           }
         ]
