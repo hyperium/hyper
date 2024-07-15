@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1721068003307,
+  "lastUpdate": 1721068057511,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -44083,6 +44083,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5031686,
             "range": "± 215460.92",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "123095+nox@users.noreply.github.com",
+            "name": "Anthony Ramine",
+            "username": "nox"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5a13041ed7033c9dab6e2adafd08b6af20cd33fb",
+          "message": "feat(rt): add `ReadBufCursor` methods `remaining()` and `put_slice()` (#3700)\n\nThere is currently no way to write to ReadBufCursor without\r\nunsafe code, even though writing a slice to it like one would\r\ndo to a Buf shouldn't require unsafe code.",
+          "timestamp": "2024-07-15T14:25:49-04:00",
+          "tree_id": "d2345d27e5667f8e84c1005f072528add8229e82",
+          "url": "https://github.com/hyperium/hyper/commit/5a13041ed7033c9dab6e2adafd08b6af20cd33fb"
+        },
+        "date": 1721068054685,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70863,
+            "range": "± 2077.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4181357,
+            "range": "± 200281.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21506,
+            "range": "± 574.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23628,
+            "range": "± 1010.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33116,
+            "range": "± 823.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99680,
+            "range": "± 3742.36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37503,
+            "range": "± 1417.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 92425,
+            "range": "± 5360.87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23986945,
+            "range": "± 33587527.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7821669,
+            "range": "± 127160.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7608013,
+            "range": "± 154615.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48947129,
+            "range": "± 670782.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49502431,
+            "range": "± 665060.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5040409,
+            "range": "± 111704.96",
             "unit": "ns/iter"
           }
         ]
