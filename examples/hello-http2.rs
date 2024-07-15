@@ -42,7 +42,7 @@ where
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    pretty_env_logger::init();
+    pretty_env_logger::init();  
 
     // This address is localhost
     let addr = SocketAddr::from(([127,0,0,1], 3000));
@@ -52,7 +52,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
 
     loop {
         // When an incoming TCP connection is received grab a TCP stream for
-        // client<->server communication.
+        // client-server communication.
         //
         // Note, this is a .await point, this loop will loop forever but is not a busy loop. The
         // .await point allows the Tokio runtime to pull the task off of the thread until the task
@@ -65,10 +65,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let io = TokioIo::new(stream);
 
         // Spin up a new task in Tokio so we can continue to listen for new TCP connection on the
-        // current task without waiting for the processing of the HTTP2 connection we just received
+        // current task without waiting for the processing of the HTTP/2 connection we just received
         // to finish
         tokio::task::spawn(async move{
-            // Handle the connection from the client using HTTP2 with an executor and pass any
+            // Handle the connection from the client using HTTP/2 with an executor and pass any
             // HTTP requests received on that connection to the `hello` function
             if let Err(err) = http2::Builder::new(TokioExecutor)
                 .serve_connection(io, service_fn(hello))
