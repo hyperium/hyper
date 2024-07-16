@@ -47,9 +47,14 @@ where
     B: Buf,
     T: Http1Transaction,
 {
+    #[cfg(any(all(feature = "client", feature = "http1"), test))]
     pub(crate) fn new(io: I) -> Conn<I, B, T> {
+        Self::new_buffered(Bytes::new(), io)
+    }
+
+    pub(crate) fn new_buffered(buffered: Bytes, io: I) -> Conn<I, B, T> {
         Conn {
-            io: Buffered::new(io),
+            io: Buffered::new_buffered(buffered, io),
             state: State {
                 allow_half_close: false,
                 cached_headers: None,

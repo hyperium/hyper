@@ -425,7 +425,27 @@ impl Builder {
         <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: Read + Write + Unpin,
     {
-        let mut conn = proto::Conn::new(io);
+        self.serve_buffered_connection(Bytes::new(), io, service)
+    }
+
+    /// Bind a connection together with a [`Service`](crate::service::Service)
+    /// with a prebuffered chunk of bytes.
+    ///
+    /// See [`Self::serve_connection`]  for more info.
+    pub fn serve_buffered_connection<I, S>(
+        &self,
+        buffered: Bytes,
+        io: I,
+        service: S,
+    ) -> Connection<I, S>
+    where
+        S: HttpService<IncomingBody>,
+        S::Error: Into<Box<dyn StdError + Send + Sync>>,
+        S::ResBody: 'static,
+        <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
+        I: Read + Write + Unpin,
+    {
+        let mut conn = proto::Conn::new_buffered(buffered, io);
         conn.set_timer(self.timer.clone());
         if !self.h1_keep_alive {
             conn.disable_keep_alive();
