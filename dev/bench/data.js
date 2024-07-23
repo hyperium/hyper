@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1721068057511,
+  "lastUpdate": 1721741130076,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8279,6 +8279,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45858,
             "range": "± 7310.45",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@yinheli.com",
+            "name": "yinheli",
+            "username": "yinheli"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "15cd6fa1fc52f88b58283a673c134a97bea275d3",
+          "message": "docs(service): add note about error handling in Service trait (#3659) (#3712)\n\nThe Service trait now includes a note about the behavior of returning an Error to a hyper server, which can cause the connection to be abruptly aborted depending on the protocol. This information is important for developers working with hyper servers.",
+          "timestamp": "2024-07-23T09:24:41-04:00",
+          "tree_id": "715b6476dbc3e6cec53a59c09b82bced0b85b4fd",
+          "url": "https://github.com/hyperium/hyper/commit/15cd6fa1fc52f88b58283a673c134a97bea275d3"
+        },
+        "date": 1721741127914,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45177,
+            "range": "± 9191.24",
             "unit": "ns/iter"
           }
         ]
