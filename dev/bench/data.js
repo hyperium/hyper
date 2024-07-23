@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1721741130076,
+  "lastUpdate": 1721741184239,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -44221,6 +44221,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5040409,
             "range": "± 111704.96",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me@yinheli.com",
+            "name": "yinheli",
+            "username": "yinheli"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "15cd6fa1fc52f88b58283a673c134a97bea275d3",
+          "message": "docs(service): add note about error handling in Service trait (#3659) (#3712)\n\nThe Service trait now includes a note about the behavior of returning an Error to a hyper server, which can cause the connection to be abruptly aborted depending on the protocol. This information is important for developers working with hyper servers.",
+          "timestamp": "2024-07-23T09:24:41-04:00",
+          "tree_id": "715b6476dbc3e6cec53a59c09b82bced0b85b4fd",
+          "url": "https://github.com/hyperium/hyper/commit/15cd6fa1fc52f88b58283a673c134a97bea275d3"
+        },
+        "date": 1721741181457,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68636,
+            "range": "± 4372.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4341459,
+            "range": "± 646410.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21507,
+            "range": "± 451.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23528,
+            "range": "± 672.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 32804,
+            "range": "± 987.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 98076,
+            "range": "± 3614.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37020,
+            "range": "± 2924.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 91994,
+            "range": "± 3654.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24001420,
+            "range": "± 33787679.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7723326,
+            "range": "± 118620.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7501705,
+            "range": "± 319742.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49253856,
+            "range": "± 747164.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49204812,
+            "range": "± 783615.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4998444,
+            "range": "± 143459.37",
             "unit": "ns/iter"
           }
         ]
