@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1722431237493,
+  "lastUpdate": 1722431294616,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -44497,6 +44497,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5053848,
             "range": "± 282467.77",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "yhx12243@gmail.com",
+            "name": "yhx-12243",
+            "username": "yhx-12243"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7de02373f5e4ce392587a4d9d7710c6faf9c6165",
+          "message": "fix(http1): make `date_header` effective (#3718)\n\nBefore this patch, the option was not fully propagated to the inner server conn state object. Now it is.",
+          "timestamp": "2024-07-31T09:06:27-04:00",
+          "tree_id": "fb0f12715562e7178fee12699343f9679f1b68bb",
+          "url": "https://github.com/hyperium/hyper/commit/7de02373f5e4ce392587a4d9d7710c6faf9c6165"
+        },
+        "date": 1722431292460,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68648,
+            "range": "± 2097.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3981016,
+            "range": "± 409668.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21751,
+            "range": "± 641.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23941,
+            "range": "± 1697.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 32755,
+            "range": "± 770.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 103143,
+            "range": "± 6066.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37374,
+            "range": "± 1212.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 91599,
+            "range": "± 2131.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24841020,
+            "range": "± 34284522.20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 25511130,
+            "range": "± 17603009.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7853357,
+            "range": "± 103986.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48789961,
+            "range": "± 568275.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 48768639,
+            "range": "± 1279766.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4822088,
+            "range": "± 318808.58",
             "unit": "ns/iter"
           }
         ]
