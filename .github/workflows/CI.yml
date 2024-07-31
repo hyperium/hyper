@@ -115,6 +115,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Pin some dependencies
+        run: |
+          cargo update -p tokio --precise 1.38.1
+
       - name: Check
         run: cargo check --features full
 
