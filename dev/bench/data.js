@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1722430484302,
+  "lastUpdate": 1722431237493,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8339,6 +8339,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47699,
             "range": "± 8865.31",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "yhx12243@gmail.com",
+            "name": "yhx-12243",
+            "username": "yhx-12243"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7de02373f5e4ce392587a4d9d7710c6faf9c6165",
+          "message": "fix(http1): make `date_header` effective (#3718)\n\nBefore this patch, the option was not fully propagated to the inner server conn state object. Now it is.",
+          "timestamp": "2024-07-31T09:06:27-04:00",
+          "tree_id": "fb0f12715562e7178fee12699343f9679f1b68bb",
+          "url": "https://github.com/hyperium/hyper/commit/7de02373f5e4ce392587a4d9d7710c6faf9c6165"
+        },
+        "date": 1722431235406,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47415,
+            "range": "± 8865.03",
             "unit": "ns/iter"
           }
         ]
