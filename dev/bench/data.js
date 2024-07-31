@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1721741184239,
+  "lastUpdate": 1722430428752,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8309,6 +8309,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45177,
             "range": "± 9191.24",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2babc931135b6b463c58d0e93374df358ae80888",
+          "message": "chore(ci): pin tokio in msrv job (#3719)",
+          "timestamp": "2024-07-31T12:52:54Z",
+          "tree_id": "4ea5bd22121060a9007f53105c10fc01ed3b5eaa",
+          "url": "https://github.com/hyperium/hyper/commit/2babc931135b6b463c58d0e93374df358ae80888"
+        },
+        "date": 1722430426695,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47699,
+            "range": "± 8865.31",
             "unit": "ns/iter"
           }
         ]
