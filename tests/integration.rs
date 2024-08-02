@@ -61,6 +61,30 @@ t! {
             ;
 }
 
+// Test that clients get responses when the server sends a response with
+// headers that are too large by just a bit.
+t! {
+    long_header_response,
+    client:
+        request:
+            ;
+        response:
+            status: 500,
+            headers: {
+            },
+            ;
+    server:
+        request:
+            ;
+        response:
+            status: 500,
+            headers: {
+                // Just above DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE.
+                "error" => ("a".repeat(16 << 10 + 1)),
+            },
+            ;
+}
+
 t! {
     get_body,
     client:
