@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1722431294616,
+  "lastUpdate": 1722717666407,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8369,6 +8369,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47415,
             "range": "± 8865.03",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "60e50884406af8626eb6a54602e2e23bc5a14b42",
+          "message": "chore(ci): update to taiki-e/cache-cargo-install-action@v2 (#3726)",
+          "timestamp": "2024-08-03T13:40:18-07:00",
+          "tree_id": "0332db02c321b27a5d40ddb300006fee4fa6f58d",
+          "url": "https://github.com/hyperium/hyper/commit/60e50884406af8626eb6a54602e2e23bc5a14b42"
+        },
+        "date": 1722717664431,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44986,
+            "range": "± 9130.86",
             "unit": "ns/iter"
           }
         ]
