@@ -1208,6 +1208,12 @@ async fn disable_keep_alive_mid_request() {
             "should receive OK response, but buf: {:?}",
             buf,
         );
+        let sbuf = s(&buf);
+        assert!(
+            sbuf.contains("connection: close\r\n"),
+            "response should have sent close: {:?}",
+            sbuf,
+        );
     });
 
     let (socket, _) = listener.accept().await.unwrap();
