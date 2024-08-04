@@ -1600,7 +1600,7 @@ Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
 * **client:**
   * check for dead connections in Pool ([44af2738](https://github.com/hyperium/hyper/commit/44af273853f82b81591b813d13627e143a14a6b7), closes [#1429](https://github.com/hyperium/hyper/issues/1429))
-  * error on unsupport 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
+  * error on unsupported 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
 * **server:**
   * send 400 responses on parse errors before closing connection ([7cb72d20](https://github.com/hyperium/hyper/commit/7cb72d2019bffbc667b9ad2d8cbc19c1a513fcf7))
   * error if Response code is 1xx ([44c34ce9](https://github.com/hyperium/hyper/commit/44c34ce9adc888916bd67656cc54c35f7908f536))
@@ -1955,7 +1955,7 @@ Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
  ([e04bcc12](https://github.com/hyperium/hyper/commit/e04bcc12a7e081f75482cdca1e4f4c4f597ad2ce))
 * The `Preference` header had a typo in a variant and it's string representation,
-  change `Preference::HandlingLeniant` to `Preference::HandlingLenient`.
+  change `Preference::HandlingLenient` to `Preference::HandlingLenient`.
  ([2fa414fb](https://github.com/hyperium/hyper/commit/2fa414fb5fe6dbc922da25cca9960652edf32591))
 * `Server` is no longer the primary entry point. Instead,
   an `Http` type is created  and then either `bind` to receive a `Server`,

@@ -18,7 +18,7 @@ pub(crate) type Promise<T> = oneshot::Receiver<Result<T, crate::Error>>;
 
 /// An error when calling `try_send_request`.
 ///
-/// There is a possibility of an error occuring on a connection in-between the
+/// There is a possibility of an error occurring on a connection in-between the
 /// time that a request is queued and when it is actually written to the IO
 /// transport. If that happens, it is safe to return the request back to the
 /// caller, as it was never fully sent.
