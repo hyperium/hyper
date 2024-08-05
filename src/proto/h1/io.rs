@@ -55,7 +55,12 @@ where
     T: Read + Write + Unpin,
     B: Buf,
 {
+    #[cfg(test)]
     pub(crate) fn new(io: T) -> Buffered<T, B> {
+        Self::new_buffered(Bytes::new(), io)
+    }
+
+    pub(crate) fn new_buffered(buffered: Bytes, io: T) -> Buffered<T, B> {
         let strategy = if io.is_write_vectored() {
             WriteStrategy::Queue
         } else {
@@ -66,7 +71,9 @@ where
             flush_pipeline: false,
             io,
             read_blocked: false,
-            read_buf: BytesMut::with_capacity(0),
+            // FIXME: This should use `From<Bytes>` which has not been released yet.
+            // https://github.com/tokio-rs/bytes/commit/fa1daac3ae1dcb07dffe3a41a041dffd6edf177b
+            read_buf: BytesMut::from(&*buffered),
             read_buf_strategy: ReadStrategy::default(),
             write_buf,
         }
