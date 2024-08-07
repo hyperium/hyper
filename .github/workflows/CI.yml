@@ -115,6 +115,10 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
+      - name: Pin some dependencies
+        run: |
+          cargo update -p tokio --precise 1.38.1
+
       - name: Check
         run: cargo check --features full
 
@@ -201,12 +205,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cbindgen
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cbindgen
 
       - name: Install cargo-expand
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-expand
 
@@ -250,7 +254,7 @@ jobs:
           toolchain: nightly-2024-05-01  # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-check-external-types@0.1.12
 

@@ -459,6 +459,9 @@ impl Builder {
         if let Some(max) = self.max_buf_size {
             conn.set_max_buf_size(max);
         }
+        if !self.date_header {
+            conn.disable_date_header();
+        }
         let sd = proto::h1::dispatch::Server::new(service);
         let proto = proto::h1::Dispatcher::new(sd, conn);
         Connection { conn: proto }
