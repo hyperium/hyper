@@ -45,6 +45,16 @@ pub struct Builder<E> {
     h2_builder: proto::h2::server::Config,
 }
 
+/// Connection graceful shutdown flags.
+#[derive(PartialEq, Debug)]
+pub enum GracefulShutdownFlags
+{
+    /// default value
+    None,
+    /// do not close the connection on handshaking state
+    IgnoreHandshaking,
+}
+
 // ===== impl Connection =====
 
 impl<I, S, E> fmt::Debug for Connection<I, S, E>
@@ -77,6 +87,21 @@ where
     /// nothing.
     pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
         self.conn.graceful_shutdown();
+    }
+
+    /// Start a graceful shutdown process for this connection.
+    ///
+    /// Supports GracefulShutdownFlags as input parameters.
+    /// This `Connection` should continue to be polled until shutdown
+    /// can finish.
+    ///
+    /// # Note
+    ///
+    /// This should only be called while the `Connection` future is still
+    /// pending. If called after `Connection::poll` has resolved, this does
+    /// nothing.
+    pub fn graceful_shutdown_v2(mut self: Pin<&mut Self>, flags: GracefulShutdownFlags) {
+        self.conn.graceful_shutdown_v2(flags);
     }
 }
 
