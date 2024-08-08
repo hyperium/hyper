@@ -27,6 +27,8 @@ use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
 use crate::Response;
+use crate::server::conn::http2::GracefulShutdownFlags;
+
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -176,10 +178,17 @@ where
     }
 
     pub(crate) fn graceful_shutdown(&mut self) {
+        self.graceful_shutdown_v2(crate::server::conn::http2::GracefulShutdownFlags::None)
+    }
+
+    pub(crate) fn graceful_shutdown_v2(&mut self, flags: GracefulShutdownFlags) {
         trace!("graceful_shutdown");
         match self.state {
             State::Handshaking { .. } => {
-                // fall-through, to replace state with Closed
+		if GracefulShutdownFlags::IgnoreHandshaking == flags {
+                   return;
+                }
+		// fall-through, to replace state with Closed
             }
             State::Serving(ref mut srv) => {
                 if srv.closing.is_none() {
