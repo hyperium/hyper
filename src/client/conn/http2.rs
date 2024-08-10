@@ -355,7 +355,7 @@ where
         self
     }
 
-        /// Sets the header table size.
+    /// Sets the header table size.
     ///
     /// This setting informs the peer of the maximum size of the header compression
     /// table used to encode header blocks, in octets. The encoder may select any value
