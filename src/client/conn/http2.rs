@@ -341,9 +341,7 @@ where
     ///
     /// If not set, hyper will use a default.
     pub fn max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
-        if let Some(sz) = sz.into() {
-            self.h2_builder.max_frame_size = sz;
-        }
+        self.h2_builder.max_frame_size = sz.into();
         self
     }
 
