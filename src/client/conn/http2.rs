@@ -409,7 +409,6 @@ where
         self
     }
 
-
     /// Sets an interval for HTTP2 Ping frames should be sent to keep a
     /// connection alive.
     ///
