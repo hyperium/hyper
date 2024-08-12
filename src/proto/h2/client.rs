@@ -736,6 +736,9 @@ where
                 }
 
                 Poll::Pending => match ready!(Pin::new(&mut self.conn_eof).poll(cx)) {
+                    // As of Rust 1.82, this pattern is no longer needed, and emits a waring.
+                    // But we cannot remove it as long as MSRV is less than that.
+                    #[allow(unused)]
                     Ok(never) => match never {},
                     Err(_conn_is_eof) => {
                         trace!("connection task is closed, closing dispatch task");
