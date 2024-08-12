@@ -97,7 +97,7 @@ impl Default for Config {
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_pending_accept_reset_streams: None,
             header_table_size: None,
-            enable_push: true,
+            enable_push: false,
             max_concurrent_streams: None,
         }
     }
