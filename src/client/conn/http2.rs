@@ -376,8 +376,8 @@ where
     /// connection by sending another settings frame updating the value.
     ///
     /// Default value of crate `h2`: `false`.
-    pub fn enable_push(&mut self, enabled: bool) -> &mut Self {
-        self.h2_builder.enable_push = enabled;
+    pub fn enable_push(&mut self, enabled: impl Into<Option<bool>>) -> &mut Self {
+        self.h2_builder.enable_push = enabled.into();
         self
     }
 
