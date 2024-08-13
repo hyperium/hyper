@@ -77,7 +77,6 @@ pub(crate) struct Config {
     pub(crate) max_send_buffer_size: usize,
     pub(crate) max_pending_accept_reset_streams: Option<usize>,
     pub(crate) header_table_size: Option<u32>,
-    pub(crate) enable_push: Option<bool>,
     pub(crate) max_concurrent_streams: Option<u32>,
 }
 
@@ -97,7 +96,6 @@ impl Default for Config {
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_pending_accept_reset_streams: None,
             header_table_size: None,
-            enable_push: Some(false),
             max_concurrent_streams: None,
         }
     }
@@ -110,10 +108,8 @@ fn new_builder(config: &Config) -> Builder {
         .initial_window_size(config.initial_stream_window_size)
         .initial_connection_window_size(config.initial_conn_window_size)
         .max_header_list_size(config.max_header_list_size)
-        .max_send_buffer_size(config.max_send_buffer_size);
-    if let Some(enabled) = config.enable_push {
-        builder.enable_push(enabled);
-    }
+        .max_send_buffer_size(config.max_send_buffer_size)
+        .enable_push(false);
     if let Some(max) = config.max_frame_size {
         builder.max_frame_size(max);
     }

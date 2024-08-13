@@ -363,22 +363,6 @@ where
         self
     }
 
-    /// Enables or disables server push promises.
-    ///
-    /// This value is included in the initial SETTINGS handshake.
-    /// Setting this value to value to
-    /// false in the initial SETTINGS handshake guarantees that the remote server
-    /// will never send a push promise.
-    ///
-    /// This setting can be changed during the life of a single HTTP/2
-    /// connection by sending another settings frame updating the value.
-    ///
-    /// If not set, hyper will use a default.
-    pub fn enable_push(&mut self, enabled: impl Into<Option<bool>>) -> &mut Self {
-        self.h2_builder.enable_push = enabled.into();
-        self
-    }
-
     /// Sets the maximum number of concurrent streams.
     ///
     /// The maximum concurrent streams setting only controls the maximum number
