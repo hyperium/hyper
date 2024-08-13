@@ -337,9 +337,7 @@ where
 
     /// Sets the maximum frame size to use for HTTP2.
     ///
-    /// Passing `None` will do nothing.
-    ///
-    /// If not set, hyper will use a default.
+    /// Default is currently 16KB, but can change.
     pub fn max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
         self.h2_builder.max_frame_size = sz.into();
         self
@@ -375,7 +373,7 @@ where
     /// This setting can be changed during the life of a single HTTP/2
     /// connection by sending another settings frame updating the value.
     ///
-    /// Default value of crate `h2`: `false`.
+    /// If not set, hyper will use a default.
     pub fn enable_push(&mut self, enabled: impl Into<Option<bool>>) -> &mut Self {
         self.h2_builder.enable_push = enabled.into();
         self
