@@ -1,7 +1,6 @@
 #![deny(warnings)]
 #![deny(rust_2018_idioms)]
 
-use std::convert::TryInto;
 use std::future::Future;
 use std::io::{self, Read, Write};
 use std::net::TcpListener as StdTcpListener;
@@ -567,6 +566,29 @@ fn post_with_incomplete_body() {
     )
     .expect("write");
     req.shutdown(Shutdown::Write).expect("shutdown write");
+
+    server.body_err();
+
+    req.read(&mut [0; 256]).expect("read");
+}
+
+#[test]
+fn post_with_chunked_missing_final_digit() {
+    let _ = pretty_env_logger::try_init();
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        1\r\n\
+        Z\r\n\
+        \r\n\r\n\
+    ",
+    )
+    .expect("write");
 
     server.body_err();
 
@@ -1258,6 +1280,67 @@ async fn disable_keep_alive_post_request() {
 }
 
 #[tokio::test]
+async fn http1_graceful_shutdown_after_upgrade() {
+    let (listener, addr) = setup_tcp_listener();
+    let (read_101_tx, read_101_rx) = oneshot::channel();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            Upgrade: foobar\r\n\
+            Connection: upgrade\r\n\
+            \r\n\
+            eagerly optimistic\
+        ",
+        )
+        .expect("write 1");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let response = s(&buf);
+        assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
+        assert!(!has_header(&response, "content-length"));
+        let _ = read_101_tx.send(());
+    });
+
+    let (upgrades_tx, upgrades_rx) = mpsc::channel();
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+        let _ = upgrades_tx.send(on_upgrade);
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(101)
+                .header("upgrade", "foobar")
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+
+    let mut conn = http1::Builder::new()
+        .serve_connection(socket, svc)
+        .with_upgrades();
+    (&mut conn).await.unwrap();
+
+    let on_upgrade = upgrades_rx.recv().unwrap();
+
+    // wait so that we don't write until other side saw 101 response
+    read_101_rx.await.unwrap();
+
+    let upgraded = on_upgrade.await.expect("on_upgrade");
+    let parts = upgraded.downcast::<TokioIo<TkTcpStream>>().unwrap();
+    assert_eq!(parts.read_buf, "eagerly optimistic");
+
+    pin!(conn);
+    // graceful shutdown doesn't cause issues or panic. It should be ignored after upgrade
+    conn.as_mut().graceful_shutdown();
+}
+
+#[tokio::test]
 async fn empty_parse_eof_does_not_return_error() {
     let (listener, addr) = setup_tcp_listener();
     thread::spawn(move || {
@@ -1446,6 +1529,27 @@ async fn header_read_timeout_slow_writes() {
             }),
         );
     conn.without_shutdown().await.expect_err("header timeout");
+}
+
+#[tokio::test]
+async fn header_read_timeout_starts_immediately() {
+    let (listener, addr) = setup_tcp_listener();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        thread::sleep(Duration::from_secs(3));
+        let mut buf = [0u8; 256];
+        let n = tcp.read(&mut buf).expect("read 1");
+        assert_eq!(n, 0); //eof
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http1::Builder::new()
+        .timer(TokioTimer)
+        .header_read_timeout(Duration::from_secs(2))
+        .serve_connection(socket, unreachable_service());
+    conn.await.expect_err("header timeout");
 }
 
 #[tokio::test]
@@ -2469,6 +2573,7 @@ async fn http2_keep_alive_detects_unresponsive_client() {
         .timer(TokioTimer)
         .keep_alive_interval(Duration::from_secs(1))
         .keep_alive_timeout(Duration::from_secs(1))
+        .auto_date_header(true)
         .serve_connection(socket, unreachable_service())
         .await
         .expect_err("serve_connection should error");
@@ -2507,6 +2612,42 @@ async fn http2_keep_alive_with_responsive_client() {
 
     let req = http::Request::new(Empty::<Bytes>::new());
     client.send_request(req).await.expect("client.send_request");
+}
+
+#[tokio::test]
+async fn http2_check_date_header_disabled() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
+
+        http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .keep_alive_interval(Duration::from_secs(1))
+            .auto_date_header(false)
+            .keep_alive_timeout(Duration::from_secs(1))
+            .serve_connection(socket, HelloWorld)
+            .await
+            .expect("serve_connection");
+    });
+
+    let tcp = TokioIo::new(connect_async(addr).await);
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
+        .handshake(tcp)
+        .await
+        .expect("http handshake");
+
+    tokio::spawn(async move {
+        conn.await.expect("client conn");
+    });
+
+    TokioTimer.sleep(Duration::from_secs(4)).await;
+
+    let req = http::Request::new(Empty::<Bytes>::new());
+    let resp = client.send_request(req).await.expect("client.send_request");
+
+    assert!(resp.headers().get("Date").is_none());
 }
 
 fn is_ping_frame(buf: &[u8]) -> bool {
@@ -2596,7 +2737,7 @@ async fn http2_keep_alive_count_server_pings() {
 }
 
 #[test]
-fn http1_trailer_fields() {
+fn http1_trailer_send_fields() {
     let body = futures_util::stream::once(async move { Ok("hello".into()) });
     let mut headers = HeaderMap::new();
     headers.insert("chunky-trailer", "header data".parse().unwrap());
@@ -2683,6 +2824,35 @@ fn http1_trailer_fields_not_allowed() {
     assert_eq!(body, expected_body);
 }
 
+#[test]
+fn http1_trailer_recv_fields() {
+    let server = serve();
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        trailer: chunky-trailer\r\n\
+        host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        5\r\n\
+        hello\r\n\
+        0\r\n\
+        chunky-trailer: header data\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    assert_eq!(server.body(), b"hello");
+
+    let trailers = server.trailers();
+    assert_eq!(
+        trailers.get("chunky-trailer"),
+        Some(&"header data".parse().unwrap())
+    );
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
@@ -2690,6 +2860,7 @@ fn http1_trailer_fields_not_allowed() {
 struct Serve {
     addr: SocketAddr,
     msg_rx: mpsc::Receiver<Msg>,
+    trailers_rx: mpsc::Receiver<HeaderMap>,
     reply_tx: Mutex<spmc::Sender<Reply>>,
     shutdown_signal: Option<oneshot::Sender<()>>,
     thread: Option<thread::JoinHandle<()>>,
@@ -2721,6 +2892,10 @@ impl Serve {
             }
         }
         Ok(buf)
+    }
+
+    fn trailers(&self) -> HeaderMap {
+        self.trailers_rx.recv().expect("trailers")
     }
 
     fn reply(&self) -> ReplyBuilder<'_> {
@@ -2836,6 +3011,7 @@ impl Drop for Serve {
 #[derive(Clone)]
 struct TestService {
     tx: mpsc::Sender<Msg>,
+    trailers_tx: mpsc::Sender<HeaderMap>,
     reply: spmc::Receiver<Reply>,
 }
 
@@ -2866,6 +3042,7 @@ impl Service<Request<IncomingBody>> for TestService {
 
     fn call(&self, mut req: Request<IncomingBody>) -> Self::Future {
         let tx = self.tx.clone();
+        let trailers_tx = self.trailers_tx.clone();
         let replies = self.reply.clone();
 
         Box::pin(async move {
@@ -2875,6 +3052,9 @@ impl Service<Request<IncomingBody>> for TestService {
                         if frame.is_data() {
                             tx.send(Msg::Chunk(frame.into_data().unwrap().to_vec()))
                                 .unwrap();
+                        } else if frame.is_trailers() {
+                            let trailers = frame.into_trailers().unwrap();
+                            trailers_tx.send(trailers).unwrap();
                         }
                     }
                     Err(err) => {
@@ -3003,6 +3183,7 @@ impl ServeOptions {
 
         let (addr_tx, addr_rx) = mpsc::channel();
         let (msg_tx, msg_rx) = mpsc::channel();
+        let (trailers_tx, trailers_rx) = mpsc::channel();
         let (reply_tx, reply_rx) = spmc::channel();
         let (shutdown_tx, mut shutdown_rx) = oneshot::channel();
 
@@ -3026,6 +3207,7 @@ impl ServeOptions {
 
                     loop {
                         let msg_tx = msg_tx.clone();
+                        let trailers_tx = trailers_tx.clone();
                         let reply_rx = reply_rx.clone();
 
                         tokio::select! {
@@ -3038,6 +3220,7 @@ impl ServeOptions {
                                     let reply_rx = reply_rx.clone();
                                     let service = TestService {
                                         tx: msg_tx,
+                                        trailers_tx,
                                         reply: reply_rx,
                                     };
 
@@ -3065,6 +3248,7 @@ impl ServeOptions {
 
         Serve {
             msg_rx,
+            trailers_rx,
             reply_tx: Mutex::new(reply_tx),
             addr,
             shutdown_signal: Some(shutdown_tx),

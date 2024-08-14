@@ -1,10 +1,6 @@
 use std::cmp;
 use std::fmt;
-#[cfg(feature = "server")]
-use std::future::Future;
 use std::io::{self, IoSlice};
-use std::marker::Unpin;
-use std::mem::MaybeUninit;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -184,14 +180,7 @@ where
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
-                    #[cfg(feature = "server")]
-                    h1_header_read_timeout: parse_ctx.h1_header_read_timeout,
-                    #[cfg(feature = "server")]
-                    h1_header_read_timeout_fut: parse_ctx.h1_header_read_timeout_fut,
-                    #[cfg(feature = "server")]
-                    h1_header_read_timeout_running: parse_ctx.h1_header_read_timeout_running,
-                    #[cfg(feature = "server")]
-                    timer: parse_ctx.timer.clone(),
+                    h1_max_headers: parse_ctx.h1_max_headers,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
@@ -202,12 +191,6 @@ where
             )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
-
-                    #[cfg(feature = "server")]
-                    {
-                        *parse_ctx.h1_header_read_timeout_running = false;
-                        parse_ctx.h1_header_read_timeout_fut.take();
-                    }
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
@@ -215,20 +198,6 @@ where
                     if self.read_buf.len() >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
-                    }
-
-                    #[cfg(feature = "server")]
-                    if *parse_ctx.h1_header_read_timeout_running {
-                        if let Some(h1_header_read_timeout_fut) =
-                            parse_ctx.h1_header_read_timeout_fut
-                        {
-                            if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
-                                *parse_ctx.h1_header_read_timeout_running = false;
-
-                                warn!("read header from client timeout");
-                                return Poll::Ready(Err(crate::Error::new_header_timeout()));
-                            }
-                        }
                     }
                 }
             }
@@ -246,8 +215,9 @@ where
             self.read_buf.reserve(next);
         }
 
-        let dst = self.read_buf.chunk_mut();
-        let dst = unsafe { &mut *(dst as *mut _ as *mut [MaybeUninit<u8>]) };
+        // SAFETY: ReadBuf and poll_read promise not to set any uninitialized
+        // bytes onto `dst`.
+        let dst = unsafe { self.read_buf.chunk_mut().as_uninit_slice_mut() };
         let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, buf.unfilled()) {
             Poll::Ready(Ok(_)) => {
@@ -450,7 +420,7 @@ fn prev_power_of_two(n: usize) -> usize {
     // Only way this shift can underflow is if n is less than 4.
     // (Which would means `usize::MAX >> 64` and underflowed!)
     debug_assert!(n >= 4);
-    (::std::usize::MAX >> (n.leading_zeros() + 2)) + 1
+    (usize::MAX >> (n.leading_zeros() + 2)) + 1
 }
 
 impl Default for ReadStrategy {
@@ -660,10 +630,8 @@ enum WriteStrategy {
 
 #[cfg(test)]
 mod tests {
-    use crate::common::io::Compat;
-    use crate::common::time::Time;
-
     use super::*;
+    use crate::common::io::Compat;
     use std::time::Duration;
 
     use tokio_test::io::Builder as Mock;
@@ -725,10 +693,7 @@ mod tests {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
-                h1_header_read_timeout: None,
-                h1_header_read_timeout_fut: &mut None,
-                h1_header_read_timeout_running: &mut false,
-                timer: Time::Empty,
+                h1_max_headers: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -762,7 +727,7 @@ mod tests {
         assert_eq!(strategy.next(), 32768);
 
         // Enormous records still increment at same rate
-        strategy.record(::std::usize::MAX);
+        strategy.record(usize::MAX);
         assert_eq!(strategy.next(), 65536);
 
         let max = strategy.max();
@@ -832,7 +797,7 @@ mod tests {
         fn fuzz(max: usize) {
             let mut strategy = ReadStrategy::with_max(max);
             while strategy.next() < max {
-                strategy.record(::std::usize::MAX);
+                strategy.record(usize::MAX);
             }
             let mut next = strategy.next();
             while next > 8192 {
@@ -853,7 +818,7 @@ mod tests {
             fuzz(max);
             max = (max / 2).saturating_mul(3);
         }
-        fuzz(::std::usize::MAX);
+        fuzz(usize::MAX);
     }
 
     #[test]

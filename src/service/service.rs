@@ -22,6 +22,11 @@ pub trait Service<Request> {
     type Response;
 
     /// Errors produced by the service.
+    ///
+    /// Note: Returning an `Error` to a hyper server, the behavior depends on the
+    /// protocol. In most cases, hyper will cause the connection to be abruptly aborted.
+    /// It will abort the request however the protocol allows, either with some sort of RST_STREAM,
+    /// or killing the connection if that doesn't exist.
     type Error;
 
     /// The future response value.
@@ -37,4 +42,59 @@ pub trait Service<Request> {
     ///   That means you're not really using the `&mut self` and could do with a `&self`.
     /// The discussion on this is here: <https://github.com/hyperium/hyper/issues/3040>
     fn call(&self, req: Request) -> Self::Future;
+}
+
+impl<Request, S: Service<Request> + ?Sized> Service<Request> for &'_ S {
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    #[inline]
+    fn call(&self, req: Request) -> Self::Future {
+        (**self).call(req)
+    }
+}
+
+impl<Request, S: Service<Request> + ?Sized> Service<Request> for &'_ mut S {
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    #[inline]
+    fn call(&self, req: Request) -> Self::Future {
+        (**self).call(req)
+    }
+}
+
+impl<Request, S: Service<Request> + ?Sized> Service<Request> for Box<S> {
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    #[inline]
+    fn call(&self, req: Request) -> Self::Future {
+        (**self).call(req)
+    }
+}
+
+impl<Request, S: Service<Request> + ?Sized> Service<Request> for std::rc::Rc<S> {
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    #[inline]
+    fn call(&self, req: Request) -> Self::Future {
+        (**self).call(req)
+    }
+}
+
+impl<Request, S: Service<Request> + ?Sized> Service<Request> for std::sync::Arc<S> {
+    type Response = S::Response;
+    type Error = S::Error;
+    type Future = S::Future;
+
+    #[inline]
+    fn call(&self, req: Request) -> Self::Future {
+        (**self).call(req)
+    }
 }

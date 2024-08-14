@@ -49,7 +49,7 @@ async fn response_examples(
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") | (&Method::GET, "/index.html") => simple_file_send(INDEX).await,
         (&Method::GET, "/no_file.html") => {
-            // Test what happens when file cannot be be found
+            // Test what happens when file cannot be found
             simple_file_send("this_file_should_not_exist.html").await
         }
         _ => Ok(not_found()),

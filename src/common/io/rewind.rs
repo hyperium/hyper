@@ -1,4 +1,3 @@
-use std::marker::Unpin;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::{cmp, io};

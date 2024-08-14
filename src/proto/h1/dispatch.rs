@@ -13,6 +13,8 @@ use http::Request;
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
+#[cfg(feature = "client")]
+use crate::client::dispatch::TrySendError;
 use crate::common::task;
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
@@ -107,10 +109,10 @@ where
     ///
     /// This is useful for old-style HTTP upgrades, but ignores
     /// newer-style upgrade API.
-    pub(crate) fn poll_without_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>>
-    where
-        Self: Unpin,
-    {
+    pub(crate) fn poll_without_shutdown(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<crate::Result<()>> {
         Pin::new(self).poll_catch(cx, false).map_ok(|ds| {
             if let Dispatched::Upgrade(pending) = ds {
                 pending.manual();
@@ -213,17 +215,39 @@ where
                         }
                     }
                     match self.conn.poll_read_body(cx) {
-                        Poll::Ready(Some(Ok(chunk))) => match body.try_send_data(chunk) {
-                            Ok(()) => {
-                                self.body_tx = Some(body);
-                            }
-                            Err(_canceled) => {
-                                if self.conn.can_read_body() {
-                                    trace!("body receiver dropped before eof, closing");
-                                    self.conn.close_read();
+                        Poll::Ready(Some(Ok(frame))) => {
+                            if frame.is_data() {
+                                let chunk = frame.into_data().unwrap_or_else(|_| unreachable!());
+                                match body.try_send_data(chunk) {
+                                    Ok(()) => {
+                                        self.body_tx = Some(body);
+                                    }
+                                    Err(_canceled) => {
+                                        if self.conn.can_read_body() {
+                                            trace!("body receiver dropped before eof, closing");
+                                            self.conn.close_read();
+                                        }
+                                    }
                                 }
+                            } else if frame.is_trailers() {
+                                let trailers =
+                                    frame.into_trailers().unwrap_or_else(|_| unreachable!());
+                                match body.try_send_trailers(trailers) {
+                                    Ok(()) => {
+                                        self.body_tx = Some(body);
+                                    }
+                                    Err(_canceled) => {
+                                        if self.conn.can_read_body() {
+                                            trace!("body receiver dropped before eof, closing");
+                                            self.conn.close_read();
+                                        }
+                                    }
+                                }
+                            } else {
+                                // we should have dropped all unknown frames in poll_read_body
+                                error!("unexpected frame");
                             }
-                        },
+                        }
                         Poll::Ready(None) => {
                             // just drop, the body will close automatically
                         }
@@ -633,7 +657,10 @@ cfg_client! {
                 }
                 Err(err) => {
                     if let Some(cb) = self.callback.take() {
-                        cb.send(Err((err, None)));
+                        cb.send(Err(TrySendError {
+                            error: err,
+                            message: None,
+                        }));
                         Ok(())
                     } else if !self.rx_closed {
                         self.rx.close();
@@ -641,7 +668,10 @@ cfg_client! {
                             trace!("canceling queued request with connection error: {}", err);
                             // in this case, the message was never even started, so it's safe to tell
                             // the user that the request was completely canceled
-                            cb.send(Err((crate::Error::new_canceled().with(err), Some(req))));
+                            cb.send(Err(TrySendError {
+                                error: crate::Error::new_canceled().with(err),
+                                message: Some(req),
+                            }));
                             Ok(())
                         } else {
                             Err(err)
@@ -707,9 +737,9 @@ mod tests {
             let err = tokio_test::assert_ready_ok!(Pin::new(&mut res_rx).poll(cx))
                 .expect_err("callback should send error");
 
-            match (err.0.kind(), err.1) {
-                (&crate::error::Kind::Canceled, Some(_)) => (),
-                other => panic!("expected Canceled, got {:?}", other),
+            match (err.error.is_canceled(), err.message.as_ref()) {
+                (true, Some(_)) => (),
+                _ => panic!("expected Canceled, got {:?}", err),
             }
         });
     }

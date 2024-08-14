@@ -1,3 +1,89 @@
+### v1.4.1 (2024-07-09)
+
+
+#### Bug Fixes
+
+* **http1:** reject final chunked if missing 0 ([8e5de1bb](https://github.com/hyperium/hyper/commit/8e5de1bb57e10b5bd9e70ab22489da787517238a))
+
+
+## v1.4.0 (2024-07-01)
+
+
+#### Bug Fixes
+
+* **http2:** stop removing "Trailer" header in HTTP/2 responses as per RFC 9110 (#3648) ([a3269f7a](https://github.com/hyperium/hyper/commit/a3269f7ab285dbeb44a3a7dbc163fcadd65087f9))
+* **server:** start header read timeout immediately (#3185) ([0eb1b6cf](https://github.com/hyperium/hyper/commit/0eb1b6cf4d914ce9c3f8e92a8b43754eba27a327))
+
+
+#### Features
+
+* **client:**
+  * add `SendRequest::try_send_request()` method (#3691) ([4ffaad53](https://github.com/hyperium/hyper/commit/4ffaad53c78572c500584e0cb5d76ae6ffc6adb6))
+  * remove `Send +Sync` bounds requirement of `http2::Connection` executor (#3682) ([56c3cd56](https://github.com/hyperium/hyper/commit/56c3cd560bc10671d3d8b638f3f17a304f920c6b))
+  * remove `'static` lifetime bound on http1/2 client IO (#3667) ([9580b357](https://github.com/hyperium/hyper/commit/9580b357635031f3d631303f3afffc2afae77933))
+* **http1:** add support for receiving trailer fields (#3637) ([ac84af6b](https://github.com/hyperium/hyper/commit/ac84af6b32a5d37d9343013ace088aaae47587b6), closes [#2703](https://github.com/hyperium/hyper/issues/2703))
+* **server:** add `Builder::auto_date_header(bool)` to allow disabling Date headers ([721785ef](https://github.com/hyperium/hyper/commit/721785efad8537513e48d900a85c05ce79483018))
+* **service:** implement Service for reference types (#3607) ([eade122d](https://github.com/hyperium/hyper/commit/eade122db25f51619aee5db845de2a61b7ff2f74))
+
+
+### v1.3.1 (2024-04-16)
+
+#### Bug Fixes
+
+* **client:** revert auto content-length header for some requests (#3633)
+
+
+## v1.3.0 (2024-04-15)
+
+
+#### Bug Fixes
+
+* **client:** send content-length even with no body ([172fdfaf](https://github.com/hyperium/hyper/commit/172fdfaf0e0d9222917f271a83339238082e2657))
+* **http2:**
+  * `max_header_list_size(num)` defaults to 16kb ([203d1b09](https://github.com/hyperium/hyper/commit/203d1b090d0d0349c7e373e881ac4ddba72129be))
+  * `initial_max_send_streams` defaults to 100 ([2d1bd708](https://github.com/hyperium/hyper/commit/2d1bd7085e37a55ed6393f0e3f1b9a0b06db4d5d))
+* **server:**
+  * avoid unwrapping for the `Future` impl of HTTP/1 `UpgradeableConnection` (#3627) ([b79be911](https://github.com/hyperium/hyper/commit/b79be911696f6a93e8d408080ebbf558b612ce3c), closes [#3621](https://github.com/hyperium/hyper/issues/3621))
+  * avoid  `graceful_shutdown` panic on upgraded H1 connection (#3616) ([6ecf8521](https://github.com/hyperium/hyper/commit/6ecf85218fb24531184c53d5ed0eb7caf13cdcef))
+
+
+#### Features
+
+* **client:**
+  * add `max_header_list_size(num)` to `http2::Builder`. ([1c5b1b87](https://github.com/hyperium/hyper/commit/1c5b1b87ae1497a702e30ea82a486fb61a3f8133))
+  * add `max_pending_accept_reset_streams` HTTP2 option (#3617) ([330ddf1d](https://github.com/hyperium/hyper/commit/330ddf1de1ca2841469d30d24143902e5ff06365))
+* **ext:** implement From ReasonPhrase for Bytes ([dc27043a](https://github.com/hyperium/hyper/commit/dc27043aa319c0e630b7385a36aca0f3bee70670))
+* **service:** expose Service and HttpService trait unconditionally ([6aee2e6e](https://github.com/hyperium/hyper/commit/6aee2e6e260e7d407256d6b7da6a0d90c1bb9c67))
+* **server:** relax `'static` from connection IO trait bounds  (#3595) ([0013bdda](https://github.com/hyperium/hyper/commit/0013bdda5cd34ed6fca089eceb0133395b7be041))
+
+
+## v1.2.0 (2024-02-21)
+
+
+#### Bug Fixes
+
+* **http2:** typo in trace logging (#3536) ([79862ec2](https://github.com/hyperium/hyper/commit/79862ec2e84c32122c820958ceec06d8b7701ff7))
+* **rt:** `Sleep::downcast_mut_pin()` no longer extend lifetime ([7206fe30](https://github.com/hyperium/hyper/commit/7206fe30302937075c51c16a69d1eb3bbce6a671), closes [#3556](https://github.com/hyperium/hyper/issues/3556))
+
+
+#### Features
+
+* **http1:** support configurable `max_headers(num)` to client and server (#3523) ([b1142448](https://github.com/hyperium/hyper/commit/b114244898828e9fb254bea1f0bbdd24850b2f3f))
+* **http2:**
+  * add config for `max_local_error_reset_streams` in server (#3530) ([d7680e30](https://github.com/hyperium/hyper/commit/d7680e30e48926a5a3f94a0986d39181d5ab2218))
+  * add `initial_max_send_streams` method to HTTP/2 client builder (#3524) ([fdfa60d9](https://github.com/hyperium/hyper/commit/fdfa60d9fafb8a6bfb40acc4042ee54a2b9aad32))
+  * add `max_pending_accept_reset_streams(num)` back to HTTP/2 server builder (#3507 ([a9fa893f](https://github.com/hyperium/hyper/commit/a9fa893f18c6409abae2e1dcbba0f4487df54d4f))
+
+
+#### Breaking Changes
+
+* The returned lifetime from `Sleep::downcast_mut_pin()`
+  is no longer `'static`. This shouldn't affect most usage. This sort of
+  breaking change is needed because it is _wrong_.
+
+ ([7206fe30](https://github.com/hyperium/hyper/commit/7206fe30302937075c51c16a69d1eb3bbce6a671))
+
+
 ## v1.1.0 (2023-12-18)
 
 

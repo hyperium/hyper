@@ -1,16 +1,19 @@
 use std::fmt;
+#[cfg(feature = "server")]
+use std::future::Future;
 use std::io;
 use std::marker::{PhantomData, Unpin};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 #[cfg(feature = "server")]
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use futures_util::ready;
 use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
+use http_body::Frame;
 use httparse::ParserConfig;
 
 use super::io::Buffered;
@@ -54,12 +57,15 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
+                h1_max_headers: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout_running: false,
+                #[cfg(feature = "server")]
+                date_header: true,
                 #[cfg(feature = "server")]
                 timer: Time::Empty,
                 preserve_header_case: false,
@@ -132,6 +138,10 @@ where
         self.state.h09_responses = true;
     }
 
+    pub(crate) fn set_http1_max_headers(&mut self, val: usize) {
+        self.state.h1_max_headers = Some(val);
+    }
+
     #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
@@ -140,6 +150,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn disable_date_header(&mut self) {
+        self.state.date_header = false;
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -201,31 +216,66 @@ where
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        let msg = match ready!(self.io.parse::<T>(
+        #[cfg(feature = "server")]
+        if !self.state.h1_header_read_timeout_running {
+            if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout {
+                let deadline = Instant::now() + h1_header_read_timeout;
+                self.state.h1_header_read_timeout_running = true;
+                match self.state.h1_header_read_timeout_fut {
+                    Some(ref mut h1_header_read_timeout_fut) => {
+                        trace!("resetting h1 header read timeout timer");
+                        self.state.timer.reset(h1_header_read_timeout_fut, deadline);
+                    }
+                    None => {
+                        trace!("setting h1 header read timeout timer");
+                        self.state.h1_header_read_timeout_fut =
+                            Some(self.state.timer.sleep_until(deadline));
+                    }
+                }
+            }
+        }
+
+        let msg = match self.io.parse::<T>(
             cx,
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
-                #[cfg(feature = "server")]
-                h1_header_read_timeout: self.state.h1_header_read_timeout,
-                #[cfg(feature = "server")]
-                h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
-                #[cfg(feature = "server")]
-                h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
-                #[cfg(feature = "server")]
-                timer: self.state.timer.clone(),
+                h1_max_headers: self.state.h1_max_headers,
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
+            },
+        ) {
+            Poll::Ready(Ok(msg)) => msg,
+            Poll::Ready(Err(e)) => return self.on_read_head_error(e),
+            Poll::Pending => {
+                #[cfg(feature = "server")]
+                if self.state.h1_header_read_timeout_running {
+                    if let Some(ref mut h1_header_read_timeout_fut) =
+                        self.state.h1_header_read_timeout_fut
+                    {
+                        if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
+                            self.state.h1_header_read_timeout_running = false;
+
+                            warn!("read header from client timeout");
+                            return Poll::Ready(Some(Err(crate::Error::new_header_timeout())));
+                        }
+                    }
+                }
+
+                return Poll::Pending;
             }
-        )) {
-            Ok(msg) => msg,
-            Err(e) => return self.on_read_head_error(e),
         };
+
+        #[cfg(feature = "server")]
+        {
+            self.state.h1_header_read_timeout_running = false;
+            self.state.h1_header_read_timeout_fut = None;
+        }
 
         // Note: don't deconstruct `msg` into local variables, it appears
         // the optimizer doesn't remove the extra copies.
@@ -260,18 +310,27 @@ where
                 self.try_keep_alive(cx);
             }
         } else if msg.expect_continue && msg.head.version.gt(&Version::HTTP_10) {
-            self.state.reading = Reading::Continue(Decoder::new(msg.decode));
+            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            self.state.reading = Reading::Continue(Decoder::new(
+                msg.decode,
+                self.state.h1_max_headers,
+                h1_max_header_size,
+            ));
             wants = wants.add(Wants::EXPECT);
         } else {
-            self.state.reading = Reading::Body(Decoder::new(msg.decode));
+            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            self.state.reading = Reading::Body(Decoder::new(
+                msg.decode,
+                self.state.h1_max_headers,
+                h1_max_header_size,
+            ));
         }
 
         self.state.allow_trailer_fields = msg
             .head
             .headers
             .get(TE)
-            .map(|te_header| te_header == "trailers")
-            .unwrap_or(false);
+            .map_or(false, |te_header| te_header == "trailers");
 
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }
@@ -305,33 +364,41 @@ where
     pub(crate) fn poll_read_body(
         &mut self,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<io::Result<Bytes>>> {
+    ) -> Poll<Option<io::Result<Frame<Bytes>>>> {
         debug_assert!(self.can_read_body());
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
                 match ready!(decoder.decode(cx, &mut self.io)) {
-                    Ok(slice) => {
-                        let (reading, chunk) = if decoder.is_eof() {
-                            debug!("incoming body completed");
-                            (
-                                Reading::KeepAlive,
-                                if !slice.is_empty() {
-                                    Some(Ok(slice))
-                                } else {
-                                    None
-                                },
-                            )
-                        } else if slice.is_empty() {
-                            error!("incoming body unexpectedly ended");
-                            // This should be unreachable, since all 3 decoders
-                            // either set eof=true or return an Err when reading
-                            // an empty slice...
-                            (Reading::Closed, None)
+                    Ok(frame) => {
+                        if frame.is_data() {
+                            let slice = frame.data_ref().unwrap_or_else(|| unreachable!());
+                            let (reading, maybe_frame) = if decoder.is_eof() {
+                                debug!("incoming body completed");
+                                (
+                                    Reading::KeepAlive,
+                                    if !slice.is_empty() {
+                                        Some(Ok(frame))
+                                    } else {
+                                        None
+                                    },
+                                )
+                            } else if slice.is_empty() {
+                                error!("incoming body unexpectedly ended");
+                                // This should be unreachable, since all 3 decoders
+                                // either set eof=true or return an Err when reading
+                                // an empty slice...
+                                (Reading::Closed, None)
+                            } else {
+                                return Poll::Ready(Some(Ok(frame)));
+                            };
+                            (reading, Poll::Ready(maybe_frame))
+                        } else if frame.is_trailers() {
+                            (Reading::Closed, Poll::Ready(Some(Ok(frame))))
                         } else {
-                            return Poll::Ready(Some(Ok(slice)));
-                        };
-                        (reading, Poll::Ready(chunk))
+                            trace!("discarding unknown frame");
+                            (Reading::Closed, Poll::Ready(None))
+                        }
                     }
                     Err(e) => {
                         debug!("incoming body decode error: {}", e);
@@ -559,6 +626,8 @@ where
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
+                #[cfg(feature = "server")]
+                date_header: self.state.date_header,
             },
             buf,
         ) {
@@ -588,8 +657,7 @@ where
         let outgoing_is_keep_alive = head
             .headers
             .get(CONNECTION)
-            .map(connection_keep_alive)
-            .unwrap_or(false);
+            .map_or(false, connection_keep_alive);
 
         if !outgoing_is_keep_alive {
             match head.version {
@@ -847,12 +915,15 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
+    h1_max_headers: Option<usize>,
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "server")]
     h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
     #[cfg(feature = "server")]
     h1_header_read_timeout_running: bool,
+    #[cfg(feature = "server")]
+    date_header: bool,
     #[cfg(feature = "server")]
     timer: Time,
     preserve_header_case: bool,

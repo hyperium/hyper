@@ -44,7 +44,6 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::future::Future;
 use std::io;
-use std::marker::Unpin;
 use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
@@ -80,6 +79,7 @@ pub struct OnUpgrade {
 /// Includes the original IO type, and a read buffer of bytes that the
 /// HTTP state machine may have already read before completing an upgrade.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Parts<T> {
     /// The original IO object used before the upgrade.
     pub io: T,
@@ -92,7 +92,6 @@ pub struct Parts<T> {
     /// You will want to check for any existing bytes if you plan to continue
     /// communicating on the IO object.
     pub read_buf: Bytes,
-    _inner: (),
 }
 
 /// Gets a pending HTTP upgrade from this message.
@@ -155,7 +154,6 @@ impl Upgraded {
             Ok(t) => Ok(Parts {
                 io: *t,
                 read_buf: buf,
-                _inner: (),
             }),
             Err(io) => Err(Upgraded {
                 io: Rewind::new_buffered(io, buf),

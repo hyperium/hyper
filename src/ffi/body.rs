@@ -151,6 +151,7 @@ ffi_fn! {
         let userdata = Userdata::new(userdata, drop);
 
         Box::into_raw(hyper_task::boxed(async move {
+            let _ = &userdata;
             while let Some(item) = body.0.frame().await {
                 let frame = item?;
                 if let Ok(chunk) = frame.into_data() {

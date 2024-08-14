@@ -3,7 +3,6 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::future::Future;
-use std::marker::Unpin;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::task::{Context, Poll};
@@ -85,7 +84,7 @@ impl<I, B, S, E> Future for Connection<I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: Read + Write + Unpin + 'static,
+    I: Read + Write + Unpin,
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ServerConnExec<S::Future, B>,
@@ -248,7 +247,7 @@ impl<E> Builder<E> {
     ///
     /// The value must be no larger than `u32::MAX`.
     pub fn max_send_buf_size(&mut self, max: usize) -> &mut Self {
-        assert!(max <= std::u32::MAX as usize);
+        assert!(max <= u32::MAX as usize);
         self.h2_builder.max_send_buffer_size = max;
         self
     }
@@ -263,7 +262,7 @@ impl<E> Builder<E> {
 
     /// Sets the max size of received header frames.
     ///
-    /// Default is currently ~16MB, but may change.
+    /// Default is currently 16KB, but can change.
     pub fn max_header_list_size(&mut self, max: u32) -> &mut Self {
         self.h2_builder.max_header_list_size = max;
         self
@@ -275,6 +274,16 @@ impl<E> Builder<E> {
         M: Timer + Send + Sync + 'static,
     {
         self.timer = Time::Timer(Arc::new(timer));
+        self
+    }
+
+    /// Set whether the `date` header should be included in HTTP responses.
+    ///
+    /// Note that including the `date` header is recommended by RFC 7231.
+    ///
+    /// Default is true.
+    pub fn auto_date_header(&mut self, enabled: bool) -> &mut Self {
+        self.h2_builder.date_header = enabled;
         self
     }
 

@@ -317,6 +317,13 @@ impl Body for Incoming {
 
 impl fmt::Debug for Incoming {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        #[cfg(any(
+            all(
+                any(feature = "http1", feature = "http2"),
+                any(feature = "client", feature = "server")
+            ),
+            feature = "ffi"
+        ))]
         #[derive(Debug)]
         struct Streaming;
         #[derive(Debug)]
@@ -401,6 +408,19 @@ impl Sender {
         self.data_tx
             .try_send(Ok(chunk))
             .map_err(|err| err.into_inner().expect("just sent Ok"))
+    }
+
+    #[cfg(feature = "http1")]
+    pub(crate) fn try_send_trailers(
+        &mut self,
+        trailers: HeaderMap,
+    ) -> Result<(), Option<HeaderMap>> {
+        let tx = match self.trailers_tx.take() {
+            Some(tx) => tx,
+            None => return Err(None),
+        };
+
+        tx.send(trailers).map_err(Some)
     }
 
     #[cfg(test)]

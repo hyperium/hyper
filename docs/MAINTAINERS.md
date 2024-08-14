@@ -6,9 +6,6 @@ To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERN
 
 - Eray Karatay (@programatik29)
 - Oddbjørn Grødem (@oddgrd)
-- Noah Kennedy (@Noah-Kennedy)
-- tottoto (@tottoto)
-- dswij (@dswij)
 
 ## Collaborators
 
@@ -20,6 +17,9 @@ To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERN
 - Anthony Ramine (@nox)
 - David Pedersen (@davidpdrsn)
 - Adam Foltzer (@acfoltzer)
+- Noah Kennedy (@Noah-Kennedy)
+- dswij (@dswij)
+- tottoto (@tottoto)
 
 <details>
 <summary>Emeriti</summary>

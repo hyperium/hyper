@@ -45,8 +45,8 @@ jobs:
 
       - name: cargo fmt --check
         run: |
-          if ! rustfmt --check --edition 2018 $(git ls-files '*.rs'); then
-            printf "Please run \`rustfmt --edition 2018 \$(git ls-files '*.rs')\` to fix rustfmt errors.\nSee CONTRIBUTING.md for more details.\n" >&2
+          if ! rustfmt --check --edition 2021 $(git ls-files '*.rs'); then
+            printf "Please run \`rustfmt --edition 2021 \$(git ls-files '*.rs')\` to fix rustfmt errors.\nSee docs/CODE_STYLE.md for more details.\n" >&2
             exit 1
           fi
 
@@ -114,6 +114,10 @@ jobs:
           toolchain: ${{ steps.msrv.outputs.version }}
 
       - uses: Swatinem/rust-cache@v2
+
+      - name: Pin some dependencies
+        run: |
+          cargo update -p tokio --precise 1.38.1
 
       - name: Check
         run: cargo check --features full
@@ -201,12 +205,12 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Install cbindgen
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cbindgen
 
       - name: Install cargo-expand
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-expand
 
@@ -247,12 +251,12 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2023-10-10  # Compatible version for cargo-check-external-types
+          toolchain: nightly-2024-05-01  # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: cargo-check-external-types@0.1.9
+          tool: cargo-check-external-types@0.1.12
 
       - uses: Swatinem/rust-cache@v2
 

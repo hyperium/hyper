@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use bytes::Bytes;
 
 /// A reason phrase in an HTTP/1 response.
@@ -109,9 +107,9 @@ impl TryFrom<Bytes> for ReasonPhrase {
     }
 }
 
-impl Into<Bytes> for ReasonPhrase {
-    fn into(self) -> Bytes {
-        self.0
+impl From<ReasonPhrase> for Bytes {
+    fn from(reason: ReasonPhrase) -> Self {
+        reason.0
     }
 }
 
@@ -149,7 +147,7 @@ const fn is_valid_byte(b: u8) -> bool {
     //
     // The 0xFF comparison is technically redundant, but it matches the text of the spec more
     // clearly and will be optimized away.
-    #[allow(unused_comparisons)]
+    #[allow(unused_comparisons, clippy::absurd_extreme_comparisons)]
     const fn is_obs_text(b: u8) -> bool {
         0x80 <= b && b <= 0xFF
     }
