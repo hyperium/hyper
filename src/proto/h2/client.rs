@@ -68,7 +68,7 @@ pub(crate) struct Config {
     pub(crate) initial_conn_window_size: u32,
     pub(crate) initial_stream_window_size: u32,
     pub(crate) initial_max_send_streams: usize,
-    pub(crate) max_frame_size: u32,
+    pub(crate) max_frame_size: Option<u32>,
     pub(crate) max_header_list_size: u32,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
@@ -76,6 +76,8 @@ pub(crate) struct Config {
     pub(crate) max_concurrent_reset_streams: Option<usize>,
     pub(crate) max_send_buffer_size: usize,
     pub(crate) max_pending_accept_reset_streams: Option<usize>,
+    pub(crate) header_table_size: Option<u32>,
+    pub(crate) max_concurrent_streams: Option<u32>,
 }
 
 impl Default for Config {
@@ -85,7 +87,7 @@ impl Default for Config {
             initial_conn_window_size: DEFAULT_CONN_WINDOW,
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             initial_max_send_streams: DEFAULT_INITIAL_MAX_SEND_STREAMS,
-            max_frame_size: DEFAULT_MAX_FRAME_SIZE,
+            max_frame_size: Some(DEFAULT_MAX_FRAME_SIZE),
             max_header_list_size: DEFAULT_MAX_HEADER_LIST_SIZE,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
@@ -93,6 +95,8 @@ impl Default for Config {
             max_concurrent_reset_streams: None,
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_pending_accept_reset_streams: None,
+            header_table_size: None,
+            max_concurrent_streams: None,
         }
     }
 }
@@ -103,15 +107,23 @@ fn new_builder(config: &Config) -> Builder {
         .initial_max_send_streams(config.initial_max_send_streams)
         .initial_window_size(config.initial_stream_window_size)
         .initial_connection_window_size(config.initial_conn_window_size)
-        .max_frame_size(config.max_frame_size)
         .max_header_list_size(config.max_header_list_size)
         .max_send_buffer_size(config.max_send_buffer_size)
         .enable_push(false);
+    if let Some(max) = config.max_frame_size {
+        builder.max_frame_size(max);
+    }
     if let Some(max) = config.max_concurrent_reset_streams {
         builder.max_concurrent_reset_streams(max);
     }
     if let Some(max) = config.max_pending_accept_reset_streams {
         builder.max_pending_accept_reset_streams(max);
+    }
+    if let Some(size) = config.header_table_size {
+        builder.header_table_size(size);
+    }
+    if let Some(max) = config.max_concurrent_streams {
+        builder.max_concurrent_streams(max);
     }
     builder
 }
