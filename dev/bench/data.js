@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1723834263574,
+  "lastUpdate": 1723834351612,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8459,6 +8459,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46421,
             "range": "± 10246.92",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "gngppz@gmail.com",
+            "name": "0x676e67",
+            "username": "0x676e67"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4c84e8c1c26a1464221de96b9f39816ce7251a5f",
+          "message": "feat(client): Add HTTP/2 builder options `header_table_size()` and `max_concurrent_streams()` (#3731)",
+          "timestamp": "2024-08-16T14:51:37-04:00",
+          "tree_id": "04f6adc844b65c88bbc60a05a33c12d313d23236",
+          "url": "https://github.com/hyperium/hyper/commit/4c84e8c1c26a1464221de96b9f39816ce7251a5f"
+        },
+        "date": 1723834348568,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46090,
+            "range": "± 10188.01",
             "unit": "ns/iter"
           }
         ]
