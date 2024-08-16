@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1723834215994,
+  "lastUpdate": 1723834263574,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -44911,6 +44911,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5134188,
             "range": "± 201332.89",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "friendlyping@icloud.com",
+            "name": "friendlyping",
+            "username": "friendlyping"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "450b3b6873b8f2f93e6ec044a589c6cc1c7c7568",
+          "message": "chore(lib): fix some typos in comments (#3739)\n\nSigned-off-by: friendlyping <friendlyping@icloud.com>",
+          "timestamp": "2024-08-16T14:49:23-04:00",
+          "tree_id": "fc81009aae4d83bccc45b52fae808f766430b987",
+          "url": "https://github.com/hyperium/hyper/commit/450b3b6873b8f2f93e6ec044a589c6cc1c7c7568"
+        },
+        "date": 1723834260882,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69869,
+            "range": "± 4630.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4130594,
+            "range": "± 95810.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22196,
+            "range": "± 502.31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 29555,
+            "range": "± 18116.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 34020,
+            "range": "± 10354.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 103647,
+            "range": "± 6926.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38288,
+            "range": "± 1622.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 93092,
+            "range": "± 3215.71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23996699,
+            "range": "± 33045438.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7715193,
+            "range": "± 87383.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7479709,
+            "range": "± 117530.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49371774,
+            "range": "± 684929.54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50162204,
+            "range": "± 706259.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5090426,
+            "range": "± 902070.11",
             "unit": "ns/iter"
           }
         ]
