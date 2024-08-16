@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1723495899349,
+  "lastUpdate": 1723834215994,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8429,6 +8429,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45471,
             "range": "± 9494.85",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "friendlyping@icloud.com",
+            "name": "friendlyping",
+            "username": "friendlyping"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "450b3b6873b8f2f93e6ec044a589c6cc1c7c7568",
+          "message": "chore(lib): fix some typos in comments (#3739)\n\nSigned-off-by: friendlyping <friendlyping@icloud.com>",
+          "timestamp": "2024-08-16T14:49:23-04:00",
+          "tree_id": "fc81009aae4d83bccc45b52fae808f766430b987",
+          "url": "https://github.com/hyperium/hyper/commit/450b3b6873b8f2f93e6ec044a589c6cc1c7c7568"
+        },
+        "date": 1723834213316,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46421,
+            "range": "± 10246.92",
             "unit": "ns/iter"
           }
         ]
