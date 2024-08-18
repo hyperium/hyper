@@ -337,13 +337,9 @@ where
 
     /// Sets the maximum frame size to use for HTTP2.
     ///
-    /// Passing `None` will do nothing.
-    ///
-    /// If not set, hyper will use a default.
+    /// Default is currently 16KB, but can change.
     pub fn max_frame_size(&mut self, sz: impl Into<Option<u32>>) -> &mut Self {
-        if let Some(sz) = sz.into() {
-            self.h2_builder.max_frame_size = sz;
-        }
+        self.h2_builder.max_frame_size = sz.into();
         self
     }
 
@@ -352,6 +348,46 @@ where
     /// Default is currently 16KB, but can change.
     pub fn max_header_list_size(&mut self, max: u32) -> &mut Self {
         self.h2_builder.max_header_list_size = max;
+        self
+    }
+
+    /// Sets the header table size.
+    ///
+    /// This setting informs the peer of the maximum size of the header compression
+    /// table used to encode header blocks, in octets. The encoder may select any value
+    /// equal to or less than the header table size specified by the sender.
+    ///
+    /// The default value of crate `h2` is 4,096.
+    pub fn header_table_size(&mut self, size: impl Into<Option<u32>>) -> &mut Self {
+        self.h2_builder.header_table_size = size.into();
+        self
+    }
+
+    /// Sets the maximum number of concurrent streams.
+    ///
+    /// The maximum concurrent streams setting only controls the maximum number
+    /// of streams that can be initiated by the remote peer. In other words,
+    /// when this setting is set to 100, this does not limit the number of
+    /// concurrent streams that can be created by the caller.
+    ///
+    /// It is recommended that this value be no smaller than 100, so as to not
+    /// unnecessarily limit parallelism. However, any value is legal, including
+    /// 0. If `max` is set to 0, then the remote will not be permitted to
+    /// initiate streams.
+    ///
+    /// Note that streams in the reserved state, i.e., push promises that have
+    /// been reserved but the stream has not started, do not count against this
+    /// setting.
+    ///
+    /// Also note that if the remote *does* exceed the value set here, it is not
+    /// a protocol level error. Instead, the `h2` library will immediately reset
+    /// the stream.
+    ///
+    /// See [Section 5.1.2] in the HTTP/2 spec for more details.
+    ///
+    /// [Section 5.1.2]: https://http2.github.io/http2-spec/#rfc.section.5.1.2
+    pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
+        self.h2_builder.max_concurrent_streams = max.into();
         self
     }
 

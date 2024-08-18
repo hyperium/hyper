@@ -538,7 +538,7 @@ void hyper_waker_free(struct hyper_waker *waker);
 void hyper_waker_wake(struct hyper_waker *waker);
 
 #ifdef __cplusplus
-} // extern "C"
-#endif // __cplusplus
+}  // extern "C"
+#endif  // __cplusplus
 
-#endif /* _HYPER_H */
+#endif  /* _HYPER_H */
