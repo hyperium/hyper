@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1724432162966,
+  "lastUpdate": 1724432221829,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -45187,6 +45187,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5216148,
             "range": "± 206942.80",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hugo@whynothugo.nl",
+            "name": "Hugo",
+            "username": "WhyNotHugo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "492ab246319504974b59c3b8212970d2844d7838",
+          "message": "docs(client): Link from Connection to handshake (#3742)\n\nWhen reading the documentation for `Connection` it is not entirely\r\nobvious how instances of this type are obtained. Add a helpful link,\r\nmostly for those less familiar.",
+          "timestamp": "2024-08-24T01:55:14+09:00",
+          "tree_id": "410b8dcdb233026f9283cc340d0a29289d39f306",
+          "url": "https://github.com/hyperium/hyper/commit/492ab246319504974b59c3b8212970d2844d7838"
+        },
+        "date": 1724432218982,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 71253,
+            "range": "± 1372.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4146379,
+            "range": "± 201240.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21764,
+            "range": "± 431.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24114,
+            "range": "± 469.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33033,
+            "range": "± 677.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 104367,
+            "range": "± 6593.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37532,
+            "range": "± 1532.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 92393,
+            "range": "± 7217.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 25660744,
+            "range": "± 34642905.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 25542401,
+            "range": "± 17534538.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7896280,
+            "range": "± 115766.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49282999,
+            "range": "± 662174.43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49626013,
+            "range": "± 698712.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5038031,
+            "range": "± 130836.30",
             "unit": "ns/iter"
           }
         ]
