@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1723834404203,
+  "lastUpdate": 1724432162966,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8489,6 +8489,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46090,
             "range": "± 10188.01",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hugo@whynothugo.nl",
+            "name": "Hugo",
+            "username": "WhyNotHugo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "492ab246319504974b59c3b8212970d2844d7838",
+          "message": "docs(client): Link from Connection to handshake (#3742)\n\nWhen reading the documentation for `Connection` it is not entirely\r\nobvious how instances of this type are obtained. Add a helpful link,\r\nmostly for those less familiar.",
+          "timestamp": "2024-08-24T01:55:14+09:00",
+          "tree_id": "410b8dcdb233026f9283cc340d0a29289d39f306",
+          "url": "https://github.com/hyperium/hyper/commit/492ab246319504974b59c3b8212970d2844d7838"
+        },
+        "date": 1724432160795,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44939,
+            "range": "± 8173.42",
             "unit": "ns/iter"
           }
         ]
