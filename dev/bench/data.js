@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1724432221829,
+  "lastUpdate": 1724696345798,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8519,6 +8519,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44939,
             "range": "± 8173.42",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "fasterthanlime@users.noreply.github.com",
+            "name": "Amos Wenger",
+            "username": "fasterthanlime"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b990031677b6ffdd958b2c711b9cf27e192f77c0",
+          "message": "docs(changelog): typo Must not => Must now (#3745)",
+          "timestamp": "2024-08-26T18:18:15Z",
+          "tree_id": "ccb6152d340affac247a7e6b4522befe54c64beb",
+          "url": "https://github.com/hyperium/hyper/commit/b990031677b6ffdd958b2c711b9cf27e192f77c0"
+        },
+        "date": 1724696342579,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45962,
+            "range": "± 9975.41",
             "unit": "ns/iter"
           }
         ]
