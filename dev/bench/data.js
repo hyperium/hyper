@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1724696411705,
+  "lastUpdate": 1724894372377,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8549,6 +8549,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45962,
             "range": "± 9975.41",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sejewson@gmail.com",
+            "name": "Sabrina Jewson",
+            "username": "SabrinaJewson"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "67a4a498d8bbdce4e604bc578da4693fb048f83d",
+          "message": "fix(http2): strip content-length header in response to CONNECT requests (#3748)\n\ns",
+          "timestamp": "2024-08-28T18:18:40-07:00",
+          "tree_id": "dde5c505b3889370c56f0eab2cbb22554fa2246f",
+          "url": "https://github.com/hyperium/hyper/commit/67a4a498d8bbdce4e604bc578da4693fb048f83d"
+        },
+        "date": 1724894369644,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45799,
+            "range": "± 10250.69",
             "unit": "ns/iter"
           }
         ]
