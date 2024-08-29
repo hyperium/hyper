@@ -64,6 +64,9 @@ pub(super) enum Kind {
     /// User took too long to send headers
     #[cfg(all(feature = "http1", feature = "server"))]
     HeaderTimeout,
+    /// User took too long to send another request
+    #[cfg(all(feature = "http1", feature = "server"))]
+    IdleTimeout,
     /// Error while reading a body from connection.
     #[cfg(all(
         any(feature = "client", feature = "server"),
@@ -360,6 +363,11 @@ impl Error {
         Error::new(Kind::HeaderTimeout)
     }
 
+    #[cfg(all(feature = "http1", feature = "server"))]
+    pub(super) fn new_idle_timeout() -> Error {
+        Error::new(Kind::IdleTimeout)
+    }
+
     #[cfg(feature = "http1")]
     #[cfg(feature = "server")]
     pub(super) fn new_user_unsupported_status_code() -> Error {
@@ -458,6 +466,8 @@ impl Error {
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "http1", feature = "server"))]
             Kind::HeaderTimeout => "read header from client timeout",
+            #[cfg(all(feature = "http1", feature = "server"))]
+            Kind::IdleTimeout => "idle client timeout",
             #[cfg(all(
                 any(feature = "client", feature = "server"),
                 any(feature = "http1", feature = "http2")

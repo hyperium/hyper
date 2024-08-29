@@ -1485,7 +1485,7 @@ fn header_name_too_long() {
 }
 
 #[tokio::test]
-async fn header_read_timeout_slow_writes() {
+async fn http1_header_read_timeout_slow_writes() {
     let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
@@ -1500,7 +1500,6 @@ async fn header_read_timeout_slow_writes() {
         tcp.write_all(
             b"\
             Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 2");
@@ -1532,7 +1531,7 @@ async fn header_read_timeout_slow_writes() {
 }
 
 #[tokio::test]
-async fn header_read_timeout_starts_immediately() {
+async fn http1_header_read_timeout_starts_immediately() {
     let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
@@ -1553,7 +1552,7 @@ async fn header_read_timeout_starts_immediately() {
 }
 
 #[tokio::test]
-async fn header_read_timeout_slow_writes_multiple_requests() {
+async fn http1_header_read_timeout_slow_writes_multiple_requests() {
     let (listener, addr) = setup_tcp_listener();
 
     thread::spawn(move || {
@@ -1593,21 +1592,31 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
 
         thread::sleep(Duration::from_secs(6));
 
+        // idle would timeout in 2s, switched to header read with timeout in 5s
         tcp.write_all(
             b"\
             GET / HTTP/1.1\r\n\
             Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 5");
-        thread::sleep(Duration::from_secs(6));
+        thread::sleep(Duration::from_secs(3));
+        // idle would have timed out, header read times out in 2s
         tcp.write_all(
             b"\
-            Works: 0\r\n\
+            Is: 0\r\n\
         ",
         )
-        .expect_err("write 6");
+        .expect("write 6");
+        thread::sleep(Duration::from_secs(3));
+        // header read timed out 1s ago
+        tcp.write_all(
+            b"\
+            Wrong: 0\r\n\
+        ",
+        )
+        .and(tcp.flush())
+        .expect_err("write 7");
     });
 
     let (socket, _) = listener.accept().await.unwrap();
@@ -1615,6 +1624,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
     let conn = http1::Builder::new()
         .timer(TokioTimer)
         .header_read_timeout(Duration::from_secs(5))
+        .idle_timeout(Duration::from_secs(8))
         .serve_connection(
             socket,
             service_fn(|_| {
@@ -1626,6 +1636,96 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
             }),
         );
     conn.without_shutdown().await.expect_err("header timeout");
+}
+
+#[tokio::test]
+async fn http1_no_idle_timeout_multiple_requests() {
+    let (listener, addr) = setup_tcp_listener();
+
+    let done = Arc::new(AtomicBool::new(false));
+    let done_clone = Arc::clone(&done);
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+
+        for i in 1..=3 {
+            tcp.write_all(
+                b"\
+                GET / HTTP/1.1\r\n\
+                \r\n\
+            ",
+            )
+            .and(tcp.flush())
+            .expect(&format!("write {i}"));
+            thread::sleep(Duration::from_secs(3));
+        }
+
+        done_clone.store(true, Ordering::SeqCst);
+        drop(tcp);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http1::Builder::new()
+        .timer(TokioTimer)
+        .idle_timeout(None)
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+    conn.without_shutdown().await.expect("hung up");
+    assert!(done.load(Ordering::SeqCst));
+}
+
+#[tokio::test]
+async fn http1_idle_timeout_multiple_intermittent_requests() {
+    let (listener, addr) = setup_tcp_listener();
+
+    let done = Arc::new(AtomicBool::new(false));
+    let done_clone = Arc::clone(&done);
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+
+        for i in 1..=3 {
+            tcp.write_all(
+                b"\
+                GET / HTTP/1.1\r\n\
+                \r\n\
+            ",
+            )
+            .and(tcp.flush())
+            .expect(&format!("write {i}"));
+            thread::sleep(Duration::from_secs(3));
+        }
+
+        done_clone.store(true, Ordering::SeqCst);
+
+        thread::sleep(Duration::from_secs(3));
+        drop(tcp);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http1::Builder::new()
+        .timer(TokioTimer)
+        .idle_timeout(Duration::from_secs(5))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+    conn.without_shutdown().await.expect_err("idle timeout");
+    assert!(done.load(Ordering::SeqCst));
 }
 
 #[tokio::test]

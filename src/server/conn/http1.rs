@@ -76,6 +76,7 @@ pub struct Builder {
     h1_preserve_header_case: bool,
     h1_max_headers: Option<usize>,
     h1_header_read_timeout: Dur,
+    h1_idle_timeout: Dur,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
@@ -238,6 +239,7 @@ impl Builder {
             h1_preserve_header_case: false,
             h1_max_headers: None,
             h1_header_read_timeout: Dur::Default(Some(Duration::from_secs(30))),
+            h1_idle_timeout: Dur::Default(Some(Duration::from_secs(120))),
             h1_writev: None,
             max_buf_size: None,
             pipeline_flush: false,
@@ -319,6 +321,21 @@ impl Builder {
     /// Default is 30 seconds.
     pub fn header_read_timeout(&mut self, read_timeout: impl Into<Option<Duration>>) -> &mut Self {
         self.h1_header_read_timeout = Dur::Configured(read_timeout.into());
+        self
+    }
+
+    /// Set a timeout for idle time between requests. If a client does not
+    /// transmit another request within this time after receiving the last
+    /// response, the connection is closed.
+    ///
+    /// Requires a [`Timer`] set by [`Builder::timer`] to take effect. Panics if `idle_timeout` is configured
+    /// without a [`Timer`].
+    ///
+    /// Pass `None` to disable.
+    ///
+    /// Default is 120 seconds.
+    pub fn idle_timeout(&mut self, idle_timeout: impl Into<Option<Duration>>) -> &mut Self {
+        self.h1_idle_timeout = Dur::Configured(idle_timeout.into());
         self
     }
 
@@ -447,6 +464,9 @@ impl Builder {
             .check(self.h1_header_read_timeout, "header_read_timeout")
         {
             conn.set_http1_header_read_timeout(dur);
+        };
+        if let Some(dur) = self.timer.check(self.h1_idle_timeout, "idle_timeout") {
+            conn.set_http1_idle_timeout(dur);
         };
         if let Some(writev) = self.h1_writev {
             if writev {

@@ -61,9 +61,15 @@ where
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "server")]
-                h1_header_read_timeout_fut: None,
-                #[cfg(feature = "server")]
                 h1_header_read_timeout_running: false,
+                #[cfg(feature = "server")]
+                h1_idle_timeout: None,
+                #[cfg(feature = "server")]
+                h1_idle_timeout_running: false,
+                #[cfg(feature = "server")]
+                h1_timeout_fut: None,
+                #[cfg(feature = "server")]
+                first_head: true,
                 #[cfg(feature = "server")]
                 date_header: true,
                 #[cfg(feature = "server")]
@@ -148,6 +154,11 @@ where
     }
 
     #[cfg(feature = "server")]
+    pub(crate) fn set_http1_idle_timeout(&mut self, val: Duration) {
+        self.state.h1_idle_timeout = Some(val);
+    }
+
+    #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
     }
@@ -216,25 +227,8 @@ where
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        #[cfg(feature = "server")]
-        if !self.state.h1_header_read_timeout_running {
-            if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout {
-                let deadline = Instant::now() + h1_header_read_timeout;
-                self.state.h1_header_read_timeout_running = true;
-                match self.state.h1_header_read_timeout_fut {
-                    Some(ref mut h1_header_read_timeout_fut) => {
-                        trace!("resetting h1 header read timeout timer");
-                        self.state.timer.reset(h1_header_read_timeout_fut, deadline);
-                    }
-                    None => {
-                        trace!("setting h1 header read timeout timer");
-                        self.state.h1_header_read_timeout_fut =
-                            Some(self.state.timer.sleep_until(deadline));
-                    }
-                }
-            }
-        }
-
+        #[cfg_attr(not(feature = "server"), allow(unused))]
+        let mut progress = false;
         let msg = match self.io.parse::<T>(
             cx,
             ParseContext {
@@ -249,20 +243,71 @@ where
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
             },
+            &mut progress,
         ) {
             Poll::Ready(Ok(msg)) => msg,
             Poll::Ready(Err(e)) => return self.on_read_head_error(e),
             Poll::Pending => {
+                // - Use the read timeout on the first head to avoid common DoS.
+                // - If made progress in reading header, must no longer be idle.
                 #[cfg(feature = "server")]
-                if self.state.h1_header_read_timeout_running {
-                    if let Some(ref mut h1_header_read_timeout_fut) =
-                        self.state.h1_header_read_timeout_fut
-                    {
-                        if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
-                            self.state.h1_header_read_timeout_running = false;
+                if self.state.first_head || progress {
+                    if !self.state.h1_header_read_timeout_running {
+                        if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout {
+                            debug_assert!(T::is_server());
+                            let deadline = Instant::now() + h1_header_read_timeout;
+                            self.state.h1_idle_timeout_running = false;
+                            self.state.h1_header_read_timeout_running = true;
+                            match self.state.h1_timeout_fut {
+                                Some(ref mut ht_timeout_fut) => {
+                                    trace!("resetting h1 timeout timer for header read");
+                                    self.state.timer.reset(ht_timeout_fut, deadline);
+                                }
+                                None => {
+                                    trace!("setting h1 timeout timer for header read");
+                                    self.state.h1_timeout_fut =
+                                        Some(self.state.timer.sleep_until(deadline));
+                                }
+                            }
+                        } else if std::mem::take(&mut self.state.h1_idle_timeout_running) {
+                            trace!("unsetting h1 timeout timer for idle");
+                            self.state.h1_timeout_fut = None;
+                        }
+                    }
+                } else if !self.state.h1_header_read_timeout_running
+                    && !self.state.h1_idle_timeout_running
+                {
+                    if let Some(h1_idle_timeout) = self.state.h1_idle_timeout {
+                        debug_assert!(T::is_server());
+                        let deadline = Instant::now() + h1_idle_timeout;
+                        self.state.h1_idle_timeout_running = true;
+                        match self.state.h1_timeout_fut {
+                            Some(ref mut h1_timeout_fut) => {
+                                trace!("resetting h1 timeout timer for idle");
+                                self.state.timer.reset(h1_timeout_fut, deadline);
+                            }
+                            None => {
+                                trace!("setting h1 timeout timer for idle");
+                                self.state.h1_timeout_fut =
+                                    Some(self.state.timer.sleep_until(deadline));
+                            }
+                        }
+                    }
+                }
 
-                            warn!("read header from client timeout");
-                            return Poll::Ready(Some(Err(crate::Error::new_header_timeout())));
+                #[cfg(feature = "server")]
+                if self.state.h1_header_read_timeout_running || self.state.h1_idle_timeout_running {
+                    if let Some(ref mut h1_timeout_fut) = self.state.h1_timeout_fut {
+                        if Pin::new(h1_timeout_fut).poll(cx).is_ready() {
+                            return Poll::Ready(Some(Err(
+                                if self.state.h1_header_read_timeout_running {
+                                    warn!("read header from client timeout");
+                                    crate::Error::new_header_timeout()
+                                } else {
+                                    warn!("idle client timeout");
+                                    crate::Error::new_idle_timeout()
+                                },
+                            )));
                         }
                     }
                 }
@@ -274,7 +319,9 @@ where
         #[cfg(feature = "server")]
         {
             self.state.h1_header_read_timeout_running = false;
-            self.state.h1_header_read_timeout_fut = None;
+            self.state.h1_idle_timeout_running = false;
+            self.state.h1_timeout_fut = None;
+            self.state.first_head = false;
         }
 
         // Note: don't deconstruct `msg` into local variables, it appears
@@ -919,9 +966,15 @@ struct State {
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "server")]
-    h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
-    #[cfg(feature = "server")]
     h1_header_read_timeout_running: bool,
+    #[cfg(feature = "server")]
+    h1_idle_timeout: Option<Duration>,
+    #[cfg(feature = "server")]
+    h1_idle_timeout_running: bool,
+    #[cfg(feature = "server")]
+    h1_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
+    #[cfg(feature = "server")]
+    first_head: bool,
     #[cfg(feature = "server")]
     date_header: bool,
     #[cfg(feature = "server")]
@@ -1105,6 +1158,12 @@ impl State {
 
         self.reading = Reading::Init;
         self.writing = Writing::Init;
+
+        #[cfg(feature = "server")]
+        if self.h1_idle_timeout.is_some() {
+            // Next read will start and poll the idle timeout.
+            self.notify_read = true;
+        }
 
         // !T::should_read_first() means Client.
         //
