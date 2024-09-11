@@ -54,7 +54,7 @@ pub struct Parts<T> {
 pub struct Connection<T, B>
 where
     T: Read + Write,
-    B: Body + 'static,
+    B: Body,
 {
     inner: Dispatcher<T, B>,
 }
@@ -62,7 +62,7 @@ where
 impl<T, B> Connection<T, B>
 where
     T: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     /// Return the inner IO object, and additional information.
@@ -127,7 +127,7 @@ pub struct Builder {
 pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -170,7 +170,7 @@ impl<B> SendRequest<B> {
 
 impl<B> SendRequest<B>
 where
-    B: Body + 'static,
+    B: Body,
 {
     /// Sends a `Request` on the associated connection.
     ///
@@ -255,7 +255,7 @@ impl<B> fmt::Debug for SendRequest<B> {
 impl<T, B> Connection<T, B>
 where
     T: Read + Write + Unpin + Send,
-    B: Body + 'static,
+    B: Body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     /// Enable this connection to support higher-level HTTP upgrades.
@@ -269,7 +269,7 @@ where
 impl<T, B> fmt::Debug for Connection<T, B>
 where
     T: Read + Write + fmt::Debug,
-    B: Body + 'static,
+    B: Body,
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Connection").finish()
@@ -279,7 +279,7 @@ where
 impl<T, B> Future for Connection<T, B>
 where
     T: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body,
     B::Data: Send,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
@@ -517,7 +517,7 @@ impl Builder {
     ) -> impl Future<Output = crate::Result<(SendRequest<B>, Connection<T, B>)>>
     where
         T: Read + Write + Unpin,
-        B: Body + 'static,
+        B: Body,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {
@@ -581,7 +581,7 @@ mod upgrades {
     pub struct UpgradeableConnection<T, B>
     where
         T: Read + Write + Unpin + Send + 'static,
-        B: Body + 'static,
+        B: Body,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {
         pub(super) inner: Option<Connection<T, B>>,
@@ -590,7 +590,7 @@ mod upgrades {
     impl<I, B> Future for UpgradeableConnection<I, B>
     where
         I: Read + Write + Unpin + Send + 'static,
-        B: Body + 'static,
+        B: Body,
         B::Data: Send,
         B::Error: Into<Box<dyn StdError + Send + Sync>>,
     {

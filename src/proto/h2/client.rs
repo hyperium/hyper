@@ -150,7 +150,7 @@ pub(crate) async fn handshake<T, B, E>(
 ) -> crate::Result<ClientTask<B, E, T>>
 where
     T: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body,
     B::Data: Send + 'static,
     E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -363,7 +363,6 @@ pin_project! {
     pub enum H2ClientFuture<B, T>
     where
         B: http_body::Body,
-        B: 'static,
         B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
         T: Read,
         T: Write,
@@ -386,7 +385,8 @@ pin_project! {
 
 impl<B, T> Future for H2ClientFuture<B, T>
 where
-    B: http_body::Body + 'static,
+    B: http_body::Body,
+    B::Data: 'static,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
 {
@@ -434,7 +434,7 @@ where
 
 impl<B, E, T> ClientTask<B, E, T>
 where
-    B: Body + 'static,
+    B: Body,
     E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
@@ -485,7 +485,7 @@ where
 
 impl<B, E, T> ClientTask<B, E, T>
 where
-    B: Body + 'static + Unpin,
+    B: Body + Unpin,
     B::Data: Send,
     E: Http2ClientConnExec<B, T> + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
@@ -543,7 +543,6 @@ pin_project! {
     pub(crate) struct ResponseFutMap<B>
     where
         B: Body,
-        B: 'static,
     {
         #[pin]
         fut: ResponseFuture,
@@ -556,7 +555,8 @@ pin_project! {
 
 impl<B> Future for ResponseFutMap<B>
 where
-    B: Body + 'static,
+    B: Body,
+    B::Data: 'static,
 {
     type Output = Result<Response<crate::body::Incoming>, (crate::Error, Option<Request<B>>)>;
 
@@ -620,7 +620,7 @@ where
 
 impl<B, E, T> Future for ClientTask<B, E, T>
 where
-    B: Body + 'static + Unpin,
+    B: Body + Unpin,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     E: Http2ClientConnExec<B, T> + Unpin,
