@@ -57,7 +57,7 @@
 //!         self.project().inner.as_mut().reset(deadline.into());
 //!     }
 //! }
-//! ````
+//! ```
 
 use std::{
     any::TypeId,
