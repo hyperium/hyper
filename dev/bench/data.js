@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1724894425919,
+  "lastUpdate": 1726141323821,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8579,6 +8579,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45799,
             "range": "± 10250.69",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e84461660c0b9a6505926c3207f1b8015fdc24ad",
+          "message": "chore(ci): use tokio-util 0.7.11 in msrv job (#3754)",
+          "timestamp": "2024-09-12T04:41:14-07:00",
+          "tree_id": "0fb877d71da76ed6d9cd14700b85c8807e3040a5",
+          "url": "https://github.com/hyperium/hyper/commit/e84461660c0b9a6505926c3207f1b8015fdc24ad"
+        },
+        "date": 1726141321646,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48317,
+            "range": "± 8538.63",
             "unit": "ns/iter"
           }
         ]
