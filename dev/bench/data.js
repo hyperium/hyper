@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1726141384130,
+  "lastUpdate": 1726141683994,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8609,6 +8609,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48317,
             "range": "± 8538.63",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "go@before.tech",
+            "name": "hongmengning",
+            "username": "hongmengning"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "945c14209d85b85258783a94b161baa593e14912",
+          "message": "chore(rt): delete the unnessary symbol in the comments (#3753)\n\nCo-authored-by: Sean McArthur <sean@seanmonstar.com>",
+          "timestamp": "2024-09-12T11:47:14Z",
+          "tree_id": "aa5a4438be565bb37c7efe14da3ba682521b1d5c",
+          "url": "https://github.com/hyperium/hyper/commit/945c14209d85b85258783a94b161baa593e14912"
+        },
+        "date": 1726141681558,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46101,
+            "range": "± 8544.29",
             "unit": "ns/iter"
           }
         ]
