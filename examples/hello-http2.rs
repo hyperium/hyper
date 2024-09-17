@@ -14,7 +14,7 @@ use tokio::net::TcpListener;
 // on that here because it would be a cyclical dependency.
 #[path = "../benches/support/mod.rs"]
 mod support;
-use support::{TokioIo, TokioTimer};
+use support::TokioIo;
 
 // An async function that consumes a request, does nothing with it and returns a
 // response.
