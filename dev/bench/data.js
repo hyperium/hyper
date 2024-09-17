@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1726145952208,
+  "lastUpdate": 1726578053507,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8669,6 +8669,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47693,
             "range": "± 8799.75",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "97780641+n1haldev@users.noreply.github.com",
+            "name": "Nihal T M",
+            "username": "n1haldev"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bb51c81b74cbbeaa922d52d4472b25eaf3c62eff",
+          "message": "docs(examples): add HTTP/2 server example (#3702)\n\ncc #3568",
+          "timestamp": "2024-09-17T09:00:03-04:00",
+          "tree_id": "36b2b1b13896db2c59afcec4be6d0cf47f802fcd",
+          "url": "https://github.com/hyperium/hyper/commit/bb51c81b74cbbeaa922d52d4472b25eaf3c62eff"
+        },
+        "date": 1726578051045,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47310,
+            "range": "± 9603.73",
             "unit": "ns/iter"
           }
         ]
