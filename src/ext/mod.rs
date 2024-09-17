@@ -192,7 +192,7 @@ impl OriginalHeaderOrder {
     }
 
     // No doc test is run here because `RUSTFLAGS='--cfg hyper_unstable_ffi'`
-    // is needed to compile. Once ffi is stablized `no_run` should be removed
+    // is needed to compile. Once ffi is stabilized `no_run` should be removed
     // here.
     /// This returns an iterator that provides header names and indexes
     /// in the original order received.

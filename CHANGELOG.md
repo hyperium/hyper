@@ -212,7 +212,7 @@ Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
 #### Breaking Changes
 
-* Any IO transport type provided must not implement `hyper::rt::{Read, Write}` instead of
+* Any IO transport type provided must now implement `hyper::rt::{Read, Write}` instead of
   `tokio::io` traits. You can grab a helper type from `hyper-util` to wrap Tokio types, or implement the traits yourself,
   if it's a custom type.
  ([f9f65b7a](https://github.com/hyperium/hyper/commit/f9f65b7aa67fa3ec0267fe015945973726285bc2))
@@ -1600,7 +1600,7 @@ Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
 * **client:**
   * check for dead connections in Pool ([44af2738](https://github.com/hyperium/hyper/commit/44af273853f82b81591b813d13627e143a14a6b7), closes [#1429](https://github.com/hyperium/hyper/issues/1429))
-  * error on unsupport 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
+  * error on unsupported 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
 * **server:**
   * send 400 responses on parse errors before closing connection ([7cb72d20](https://github.com/hyperium/hyper/commit/7cb72d2019bffbc667b9ad2d8cbc19c1a513fcf7))
   * error if Response code is 1xx ([44c34ce9](https://github.com/hyperium/hyper/commit/44c34ce9adc888916bd67656cc54c35f7908f536))

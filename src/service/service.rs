@@ -22,6 +22,11 @@ pub trait Service<Request> {
     type Response;
 
     /// Errors produced by the service.
+    ///
+    /// Note: Returning an `Error` to a hyper server, the behavior depends on the
+    /// protocol. In most cases, hyper will cause the connection to be abruptly aborted.
+    /// It will abort the request however the protocol allows, either with some sort of RST_STREAM,
+    /// or killing the connection if that doesn't exist.
     type Error;
 
     /// The future response value.

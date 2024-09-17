@@ -152,6 +152,11 @@ where
         self.state.allow_half_close = true;
     }
 
+    #[cfg(feature = "server")]
+    pub(crate) fn disable_date_header(&mut self) {
+        self.state.date_header = false;
+    }
+
     pub(crate) fn into_inner(self) -> (I, Bytes) {
         self.io.into_inner()
     }

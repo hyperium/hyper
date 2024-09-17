@@ -485,6 +485,13 @@ where
                                 me.reply.send_reset(h2::Reason::INTERNAL_ERROR);
                                 return Poll::Ready(Err(crate::Error::new_user_header()));
                             }
+                            if res
+                                .headers_mut()
+                                .remove(::http::header::CONTENT_LENGTH)
+                                .is_some()
+                            {
+                                warn!("successful response to CONNECT request disallows content-length header");
+                            }
                             let send_stream = reply!(me, res, false);
                             connect_parts.pending.fulfill(Upgraded::new(
                                 H2Upgraded {
