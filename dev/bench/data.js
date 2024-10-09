@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1728478040144,
+  "lastUpdate": 1728478087142,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -46153,6 +46153,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5027023,
             "range": "± 110461.15",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "fasterthanlime@users.noreply.github.com",
+            "name": "Amos Wenger",
+            "username": "fasterthanlime"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4c4de90a7e2aa0629b9c167a482399e28ccb0975",
+          "message": "docs(rt): Link to Read and Write traits from Upgraded doc comment (#3761)",
+          "timestamp": "2024-10-09T08:46:17-04:00",
+          "tree_id": "a6f5d3357b6390a6524b9fd688959f4d84282892",
+          "url": "https://github.com/hyperium/hyper/commit/4c4de90a7e2aa0629b9c167a482399e28ccb0975"
+        },
+        "date": 1728478084380,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68578,
+            "range": "± 1115.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4314470,
+            "range": "± 352123.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21363,
+            "range": "± 798.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23341,
+            "range": "± 577.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33234,
+            "range": "± 776.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 103048,
+            "range": "± 7517.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 43074,
+            "range": "± 9710.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 93077,
+            "range": "± 36894.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23963761,
+            "range": "± 32667105.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23996502,
+            "range": "± 20721720.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7482877,
+            "range": "± 186254.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49262088,
+            "range": "± 783342.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49501439,
+            "range": "± 460918.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5018164,
+            "range": "± 90752.90",
             "unit": "ns/iter"
           }
         ]
