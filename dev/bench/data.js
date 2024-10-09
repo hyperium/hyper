@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1726578110221,
+  "lastUpdate": 1728478040144,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8699,6 +8699,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47310,
             "range": "± 9603.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "fasterthanlime@users.noreply.github.com",
+            "name": "Amos Wenger",
+            "username": "fasterthanlime"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4c4de90a7e2aa0629b9c167a482399e28ccb0975",
+          "message": "docs(rt): Link to Read and Write traits from Upgraded doc comment (#3761)",
+          "timestamp": "2024-10-09T08:46:17-04:00",
+          "tree_id": "a6f5d3357b6390a6524b9fd688959f4d84282892",
+          "url": "https://github.com/hyperium/hyper/commit/4c4de90a7e2aa0629b9c167a482399e28ccb0975"
+        },
+        "date": 1728478027564,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45110,
+            "range": "± 8687.77",
             "unit": "ns/iter"
           }
         ]
