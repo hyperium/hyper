@@ -189,6 +189,11 @@ impl Error {
         matches!(self.inner.kind, Kind::Parse(Parse::Status))
     }
 
+    /// Returns true if this was an HTTP parse error caused by an invalid method.
+    pub fn is_parse_method(&self) -> bool {
+        matches!(self.inner.kind, Kind::Parse(Parse::Method))
+    }
+
     /// Returns true if this error was caused by user code.
     pub fn is_user(&self) -> bool {
         matches!(self.inner.kind, Kind::User(_))
