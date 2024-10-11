@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1728671357962,
+  "lastUpdate": 1728671422936,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -46291,6 +46291,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5018164,
             "range": "± 90752.90",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c86a6bcb4acb0f92e731ea2e4c1e4a839248a600",
+          "message": "fix(http1): send 'connection: close' when connection is ending (#3725)\n\nThis includes conditions where hyper knows the connection will end after the response, such as a request error that ruins the connection, or when graceful shutdown is triggered.\r\n\r\nCloses #3720",
+          "timestamp": "2024-10-11T14:28:29-04:00",
+          "tree_id": "710ba04ddfd87d923b4f9675dc0779abf2313912",
+          "url": "https://github.com/hyperium/hyper/commit/c86a6bcb4acb0f92e731ea2e4c1e4a839248a600"
+        },
+        "date": 1728671420729,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68350,
+            "range": "± 1467.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4534779,
+            "range": "± 446425.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20797,
+            "range": "± 366.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22902,
+            "range": "± 507.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31840,
+            "range": "± 416.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 98870,
+            "range": "± 8612.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35784,
+            "range": "± 590.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 89842,
+            "range": "± 2863.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24063350,
+            "range": "± 32344280.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24442295,
+            "range": "± 16371823.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7598561,
+            "range": "± 137171.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50165950,
+            "range": "± 739351.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50485053,
+            "range": "± 681658.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5099621,
+            "range": "± 123214.18",
             "unit": "ns/iter"
           }
         ]
