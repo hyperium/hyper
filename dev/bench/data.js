@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1728478087142,
+  "lastUpdate": 1728671357962,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8729,6 +8729,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45110,
             "range": "± 8687.77",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c86a6bcb4acb0f92e731ea2e4c1e4a839248a600",
+          "message": "fix(http1): send 'connection: close' when connection is ending (#3725)\n\nThis includes conditions where hyper knows the connection will end after the response, such as a request error that ruins the connection, or when graceful shutdown is triggered.\r\n\r\nCloses #3720",
+          "timestamp": "2024-10-11T14:28:29-04:00",
+          "tree_id": "710ba04ddfd87d923b4f9675dc0779abf2313912",
+          "url": "https://github.com/hyperium/hyper/commit/c86a6bcb4acb0f92e731ea2e4c1e4a839248a600"
+        },
+        "date": 1728671355787,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 52716,
+            "range": "± 9717.41",
             "unit": "ns/iter"
           }
         ]
