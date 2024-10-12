@@ -315,7 +315,6 @@ pin_project! {
     pub struct SendWhen<B>
     where
         B: Body,
-        B: 'static,
     {
         #[pin]
         pub(crate) when: ResponseFutMap<B>,
@@ -327,7 +326,8 @@ pin_project! {
 #[cfg(feature = "http2")]
 impl<B> Future for SendWhen<B>
 where
-    B: Body + 'static,
+    B: Body,
+    B::Data: 'static,
 {
     type Output = ();
 
