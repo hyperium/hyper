@@ -40,6 +40,7 @@ const MAX_BUF_LIST_BUFFERS: usize = 16;
 pub(crate) struct Buffered<T, B> {
     flush_pipeline: bool,
     io: T,
+    partial_len: Option<usize>,
     read_blocked: bool,
     read_buf: BytesMut,
     read_buf_strategy: ReadStrategy,
@@ -73,6 +74,7 @@ where
         Buffered {
             flush_pipeline: false,
             io,
+            partial_len: None,
             read_blocked: false,
             read_buf: BytesMut::with_capacity(0),
             read_buf_strategy: ReadStrategy::default(),
@@ -184,6 +186,7 @@ where
         loop {
             match super::role::parse_headers::<S>(
                 &mut self.read_buf,
+                self.partial_len,
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
@@ -220,11 +223,13 @@ where
                                 .reset(Instant::now() + Duration::from_secs(30 * 24 * 60 * 60));
                         }
                     }
+                    self.partial_len = None;
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
                     let max = self.read_buf_strategy.max();
-                    if self.read_buf.len() >= max {
+                    let curr_len = self.read_buf.len();
+                    if curr_len >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
@@ -241,6 +246,9 @@ where
                                 return Poll::Ready(Err(crate::Error::new_header_timeout()));
                             }
                         }
+                    }
+                    if curr_len > 0 {
+                        self.partial_len = Some(curr_len);
                     }
                 }
             }
