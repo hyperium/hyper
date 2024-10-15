@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1729006133540,
+  "lastUpdate": 1729006193476,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -46429,6 +46429,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5099621,
             "range": "± 123214.18",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "3900a2381b96a7e7f608a5e031b3e90ddcdfcd74",
+          "message": "perf(http1): improve parsing of sequentially partial messages\n\nIf request headers are received in incremental partial chunks, hyper\nwould restart parsing each time. This is because the HTTP/1 parser is\nstateless, since the most common case is a full message and stateless\nparses faster.\n\nHowever, if continuing to receive more partial chunks of the request,\neach subsequent full parse is slower and slower. Since partial parses is\nless common, we can store a little bit of state to improve performance\nin general.\n\nNow, if a partial request is received, hyper will check for the end of\nthe message quickly, and if not found, simply save the length to allow\nthe next partial chunk to start its search from there. Only once the end\nis found will a fill parse happen.\n\nReported-by: Datong Sun <datong.sun@konghq.com>",
+          "timestamp": "2024-10-15T08:28:03-07:00",
+          "tree_id": "c71c7e4fb8dfcac629682e8a830453d4141dea4c",
+          "url": "https://github.com/hyperium/hyper/commit/3900a2381b96a7e7f608a5e031b3e90ddcdfcd74"
+        },
+        "date": 1729006190650,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68068,
+            "range": "± 1598.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4275712,
+            "range": "± 72764.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20826,
+            "range": "± 451.54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22769,
+            "range": "± 228.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31270,
+            "range": "± 709.36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 96805,
+            "range": "± 1348.27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35429,
+            "range": "± 1333.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 90231,
+            "range": "± 1180.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24101771,
+            "range": "± 32416132.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24368502,
+            "range": "± 25369458.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7612746,
+            "range": "± 97983.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50205303,
+            "range": "± 760051.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49588282,
+            "range": "± 565594.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5057788,
+            "range": "± 86852.55",
             "unit": "ns/iter"
           }
         ]
