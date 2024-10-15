@@ -1,3 +1,21 @@
+## v1.5.0 (2024-10-15)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * improve performance of parsing sequentially partial messages (#3764) ([3900a23](https://github.com/hyperium/hyper/commit/3900a2381b96a7e7f608a5e031b3e90ddcdfcd74))
+  * send 'connection: close' when connection is ending (#3725) ([c86a6bcb](https://github.com/hyperium/hyper/commit/c86a6bcb4acb0f92e731ea2e4c1e4a839248a600), closes [#3720](https://github.com/hyperium/hyper/issues/3720))
+  * make `date_header` effective (#3718) ([7de02373](https://github.com/hyperium/hyper/commit/7de02373f5e4ce392587a4d9d7710c6faf9c6165))
+* **http2:** strip content-length header in response to CONNECT requests (#3748) ([67a4a498](https://github.com/hyperium/hyper/commit/67a4a498d8bbdce4e604bc578da4693fb048f83d))
+
+
+#### Features
+
+* **client:** Add HTTP/2 builder options `header_table_size()` and `max_concurrent_streams()`  ([4c84e8c1](https://github.com/hyperium/hyper/commit/4c84e8c1c26a1464221de96b9f39816ce7251a5f))
+* **rt:** add `ReadBufCursor` methods `remaining()` and `put_slice()` (#3700) ([5a13041e](https://github.com/hyperium/hyper/commit/5a13041ed7033c9dab6e2adafd08b6af20cd33fb))
+
+
 ### v1.4.1 (2024-07-09)
 
 
