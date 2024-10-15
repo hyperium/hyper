@@ -1,3 +1,11 @@
+### v0.14.31 (2024-10-15)
+
+
+#### Bug Fixes
+
+* **http1:** improve performance of parsing sequentially partial messages ([97b595e](https://github.com/hyperium/hyper/commit/97b595e5892c239a195b199f9e7910f582351c44))
+
+
 ### v0.14.30 (2024-07-09)
 
 
