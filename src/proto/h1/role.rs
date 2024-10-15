@@ -66,6 +66,7 @@ macro_rules! maybe_panic {
 
 pub(super) fn parse_headers<T>(
     bytes: &mut BytesMut,
+    prev_len: Option<usize>,
     ctx: ParseContext<'_>,
 ) -> ParseResult<T::Incoming>
 where
@@ -78,7 +79,35 @@ where
 
     let _entered = trace_span!("parse_headers");
 
+    if let Some(prev_len) = prev_len {
+        if !is_complete_fast(bytes, prev_len) {
+            return Ok(None);
+        }
+    }
+
     T::parse(bytes, ctx)
+}
+
+/// A fast scan for the end of a message.
+/// Used when there was a partial read, to skip full parsing on a
+/// a slow connection.
+fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
+    let start = if prev_len < 3 { 0 } else { prev_len - 3 };
+    let bytes = &bytes[start..];
+
+    for (i, b) in bytes.iter().copied().enumerate() {
+        if b == b'\r' {
+            if bytes[i + 1..].chunks(3).next() == Some(&b"\n\r\n"[..]) {
+                return true;
+            }
+        } else if b == b'\n' {
+            if bytes.get(i + 1) == Some(&b'\n') {
+                return true;
+            }
+        }
+    }
+
+    false
 }
 
 pub(super) fn encode_headers<T>(
@@ -2825,6 +2854,28 @@ mod tests {
         //
         parse(Some(200), 201, false);
         parse(Some(200), 210, false);
+    }
+
+    #[test]
+    fn test_is_complete_fast() {
+        let s = b"GET / HTTP/1.1\r\na: b\r\n\r\n";
+        for n in 0..s.len() {
+            assert!(is_complete_fast(s, n), "{:?}; {}", s, n);
+        }
+        let s = b"GET / HTTP/1.1\na: b\n\n";
+        for n in 0..s.len() {
+            assert!(is_complete_fast(s, n));
+        }
+
+        // Not
+        let s = b"GET / HTTP/1.1\r\na: b\r\n\r";
+        for n in 0..s.len() {
+            assert!(!is_complete_fast(s, n));
+        }
+        let s = b"GET / HTTP/1.1\na: b\n";
+        for n in 0..s.len() {
+            assert!(!is_complete_fast(s, n));
+        }
     }
 
     #[test]
