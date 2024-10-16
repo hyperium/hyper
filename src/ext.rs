@@ -5,7 +5,7 @@ use bytes::Bytes;
 use http::header::HeaderName;
 #[cfg(feature = "http1")]
 use http::header::{IntoHeaderName, ValueIter};
-use http::HeaderMap;
+use http::{CapacityOverflow, HeaderMap};
 #[cfg(feature = "ffi")]
 use std::collections::HashMap;
 #[cfg(feature = "http2")]
@@ -119,15 +119,17 @@ impl HeaderCaseMap {
     }
 
     #[cfg(any(test, feature = "ffi"))]
-    pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
-        self.0.insert(name, orig);
+    pub(crate) fn try_insert(&mut self, name: HeaderName, orig: Bytes) -> Result<(), CapacityOverflow> {
+        self.0.try_insert(name, orig)?;
+        Ok(())
     }
 
-    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
+    pub(crate) fn try_append<N>(&mut self, name: N, orig: Bytes) -> Result<(), CapacityOverflow>
     where
         N: IntoHeaderName,
     {
-        self.0.append(name, orig);
+        self.0.try_append(name, orig)?;
+        Ok(())
     }
 }
 

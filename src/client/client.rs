@@ -261,7 +261,8 @@ where
 
             if self.config.set_host {
                 let uri = req.uri().clone();
-                req.headers_mut().entry(HOST).or_insert_with(|| {
+                let entry = headers_op!(req.headers_mut().try_entry(HOST), error);
+                headers_op!(entry.or_try_insert_with(|| {
                     let hostname = uri.host().expect("authority implies host");
                     if let Some(port) = get_non_default_port(&uri) {
                         let s = format!("{}:{}", hostname, port);
@@ -270,7 +271,7 @@ where
                         HeaderValue::from_str(hostname)
                     }
                     .expect("uri host is valid header value")
-                });
+                }), capacity);
             }
 
             // CONNECT always sends authority-form, so check it first...
@@ -763,6 +764,12 @@ enum ClientError<B> {
         req: Request<B>,
         reason: crate::Error,
     },
+}
+
+impl<B> From<crate::error::Parse> for ClientError<B> {
+    fn from(e: crate::error::Parse) -> Self {
+        ClientError::Normal(e.into())
+    }
 }
 
 impl<B> ClientError<B> {

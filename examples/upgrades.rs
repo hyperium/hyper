@@ -66,7 +66,8 @@ async fn server_upgrade(mut req: Request<Body>) -> Result<Response<Body>> {
     // made-up 'foobar' protocol.
     *res.status_mut() = StatusCode::SWITCHING_PROTOCOLS;
     res.headers_mut()
-        .insert(UPGRADE, HeaderValue::from_static("foobar"));
+        .try_insert(UPGRADE, HeaderValue::from_static("foobar"))
+        .expect("FIXME");
     Ok(res)
 }
 

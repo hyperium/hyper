@@ -256,3 +256,6 @@ required-features = ["full"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["full"]
+
+[patch.crates-io]
+http = { git = "https://github.com/glebpom/http", branch = "failable-headers-allocations" }

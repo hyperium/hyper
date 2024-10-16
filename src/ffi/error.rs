@@ -24,6 +24,8 @@ pub enum hyper_code {
     HYPERE_FEATURE_NOT_ENABLED,
     /// The peer sent an HTTP message that could not be parsed.
     HYPERE_INVALID_PEER_MESSAGE,
+    /// HTTP headers reached the maximum capacity
+    HYPERE_HEADERS_CAPACITY,
 }
 
 // ===== impl hyper_error =====
