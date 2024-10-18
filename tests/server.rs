@@ -28,6 +28,7 @@ use tokio::net::{TcpListener, TcpStream as TkTcpStream};
 
 use hyper::body::HttpBody as _;
 use hyper::client::Client;
+use hyper::ext::Http1RawMessage;
 use hyper::server::conn::Http;
 use hyper::server::Server;
 use hyper::service::{make_service_fn, service_fn};
@@ -58,19 +59,20 @@ fn get_should_ignore_body() {
 
 #[test]
 fn get_with_body() {
-    let server = serve();
-    let mut req = connect(server.addr());
-    req.write_all(
-        b"\
+    const REQUEST_HEAD: &[u8] = b"\
         GET / HTTP/1.1\r\n\
         Host: example.domain\r\n\
         Content-Length: 19\r\n\
         \r\n\
-        I'm a good request.\r\n\
-    ",
-    )
-    .unwrap();
+    ";
+
+    let server = serve_opts().http1_raw_message().serve();
+    let mut req = connect(server.addr());
+    req.write_all(REQUEST_HEAD).unwrap();
+    req.write_all(b"I'm a good request.\r\n").unwrap();
     req.read(&mut [0; 256]).unwrap();
+
+    assert_eq!(*server.raw_request(), *REQUEST_HEAD);
 
     // note: doesn't include trailing \r\n, cause Content-Length wasn't 21
     assert_eq!(server.body(), b"I'm a good request.");
@@ -2838,6 +2840,13 @@ impl Serve {
         &self.addr
     }
 
+    fn raw_request(&self) -> Http1RawMessage {
+        match self.msg_rx.recv() {
+            Ok(Msg::RawRequest(raw_request)) => raw_request,
+            res => panic!("expected raw request, found: {:?}", res),
+        }
+    }
+
     fn body(&self) -> Vec<u8> {
         self.try_body().expect("body")
     }
@@ -2855,7 +2864,7 @@ impl Serve {
                 }
                 Ok(Msg::Error(e)) => return Err(e),
                 Ok(Msg::End) => break,
-                Err(e) => panic!("expected body, found: {:?}", e),
+                res => panic!("expected body, found: {:?}", res),
             }
         }
         Ok(buf)
@@ -2973,6 +2982,7 @@ enum Reply {
 
 #[derive(Debug)]
 enum Msg {
+    RawRequest(Http1RawMessage),
     Chunk(Vec<u8>),
     Error(hyper::Error),
     End,
@@ -2990,6 +3000,10 @@ impl tower_service::Service<Request<Body>> for TestService {
     fn call(&mut self, mut req: Request<Body>) -> Self::Future {
         let tx = self.tx.clone();
         let replies = self.reply.clone();
+
+        if let Some(raw_request) = req.extensions_mut().remove::<Http1RawMessage>() {
+            tx.send(Msg::RawRequest(raw_request)).unwrap();
+        }
 
         Box::pin(async move {
             while let Some(chunk) = req.data().await {
@@ -3090,6 +3104,7 @@ fn serve_opts() -> ServeOptions {
 struct ServeOptions {
     keep_alive: bool,
     http1_only: bool,
+    http1_raw_message: bool,
     pipeline: bool,
 }
 
@@ -3098,6 +3113,7 @@ impl Default for ServeOptions {
         ServeOptions {
             keep_alive: true,
             http1_only: false,
+            http1_raw_message: false,
             pipeline: false,
         }
     }
@@ -3106,6 +3122,11 @@ impl Default for ServeOptions {
 impl ServeOptions {
     fn http1_only(mut self) -> Self {
         self.http1_only = true;
+        self
+    }
+
+    fn http1_raw_message(mut self) -> Self {
+        self.http1_raw_message = true;
         self
     }
 
@@ -3156,6 +3177,7 @@ impl ServeOptions {
                         let builder = builder
                             .http1_only(_options.http1_only)
                             .http1_keepalive(_options.keep_alive)
+                            .http1_raw_message(_options.http1_raw_message)
                             .http1_pipeline_flush(_options.pipeline);
 
                         let server = builder.serve(service);
