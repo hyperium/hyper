@@ -74,7 +74,7 @@ where
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: Body + 'static,
+    Bs: Body,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
@@ -461,7 +461,7 @@ where
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: Body + 'static,
+    Bs: Body,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<Dispatched>;
