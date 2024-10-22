@@ -348,7 +348,7 @@ static void server_callback(
         hyper_body *body = hyper_body_new();
         hyper_body_set_data_func(body, send_each_body_chunk);
         int *chunk_count = (int *)malloc(sizeof(int));
-        *chunk_count = 1000;
+        *chunk_count = 10;
         hyper_body_set_userdata(body, (void *)chunk_count, free);
         hyper_response_set_body(response, body);
     }
