@@ -76,7 +76,7 @@ fn hello_world_16(b: &mut test::Bencher) {
         tcp.write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
             .unwrap();
         let mut buf = Vec::new();
-        tcp.read_to_end(&mut buf).unwrap()
+        tcp.read_to_end(&mut buf).unwrap() - "connection: close\r\n".len()
     } * PIPELINED_REQUESTS;
 
     let mut tcp = TcpStream::connect(addr).unwrap();

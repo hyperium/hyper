@@ -191,9 +191,9 @@ impl OriginalHeaderOrder {
         self.entry_order.push((name, idx));
     }
 
-    // No doc test is possible here because (a) `RUSTDOCFLAGS='--cfg hyper_unstable_ffi'`
-    // is needed to enable this feature and (b) because this is a private interface and doctests
-    // can only see public symbols.
+    // No doc test is run here because `RUSTFLAGS='--cfg hyper_unstable_ffi'`
+    // is needed to compile. Once ffi is stabilized `no_run` should be removed
+    // here.
     /// This returns an iterator that provides header names and indexes
     /// in the original order received.
     ///

@@ -1,3 +1,21 @@
+## v1.5.0 (2024-10-15)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * improve performance of parsing sequentially partial messages (#3764) ([3900a23](https://github.com/hyperium/hyper/commit/3900a2381b96a7e7f608a5e031b3e90ddcdfcd74))
+  * send 'connection: close' when connection is ending (#3725) ([c86a6bcb](https://github.com/hyperium/hyper/commit/c86a6bcb4acb0f92e731ea2e4c1e4a839248a600), closes [#3720](https://github.com/hyperium/hyper/issues/3720))
+  * make `date_header` effective (#3718) ([7de02373](https://github.com/hyperium/hyper/commit/7de02373f5e4ce392587a4d9d7710c6faf9c6165))
+* **http2:** strip content-length header in response to CONNECT requests (#3748) ([67a4a498](https://github.com/hyperium/hyper/commit/67a4a498d8bbdce4e604bc578da4693fb048f83d))
+
+
+#### Features
+
+* **client:** Add HTTP/2 builder options `header_table_size()` and `max_concurrent_streams()`  ([4c84e8c1](https://github.com/hyperium/hyper/commit/4c84e8c1c26a1464221de96b9f39816ce7251a5f))
+* **rt:** add `ReadBufCursor` methods `remaining()` and `put_slice()` (#3700) ([5a13041e](https://github.com/hyperium/hyper/commit/5a13041ed7033c9dab6e2adafd08b6af20cd33fb))
+
+
 ### v1.4.1 (2024-07-09)
 
 
@@ -212,7 +230,7 @@ Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
 #### Breaking Changes
 
-* Any IO transport type provided must not implement `hyper::rt::{Read, Write}` instead of
+* Any IO transport type provided must now implement `hyper::rt::{Read, Write}` instead of
   `tokio::io` traits. You can grab a helper type from `hyper-util` to wrap Tokio types, or implement the traits yourself,
   if it's a custom type.
  ([f9f65b7a](https://github.com/hyperium/hyper/commit/f9f65b7aa67fa3ec0267fe015945973726285bc2))
@@ -1600,7 +1618,7 @@ Be sure to check out the [upgrading guide](https://hyper.rs/guides/1/upgrading).
 
 * **client:**
   * check for dead connections in Pool ([44af2738](https://github.com/hyperium/hyper/commit/44af273853f82b81591b813d13627e143a14a6b7), closes [#1429](https://github.com/hyperium/hyper/issues/1429))
-  * error on unsupport 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
+  * error on unsupported 101 responses, ignore other 1xx codes ([22774222](https://github.com/hyperium/hyper/commit/227742221fa7830a14c18becbbc6137d97b57729))
 * **server:**
   * send 400 responses on parse errors before closing connection ([7cb72d20](https://github.com/hyperium/hyper/commit/7cb72d2019bffbc667b9ad2d8cbc19c1a513fcf7))
   * error if Response code is 1xx ([44c34ce9](https://github.com/hyperium/hyper/commit/44c34ce9adc888916bd67656cc54c35f7908f536))

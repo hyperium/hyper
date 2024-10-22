@@ -1140,6 +1140,8 @@ fn pipeline_enabled() {
 
         assert_eq!(s(lines.next().unwrap()), "HTTP/1.1 200 OK\r");
         assert_eq!(s(lines.next().unwrap()), "content-length: 12\r");
+        // close because the last request said to close
+        assert_eq!(s(lines.next().unwrap()), "connection: close\r");
         lines.next().unwrap(); // Date
         assert_eq!(s(lines.next().unwrap()), "\r");
         assert_eq!(s(lines.next().unwrap()), "Hello World");
@@ -1181,7 +1183,7 @@ fn http_11_uri_too_long() {
     let mut req = connect(server.addr());
     req.write_all(request_line.as_bytes()).unwrap();
 
-    let expected = "HTTP/1.1 414 URI Too Long\r\ncontent-length: 0\r\n";
+    let expected = "HTTP/1.1 414 URI Too Long\r\nconnection: close\r\ncontent-length: 0\r\n";
     let mut buf = [0; 256];
     let n = req.read(&mut buf).unwrap();
     assert!(n >= expected.len(), "read: {:?} >= {:?}", n, expected.len());
@@ -1207,6 +1209,12 @@ async fn disable_keep_alive_mid_request() {
             buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
             "should receive OK response, but buf: {:?}",
             buf,
+        );
+        let sbuf = s(&buf);
+        assert!(
+            sbuf.contains("connection: close\r\n"),
+            "response should have sent close: {:?}",
+            sbuf,
         );
     });
 
@@ -2366,7 +2374,7 @@ fn streaming_body() {
         buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
         "response is 200 OK"
     );
-    assert_eq!(buf.len(), 100_789, "full streamed body read");
+    assert_eq!(buf.len(), 100_808, "full streamed body read");
 }
 
 #[test]
