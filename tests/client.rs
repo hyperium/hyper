@@ -2044,22 +2044,20 @@ mod conn {
     #[tokio::test]
     async fn test_try_send_request() {
         use std::future::Future;
-        let (listener, addr) = setup_tk_test_server().await;
         let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+        let (io_srv, io_cli) = tokio_test::io::Builder::new()
+            .write(b"GET / HTTP/1.1\r\n\r\n")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .build_with_handle();
 
         tokio::spawn(async move {
-            let mut sock = listener.accept().await.unwrap().0;
-            let mut buf = [0u8; 8192];
-            sock.read(&mut buf).await.expect("read 1");
-            sock.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
-                .await
-                .expect("write 1");
+            let _io = io_cli;
             let _ = done_rx.await;
         });
 
         // make polling fair by putting both in spawns
         tokio::spawn(async move {
-            let io = tcp_connect(&addr).await.expect("tcp connect");
+            let io = TokioIo::new(io_srv);
             let (mut client, mut conn) = conn::http1::Builder::new()
                 .handshake::<_, Empty<Bytes>>(io)
                 .await
