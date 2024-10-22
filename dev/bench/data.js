@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1729630589893,
+  "lastUpdate": 1729633264731,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8849,6 +8849,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47285,
             "range": "± 9896.49",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "720d2db7c49be27a256718e77f59c0af1b6906a4",
+          "message": "docs(lib): fix up misleading example about unstable features",
+          "timestamp": "2024-10-22T14:40:14-07:00",
+          "tree_id": "0409fd5ba93e59df1367a3d37fcb48a4446108ad",
+          "url": "https://github.com/hyperium/hyper/commit/720d2db7c49be27a256718e77f59c0af1b6906a4"
+        },
+        "date": 1729633262578,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45023,
+            "range": "± 8543.02",
             "unit": "ns/iter"
           }
         ]
