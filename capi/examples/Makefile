@@ -3,7 +3,7 @@
 #
 
 RPATH=$(PWD)/../../target/release
-HYPER_CFLAGS += -I../include -ggdb3
+HYPER_CFLAGS += -I../include -ggdb3 -O2
 HYPER_LDFLAGS += -L$(RPATH) -Wl,-rpath,$(RPATH)
 LIBS = -lhyper
 
