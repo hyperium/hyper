@@ -6,6 +6,7 @@ use crate::rt::{Read, Write};
 use libc::size_t;
 
 use super::task::hyper_context;
+use super::userdata::{hyper_userdata_drop, Userdata};
 
 /// Sentinel value to return from a read or write callback that the operation
 /// is pending.
@@ -36,7 +37,7 @@ type hyper_io_write_callback =
 pub struct hyper_io {
     read: hyper_io_read_callback,
     write: hyper_io_write_callback,
-    userdata: *mut c_void,
+    userdata: Userdata,
 }
 
 ffi_fn! {
@@ -56,7 +57,7 @@ ffi_fn! {
         Box::into_raw(Box::new(hyper_io {
             read: read_noop,
             write: write_noop,
-            userdata: std::ptr::null_mut(),
+            userdata: Userdata::default(),
         }))
     } ?= std::ptr::null_mut()
 }
@@ -75,8 +76,28 @@ ffi_fn! {
     /// Set the user data pointer for this IO to some value.
     ///
     /// This value is passed as an argument to the read and write callbacks.
-    fn hyper_io_set_userdata(io: *mut hyper_io, data: *mut c_void) {
-        non_null!(&mut *io ?= ()).userdata = data;
+    ///
+    /// If passed, the `drop_func` will be called on the `userdata` when the
+    /// `hyper_io` is destroyed (either explicitly by `hyper_io_free` or
+    /// implicitly by an associated hyper task completing).
+    fn hyper_io_set_userdata(
+        io: *mut hyper_io,
+        data: *mut c_void,
+        drop_func: hyper_userdata_drop,
+    ) {
+        let io = non_null!(&mut *io? = ());
+        io.userdata = Userdata::new(data, drop_func);
+    }
+}
+
+ffi_fn! {
+    /// Get the user data pointer for this IO value.
+    ///
+    /// The userdata is still owned by the IO so must be treated as "borrowed"
+    ///
+    /// Returns NULL if no userdata has been set.
+    fn hyper_io_get_userdata(io: *mut hyper_io) -> *mut c_void {
+        non_null!(&mut *io ?= std::ptr::null_mut()).userdata.as_ptr()
     }
 }
 
@@ -151,7 +172,12 @@ impl Read for hyper_io {
         let buf_ptr = unsafe { buf.as_mut() }.as_mut_ptr() as *mut u8;
         let buf_len = buf.remaining();
 
-        match (self.read)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
+        match (self.read)(
+            self.userdata.as_ptr(),
+            hyper_context::wrap(cx),
+            buf_ptr,
+            buf_len,
+        ) {
             HYPER_IO_PENDING => Poll::Pending,
             HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -176,7 +202,12 @@ impl Write for hyper_io {
         let buf_ptr = buf.as_ptr();
         let buf_len = buf.len();
 
-        match (self.write)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
+        match (self.write)(
+            self.userdata.as_ptr(),
+            hyper_context::wrap(cx),
+            buf_ptr,
+            buf_len,
+        ) {
             HYPER_IO_PENDING => Poll::Pending,
             HYPER_IO_ERROR => Poll::Ready(Err(std::io::Error::new(
                 std::io::ErrorKind::Other,

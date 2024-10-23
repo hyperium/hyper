@@ -1,3 +1,4 @@
+use std::pin::Pin;
 use std::ptr;
 use std::sync::Arc;
 
@@ -108,7 +109,7 @@ ffi_fn! {
                     .map(|(tx, conn)| {
                         options.exec.execute(Box::pin(async move {
                             let _ = conn.await;
-                        }));
+                        }) as Pin<Box<_>>);
                         hyper_clientconn { tx: Tx::Http2(tx) }
                     });
                 }
@@ -123,7 +124,7 @@ ffi_fn! {
                 .map(|(tx, conn)| {
                     options.exec.execute(Box::pin(async move {
                         let _ = conn.await;
-                    }));
+                    }) as Pin<Box<_>>);
                     hyper_clientconn { tx: Tx::Http1(tx) }
                 })
         }))
@@ -143,18 +144,18 @@ ffi_fn! {
     /// `hyper_task_free`, or taken ownership of by `hyper_executor_push`
     /// without subsequently being given back by `hyper_executor_poll`.
     fn hyper_clientconn_send(conn: *mut hyper_clientconn, req: *mut hyper_request) -> *mut hyper_task {
-        let mut req = non_null! { Box::from_raw(req) ?= ptr::null_mut() };
+        let req = non_null! { Box::from_raw(req) ?= ptr::null_mut() };
 
         // Update request with original-case map of headers
-        req.finalize_request();
+        let req = (*req).finalize();
 
         let fut = match non_null! { &mut *conn ?= ptr::null_mut() }.tx {
-            Tx::Http1(ref mut tx) => futures_util::future::Either::Left(tx.send_request(req.0)),
-            Tx::Http2(ref mut tx) => futures_util::future::Either::Right(tx.send_request(req.0)),
+            Tx::Http1(ref mut tx) => futures_util::future::Either::Left(tx.send_request(req)),
+            Tx::Http2(ref mut tx) => futures_util::future::Either::Right(tx.send_request(req)),
         };
 
         let fut = async move {
-            fut.await.map(hyper_response::wrap)
+            fut.await.map(hyper_response::from)
         };
 
         Box::into_raw(hyper_task::boxed(fut))

@@ -2,8 +2,6 @@
 #![allow(non_camel_case_types)]
 // fmt::Debug isn't helpful on FFI types
 #![allow(missing_debug_implementations)]
-// unreachable_pub warns `#[no_mangle] pub extern fn` in private mod.
-#![allow(unreachable_pub)]
 
 //! # hyper C API
 //!
@@ -28,14 +26,6 @@
 //! RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --crate-type cdylib --features client,http1,http2,ffi
 //! ```
 
-// We may eventually allow the FFI to be enabled without `client` or `http1`,
-// that is why we don't auto enable them as `ffi = ["client", "http1"]` in
-// the `Cargo.toml`.
-//
-// But for now, give a clear message that this compile error is expected.
-#[cfg(not(all(feature = "client", feature = "http1")))]
-compile_error!("The `ffi` feature currently requires the `client` and `http1` features.");
-
 #[cfg(not(hyper_unstable_ffi))]
 compile_error!(
     "\
@@ -52,19 +42,23 @@ mod client;
 mod error;
 mod http_types;
 mod io;
+mod server;
 mod task;
+mod time;
+mod userdata;
 
 pub use self::body::*;
 pub use self::client::*;
 pub use self::error::*;
 pub use self::http_types::*;
 pub use self::io::*;
+pub use self::server::*;
 pub use self::task::*;
+pub use self::userdata::hyper_userdata_drop;
 
 /// Return in iter functions to continue iterating.
 pub const HYPER_ITER_CONTINUE: libc::c_int = 0;
 /// Return in iter functions to stop iterating.
-#[allow(unused)]
 pub const HYPER_ITER_BREAK: libc::c_int = 1;
 
 /// An HTTP Version that is unspecified.
@@ -75,14 +69,6 @@ pub const HYPER_HTTP_VERSION_1_0: libc::c_int = 10;
 pub const HYPER_HTTP_VERSION_1_1: libc::c_int = 11;
 /// The HTTP/2 version.
 pub const HYPER_HTTP_VERSION_2: libc::c_int = 20;
-
-#[derive(Clone)]
-struct UserDataPointer(*mut std::ffi::c_void);
-
-// We don't actually know anything about this pointer, it's up to the user
-// to do the right thing.
-unsafe impl Send for UserDataPointer {}
-unsafe impl Sync for UserDataPointer {}
 
 /// cbindgen:ignore
 static VERSION_CSTR: &str = concat!(env!("CARGO_PKG_VERSION"), "\0");
