@@ -1,4 +1,4 @@
-use std::ffi::c_void;
+use std::ffi::{c_int, c_void};
 use std::future::Future;
 use std::pin::Pin;
 use std::ptr;
@@ -9,7 +9,6 @@ use std::sync::{
 use std::task::{Context, Poll};
 
 use futures_util::stream::{FuturesUnordered, Stream};
-use libc::c_int;
 
 use super::error::hyper_code;
 use super::UserDataPointer;

@@ -1,6 +1,6 @@
+use std::ffi::{c_int, c_void};
+
 use bytes::Bytes;
-use libc::{c_int, size_t};
-use std::ffi::c_void;
 
 use super::body::hyper_body;
 use super::error::hyper_code;
@@ -8,6 +8,7 @@ use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
+use crate::ffi::size_t;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{HeaderMap, Method, Request, Response, Uri};
 
