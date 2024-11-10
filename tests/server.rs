@@ -2861,6 +2861,39 @@ fn http1_trailer_recv_fields() {
     );
 }
 
+#[tokio::test]
+async fn timeout_err() {
+    let (listener, addr) = setup_tcp_listener();
+
+    let j = tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
+
+        if let Err(e) = http1::Builder::new()
+            .timer(TokioTimer)
+            .header_read_timeout(Duration::from_secs(1))
+            .serve_connection(socket, HelloWorld)
+            .await {
+                Some(e.is_timeout())
+            } else {
+                None
+            }
+    });
+
+    let tcp = TokioIo::new(connect_async(addr).await);
+    let (_client, conn) = hyper::client::conn::http1::Builder::new()
+        .handshake::<_,Empty<Bytes>>(tcp)
+        .await
+        .expect("http handshake");
+
+    tokio::spawn(async move {
+        conn.await.expect_err("client conn fail");
+    });
+
+    TokioTimer.sleep(Duration::from_secs(2)).await;
+    assert_eq!(j.await.unwrap(), Some(true));
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
