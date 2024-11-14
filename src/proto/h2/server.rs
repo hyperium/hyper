@@ -135,7 +135,7 @@ where
             .initial_connection_window_size(config.initial_conn_window_size)
             .max_frame_size(config.max_frame_size)
             .max_header_list_size(config.max_header_list_size)
-            .max_local_error_reset_streams(config.max_pending_accept_reset_streams)
+            .max_local_error_reset_streams(config.max_local_error_reset_streams)
             .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
