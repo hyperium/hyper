@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1729870809806,
+  "lastUpdate": 1731675169811,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8939,6 +8939,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46268,
             "range": "± 9282.98",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4694f3878204bfaa3232a36b7de4ac0a2fdd1e0d",
+          "message": "chore(ci): pin hashbrown in MSRV job (#3783)",
+          "timestamp": "2024-11-15T07:51:57-05:00",
+          "tree_id": "09030cb313fe1221816814d355943cfbd1fb559f",
+          "url": "https://github.com/hyperium/hyper/commit/4694f3878204bfaa3232a36b7de4ac0a2fdd1e0d"
+        },
+        "date": 1731675166057,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45412,
+            "range": "± 9077.91",
             "unit": "ns/iter"
           }
         ]
