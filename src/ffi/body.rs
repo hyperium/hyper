@@ -7,7 +7,8 @@ use http_body_util::BodyExt as _;
 use libc::{c_int, size_t};
 
 use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType};
-use super::{UserDataPointer, HYPER_ITER_CONTINUE};
+use super::userdata::{hyper_userdata_drop, Userdata};
+use super::HYPER_ITER_CONTINUE;
 use crate::body::{Bytes, Frame, Incoming as IncomingBody};
 
 /// A streaming HTTP body.
@@ -44,11 +45,11 @@ pub struct hyper_body(pub(super) IncomingBody);
 /// - hyper_buf_copy:  Create a new hyper_buf * by copying the provided bytes.
 /// - hyper_buf_free:  Free this buffer.
 /// - hyper_buf_len:   Get the length of the bytes this buffer contains.
-pub struct hyper_buf(pub(crate) Bytes);
+pub struct hyper_buf(pub(super) Bytes);
 
 pub(crate) struct UserBody {
     data_func: hyper_body_data_callback,
-    userdata: *mut c_void,
+    userdata: Userdata,
 }
 
 // ===== Body =====
@@ -145,16 +146,16 @@ ffi_fn! {
     /// consumed.
     ///
     /// This will consume the `hyper_body *`, you shouldn't use it anymore or free it.
-    fn hyper_body_foreach(body: *mut hyper_body, func: hyper_body_foreach_callback, userdata: *mut c_void) -> *mut hyper_task {
+    fn hyper_body_foreach(body: *mut hyper_body, func: hyper_body_foreach_callback, userdata: *mut c_void, drop: hyper_userdata_drop) -> *mut hyper_task {
         let mut body = non_null!(Box::from_raw(body) ?= ptr::null_mut());
-        let userdata = UserDataPointer(userdata);
+        let userdata = Userdata::new(userdata, drop);
 
         Box::into_raw(hyper_task::boxed(async move {
             let _ = &userdata;
             while let Some(item) = body.0.frame().await {
                 let frame = item?;
                 if let Ok(chunk) = frame.into_data() {
-                    if HYPER_ITER_CONTINUE != func(userdata.0, &hyper_buf(chunk)) {
+                    if HYPER_ITER_CONTINUE != func(userdata.as_ptr(), &hyper_buf(chunk)) {
                         return Err(crate::Error::new_user_aborted_by_callback());
                     }
                 }
@@ -166,9 +167,9 @@ ffi_fn! {
 
 ffi_fn! {
     /// Set userdata on this body, which will be passed to callback functions.
-    fn hyper_body_set_userdata(body: *mut hyper_body, userdata: *mut c_void) {
+    fn hyper_body_set_userdata(body: *mut hyper_body, userdata: *mut c_void, drop: hyper_userdata_drop) {
         let b = non_null!(&mut *body ?= ());
-        b.0.as_ffi_mut().userdata = userdata;
+        b.0.as_ffi_mut().userdata = Userdata::new(userdata, drop);
     }
 }
 
@@ -204,7 +205,7 @@ impl UserBody {
     pub(crate) fn new() -> UserBody {
         UserBody {
             data_func: data_noop,
-            userdata: std::ptr::null_mut(),
+            userdata: Userdata::default(),
         }
     }
 
@@ -213,7 +214,7 @@ impl UserBody {
         cx: &mut Context<'_>,
     ) -> Poll<Option<crate::Result<Frame<Bytes>>>> {
         let mut out = std::ptr::null_mut();
-        match (self.data_func)(self.userdata, hyper_context::wrap(cx), &mut out) {
+        match (self.data_func)(self.userdata.as_ptr(), hyper_context::wrap(cx), &mut out) {
             super::task::HYPER_POLL_READY => {
                 if out.is_null() {
                     Poll::Ready(None)
