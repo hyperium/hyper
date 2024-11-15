@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1731675640450,
+  "lastUpdate": 1731675701490,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -47395,6 +47395,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5014391,
             "range": "± 95150.85",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "wing0920@gmail.com",
+            "name": "Yusuke Tanaka",
+            "username": "magurotuna"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "4a20147a1b73003860a8391c4b89ccd8a78a832e",
+          "message": "fix(http2): pass proper value to h2 max_local_error_reset_streams\n\nThe patch #3528 added the ability for hyper users to configure\n`max_local_error_reset_streams` via the server builder to hyper\nv0.14.29. It was then pulled in to hyper v1.2.0 as well in #3530, where\nthe wrong parameter `max_pending_accept_reset_streams` is passed to h2's\nbuilder as `max_local_error_reset_streams`.\n\nThis could lead to significant impact especially when a hyper user does\nnot set `max_pending_accept_reset_streams`, because its default value is\n`None` and passing `None` to h2's `max_local_error_reset_streams` method\nwill make the server vulnerable to DOS attacks.\n\nThis issue has been fixed in this patch, simply by passing the correct\nvalue to the h2's builder method.",
+          "timestamp": "2024-11-15T04:59:47-08:00",
+          "tree_id": "c77580767675d72092d1e21bcb6575ddfbea151a",
+          "url": "https://github.com/hyperium/hyper/commit/4a20147a1b73003860a8391c4b89ccd8a78a832e"
+        },
+        "date": 1731675699480,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 72307,
+            "range": "± 2767.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4485441,
+            "range": "± 322000.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21788,
+            "range": "± 507.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24131,
+            "range": "± 647.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33347,
+            "range": "± 1560.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99395,
+            "range": "± 2516.87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 38159,
+            "range": "± 2415.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 93846,
+            "range": "± 3131.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24480585,
+            "range": "± 34605947.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 43204330,
+            "range": "± 10041907.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7626314,
+            "range": "± 119772.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48973019,
+            "range": "± 400406.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50018167,
+            "range": "± 1675915.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5120898,
+            "range": "± 321826.46",
             "unit": "ns/iter"
           }
         ]
