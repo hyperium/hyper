@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1731675222202,
+  "lastUpdate": 1731675640450,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8969,6 +8969,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45412,
             "range": "± 9077.91",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "wing0920@gmail.com",
+            "name": "Yusuke Tanaka",
+            "username": "magurotuna"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "4a20147a1b73003860a8391c4b89ccd8a78a832e",
+          "message": "fix(http2): pass proper value to h2 max_local_error_reset_streams\n\nThe patch #3528 added the ability for hyper users to configure\n`max_local_error_reset_streams` via the server builder to hyper\nv0.14.29. It was then pulled in to hyper v1.2.0 as well in #3530, where\nthe wrong parameter `max_pending_accept_reset_streams` is passed to h2's\nbuilder as `max_local_error_reset_streams`.\n\nThis could lead to significant impact especially when a hyper user does\nnot set `max_pending_accept_reset_streams`, because its default value is\n`None` and passing `None` to h2's `max_local_error_reset_streams` method\nwill make the server vulnerable to DOS attacks.\n\nThis issue has been fixed in this patch, simply by passing the correct\nvalue to the h2's builder method.",
+          "timestamp": "2024-11-15T04:59:47-08:00",
+          "tree_id": "c77580767675d72092d1e21bcb6575ddfbea151a",
+          "url": "https://github.com/hyperium/hyper/commit/4a20147a1b73003860a8391c4b89ccd8a78a832e"
+        },
+        "date": 1731675636868,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45645,
+            "range": "± 6122.71",
             "unit": "ns/iter"
           }
         ]
