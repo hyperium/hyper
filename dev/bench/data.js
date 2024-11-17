@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1731675701490,
+  "lastUpdate": 1731825253345,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -8999,6 +8999,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45645,
             "range": "± 6122.71",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "65026b2ad9cd58aa24222fe73fa7d58f5f78bbba",
+          "message": "chore(dependencies): remove libc crate from dependencies (#3377)",
+          "timestamp": "2024-11-17T15:33:23+09:00",
+          "tree_id": "35704b9b18ace75f5f1d95b5cc0814321972f70e",
+          "url": "https://github.com/hyperium/hyper/commit/65026b2ad9cd58aa24222fe73fa7d58f5f78bbba"
+        },
+        "date": 1731825251255,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48605,
+            "range": "± 9445.19",
             "unit": "ns/iter"
           }
         ]
