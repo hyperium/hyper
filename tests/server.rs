@@ -2862,7 +2862,7 @@ fn http1_trailer_recv_fields() {
 }
 
 #[tokio::test]
-async fn timeout_err() {
+async fn http1_timeout_error() {
     let (listener, addr) = setup_tcp_listener();
 
     let j = tokio::spawn(async move {
@@ -2873,16 +2873,17 @@ async fn timeout_err() {
             .timer(TokioTimer)
             .header_read_timeout(Duration::from_secs(1))
             .serve_connection(socket, HelloWorld)
-            .await {
-                Some(e.is_timeout())
-            } else {
-                None
-            }
+            .await
+        {
+            Some(e.is_timeout())
+        } else {
+            None
+        }
     });
 
     let tcp = TokioIo::new(connect_async(addr).await);
     let (_client, conn) = hyper::client::conn::http1::Builder::new()
-        .handshake::<_,Empty<Bytes>>(tcp)
+        .handshake::<_, Empty<Bytes>>(tcp)
         .await
         .expect("http handshake");
 
