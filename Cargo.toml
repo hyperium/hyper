@@ -85,6 +85,7 @@ server = ["dep:httpdate", "dep:pin-project-lite", "dep:smallvec"]
 
 # C-API support (currently unstable (no semver))
 ffi = ["dep:http-body-util", "futures-util?/alloc"]
+capi = []
 
 # Utilize tracing (currently unstable)
 tracing = ["dep:tracing"]
@@ -105,6 +106,13 @@ rustdoc-args = ["--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"
 
 [package.metadata.playground]
 features = ["full"]
+
+[package.metadata.capi.header]
+generation = false
+subdirectory = false
+
+[package.metadata.capi.install.include]
+asset = [{ from="capi/include/hyper.h" }]
 
 [profile.release]
 codegen-units = 1
