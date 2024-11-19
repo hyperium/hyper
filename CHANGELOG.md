@@ -1,3 +1,13 @@
+### v1.5.1 (2024-11-19)
+
+
+#### Bug Fixes
+
+* **http2:**
+  * pass proper value to h2 max_local_error_reset_streams ([4a20147a](https://github.com/hyperium/hyper/commit/4a20147a1b73003860a8391c4b89ccd8a78a832e))
+  * improve graceful shutdown during handshake (#3729) ([13b05943](https://github.com/hyperium/hyper/commit/13b0594348916b901ad7e1c838b9d90298db6af4))
+
+
 ## v1.5.0 (2024-10-15)
 
 
