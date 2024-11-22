@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1732034662448,
+  "lastUpdate": 1732297618678,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9059,6 +9059,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47668,
             "range": "± 8300.64",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7f4a68265cb897d15b04fc772639234554ba79e8",
+          "message": "feat(ffi): add cargo-c support (#3787)\n\nCloses #3786",
+          "timestamp": "2024-11-22T12:46:09-05:00",
+          "tree_id": "7f05755cf8b0f36712d3bbdf21a17d214114bcfc",
+          "url": "https://github.com/hyperium/hyper/commit/7f4a68265cb897d15b04fc772639234554ba79e8"
+        },
+        "date": 1732297616577,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45507,
+            "range": "± 9292.91",
             "unit": "ns/iter"
           }
         ]
