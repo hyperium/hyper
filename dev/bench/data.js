@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1732297680609,
+  "lastUpdate": 1732633766629,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9089,6 +9089,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45507,
             "range": "± 9292.91",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "rk@23doors.com",
+            "name": "Robert Kopaczewski",
+            "username": "23doors"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "eaf2267cdc148604469fb09da22646f31710107a",
+          "message": "fix(http1): skip debug assertion of content length for HEAD responses (#3795)\n\nCloses #3794",
+          "timestamp": "2024-11-26T10:08:34-05:00",
+          "tree_id": "b99934168d25853e0ca3d5bad8edc914c1f030b3",
+          "url": "https://github.com/hyperium/hyper/commit/eaf2267cdc148604469fb09da22646f31710107a"
+        },
+        "date": 1732633764238,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46710,
+            "range": "± 9268.29",
             "unit": "ns/iter"
           }
         ]
