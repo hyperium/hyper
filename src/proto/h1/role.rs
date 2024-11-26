@@ -702,12 +702,14 @@ impl Server {
                             #[cfg(debug_assertions)]
                             {
                                 if let Some(len) = headers::content_length_parse(&value) {
-                                    assert!(
+                                    if msg.req_method != &Some(Method::HEAD) || known_len != 0 {
+                                        assert!(
                                         len == known_len,
                                         "payload claims content-length of {}, custom content-length header claims {}",
                                         known_len,
                                         len,
                                     );
+                                    }
                                 }
                             }
 
