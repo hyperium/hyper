@@ -116,6 +116,7 @@ jobs:
         run: |
           cargo update -p tokio --precise 1.38.1
           cargo update -p tokio-util --precise 0.7.11
+          cargo update -p hashbrown --precise 0.15.0
 
       - name: Check
         run: cargo check --features full
