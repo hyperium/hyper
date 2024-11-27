@@ -250,6 +250,14 @@ impl<B> fmt::Debug for SendRequest<B> {
     }
 }
 
+/// A [`SendRequest<B>`] can be constructed from its legacy counterpart.
+#[cfg_attr(feature = "deprecated", allow(deprecated))]
+impl<B> From<super::SendRequest<B>> for SendRequest<B> {
+    fn from(super::SendRequest { dispatch }: super::SendRequest<B>) -> Self {
+        SendRequest { dispatch }
+    }
+}
+
 // ===== impl Connection
 
 impl<T, B> fmt::Debug for Connection<T, B>
