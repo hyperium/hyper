@@ -137,6 +137,13 @@ impl Body {
     ///
     /// Useful when wanting to stream chunks from another thread.
     #[inline]
+    #[cfg_attr(
+        feature = "deprecated",
+        deprecated(
+            note = "This function has been removed. Wrap `tokio::sync::mspc::Receiver<T>` in a `StreamBody` instead."
+        )
+    )]
+    #[cfg_attr(feature = "deprecated", allow(deprecated))]
     pub fn channel() -> (Sender, Body) {
         Self::new_channel(DecodedLength::CHUNKED, /*wanter =*/ false)
     }
