@@ -195,6 +195,9 @@ impl<E> Builder<E> {
     ///
     /// # Cargo Feature
     ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]
     pub fn keep_alive_interval(&mut self, interval: impl Into<Option<Duration>>) -> &mut Self {
         self.h2_builder.keep_alive_interval = interval.into();
         self
@@ -209,6 +212,9 @@ impl<E> Builder<E> {
     ///
     /// # Cargo Feature
     ///
+    /// Requires the `runtime` cargo feature to be enabled.
+    #[cfg(feature = "runtime")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "runtime")))]
     pub fn keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.h2_builder.keep_alive_timeout = timeout;
         self
