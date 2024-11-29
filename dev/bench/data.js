@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1732633831763,
+  "lastUpdate": 1732904773537,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9119,6 +9119,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46710,
             "range": "± 9268.29",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ionionascu@gmail.com",
+            "name": "Ion Ionascu",
+            "username": "ionionascu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8cf112197703535b201ac0ba2e9daff1e5f96901",
+          "message": "test(server): fix conditional cfg for tests needing the server feature (#3799)\n\nUpdate tests that require the server feature to only be compiled when the feature is enabled.\r\nAfter updating these tests, the server feature is no longer required for the ffi job when\r\nrunning tests.\r\n\r\nCloses #3790",
+          "timestamp": "2024-11-29T13:25:22-05:00",
+          "tree_id": "475b500317470e503f89c044c7786ef58c5973c6",
+          "url": "https://github.com/hyperium/hyper/commit/8cf112197703535b201ac0ba2e9daff1e5f96901"
+        },
+        "date": 1732904771433,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48746,
+            "range": "± 8720.14",
             "unit": "ns/iter"
           }
         ]
