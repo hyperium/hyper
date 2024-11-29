@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1732904773537,
+  "lastUpdate": 1732904835323,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -48085,6 +48085,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5161207,
             "range": "± 250766.21",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ionionascu@gmail.com",
+            "name": "Ion Ionascu",
+            "username": "ionionascu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8cf112197703535b201ac0ba2e9daff1e5f96901",
+          "message": "test(server): fix conditional cfg for tests needing the server feature (#3799)\n\nUpdate tests that require the server feature to only be compiled when the feature is enabled.\r\nAfter updating these tests, the server feature is no longer required for the ffi job when\r\nrunning tests.\r\n\r\nCloses #3790",
+          "timestamp": "2024-11-29T13:25:22-05:00",
+          "tree_id": "475b500317470e503f89c044c7786ef58c5973c6",
+          "url": "https://github.com/hyperium/hyper/commit/8cf112197703535b201ac0ba2e9daff1e5f96901"
+        },
+        "date": 1732904832852,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 70905,
+            "range": "± 924.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4722173,
+            "range": "± 265056.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21745,
+            "range": "± 425.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24104,
+            "range": "± 514.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 33564,
+            "range": "± 3330.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100791,
+            "range": "± 1732.20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 37886,
+            "range": "± 1419.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 95111,
+            "range": "± 2518.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24027747,
+            "range": "± 33579143.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7763988,
+            "range": "± 448552.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7559127,
+            "range": "± 111645.27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49755302,
+            "range": "± 311129.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50319364,
+            "range": "± 638263.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5182120,
+            "range": "± 177579.31",
             "unit": "ns/iter"
           }
         ]
