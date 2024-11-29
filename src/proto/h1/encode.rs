@@ -506,6 +506,7 @@ mod tests {
         assert!(encoder.end::<()>().unwrap().is_none());
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn eof() {
         let mut encoder = Encoder::close_delimited();
