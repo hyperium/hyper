@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1732904835323,
+  "lastUpdate": 1732905931098,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9149,6 +9149,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48746,
             "range": "± 8720.14",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "1161813899@qq.com",
+            "name": "Lin Yihai",
+            "username": "linyihai"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "12717d16594debd8f2b1e3e169cc9b4700ee25b3",
+          "message": "chore(ffi): only backup hyper.h when passing --verify (#3800)",
+          "timestamp": "2024-11-29T13:44:41-05:00",
+          "tree_id": "4cb55f377d00ef65074d6b837a8116bb8c92716f",
+          "url": "https://github.com/hyperium/hyper/commit/12717d16594debd8f2b1e3e169cc9b4700ee25b3"
+        },
+        "date": 1732905928598,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49737,
+            "range": "± 9259.34",
             "unit": "ns/iter"
           }
         ]
