@@ -76,6 +76,7 @@ pub(crate) struct ParseContext<'a> {
     cached_headers: &'a mut Option<HeaderMap>,
     req_method: &'a mut Option<Method>,
     h1_parser_config: ParserConfig,
+    h1_max_headers: Option<usize>,
     #[cfg(all(feature = "server", feature = "runtime"))]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(all(feature = "server", feature = "runtime"))]
