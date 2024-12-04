@@ -207,7 +207,7 @@ async fn http1_client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>>
         while let Some(next) = res.frame().await {
             let frame = next?;
             if let Some(chunk) = frame.data_ref() {
-                stdout.write_all(&chunk).await.unwrap();
+                stdout.write_all(chunk).await.unwrap();
             }
         }
         stdout.write_all(b"\n-----------------\n").await.unwrap();
@@ -308,7 +308,7 @@ async fn http2_client(url: hyper::Uri) -> Result<(), Box<dyn std::error::Error>>
         while let Some(next) = res.frame().await {
             let frame = next?;
             if let Some(chunk) = frame.data_ref() {
-                stdout.write_all(&chunk).await.unwrap();
+                stdout.write_all(chunk).await.unwrap();
             }
         }
         stdout.write_all(b"\n-----------------\n").await.unwrap();

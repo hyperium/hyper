@@ -181,13 +181,11 @@ where
         match self.state {
             State::Handshaking { .. } => {
                 self.close_pending = true;
-                return;
             }
             State::Serving(ref mut srv) => {
                 if srv.closing.is_none() {
                     srv.conn.graceful_shutdown();
                 }
-                return;
             }
         }
     }
@@ -227,7 +225,7 @@ where
                 }
                 State::Serving(ref mut srv) => {
                     // graceful_shutdown was called before handshaking finished,
-                    if true == me.close_pending && srv.closing.is_none() {
+                    if me.close_pending && srv.closing.is_none() {
                         srv.conn.graceful_shutdown();
                     }
                     ready!(srv.poll_server(cx, &mut me.service, &mut me.exec))?;

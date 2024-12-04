@@ -371,7 +371,7 @@ async fn async_test(cfg: __TestConfig) {
                 assert_eq!(req.method(), &sreq.method, "client method");
                 assert_eq!(req.version(), version, "client version");
                 for func in &sreq.headers {
-                    func(&req.headers());
+                    func(req.headers());
                 }
                 let sbody = sreq.body;
                 req.collect().map_ok(move |collected| {
@@ -460,7 +460,7 @@ async fn async_test(cfg: __TestConfig) {
             assert_eq!(res.status(), cstatus, "server status");
             assert_eq!(res.version(), version, "server version");
             for func in &cheaders {
-                func(&res.headers());
+                func(res.headers());
             }
 
             let body = res.collect().await.unwrap().to_bytes();
