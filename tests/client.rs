@@ -1156,7 +1156,7 @@ test! {
             \r\n\
             ",
         reply: {
-            let long_header = std::iter::repeat("A").take(500_000).collect::<String>();
+            let long_header = "A".repeat(500_000);
             format!("\
                 HTTP/1.1 200 OK\r\n\
                 {}: {}\r\n\

@@ -44,7 +44,7 @@ impl Timer for TokioTimer {
 
     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
         if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<TokioSleep>() {
-            sleep.reset(new_deadline.into())
+            sleep.reset(new_deadline)
         }
     }
 }
