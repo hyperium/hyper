@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1732905987347,
+  "lastUpdate": 1733501148606,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9179,6 +9179,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49737,
             "range": "± 9259.34",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "yihai-lin@foxmail.com",
+            "name": "Lin Yihai",
+            "username": "linyihai"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0bd4adfed2bf40dda6867260ded05542d5b921c5",
+          "message": "refactor(lib): reduce clippy warnings (#3805)",
+          "timestamp": "2024-12-06T11:04:54-05:00",
+          "tree_id": "57d0f27e0ecacaef717664a557140175f49ae5c9",
+          "url": "https://github.com/hyperium/hyper/commit/0bd4adfed2bf40dda6867260ded05542d5b921c5"
+        },
+        "date": 1733501145602,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46045,
+            "range": "± 9034.60",
             "unit": "ns/iter"
           }
         ]
