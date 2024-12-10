@@ -123,7 +123,8 @@ where
     B: Body + 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
-    /// Start a graceful shutdown process for this connection.
+    /// Start a graceful shutdown process for this connection, using the default
+    /// [`GracefulShutdownConfig`].
     ///
     /// This `Connection` should continue to be polled until shutdown
     /// can finish.
@@ -133,8 +134,29 @@ where
     /// This should only be called while the `Connection` future is still
     /// pending. If called after `Connection::poll` has resolved, this does
     /// nothing.
-    pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
+    pub fn graceful_shutdown(self: Pin<&mut Self>) {
+        self.graceful_shutdown_with_config(GracefulShutdownConfig::default());
+    }
+
+    /// Start a graceful shutdown process for this connection.
+    ///
+    /// This `Connection` should continue to be polled until shutdown can finish.
+    ///
+    /// Requires a [`Timer`] set by [`Builder::timer`].
+    ///
+    /// # Note
+    ///
+    /// This should only be called while the `Connection` future is still
+    /// pending. If called after `Connection::poll` has resolved, this does
+    /// nothing.
+    ///
+    /// # Panics
+    /// If [`GracefulShutdownConfig::first_byte_read_timeout`] was configured to greater than zero
+    /// nanoseconds, but no timer was set, then the `Connection` will panic when it is next polled.
+    pub fn graceful_shutdown_with_config(mut self: Pin<&mut Self>, config: GracefulShutdownConfig) {
         self.conn.disable_keep_alive();
+        self.conn
+            .set_graceful_shutdown_first_byte_read_timeout(config.first_byte_read_timeout);
     }
 
     /// Return the inner IO object, and additional information.
@@ -524,5 +546,75 @@ where
             // inner is `None`, meaning the connection was upgraded, thus it's `Poll::Ready(Ok(()))`
             Poll::Ready(Ok(()))
         }
+    }
+}
+
+/// Configuration for graceful shutdowns.
+///
+/// # Example
+///
+/// ```
+/// # use hyper::{body::Incoming, Request, Response};
+/// # use hyper::service::Service;
+/// # use hyper::server::conn::http1::Builder;
+/// # use hyper::rt::{Read, Write};
+/// # use std::time::Duration;
+/// # use hyper::server::conn::http1::GracefulShutdownConfig;
+/// # async fn run<I, S>(some_io: I, some_service: S)
+/// # where
+/// #     I: Read + Write + Unpin + Send + 'static,
+/// #     S: Service<hyper::Request<Incoming>, Response=hyper::Response<Incoming>> + Send + 'static,
+/// #     S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+/// #     S::Future: Send,
+/// # {
+/// let http = Builder::new();
+/// let conn = http.serve_connection(some_io, some_service);
+///
+/// let mut config = GracefulShutdownConfig::default();
+/// config.first_byte_read_timeout(Duration::from_secs(2));
+///
+/// conn.graceful_shutdown_with_config(config);
+/// conn.await.unwrap();
+/// # }
+/// # fn main() {}
+/// ```
+#[derive(Debug)]
+pub struct GracefulShutdownConfig {
+    first_byte_read_timeout: Duration,
+}
+impl Default for GracefulShutdownConfig {
+    fn default() -> Self {
+        GracefulShutdownConfig {
+            first_byte_read_timeout: Duration::from_secs(0),
+        }
+    }
+}
+impl GracefulShutdownConfig {
+    /// It is possible for a client to open a connection and begin transmitting bytes, but have the
+    /// server initiate a graceful shutdown just before it sees any of the client's bytes.
+    ///
+    /// The more traffic that a server receives, the more likely this race condition is to occur for
+    /// some of the open connections.
+    ///
+    /// The `first_byte_read_timeout` controls how long the server waits for the first bytes of a
+    /// final request to be received from the client.
+    ///
+    /// If no bytes were received from the client between the time that keep alive was disabled and
+    /// the `first_byte_timeout` duration, the connection is considered inactive and the server will
+    /// close it.
+    ///
+    /// # Recommendations
+    /// Servers are recommended to use a `first_byte_read_timeout` that reduces the likelihood of
+    /// the client receiving an error due to the connection closing just after they began
+    /// transmitting their final request.
+    /// For most internet connections, a roughly one second timeout should be enough time for the
+    /// server to begin receiving the client's request's bytes.
+    ///
+    /// # Default
+    /// A default of 0 seconds was chosen to remain backwards compatible with version of hyper that
+    /// did not have this `first_byte_read_timeout` configuration.
+    pub fn first_byte_read_timeout(&mut self, timeout: Duration) -> &mut Self {
+        self.first_byte_read_timeout = timeout;
+        self
     }
 }
