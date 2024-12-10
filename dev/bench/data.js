@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1733845787599,
+  "lastUpdate": 1733845857138,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -48499,6 +48499,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5012146,
             "range": "± 262030.13",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "suzp1984@gmail.com",
+            "name": "Jacob Su",
+            "username": "suzp1984"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "115339d3df50f20c8717680aa35f48858e9a6205",
+          "message": "chore(benches): fix pin-project-lite not found (#3807)",
+          "timestamp": "2024-12-10T10:48:56-05:00",
+          "tree_id": "b4f0591f9a009cc1bc4576d2230bcbeabdaf27b0",
+          "url": "https://github.com/hyperium/hyper/commit/115339d3df50f20c8717680aa35f48858e9a6205"
+        },
+        "date": 1733845854845,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 75546,
+            "range": "± 3604.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4842150,
+            "range": "± 504401.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21048,
+            "range": "± 279.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23074,
+            "range": "± 384.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31458,
+            "range": "± 651.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 95662,
+            "range": "± 1652.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35722,
+            "range": "± 956.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 90529,
+            "range": "± 3407.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24069174,
+            "range": "± 32632898.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7829550,
+            "range": "± 129484.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7535915,
+            "range": "± 179007.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50289793,
+            "range": "± 491330.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51763402,
+            "range": "± 1740091.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5268095,
+            "range": "± 306625.27",
             "unit": "ns/iter"
           }
         ]
