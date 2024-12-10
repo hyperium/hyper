@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1733845857138,
+  "lastUpdate": 1733849757252,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9239,6 +9239,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48110,
             "range": "± 7438.84",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a3bda62da36060a38638fba983a0c07c0ab6259d",
+          "message": "docs(roadmap): update ROADMAP post v1.0 (#3763)",
+          "timestamp": "2024-12-10T11:55:08-05:00",
+          "tree_id": "58111a2616eeffd70a8f0ea118348e424de88186",
+          "url": "https://github.com/hyperium/hyper/commit/a3bda62da36060a38638fba983a0c07c0ab6259d"
+        },
+        "date": 1733849754804,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46118,
+            "range": "± 7213.04",
             "unit": "ns/iter"
           }
         ]
