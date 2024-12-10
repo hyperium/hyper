@@ -1,3 +1,8 @@
+use crate::rt::{Read, Write};
+use bytes::{Buf, Bytes};
+use futures_util::ready;
+use http::Request;
+use std::time::Duration;
 use std::{
     error::Error as StdError,
     future::Future,
@@ -5,11 +10,6 @@ use std::{
     pin::Pin,
     task::{Context, Poll},
 };
-
-use crate::rt::{Read, Write};
-use bytes::{Buf, Bytes};
-use futures_util::ready;
-use http::Request;
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
@@ -90,13 +90,12 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
+    }
 
-        // If keep alive has been disabled and no read or write has been seen on
-        // the connection yet, we must be in a state where the server is being asked to
-        // shut down before any data has been seen on the connection
-        if self.conn.is_write_closed() || self.conn.has_initial_read_write_state() {
-            self.close();
-        }
+    #[cfg(feature = "server")]
+    pub(crate) fn set_graceful_shutdown_first_byte_read_timeout(&mut self, read_timeout: Duration) {
+        self.conn
+            .set_http1_graceful_shutdown_first_byte_read_timeout(read_timeout);
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes, D) {
