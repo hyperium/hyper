@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1733501197107,
+  "lastUpdate": 1733845787599,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9209,6 +9209,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46045,
             "range": "± 9034.60",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "suzp1984@gmail.com",
+            "name": "Jacob Su",
+            "username": "suzp1984"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "115339d3df50f20c8717680aa35f48858e9a6205",
+          "message": "chore(benches): fix pin-project-lite not found (#3807)",
+          "timestamp": "2024-12-10T10:48:56-05:00",
+          "tree_id": "b4f0591f9a009cc1bc4576d2230bcbeabdaf27b0",
+          "url": "https://github.com/hyperium/hyper/commit/115339d3df50f20c8717680aa35f48858e9a6205"
+        },
+        "date": 1733845785189,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48110,
+            "range": "± 7438.84",
             "unit": "ns/iter"
           }
         ]
