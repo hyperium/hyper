@@ -2909,6 +2909,63 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn client_100_then_http09() {
+        let _ = ::pretty_env_logger::try_init();
+
+        let server = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = server.local_addr().unwrap();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(
+                b"\
+                HTTP/1.1 100 Continue\r\n\
+                Content-Type: text/plain\r\n\
+                Server: BaseHTTP/0.6 Python/3.12.5\r\n\
+                Date: Mon, 16 Dec 2024 03:08:27 GMT\r\n\
+            ",
+            )
+            .unwrap();
+            // That it's separate writes is important to this test
+            thread::sleep(Duration::from_millis(50));
+            sock.write_all(
+                b"\
+                \r\n\
+            ",
+            )
+            .expect("write 2");
+            thread::sleep(Duration::from_millis(50));
+            sock.write_all(
+                b"\
+                This is a sample text/plain document, without final headers.\
+                \n\n\
+            ",
+            )
+            .expect("write 3");
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::Builder::new()
+            .http09_responses(true)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder().uri("/a").body(Body::empty()).unwrap();
+        let _res = client.send_request(req).await.expect("send_request");
+    }
+
+    #[tokio::test]
     async fn http2_detect_conn_eof() {
         use futures_util::future;
         use hyper::service::{make_service_fn, service_fn};
