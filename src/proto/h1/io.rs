@@ -205,7 +205,11 @@ where
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
                     if curr_len > 0 {
+                        trace!("partial headers; {} bytes so far", curr_len);
                         self.partial_len = Some(curr_len);
+                    } else {
+                        // 1xx gobled some bytes
+                        self.partial_len = None;
                     }
                 }
             }

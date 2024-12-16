@@ -2042,6 +2042,63 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn client_100_then_http09() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(
+                b"\
+                HTTP/1.1 100 Continue\r\n\
+                Content-Type: text/plain\r\n\
+                Server: BaseHTTP/0.6 Python/3.12.5\r\n\
+                Date: Mon, 16 Dec 2024 03:08:27 GMT\r\n\
+            ",
+            )
+            .unwrap();
+            // That it's separate writes is important to this test
+            thread::sleep(Duration::from_millis(50));
+            sock.write_all(
+                b"\
+                \r\n\
+            ",
+            )
+            .expect("write 2");
+            thread::sleep(Duration::from_millis(50));
+            sock.write_all(
+                b"\
+                This is a sample text/plain document, without final headers.\
+                \n\n\
+            ",
+            )
+            .expect("write 3");
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .http09_responses(true)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let _res = client.send_request(req).await.expect("send_request");
+    }
+
+    #[tokio::test]
     async fn test_try_send_request() {
         use std::future::Future;
         let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
