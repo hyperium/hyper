@@ -1,3 +1,18 @@
+### v1.5.2 (2024-12-16)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * fix intermitent panic parsing partial headers (#3812) ([a131111f](https://github.com/hyperium/hyper/commit/a131111f9c3189bab36fed9f46872c88dc0d601e), closes [#3811](https://github.com/hyperium/hyper/issues/3811))
+  * skip debug assertion of content length for HEAD responses (#3795) ([eaf2267c](https://github.com/hyperium/hyper/commit/eaf2267cdc148604469fb09da22646f31710107a), closes [#3794](https://github.com/hyperium/hyper/issues/3794))
+
+
+#### Features
+
+* **ffi:** add cargo-c support (#3787) ([7f4a6826](https://github.com/hyperium/hyper/commit/7f4a68265cb897d15b04fc772639234554ba79e8), closes [#3786](https://github.com/hyperium/hyper/issues/3786))
+
+
 ### v1.5.1 (2024-11-19)
 
 
