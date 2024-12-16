@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1733849904609,
+  "lastUpdate": 1734363456575,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9269,6 +9269,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46118,
             "range": "± 7213.04",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a131111f9c3189bab36fed9f46872c88dc0d601e",
+          "message": "fix(http1): fix intermitent panic parsing partial headers (#3812)\n\nCloses #3811",
+          "timestamp": "2024-12-16T10:36:41-05:00",
+          "tree_id": "dd2700ed6794c889095646223e3c51eb3649dbe4",
+          "url": "https://github.com/hyperium/hyper/commit/a131111f9c3189bab36fed9f46872c88dc0d601e"
+        },
+        "date": 1734363454470,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 53011,
+            "range": "± 8472.47",
             "unit": "ns/iter"
           }
         ]
