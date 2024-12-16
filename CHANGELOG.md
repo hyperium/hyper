@@ -1,3 +1,13 @@
+### v0.14.32 (2024-12-16)
+
+#### Features
+
+* **server:** add `Builder::max_pending_accept_reset_streams(num)` option ([a24f0c0](https://github.com/hyperium/hyper/commit/a24f0c0af8e1f4c6b7cc3a47c83eb6e4af88aca6))
+
+#### Bug Fixes
+
+* **http1:** fix intermittent panic parsing partial headers ([0f274ae](https://github.com/hyperium/hyper/commit/0f274ae653841e0a58b2835fd3edf47a08311e50))
+
 ### v0.14.31 (2024-10-15)
 
 
