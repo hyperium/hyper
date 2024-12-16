@@ -248,7 +248,11 @@ where
                         }
                     }
                     if curr_len > 0 {
+                        trace!("partial headers; {} bytes so far", curr_len);
                         self.partial_len = Some(curr_len);
+                    } else {
+                        // 1xx gobled some bytes
+                        self.partial_len = None;
                     }
                 }
             }
