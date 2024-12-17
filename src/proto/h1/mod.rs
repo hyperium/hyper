@@ -33,7 +33,8 @@ pub(crate) trait Http1Transaction {
     #[cfg(feature = "tracing")]
     const LOG: &'static str;
     fn parse(bytes: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<Self::Incoming>;
-    fn encode(enc: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
+    fn encode(enc: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>)
+        -> crate::Result<Option<Encoder>>;
 
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>>;
 
