@@ -143,10 +143,6 @@ pub(super) enum User {
     #[cfg(any(feature = "http1", feature = "http2"))]
     #[cfg(feature = "server")]
     UnexpectedHeader,
-    /// User tried to respond with a 1xx (not 101) response code.
-    #[cfg(feature = "http1")]
-    #[cfg(feature = "server")]
-    UnsupportedStatusCode,
 
     /// User tried polling for an upgrade that doesn't exist.
     NoUpgrade,
@@ -360,12 +356,6 @@ impl Error {
         Error::new(Kind::HeaderTimeout)
     }
 
-    #[cfg(feature = "http1")]
-    #[cfg(feature = "server")]
-    pub(super) fn new_user_unsupported_status_code() -> Error {
-        Error::new_user(User::UnsupportedStatusCode)
-    }
-
     pub(super) fn new_user_no_upgrade() -> Error {
         Error::new_user(User::NoUpgrade)
     }
@@ -496,11 +486,6 @@ impl Error {
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
-            #[cfg(feature = "http1")]
-            #[cfg(feature = "server")]
-            Kind::User(User::UnsupportedStatusCode) => {
-                "response has 1xx status code, not supported by server"
-            }
             Kind::User(User::NoUpgrade) => "no upgrade available",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::User(User::ManualUpgrade) => "upgrade expected but low level API in use",
