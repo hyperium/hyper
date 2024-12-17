@@ -642,7 +642,7 @@ where
                         head.extensions.remove::<crate::ext::OnInformational>();
                 }
 
-                Some(encoder)
+                encoder
             }
             Err(err) => {
                 self.state.error = Some(err);
