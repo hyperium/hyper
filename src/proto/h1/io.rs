@@ -171,6 +171,7 @@ where
         &mut self,
         cx: &mut Context<'_>,
         parse_ctx: ParseContext<'_>,
+        progress: &mut bool,
     ) -> Poll<crate::Result<ParsedMessage<S::Incoming>>>
     where
         S: Http1Transaction,
@@ -217,6 +218,7 @@ where
                 trace!("parse eof");
                 return Poll::Ready(Err(crate::Error::new_incomplete()));
             }
+            *progress = true;
         }
     }
 
@@ -714,7 +716,7 @@ mod tests {
                 on_informational: &mut None,
             };
             assert!(buffered
-                .parse::<ClientTransaction>(cx, parse_ctx)
+                .parse::<ClientTransaction>(cx, parse_ctx, &mut false)
                 .is_pending());
             Poll::Ready(())
         })
