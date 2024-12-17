@@ -8,14 +8,22 @@ use std::{
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use futures_core::ready;
+#[cfg(feature = "server")]
+use futures_channel::mpsc::{self, Receiver};
+use futures_util::ready;
+#[cfg(feature = "server")]
+use futures_util::StreamExt;
 use http::Request;
+#[cfg(feature = "server")]
+use http::Response;
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
 #[cfg(feature = "client")]
 use crate::client::dispatch::TrySendError;
 use crate::common::task;
+#[cfg(feature = "server")]
+use crate::ext::InformationalSender;
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
@@ -35,7 +43,7 @@ pub(crate) trait Dispatch {
     fn poll_msg(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-    ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
+    ) -> Poll<Option<Result<(Self::PollItem, Option<Self::PollBody>), Self::PollError>>>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>)
         -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>>;
@@ -46,6 +54,7 @@ cfg_server! {
     use crate::service::HttpService;
 
     pub(crate) struct Server<S: HttpService<B>, B> {
+        informational_rx: Option<Receiver<Response<()>>>,
         in_flight: Pin<Box<Option<S::Future>>>,
         pub(crate) service: S,
     }
@@ -336,17 +345,22 @@ where
                 if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
                     let (head, body) = msg.map_err(crate::Error::new_user_service)?;
 
-                    let body_type = if body.is_end_stream() {
+                    let body_type = if let Some(body) = body {
+                        if body.is_end_stream() {
+                            self.body_rx.set(None);
+                            None
+                        } else {
+                            let btype = body
+                                .size_hint()
+                                .exact()
+                                .map(BodyLength::Known)
+                                .or(Some(BodyLength::Unknown));
+                            self.body_rx.set(Some(body));
+                            btype
+                        }
+                    } else {
                         self.body_rx.set(None);
                         None
-                    } else {
-                        let btype = body
-                            .size_hint()
-                            .exact()
-                            .map(BodyLength::Known)
-                            .or(Some(BodyLength::Unknown));
-                        self.body_rx.set(Some(body));
-                        btype
                     };
                     self.conn.write_head(head, body_type);
                 } else {
@@ -505,6 +519,7 @@ cfg_server! {
     {
         pub(crate) fn new(service: S) -> Server<S, B> {
             Server {
+                informational_rx: None,
                 in_flight: Box::pin(None),
                 service,
             }
@@ -532,8 +547,33 @@ cfg_server! {
         fn poll_msg(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
+        ) -> Poll<Option<Result<(Self::PollItem, Option<Self::PollBody>), Self::PollError>>> {
             let mut this = self.as_mut();
+
+            if let Some(informational_rx) = this.informational_rx.as_mut() {
+                if let Poll::Ready(informational) = informational_rx.poll_next_unpin(cx) {
+                    if let Some(informational) = informational {
+                        let (parts, _) = informational.into_parts();
+                        if parts.status.is_informational() {
+                            let head = MessageHead {
+                                version: parts.version,
+                                subject: parts.status,
+                                headers: parts.headers,
+                                extensions: parts.extensions,
+                            };
+                            return Poll::Ready(Some(Ok((head, None))));
+                        } else {
+                            // TODO: We should return an error here, but we have
+                            // no way of creating a `Self::PollError`; might
+                            // need to change the signature of
+                            // `Dispatch::poll_msg`.
+                        }
+                    } else {
+                        this.informational_rx = None;
+                    }
+                }
+            }
+
             let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
                 let resp = ready!(fut.as_mut().poll(cx)?);
                 let (parts, body) = resp.into_parts();
@@ -543,13 +583,14 @@ cfg_server! {
                     headers: parts.headers,
                     extensions: parts.extensions,
                 };
-                Poll::Ready(Some(Ok((head, body))))
+                Poll::Ready(Some(Ok((head, Some(body)))))
             } else {
                 unreachable!("poll_msg shouldn't be called if no inflight");
             };
 
             // Since in_flight finished, remove it
             this.in_flight.set(None);
+            this.informational_rx = None;
             ret
         }
 
@@ -561,7 +602,10 @@ cfg_server! {
             *req.headers_mut() = msg.headers;
             *req.version_mut() = msg.version;
             *req.extensions_mut() = msg.extensions;
+            let (informational_tx, informational_rx) = mpsc::channel(1);
+            assert!(req.extensions_mut().insert(InformationalSender(informational_tx)).is_none());
             let fut = self.service.call(req);
+            self.informational_rx = Some(informational_rx);
             self.in_flight.set(Some(fut));
             Ok(())
         }
@@ -607,7 +651,7 @@ cfg_client! {
         fn poll_msg(
             mut self: Pin<&mut Self>,
             cx: &mut Context<'_>,
-        ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Infallible>>> {
+        ) -> Poll<Option<Result<(Self::PollItem, Option<Self::PollBody>), Infallible>>> {
             let mut this = self.as_mut();
             debug_assert!(!this.rx_closed);
             match this.rx.poll_recv(cx) {
@@ -627,7 +671,7 @@ cfg_client! {
                                 extensions: parts.extensions,
                             };
                             this.callback = Some(cb);
-                            Poll::Ready(Some(Ok((head, body))))
+                            Poll::Ready(Some(Ok((head, Some(body)))))
                         }
                     }
                 }
