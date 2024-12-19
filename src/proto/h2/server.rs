@@ -488,8 +488,8 @@ where
 
                     // set Date header if it isn't already set...
                     res.headers_mut()
-                        .entry(::http::header::DATE)
-                        .or_insert_with(date::update_and_header_value);
+                        .try_entry(::http::header::DATE)?
+                        .or_try_insert_with(date::update_and_header_value)?;
 
                     if let Some(connect_parts) = connect_parts.take() {
                         if res.status().is_success() {
@@ -517,7 +517,7 @@ where
                     if !body.is_end_stream() {
                         // automatically set Content-Length from body...
                         if let Some(len) = body.size_hint().exact() {
-                            headers::set_content_length_if_missing(res.headers_mut(), len);
+                            headers::set_content_length_if_missing(res.headers_mut(), len)?;
                         }
 
                         let body_tx = reply!(me, res, false);

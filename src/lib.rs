@@ -78,6 +78,7 @@ mod cfg;
 #[macro_use]
 mod common;
 pub mod body;
+#[macro_use]
 mod error;
 pub mod ext;
 #[cfg(test)]
