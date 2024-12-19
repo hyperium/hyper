@@ -2201,6 +2201,7 @@ mod conn {
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
 
     use hyper::client::conn;
+    use hyper::ext::Http1RawMessage;
     use hyper::{self, Body, Method, Request, Response, StatusCode};
 
     use super::{concat, s, support, tcp_connect, FutureHyperExt};
@@ -2382,6 +2383,8 @@ mod conn {
             .unwrap();
         let addr = listener.local_addr().unwrap();
 
+        const RESPONSE: &[u8] = b"HTTP/1.1 200 OK\r\nContent-Length: \r\n 0\r\nLine-Folded-Header: hello\r\n world \r\n \r\n\r\n";
+
         let server = async move {
             let mut sock = listener.accept().await.unwrap().0;
             let mut buf = [0; 4096];
@@ -2393,15 +2396,14 @@ mod conn {
             let expected = "GET /a HTTP/1.1\r\n\r\n";
             assert_eq!(s(&buf[..n]), expected);
 
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: \r\n 0\r\nLine-Folded-Header: hello\r\n world \r\n \r\n\r\n")
-                .await
-                .unwrap();
+            sock.write_all(RESPONSE).await.unwrap();
         };
 
         let client = async move {
             let tcp = tcp_connect(&addr).await.expect("connect");
             let (mut client, conn) = conn::Builder::new()
                 .http1_allow_obsolete_multiline_headers_in_responses(true)
+                .http1_raw_message(true)
                 .handshake::<_, Body>(tcp)
                 .await
                 .expect("handshake");
@@ -2415,16 +2417,25 @@ mod conn {
                 .body(Default::default())
                 .unwrap();
             let mut res = client.send_request(req).await.expect("send_request");
+
             assert_eq!(res.status(), hyper::StatusCode::OK);
             assert_eq!(res.headers().len(), 2);
+
             assert_eq!(
                 res.headers().get(http::header::CONTENT_LENGTH).unwrap(),
                 "0"
             );
+
             assert_eq!(
                 res.headers().get("line-folded-header").unwrap(),
                 "hello   world"
             );
+
+            let raw_response = res.extensions().get::<Http1RawMessage>().unwrap();
+
+            // The raw response includes the line folded headers prior to \r\n replacement.
+            assert_eq!(**raw_response, *RESPONSE);
+
             assert!(res.body_mut().next().await.is_none());
         };
 
