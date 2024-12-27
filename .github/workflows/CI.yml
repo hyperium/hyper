@@ -23,6 +23,7 @@ jobs:
       - features
       - ffi
       - ffi-header
+      - ffi-cargo-c
       - doc
       - check-external-types
       - udeps
@@ -118,6 +119,8 @@ jobs:
       - name: Pin some dependencies
         run: |
           cargo update -p tokio --precise 1.38.1
+          cargo update -p tokio-util --precise 0.7.11
+          cargo update -p hashbrown --precise 0.15.0
 
       - name: Check
         run: cargo check --features full
@@ -192,7 +195,7 @@ jobs:
       - name: Run FFI unit tests
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        run: cargo test --features server,client,http1,http2,ffi --lib
+        run: cargo test --features client,http1,http2,ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date
@@ -224,6 +227,31 @@ jobs:
       - name: Ensure that hyper.h is up to date
         run: ./capi/gen_header.sh --verify
 
+  ffi-cargo-c:
+    name: Test cargo-c support (FFI)
+    needs: [style]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-c
+        env:
+          LINK: https://github.com/lu-zero/cargo-c/releases/latest/download
+          CARGO_C_FILE: cargo-c-x86_64-unknown-linux-musl.tar.gz
+        run: |
+          curl -L $LINK/$CARGO_C_FILE | tar xz -C ~/.cargo/bin
+
+      - name: Build with cargo-c
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        run: cargo cbuild --features client,http1,http2,ffi
+
   doc:
     name: Build docs
     needs: [style, test]
@@ -251,7 +279,7 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-05-01  # Compatible version for cargo-check-external-types
+          toolchain: nightly-2024-05-01 # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
         uses: taiki-e/cache-cargo-install-action@v2

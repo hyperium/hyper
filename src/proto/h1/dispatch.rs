@@ -488,7 +488,7 @@ impl<'a, T> OptGuard<'a, T> {
     }
 }
 
-impl<'a, T> Drop for OptGuard<'a, T> {
+impl<T> Drop for OptGuard<'_, T> {
     fn drop(&mut self) {
         if self.1 {
             self.0.set(None);

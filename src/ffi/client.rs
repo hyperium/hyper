@@ -1,7 +1,6 @@
+use std::ffi::c_int;
 use std::ptr;
 use std::sync::Arc;
-
-use libc::c_int;
 
 use crate::client::conn;
 use crate::rt::Executor as _;

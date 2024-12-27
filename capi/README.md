@@ -15,3 +15,11 @@ The C API is part of the Rust library, but isn't compiled by default. Using `car
 ```
 RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --features client,http1,http2,ffi --crate-type cdylib
 ```
+
+### (Optional) With `cargo-c`
+
+If using `cargo-c`, you can build and install a shared library with the following command:
+
+```
+RUSTFLAGS="--cfg hyper_unstable_ffi" cargo cbuild --features client,http1,http2,ffi --release
+```

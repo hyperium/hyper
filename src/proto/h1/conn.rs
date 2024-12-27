@@ -21,7 +21,7 @@ use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::time::Time;
-use crate::headers::connection_keep_alive;
+use crate::headers;
 use crate::proto::{BodyLength, MessageHead};
 #[cfg(feature = "server")]
 use crate::rt::Sleep;
@@ -704,7 +704,7 @@ where
         let outgoing_is_keep_alive = head
             .headers
             .get(CONNECTION)
-            .map_or(false, connection_keep_alive);
+            .map_or(false, headers::connection_keep_alive);
 
         if !outgoing_is_keep_alive {
             match head.version {
@@ -727,12 +727,21 @@ where
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        if let Version::HTTP_10 = self.state.version {
-            // Fixes response or connection when keep-alive header is not present
-            self.fix_keep_alive(head);
-            // If the remote only knows HTTP/1.0, we should force ourselves
-            // to do only speak HTTP/1.0 as well.
-            head.version = Version::HTTP_10;
+        match self.state.version {
+            Version::HTTP_10 => {
+                // Fixes response or connection when keep-alive header is not present
+                self.fix_keep_alive(head);
+                // If the remote only knows HTTP/1.0, we should force ourselves
+                // to do only speak HTTP/1.0 as well.
+                head.version = Version::HTTP_10;
+            }
+            Version::HTTP_11 => {
+                if let KA::Disabled = self.state.keep_alive.status() {
+                    head.headers
+                        .insert(CONNECTION, HeaderValue::from_static("close"));
+                }
+            }
+            _ => (),
         }
         // If the remote speaks HTTP/1.1, then it *should* be fine with
         // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let

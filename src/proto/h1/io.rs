@@ -32,6 +32,7 @@ const MAX_BUF_LIST_BUFFERS: usize = 16;
 pub(crate) struct Buffered<T, B> {
     flush_pipeline: bool,
     io: T,
+    partial_len: Option<usize>,
     read_blocked: bool,
     read_buf: BytesMut,
     read_buf_strategy: ReadStrategy,
@@ -65,6 +66,7 @@ where
         Buffered {
             flush_pipeline: false,
             io,
+            partial_len: None,
             read_blocked: false,
             read_buf: BytesMut::with_capacity(0),
             read_buf_strategy: ReadStrategy::default(),
@@ -177,6 +179,7 @@ where
         loop {
             match super::role::parse_headers::<S>(
                 &mut self.read_buf,
+                self.partial_len,
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
@@ -192,13 +195,22 @@ where
             )? {
                 Some(msg) => {
                     debug!("parsed {} headers", msg.head.headers.len());
+                    self.partial_len = None;
                     return Poll::Ready(Ok(msg));
                 }
                 None => {
                     let max = self.read_buf_strategy.max();
-                    if self.read_buf.len() >= max {
+                    let curr_len = self.read_buf.len();
+                    if curr_len >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
                         return Poll::Ready(Err(crate::Error::new_too_large()));
+                    }
+                    if curr_len > 0 {
+                        trace!("partial headers; {} bytes so far", curr_len);
+                        self.partial_len = Some(curr_len);
+                    } else {
+                        // 1xx gobled some bytes
+                        self.partial_len = None;
                     }
                 }
             }
@@ -314,7 +326,7 @@ where
     }
 
     #[cfg(test)]
-    fn flush<'a>(&'a mut self) -> impl std::future::Future<Output = io::Result<()>> + 'a {
+    fn flush(&mut self) -> impl std::future::Future<Output = io::Result<()>> + '_ {
         futures_util::future::poll_fn(move |cx| self.poll_flush(cx))
     }
 }

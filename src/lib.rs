@@ -52,19 +52,22 @@
 //!
 //! [feature flags]: https://doc.rust-lang.org/cargo/reference/manifest.html#the-features-section
 //!
-//! # Unstable Features
+//! ## Unstable Features
 //!
 //! hyper includes a set of unstable optional features that can be enabled through the use of a
 //! feature flag and a [configuration flag].
 //!
 //! The following is a list of feature flags and their corresponding `RUSTFLAG`:
+//!
 //! - `ffi`: Enables C API for hyper `hyper_unstable_ffi`.
 //! - `tracing`: Enables debug logging with `hyper_unstable_tracing`.
 //!
-//! Enabling an unstable feature is possible with the following `cargo` command, as of version `1.64.0`:
+//! For example:
+//!
 //! ```notrust
-//! RUSTFLAGS="--cfg hyper_unstable_tracing" cargo rustc --features client,http1,http2,tracing --crate-type cdylib
-//!```
+//! RUSTFLAGS="--cfg hyper_unstable_tracing" cargo build
+//! ```
+//!
 //! [configuration flag]: https://doc.rust-lang.org/reference/conditional-compilation.html
 //!
 //! # Stability
@@ -93,10 +96,8 @@ pub use http;
 #[cfg(all(test, feature = "nightly"))]
 extern crate test;
 
-pub use crate::http::{header, Method, Request, Response, StatusCode, Uri, Version};
-
 #[doc(no_inline)]
-pub use crate::http::HeaderMap;
+pub use http::{header, HeaderMap, Method, Request, Response, StatusCode, Uri, Version};
 
 pub use crate::error::{Error, Result};
 

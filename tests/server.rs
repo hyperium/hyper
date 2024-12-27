@@ -156,7 +156,7 @@ mod response_body_lengths {
         let n = body.find("\r\n\r\n").unwrap() + 4;
 
         if case.expects_chunked {
-            if body_str.len() > 0 {
+            if !body_str.is_empty() {
                 let len = body.len();
                 assert_eq!(
                     &body[n + 1..n + 3],
@@ -1090,13 +1090,10 @@ fn pipeline_disabled() {
     // TODO: add in a delay to the `ServeReply` interface, to allow this
     // delay to prevent the 2 writes from happening before this test thread
     // can read from the socket.
-    match req.read(&mut buf) {
-        Ok(n) => {
-            // won't be 0, because we didn't say to close, and so socket
-            // will be open until `server` drops
-            assert_ne!(n, 0);
-        }
-        Err(_) => (),
+    if let Ok(n) = req.read(&mut buf) {
+        // won't be 0, because we didn't say to close, and so socket
+        // will be open until `server` drops
+        assert_ne!(n, 0);
     }
 }
 
@@ -1140,6 +1137,8 @@ fn pipeline_enabled() {
 
         assert_eq!(s(lines.next().unwrap()), "HTTP/1.1 200 OK\r");
         assert_eq!(s(lines.next().unwrap()), "content-length: 12\r");
+        // close because the last request said to close
+        assert_eq!(s(lines.next().unwrap()), "connection: close\r");
         lines.next().unwrap(); // Date
         assert_eq!(s(lines.next().unwrap()), "\r");
         assert_eq!(s(lines.next().unwrap()), "Hello World");
@@ -1181,7 +1180,7 @@ fn http_11_uri_too_long() {
     let mut req = connect(server.addr());
     req.write_all(request_line.as_bytes()).unwrap();
 
-    let expected = "HTTP/1.1 414 URI Too Long\r\ncontent-length: 0\r\n";
+    let expected = "HTTP/1.1 414 URI Too Long\r\nconnection: close\r\ncontent-length: 0\r\n";
     let mut buf = [0; 256];
     let n = req.read(&mut buf).unwrap();
     assert!(n >= expected.len(), "read: {:?} >= {:?}", n, expected.len());
@@ -1207,6 +1206,12 @@ async fn disable_keep_alive_mid_request() {
             buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
             "should receive OK response, but buf: {:?}",
             buf,
+        );
+        let sbuf = s(&buf);
+        assert!(
+            sbuf.contains("connection: close\r\n"),
+            "response should have sent close: {:?}",
+            sbuf,
         );
     });
 
@@ -1301,7 +1306,7 @@ async fn http1_graceful_shutdown_after_upgrade() {
 
         let response = s(&buf);
         assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
-        assert!(!has_header(&response, "content-length"));
+        assert!(!has_header(response, "content-length"));
         let _ = read_101_tx.send(());
     });
 
@@ -1473,9 +1478,8 @@ fn header_name_too_long() {
     let mut req = connect(server.addr());
     let mut write = Vec::with_capacity(1024 * 66);
     write.extend_from_slice(b"GET / HTTP/1.1\r\n");
-    for _ in 0..(1024 * 65) {
-        write.push(b'x');
-    }
+    write.extend_from_slice(vec![b'x'; 1024 * 64].as_slice());
+
     write.extend_from_slice(b": foo\r\n\r\n");
     req.write_all(&write).unwrap();
 
@@ -1861,7 +1865,7 @@ async fn upgrades_new() {
 
         let response = s(&buf);
         assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
-        assert!(!has_header(&response, "content-length"));
+        assert!(!has_header(response, "content-length"));
         let _ = read_101_tx.send(());
 
         let n = tcp.read(&mut buf).expect("read 2");
@@ -2466,7 +2470,7 @@ fn streaming_body() {
         buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
         "response is 200 OK"
     );
-    assert_eq!(buf.len(), 100_789, "full streamed body read");
+    assert_eq!(buf.len(), 100_808, "full streamed body read");
 }
 
 #[test]
@@ -3010,7 +3014,7 @@ struct ReplyBuilder<'a> {
     tx: &'a Mutex<spmc::Sender<Reply>>,
 }
 
-impl<'a> ReplyBuilder<'a> {
+impl ReplyBuilder<'_> {
     fn status(self, status: hyper::StatusCode) -> Self {
         self.tx.lock().unwrap().send(Reply::Status(status)).unwrap();
         self
@@ -3086,7 +3090,7 @@ impl<'a> ReplyBuilder<'a> {
     }
 }
 
-impl<'a> Drop for ReplyBuilder<'a> {
+impl Drop for ReplyBuilder<'_> {
     fn drop(&mut self) {
         if let Ok(mut tx) = self.tx.lock() {
             let _ = tx.send(Reply::End);

@@ -211,7 +211,7 @@ impl<'data> ReadBuf<'data> {
     }
 }
 
-impl<'data> fmt::Debug for ReadBuf<'data> {
+impl fmt::Debug for ReadBuf<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ReadBuf")
             .field("filled", &self.filled)
@@ -221,7 +221,7 @@ impl<'data> fmt::Debug for ReadBuf<'data> {
     }
 }
 
-impl<'data> ReadBufCursor<'data> {
+impl ReadBufCursor<'_> {
     /// Access the unfilled part of the buffer.
     ///
     /// # Safety

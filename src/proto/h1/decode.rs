@@ -693,7 +693,7 @@ mod tests {
     use std::pin::Pin;
     use std::time::Duration;
 
-    impl<'a> MemRead for &'a [u8] {
+    impl MemRead for &[u8] {
         fn read_mem(&mut self, _: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let n = std::cmp::min(len, self.len());
             if n > 0 {
@@ -707,12 +707,12 @@ mod tests {
         }
     }
 
-    impl<'a> MemRead for &'a mut (dyn Read + Unpin) {
+    impl MemRead for &mut (dyn Read + Unpin) {
         fn read_mem(&mut self, cx: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
             let mut v = vec![0; len];
             let mut buf = ReadBuf::new(&mut v);
             ready!(Pin::new(self).poll_read(cx, buf.unfilled())?);
-            Poll::Ready(Ok(Bytes::copy_from_slice(&buf.filled())))
+            Poll::Ready(Ok(Bytes::copy_from_slice(buf.filled())))
         }
     }
 
@@ -761,7 +761,7 @@ mod tests {
                 })
                 .await;
                 let desc = format!("read_size failed for {:?}", s);
-                state = result.expect(desc.as_str());
+                state = result.expect(&desc);
                 if state == ChunkedState::Body || state == ChunkedState::EndCr {
                     break;
                 }

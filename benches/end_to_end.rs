@@ -82,7 +82,7 @@ fn http1_parallel_x10_req_10kb_100_chunks(b: &mut test::Bencher) {
 #[bench]
 #[ignore]
 fn http1_parallel_x10_res_1mb(b: &mut test::Bencher) {
-    let body = &[b'x'; 1024 * 1024 * 1];
+    let body = &[b'x'; 1024 * 1024];
     opts().parallel(10).response_body(body).bench(b)
 }
 
@@ -177,7 +177,7 @@ fn http2_parallel_x10_req_10kb_100_chunks_max_window(b: &mut test::Bencher) {
 
 #[bench]
 fn http2_parallel_x10_res_1mb(b: &mut test::Bencher) {
-    let body = &[b'x'; 1024 * 1024 * 1];
+    let body = &[b'x'; 1024 * 1024];
     opts()
         .http2()
         .parallel(10)
