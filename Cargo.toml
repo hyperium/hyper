@@ -193,12 +193,15 @@ name = "upgrades"
 path = "examples/upgrades.rs"
 required-features = ["full"]
 
-
 [[example]]
 name = "web_api"
 path = "examples/web_api.rs"
 required-features = ["full"]
 
+[[example]]
+name = "routing"
+path = "examples/routing.rs"
+required-features = ["full"]
 
 [[bench]]
 name = "body"
