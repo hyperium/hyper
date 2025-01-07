@@ -141,7 +141,7 @@ impl<E> Builder<E> {
     /// See <https://rustsec.org/advisories/RUSTSEC-2024-0003.html> for more information.
     #[cfg(feature = "http2")]
     #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
-    pub fn max_local_error_reset_streams(mut self, max: impl Into<Option<usize>>) -> Self {
+    pub fn max_local_error_reset_streams(&mut self, max: impl Into<Option<usize>>) -> &mut Self {
         self.h2_builder.max_local_error_reset_streams = max.into();
         self
     }
