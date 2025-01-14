@@ -1504,7 +1504,6 @@ async fn header_read_timeout_slow_writes() {
         tcp.write_all(
             b"\
             Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 2");
@@ -1512,6 +1511,7 @@ async fn header_read_timeout_slow_writes() {
         tcp.write_all(
             b"\
             Works: 0\r\n\
+            \r\n\
         ",
         )
         .expect_err("write 3");
@@ -1553,7 +1553,7 @@ async fn header_read_timeout_starts_immediately() {
         .timer(TokioTimer)
         .header_read_timeout(Duration::from_secs(2))
         .serve_connection(socket, unreachable_service());
-    conn.await.expect_err("header timeout");
+    assert!(conn.await.unwrap_err().is_timeout());
 }
 
 #[tokio::test]
@@ -1601,7 +1601,6 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
             b"\
             GET / HTTP/1.1\r\n\
             Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 5");
@@ -1609,6 +1608,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
         tcp.write_all(
             b"\
             Works: 0\r\n\
+            \r\n
         ",
         )
         .expect_err("write 6");
@@ -1629,7 +1629,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
                 future::ready(Ok::<_, hyper::Error>(res))
             }),
         );
-    conn.without_shutdown().await.expect_err("header timeout");
+    assert!(conn.without_shutdown().await.unwrap_err().is_timeout());
 }
 
 #[tokio::test]
