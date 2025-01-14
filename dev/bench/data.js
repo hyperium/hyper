@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1736888520299,
+  "lastUpdate": 1736888578327,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -49189,6 +49189,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5020835,
             "range": "± 657698.20",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "contact@glendc.com",
+            "name": "Glen De Cauwsemaecker",
+            "username": "GlenDC"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3817a79b213f840302d7e27fac8508de9caada0f",
+          "message": "feat(server): add `http1::Builder::ignore_invalid_headers(bool)` option (#3824)\n\nEnabling this option tells hyper to skip invalid header lines, instead of rejecting the request.",
+          "timestamp": "2025-01-14T16:01:04-05:00",
+          "tree_id": "a7685ad76f1124018929b1593427e3971b9d5549",
+          "url": "https://github.com/hyperium/hyper/commit/3817a79b213f840302d7e27fac8508de9caada0f"
+        },
+        "date": 1736888575421,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68256,
+            "range": "± 9152.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4722749,
+            "range": "± 148530.95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21045,
+            "range": "± 401.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23142,
+            "range": "± 415.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31102,
+            "range": "± 802.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 96369,
+            "range": "± 4183.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35108,
+            "range": "± 1002.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 90316,
+            "range": "± 1798.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23963790,
+            "range": "± 32481573.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24213681,
+            "range": "± 25410939.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7489925,
+            "range": "± 473377.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49879480,
+            "range": "± 660921.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49578670,
+            "range": "± 603742.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4988282,
+            "range": "± 116265.38",
             "unit": "ns/iter"
           }
         ]
