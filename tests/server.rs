@@ -1633,6 +1633,50 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
 }
 
 #[tokio::test]
+async fn header_read_timeout_as_idle_timeout() {
+    let (listener, addr) = setup_tcp_listener();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("request 1");
+
+        thread::sleep(Duration::from_secs(6));
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            \r\n\
+        ",
+        )
+        .expect_err("request 2");
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http1::Builder::new()
+        .timer(TokioTimer)
+        .header_read_timeout(Duration::from_secs(3))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+    assert!(conn.without_shutdown().await.unwrap_err().is_timeout());
+}
+
+#[tokio::test]
 async fn upgrades() {
     let (listener, addr) = setup_tcp_listener();
     let (tx, rx) = oneshot::channel();
