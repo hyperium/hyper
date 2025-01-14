@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1736258829250,
+  "lastUpdate": 1736888520299,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9359,6 +9359,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 50258,
             "range": "± 9205.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "contact@glendc.com",
+            "name": "Glen De Cauwsemaecker",
+            "username": "GlenDC"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3817a79b213f840302d7e27fac8508de9caada0f",
+          "message": "feat(server): add `http1::Builder::ignore_invalid_headers(bool)` option (#3824)\n\nEnabling this option tells hyper to skip invalid header lines, instead of rejecting the request.",
+          "timestamp": "2025-01-14T16:01:04-05:00",
+          "tree_id": "a7685ad76f1124018929b1593427e3971b9d5549",
+          "url": "https://github.com/hyperium/hyper/commit/3817a79b213f840302d7e27fac8508de9caada0f"
+        },
+        "date": 1736888518106,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47504,
+            "range": "± 8839.53",
             "unit": "ns/iter"
           }
         ]
