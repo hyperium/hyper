@@ -115,7 +115,6 @@ where
         self.io.set_write_strategy_flatten();
     }
 
-    #[cfg(feature = "client")]
     pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
         self.state.h1_parser_config = parser_config;
     }
