@@ -1123,6 +1123,14 @@ impl State {
         if !T::should_read_first() {
             self.notify_read = true;
         }
+
+        #[cfg(feature = "server")]
+        if self.h1_header_read_timeout.is_some() {
+            // Next read will start and poll the header read timeout,
+            // so we can close the connection if another header isn't
+            // received in a timely manner.
+            self.notify_read = true;
+        }
     }
 
     fn is_idle(&self) -> bool {
