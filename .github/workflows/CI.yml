@@ -105,6 +105,13 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve MSRV aware dependencies
+        run: cargo update
+        env:
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
+
       - name: Get MSRV from package metadata
         id: msrv
         run: grep rust-version Cargo.toml | cut -d'"' -f2 | sed 's/^/version=/' >> $GITHUB_OUTPUT
@@ -115,12 +122,6 @@ jobs:
           toolchain: ${{ steps.msrv.outputs.version }}
 
       - uses: Swatinem/rust-cache@v2
-
-      - name: Pin some dependencies
-        run: |
-          cargo update -p tokio --precise 1.38.1
-          cargo update -p tokio-util --precise 0.7.11
-          cargo update -p hashbrown --precise 0.15.0
 
       - name: Check
         run: cargo check --features full
