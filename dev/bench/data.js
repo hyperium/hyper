@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1736888578327,
+  "lastUpdate": 1737386133859,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9389,6 +9389,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47504,
             "range": "± 8839.53",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5baf537b900732e77b21cfbcfa0e7c653e8df97a",
+          "message": "chore(ci): use yq to get rust-version in manifest (#3829)",
+          "timestamp": "2025-01-20T10:14:48-05:00",
+          "tree_id": "e448adfc9dc6a5936e929021d9363a6679c4f633",
+          "url": "https://github.com/hyperium/hyper/commit/5baf537b900732e77b21cfbcfa0e7c653e8df97a"
+        },
+        "date": 1737386131663,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44704,
+            "range": "± 2185.84",
             "unit": "ns/iter"
           }
         ]
