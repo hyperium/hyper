@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1737386200969,
+  "lastUpdate": 1737386483475,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9419,6 +9419,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44704,
             "range": "± 2185.84",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "de28b0e5b2909a85e5414f2e37bc1045fe0a0039",
+          "message": "chore(ci): use msrv aware dependency resolver (#3831)",
+          "timestamp": "2025-01-20T10:20:34-05:00",
+          "tree_id": "3eaa45bbcf8232b430c042472aca9e975efa4e49",
+          "url": "https://github.com/hyperium/hyper/commit/de28b0e5b2909a85e5414f2e37bc1045fe0a0039"
+        },
+        "date": 1737386481049,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46175,
+            "range": "± 7578.64",
             "unit": "ns/iter"
           }
         ]
