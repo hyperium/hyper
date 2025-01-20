@@ -107,7 +107,7 @@ jobs:
 
       - name: Get MSRV from package metadata
         id: msrv
-        run: grep rust-version Cargo.toml | cut -d'"' -f2 | sed 's/^/version=/' >> $GITHUB_OUTPUT
+        run: echo "version=$(yq '.package.rust-version' Cargo.toml)" >> $GITHUB_OUTPUT
 
       - name: Install Rust (${{ steps.msrv.outputs.version }})
         uses: dtolnay/rust-toolchain@master
