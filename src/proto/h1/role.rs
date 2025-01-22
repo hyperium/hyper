@@ -469,6 +469,7 @@ impl Http1Transaction for Server {
             | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,
+            Kind::BodyTooLarge => StatusCode::PAYLOAD_TOO_LARGE,
             _ => return None,
         };
 

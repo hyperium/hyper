@@ -70,6 +70,12 @@ pub(super) enum Kind {
         any(feature = "http1", feature = "http2")
     ))]
     Body,
+    /// Error when body is too large
+    #[cfg(all(
+        any(feature = "client", feature = "server"),
+        any(feature = "http1", feature = "http2")
+    ))]
+    BodyTooLarge,
     /// Error while writing a body to connection.
     #[cfg(all(
         any(feature = "client", feature = "server"),
@@ -333,6 +339,14 @@ impl Error {
         any(feature = "client", feature = "server"),
         any(feature = "http1", feature = "http2")
     ))]
+    pub(super) fn new_body_too_large() -> Error {
+        Error::new(Kind::BodyTooLarge)
+    }
+
+    #[cfg(all(
+        any(feature = "client", feature = "server"),
+        any(feature = "http1", feature = "http2")
+    ))]
     pub(super) fn new_body_write<E: Into<Cause>>(cause: E) -> Error {
         Error::new(Kind::BodyWrite).with(cause)
     }
@@ -508,6 +522,7 @@ impl Error {
             Kind::User(User::DispatchGone) => "dispatch task is gone",
             #[cfg(feature = "ffi")]
             Kind::User(User::AbortedByCallback) => "operation aborted by an application callback",
+            Kind::BodyTooLarge => "body larger than the limit",
         }
     }
 }

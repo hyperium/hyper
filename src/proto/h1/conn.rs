@@ -58,6 +58,8 @@ where
                 method: None,
                 h1_parser_config: ParserConfig::default(),
                 h1_max_headers: None,
+                h1_max_body: None,
+                body_len: 0,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "server")]
@@ -139,6 +141,10 @@ where
 
     pub(crate) fn set_http1_max_headers(&mut self, val: usize) {
         self.state.h1_max_headers = Some(val);
+    }
+
+    pub(crate) fn set_http1_max_body(&mut self, val: usize) {
+        self.state.h1_max_body = Some(val);
     }
 
     #[cfg(feature = "server")]
@@ -372,6 +378,20 @@ where
                     Ok(frame) => {
                         if frame.is_data() {
                             let slice = frame.data_ref().unwrap_or_else(|| unreachable!());
+
+                            if let Some(max_body_size) = self.state.h1_max_body {
+                                self.state.body_len += slice.len();
+
+                                if self.state.body_len > max_body_size {
+                                    if let Some(msg) =
+                                        T::on_error(&crate::Error::new_body_too_large())
+                                    {
+                                        self.write_head(msg, None);
+                                        return Poll::Ready(Some(Ok(frame)));
+                                    }
+                                }
+                            }
+
                             let (reading, maybe_frame) = if decoder.is_eof() {
                                 debug!("incoming body completed");
                                 (
@@ -924,6 +944,8 @@ struct State {
     method: Option<Method>,
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
+    h1_max_body: Option<usize>,
+    body_len: usize,
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "server")]

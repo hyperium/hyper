@@ -76,6 +76,7 @@ pub struct Builder {
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     h1_max_headers: Option<usize>,
+    h1_max_body: Option<usize>,
     h1_header_read_timeout: Dur,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
@@ -239,6 +240,7 @@ impl Builder {
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,
+            h1_max_body: None,
             h1_header_read_timeout: Dur::Default(Some(Duration::from_secs(30))),
             h1_writev: None,
             max_buf_size: None,
@@ -320,6 +322,15 @@ impl Builder {
     /// Default is 100.
     pub fn max_headers(&mut self, val: usize) -> &mut Self {
         self.h1_max_headers = Some(val);
+        self
+    }
+
+    /// Set the maximum size of body.
+    ///
+    /// If server receives bigger body than the max size, it responds to the client with
+    /// "413 Payload Too Large".
+    pub fn max_body(&mut self, val: usize) -> &mut Self {
+        self.h1_max_body = Some(val);
         self
     }
 
@@ -457,6 +468,9 @@ impl Builder {
         }
         if let Some(max_headers) = self.h1_max_headers {
             conn.set_http1_max_headers(max_headers);
+        }
+        if let Some(max_body) = self.h1_max_body {
+            conn.set_http1_max_body(max_body);
         }
         if let Some(dur) = self
             .timer
