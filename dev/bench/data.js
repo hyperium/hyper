@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1738005407941,
+  "lastUpdate": 1738005467878,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -49603,6 +49603,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5094669,
             "range": "± 244896.26",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8ce1fcfae97611ace027b9e26717ae957b323f24",
+          "message": "feat(ext): add `ext::on_informational()` callback extension (#3818)\n\nThis new function allows attaching a callback to a request, such that\r\nwhen it is sent through a hyper client connection, and any 1xx\r\ninformational responses are received, they are passed to the callback.\r\n\r\nThis takes the unstable client informational feature (introduced in\r\n#2594, tracking issue in #2565), and promotes it to a stable API.\r\n\r\nCloses #2565",
+          "timestamp": "2025-01-27T14:15:58-05:00",
+          "tree_id": "2a9c51a3877571e1fdf249bb7cc052532e04a424",
+          "url": "https://github.com/hyperium/hyper/commit/8ce1fcfae97611ace027b9e26717ae957b323f24"
+        },
+        "date": 1738005465577,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67157,
+            "range": "± 1103.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4272109,
+            "range": "± 193986.08",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21052,
+            "range": "± 229.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22832,
+            "range": "± 389.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31794,
+            "range": "± 440.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 94779,
+            "range": "± 1735.48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35993,
+            "range": "± 1627.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 92073,
+            "range": "± 1278.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23945864,
+            "range": "± 32426566.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 32200239,
+            "range": "± 16633719.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7451367,
+            "range": "± 99398.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49197994,
+            "range": "± 318846.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49662376,
+            "range": "± 835682.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5015811,
+            "range": "± 119280.07",
             "unit": "ns/iter"
           }
         ]
