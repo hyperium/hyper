@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1737386537305,
+  "lastUpdate": 1738005407941,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9449,6 +9449,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46175,
             "range": "± 7578.64",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8ce1fcfae97611ace027b9e26717ae957b323f24",
+          "message": "feat(ext): add `ext::on_informational()` callback extension (#3818)\n\nThis new function allows attaching a callback to a request, such that\r\nwhen it is sent through a hyper client connection, and any 1xx\r\ninformational responses are received, they are passed to the callback.\r\n\r\nThis takes the unstable client informational feature (introduced in\r\n#2594, tracking issue in #2565), and promotes it to a stable API.\r\n\r\nCloses #2565",
+          "timestamp": "2025-01-27T14:15:58-05:00",
+          "tree_id": "2a9c51a3877571e1fdf249bb7cc052532e04a424",
+          "url": "https://github.com/hyperium/hyper/commit/8ce1fcfae97611ace027b9e26717ae957b323f24"
+        },
+        "date": 1738005405663,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46069,
+            "range": "± 8700.62",
             "unit": "ns/iter"
           }
         ]
