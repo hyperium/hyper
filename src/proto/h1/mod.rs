@@ -77,8 +77,8 @@ pub(crate) struct ParseContext<'a> {
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
     h09_responses: bool,
-    #[cfg(feature = "ffi")]
-    on_informational: &'a mut Option<crate::ffi::OnInformational>,
+    #[cfg(feature = "client")]
+    on_informational: &'a mut Option<crate::ext::OnInformational>,
 }
 
 /// Passed to Http1Transaction::encode
