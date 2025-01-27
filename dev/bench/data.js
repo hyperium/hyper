@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1738009475074,
+  "lastUpdate": 1738009538733,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -49741,6 +49741,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5015811,
             "range": "± 119280.07",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "finnbearlabs@gmail.com",
+            "name": "Finn Bear",
+            "username": "finnbear"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "10b09ffc04a97bbc96444172b7c5e02665827c67",
+          "message": "fix(server): start http1 header read timeout when conn is idle (#3828)\n\nCurrently, the header read timeout is started before any part of the first request is received. This allows closing the connection if no requests are received. However, after the first request, the connection can remain open indefinitely. This change ensures that the header read timeout is started immediately after the connection is idle, following the transmission of the response, before the first part of the subsequent request is received.\r\n\r\nThis change allows a potential future addition of an idle_timeout, which if set, would be used instead of the header_read_timeout. This behavior is matched in other servers, such as Golang.\r\n\r\nFixes #3780\r\nCloses #3781",
+          "timestamp": "2025-01-27T15:23:46-05:00",
+          "tree_id": "901500e5f08b500b6a5106156e8db50b48d83838",
+          "url": "https://github.com/hyperium/hyper/commit/10b09ffc04a97bbc96444172b7c5e02665827c67"
+        },
+        "date": 1738009536354,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 77057,
+            "range": "± 1698.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4594226,
+            "range": "± 446358.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21134,
+            "range": "± 395.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23118,
+            "range": "± 2237.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31668,
+            "range": "± 974.43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99699,
+            "range": "± 6753.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35433,
+            "range": "± 680.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 91350,
+            "range": "± 1954.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23952409,
+            "range": "± 32380732.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7749530,
+            "range": "± 222017.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7522373,
+            "range": "± 140451.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49985675,
+            "range": "± 553559.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50102593,
+            "range": "± 2652701.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5122608,
+            "range": "± 310909.13",
             "unit": "ns/iter"
           }
         ]
