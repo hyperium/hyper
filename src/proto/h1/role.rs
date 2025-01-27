@@ -1153,10 +1153,9 @@ impl Http1Transaction for Client {
                 }));
             }
 
-            #[cfg(feature = "ffi")]
             if head.subject.is_informational() {
                 if let Some(callback) = ctx.on_informational {
-                    callback.call(head.into_response(crate::body::Incoming::empty()));
+                    callback.call(head.into_response(()));
                 }
             }
 
@@ -1661,7 +1660,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut None,
             },
         )
@@ -1689,7 +1688,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1713,7 +1712,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
@@ -1734,7 +1733,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: true,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1757,7 +1756,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
@@ -1784,7 +1783,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1808,7 +1807,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
@@ -1828,7 +1827,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1867,7 +1866,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -1888,7 +1887,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2118,7 +2117,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 }
             )
@@ -2139,7 +2138,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2160,7 +2159,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2730,7 +2729,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut None,
             },
         )
@@ -2774,7 +2773,7 @@ mod tests {
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
                         h09_responses: false,
-                        #[cfg(feature = "ffi")]
+                        #[cfg(feature = "client")]
                         on_informational: &mut None,
                     },
                 );
@@ -2798,7 +2797,7 @@ mod tests {
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
                         h09_responses: false,
-                        #[cfg(feature = "ffi")]
+                        #[cfg(feature = "client")]
                         on_informational: &mut None,
                     },
                 );
@@ -2967,7 +2966,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -3012,7 +3011,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )

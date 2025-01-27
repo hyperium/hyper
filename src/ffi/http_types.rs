@@ -70,7 +70,7 @@ pub struct hyper_headers {
 }
 
 #[derive(Clone)]
-pub(crate) struct OnInformational {
+struct OnInformational {
     func: hyper_request_on_informational_callback,
     data: UserDataPointer,
 }
@@ -268,13 +268,21 @@ ffi_fn! {
     /// be valid after the callback finishes. You must copy any data you wish
     /// to persist.
     fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
+        #[cfg(feature = "client")]
+        {
         let ext = OnInformational {
             func: callback,
             data: UserDataPointer(data),
         };
         let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
-        req.0.extensions_mut().insert(ext);
+        crate::ext::on_informational_raw(&mut req.0, ext);
         hyper_code::HYPERE_OK
+        }
+        #[cfg(not(feature = "client"))]
+        {
+        drop((req, callback, data));
+        hyper_code::HYPERE_FEATURE_NOT_ENABLED
+        }
     }
 }
 
@@ -567,10 +575,12 @@ unsafe fn raw_name_value(
 
 // ===== impl OnInformational =====
 
-impl OnInformational {
-    pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
-        let mut resp = hyper_response::wrap(resp);
-        (self.func)(self.data.0, &mut resp);
+#[cfg(feature = "client")]
+impl crate::ext::OnInformationalCallback for OnInformational {
+    fn on_informational(&self, res: http::Response<()>) {
+        let res = res.map(|()| IncomingBody::empty());
+        let mut res = hyper_response::wrap(res);
+        (self.func)(self.data.0, &mut res);
     }
 }
 
