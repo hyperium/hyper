@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1738005467878,
+  "lastUpdate": 1738009475074,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9479,6 +9479,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46069,
             "range": "± 8700.62",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "finnbearlabs@gmail.com",
+            "name": "Finn Bear",
+            "username": "finnbear"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "10b09ffc04a97bbc96444172b7c5e02665827c67",
+          "message": "fix(server): start http1 header read timeout when conn is idle (#3828)\n\nCurrently, the header read timeout is started before any part of the first request is received. This allows closing the connection if no requests are received. However, after the first request, the connection can remain open indefinitely. This change ensures that the header read timeout is started immediately after the connection is idle, following the transmission of the response, before the first part of the subsequent request is received.\r\n\r\nThis change allows a potential future addition of an idle_timeout, which if set, would be used instead of the header_read_timeout. This behavior is matched in other servers, such as Golang.\r\n\r\nFixes #3780\r\nCloses #3781",
+          "timestamp": "2025-01-27T15:23:46-05:00",
+          "tree_id": "901500e5f08b500b6a5106156e8db50b48d83838",
+          "url": "https://github.com/hyperium/hyper/commit/10b09ffc04a97bbc96444172b7c5e02665827c67"
+        },
+        "date": 1738009472855,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46319,
+            "range": "± 9204.86",
             "unit": "ns/iter"
           }
         ]
