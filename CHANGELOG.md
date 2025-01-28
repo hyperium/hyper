@@ -1,3 +1,25 @@
+## v1.6.0 (2025-01-28)
+
+
+#### Bug Fixes
+
+* **server:**
+  * start http1 header read timeout when conn is idle (#3828) ([10b09ffc](https://github.com/hyperium/hyper/commit/10b09ffc04a97bbc96444172b7c5e02665827c67), closes [#3780](https://github.com/hyperium/hyper/issues/3780), [#3781](https://github.com/hyperium/hyper/issues/3781))
+  * change `max_local_error_reset_streams` function to `&mut self` (#3820) ([e981a91e](https://github.com/hyperium/hyper/commit/e981a91e68aa92b0dee771362de771daa31c713e))
+
+
+#### Features
+
+* **ext:** add `ext::on_informational()` callback extension (#3818) ([8ce1fcfa](https://github.com/hyperium/hyper/commit/8ce1fcfae97611ace027b9e26717ae957b323f24), closes [#2565](https://github.com/hyperium/hyper/issues/2565))
+* **server:** add `http1::Builder::ignore_invalid_headers(bool)` option (#3824) ([3817a79b](https://github.com/hyperium/hyper/commit/3817a79b213f840302d7e27fac8508de9caada0f))
+
+
+#### Breaking Changes
+
+* `http2::Builder::max_local_error_reset_streams()` now takes `&mut self` and returns `&mut Self`. In practice, this shouldn't break almost anyone. It was the wrong receiver and return types.
+ ([e981a91e](https://github.com/hyperium/hyper/commit/e981a91e68aa92b0dee771362de771daa31c713e))
+
+
 ### v1.5.2 (2024-12-16)
 
 
