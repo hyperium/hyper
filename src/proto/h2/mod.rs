@@ -3,10 +3,9 @@ use std::future::Future;
 use std::io::{Cursor, IoSlice};
 use std::mem;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 use bytes::{Buf, Bytes};
-use futures_util::ready;
 use h2::{Reason, RecvStream, SendStream};
 use http::header::{HeaderName, CONNECTION, TE, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;

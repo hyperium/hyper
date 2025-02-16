@@ -1,10 +1,9 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::io;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 use bytes::{BufMut, Bytes, BytesMut};
-use futures_util::ready;
 use http::{HeaderMap, HeaderName, HeaderValue};
 use http_body::Frame;
 
@@ -244,7 +243,7 @@ impl Decoder {
 
     #[cfg(test)]
     async fn decode_fut<R: MemRead>(&mut self, body: &mut R) -> Result<Frame<Bytes>, io::Error> {
-        futures_util::future::poll_fn(move |cx| self.decode(cx, body)).await
+        std::future::poll_fn(move |cx| self.decode(cx, body)).await
     }
 }
 
@@ -746,7 +745,7 @@ mod tests {
             let mut ext_cnt = 0;
             let mut trailers_cnt = 0;
             loop {
-                let result = futures_util::future::poll_fn(|cx| {
+                let result = std::future::poll_fn(|cx| {
                     state.step(
                         cx,
                         rdr,
@@ -776,7 +775,7 @@ mod tests {
             let mut ext_cnt = 0;
             let mut trailers_cnt = 0;
             loop {
-                let result = futures_util::future::poll_fn(|cx| {
+                let result = std::future::poll_fn(|cx| {
                     state.step(
                         cx,
                         rdr,
