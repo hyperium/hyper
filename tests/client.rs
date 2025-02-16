@@ -1486,6 +1486,7 @@ test! {
 
 mod conn {
     use std::error::Error;
+    use std::future::poll_fn;
     use std::io::{self, Read, Write};
     use std::net::{SocketAddr, TcpListener};
     use std::pin::Pin;
@@ -1495,7 +1496,7 @@ mod conn {
 
     use bytes::{Buf, Bytes};
     use futures_channel::{mpsc, oneshot};
-    use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
+    use futures_util::future::{self, FutureExt, TryFutureExt};
     use http_body_util::{BodyExt, Empty, Full, StreamBody};
     use hyper::rt::Timer;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};

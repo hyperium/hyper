@@ -3,12 +3,11 @@ use std::{
     future::Future,
     marker::Unpin,
     pin::Pin,
-    task::{Context, Poll},
+    task::{ready, Context, Poll},
 };
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use futures_util::ready;
 use http::Request;
 
 use super::{Http1Transaction, Wants};
