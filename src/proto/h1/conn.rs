@@ -68,6 +68,9 @@ where
                 date_header: true,
                 #[cfg(feature = "server")]
                 timer: Time::Empty,
+                raw_request_headers: None,
+                record_raw_request_headers: false,
+                record_raw_response_headers: false,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -121,6 +124,16 @@ where
 
     pub(crate) fn set_title_case_headers(&mut self) {
         self.state.title_case_headers = true;
+    }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn set_record_raw_request_headers(&mut self) {
+        self.state.record_raw_request_headers = true;
+    }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn set_record_raw_response_headers(&mut self) {
+        self.state.record_raw_response_headers = true;
     }
 
     pub(crate) fn set_preserve_header_case(&mut self) {
@@ -241,6 +254,8 @@ where
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
                 h1_max_headers: self.state.h1_max_headers,
+                raw_request_headers: self.state.raw_request_headers.as_ref(),
+                record_raw_headers: self.state.record_raw_response_headers,
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
@@ -617,6 +632,7 @@ where
         self.enforce_version(&mut head);
 
         let buf = self.io.headers_buf();
+        let headers_start = buf.len();
         match super::role::encode_headers::<T>(
             Encode {
                 head: &mut head,
@@ -633,6 +649,13 @@ where
             Ok(encoder) => {
                 debug_assert!(self.state.cached_headers.is_none());
                 debug_assert!(head.headers.is_empty());
+                if self.state.record_raw_request_headers {
+                    self.state.raw_request_headers = Some(crate::ext::RawRequestHeaders::from(
+                        Bytes::copy_from_slice(&buf[headers_start..]),
+                    ));
+                } else {
+                    self.state.raw_request_headers = None;
+                }
                 self.state.cached_headers = Some(head.headers);
 
                 #[cfg(feature = "client")]
@@ -934,6 +957,9 @@ struct State {
     date_header: bool,
     #[cfg(feature = "server")]
     timer: Time,
+    raw_request_headers: Option<crate::ext::RawRequestHeaders>,
+    record_raw_request_headers: bool,
+    record_raw_response_headers: bool,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
