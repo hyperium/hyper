@@ -156,7 +156,7 @@ mod response_body_lengths {
         let n = body.find("\r\n\r\n").unwrap() + 4;
 
         if case.expects_chunked {
-            if body_str.len() > 0 {
+            if !body_str.is_empty() {
                 let len = body.len();
                 assert_eq!(
                     &body[n + 1..n + 3],
@@ -1090,13 +1090,10 @@ fn pipeline_disabled() {
     // TODO: add in a delay to the `ServeReply` interface, to allow this
     // delay to prevent the 2 writes from happening before this test thread
     // can read from the socket.
-    match req.read(&mut buf) {
-        Ok(n) => {
-            // won't be 0, because we didn't say to close, and so socket
-            // will be open until `server` drops
-            assert_ne!(n, 0);
-        }
-        Err(_) => (),
+    if let Ok(n) = req.read(&mut buf) {
+        // won't be 0, because we didn't say to close, and so socket
+        // will be open until `server` drops
+        assert_ne!(n, 0);
     }
 }
 
@@ -1309,7 +1306,7 @@ async fn http1_graceful_shutdown_after_upgrade() {
 
         let response = s(&buf);
         assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
-        assert!(!has_header(&response, "content-length"));
+        assert!(!has_header(response, "content-length"));
         let _ = read_101_tx.send(());
     });
 
@@ -1481,9 +1478,8 @@ fn header_name_too_long() {
     let mut req = connect(server.addr());
     let mut write = Vec::with_capacity(1024 * 66);
     write.extend_from_slice(b"GET / HTTP/1.1\r\n");
-    for _ in 0..(1024 * 65) {
-        write.push(b'x');
-    }
+    write.extend_from_slice(vec![b'x'; 1024 * 64].as_slice());
+
     write.extend_from_slice(b": foo\r\n\r\n");
     req.write_all(&write).unwrap();
 
@@ -1508,7 +1504,6 @@ async fn header_read_timeout_slow_writes() {
         tcp.write_all(
             b"\
             Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 2");
@@ -1516,6 +1511,7 @@ async fn header_read_timeout_slow_writes() {
         tcp.write_all(
             b"\
             Works: 0\r\n\
+            \r\n\
         ",
         )
         .expect_err("write 3");
@@ -1557,7 +1553,7 @@ async fn header_read_timeout_starts_immediately() {
         .timer(TokioTimer)
         .header_read_timeout(Duration::from_secs(2))
         .serve_connection(socket, unreachable_service());
-    conn.await.expect_err("header timeout");
+    assert!(conn.await.unwrap_err().is_timeout());
 }
 
 #[tokio::test]
@@ -1605,7 +1601,6 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
             b"\
             GET / HTTP/1.1\r\n\
             Something: 1\r\n\
-            \r\n\
         ",
         )
         .expect("write 5");
@@ -1613,6 +1608,7 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
         tcp.write_all(
             b"\
             Works: 0\r\n\
+            \r\n
         ",
         )
         .expect_err("write 6");
@@ -1633,7 +1629,51 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
                 future::ready(Ok::<_, hyper::Error>(res))
             }),
         );
-    conn.without_shutdown().await.expect_err("header timeout");
+    assert!(conn.without_shutdown().await.unwrap_err().is_timeout());
+}
+
+#[tokio::test]
+async fn header_read_timeout_as_idle_timeout() {
+    let (listener, addr) = setup_tcp_listener();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            \r\n\
+        ",
+        )
+        .expect("request 1");
+
+        thread::sleep(Duration::from_secs(6));
+
+        tcp.write_all(
+            b"\
+            GET / HTTP/1.1\r\n\
+            \r\n\
+        ",
+        )
+        .expect_err("request 2");
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http1::Builder::new()
+        .timer(TokioTimer)
+        .header_read_timeout(Duration::from_secs(3))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+    assert!(conn.without_shutdown().await.unwrap_err().is_timeout());
 }
 
 #[tokio::test]
@@ -1769,7 +1809,7 @@ async fn upgrades_new() {
 
         let response = s(&buf);
         assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
-        assert!(!has_header(&response, "content-length"));
+        assert!(!has_header(response, "content-length"));
         let _ = read_101_tx.send(());
 
         let n = tcp.read(&mut buf).expect("read 2");
@@ -2918,7 +2958,7 @@ struct ReplyBuilder<'a> {
     tx: &'a Mutex<spmc::Sender<Reply>>,
 }
 
-impl<'a> ReplyBuilder<'a> {
+impl ReplyBuilder<'_> {
     fn status(self, status: hyper::StatusCode) -> Self {
         self.tx.lock().unwrap().send(Reply::Status(status)).unwrap();
         self
@@ -2994,7 +3034,7 @@ impl<'a> ReplyBuilder<'a> {
     }
 }
 
-impl<'a> Drop for ReplyBuilder<'a> {
+impl Drop for ReplyBuilder<'_> {
     fn drop(&mut self) {
         if let Ok(mut tx) = self.tx.lock() {
             let _ = tx.send(Reply::End);

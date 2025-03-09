@@ -73,7 +73,7 @@ where
                 preserve_header_order: false,
                 title_case_headers: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: None,
                 notify_read: false,
                 reading: Reading::Init,
@@ -115,7 +115,6 @@ where
         self.io.set_write_strategy_flatten();
     }
 
-    #[cfg(feature = "client")]
     pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
         self.state.h1_parser_config = parser_config;
     }
@@ -246,7 +245,7 @@ where
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut self.state.on_informational,
             },
         ) {
@@ -286,7 +285,7 @@ where
         self.state.h09_responses = false;
 
         // Drop any OnInformational callbacks, we're done there!
-        #[cfg(feature = "ffi")]
+        #[cfg(feature = "client")]
         {
             self.state.on_informational = None;
         }
@@ -636,10 +635,10 @@ where
                 debug_assert!(head.headers.is_empty());
                 self.state.cached_headers = Some(head.headers);
 
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 {
                     self.state.on_informational =
-                        head.extensions.remove::<crate::ffi::OnInformational>();
+                        head.extensions.remove::<crate::ext::OnInformational>();
                 }
 
                 Some(encoder)
@@ -943,8 +942,8 @@ struct State {
     /// If set, called with each 1xx informational response received for
     /// the current request. MUST be unset after a non-1xx response is
     /// received.
-    #[cfg(feature = "ffi")]
-    on_informational: Option<crate::ffi::OnInformational>,
+    #[cfg(feature = "client")]
+    on_informational: Option<crate::ext::OnInformational>,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,
@@ -1121,6 +1120,14 @@ impl State {
         // should try the poll loop one more time, so as to poll the
         // pending requests stream.
         if !T::should_read_first() {
+            self.notify_read = true;
+        }
+
+        #[cfg(feature = "server")]
+        if self.h1_header_read_timeout.is_some() {
+            // Next read will start and poll the header read timeout,
+            // so we can close the connection if another header isn't
+            // received in a timely manner.
             self.notify_read = true;
         }
     }

@@ -1156,7 +1156,7 @@ test! {
             \r\n\
             ",
         reply: {
-            let long_header = std::iter::repeat("A").take(500_000).collect::<String>();
+            let long_header = "A".repeat(500_000);
             format!("\
                 HTTP/1.1 200 OK\r\n\
                 {}: {}\r\n\
@@ -2042,24 +2042,119 @@ mod conn {
     }
 
     #[tokio::test]
-    async fn test_try_send_request() {
-        use std::future::Future;
-        let (listener, addr) = setup_tk_test_server().await;
-        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+    async fn client_100_then_http09() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(
+                b"\
+                HTTP/1.1 100 Continue\r\n\
+                Content-Type: text/plain\r\n\
+                Server: BaseHTTP/0.6 Python/3.12.5\r\n\
+                Date: Mon, 16 Dec 2024 03:08:27 GMT\r\n\
+            ",
+            )
+            .unwrap();
+            // That it's separate writes is important to this test
+            thread::sleep(Duration::from_millis(50));
+            sock.write_all(
+                b"\
+                \r\n\
+            ",
+            )
+            .expect("write 2");
+            thread::sleep(Duration::from_millis(50));
+            sock.write_all(
+                b"\
+                This is a sample text/plain document, without final headers.\
+                \n\n\
+            ",
+            )
+            .expect("write 3");
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .http09_responses(true)
+            .handshake(tcp)
+            .await
+            .unwrap();
 
         tokio::spawn(async move {
-            let mut sock = listener.accept().await.unwrap().0;
-            let mut buf = [0u8; 8192];
-            sock.read(&mut buf).await.expect("read 1");
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let _res = client.send_request(req).await.expect("send_request");
+    }
+
+    #[tokio::test]
+    async fn client_on_informational_ext() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::Arc;
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            sock.set_read_timeout(Some(Duration::from_secs(5))).unwrap();
+            sock.set_write_timeout(Some(Duration::from_secs(5)))
+                .unwrap();
+            let mut buf = [0; 4096];
+            sock.read(&mut buf).expect("read 1");
+            sock.write_all(b"HTTP/1.1 100 Continue\r\n\r\n").unwrap();
             sock.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
-                .await
-                .expect("write 1");
+                .unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::handshake(tcp).await.unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let mut req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let cnt = Arc::new(AtomicUsize::new(0));
+        let cnt2 = cnt.clone();
+        hyper::ext::on_informational(&mut req, move |res| {
+            assert_eq!(res.status(), 100);
+            cnt2.fetch_add(1, Ordering::Relaxed);
+        });
+        let _res = client.send_request(req).await.expect("send_request");
+        assert_eq!(1, cnt.load(Ordering::Relaxed));
+    }
+
+    #[tokio::test]
+    async fn test_try_send_request() {
+        use std::future::Future;
+        let (done_tx, done_rx) = tokio::sync::oneshot::channel::<()>();
+        let (io_srv, io_cli) = tokio_test::io::Builder::new()
+            .write(b"GET / HTTP/1.1\r\n\r\n")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .build_with_handle();
+
+        tokio::spawn(async move {
+            let _io = io_cli;
             let _ = done_rx.await;
         });
 
         // make polling fair by putting both in spawns
         tokio::spawn(async move {
-            let io = tcp_connect(&addr).await.expect("tcp connect");
+            let io = TokioIo::new(io_srv);
             let (mut client, mut conn) = conn::http1::Builder::new()
                 .handshake::<_, Empty<Bytes>>(io)
                 .await

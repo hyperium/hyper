@@ -1,13 +1,14 @@
 #![deny(warnings)]
-
-use std::convert::Infallible;
-use std::net::SocketAddr;
+#![allow(unused_imports)]
 
 use http_body_util::Full;
 use hyper::body::Bytes;
+#[cfg(feature = "server")]
 use hyper::server::conn::http2;
 use hyper::service::service_fn;
 use hyper::{Request, Response};
+use std::convert::Infallible;
+use std::net::SocketAddr;
 use tokio::net::TcpListener;
 
 // This would normally come from the `hyper-util` crate, but we can't depend
@@ -18,6 +19,7 @@ use support::TokioIo;
 
 // An async function that consumes a request, does nothing with it and returns a
 // response.
+#[cfg(feature = "server")]
 async fn hello(_: Request<hyper::body::Incoming>) -> Result<Response<Full<Bytes>>, Infallible> {
     Ok(Response::new(Full::new(Bytes::from("Hello, World!"))))
 }
@@ -40,6 +42,7 @@ where
     }
 }
 
+#[cfg(feature = "server")]
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     pretty_env_logger::init();
@@ -78,4 +81,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
             }
         });
     }
+}
+
+#[cfg(not(feature = "server"))]
+fn main() {
+    panic!("This example requires the 'server' feature to be enabled");
 }

@@ -2,11 +2,11 @@ use std::ffi::c_void;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::rt::{Read, Write};
-use libc::size_t;
-
 use super::task::hyper_context;
 use super::userdata::{hyper_userdata_drop, Userdata};
+
+use crate::ffi::size_t;
+use crate::rt::{Read, Write};
 
 /// Sentinel value to return from a read or write callback that the operation
 /// is pending.

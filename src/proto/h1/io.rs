@@ -188,7 +188,7 @@ where
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
                     h09_responses: parse_ctx.h09_responses,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: parse_ctx.on_informational,
                 },
             )? {
@@ -205,7 +205,11 @@ where
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
                     if curr_len > 0 {
+                        trace!("partial headers; {} bytes so far", curr_len);
                         self.partial_len = Some(curr_len);
+                    } else {
+                        // 1xx gobled some bytes
+                        self.partial_len = None;
                     }
                 }
             }
@@ -320,7 +324,7 @@ where
     }
 
     #[cfg(test)]
-    fn flush<'a>(&'a mut self) -> impl std::future::Future<Output = io::Result<()>> + 'a {
+    fn flush(&mut self) -> impl std::future::Future<Output = io::Result<()>> + '_ {
         futures_util::future::poll_fn(move |cx| self.poll_flush(cx))
     }
 }
@@ -706,7 +710,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut None,
             };
             assert!(buffered

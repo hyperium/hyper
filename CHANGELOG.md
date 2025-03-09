@@ -1,3 +1,50 @@
+## v1.6.0 (2025-01-28)
+
+
+#### Bug Fixes
+
+* **server:**
+  * start http1 header read timeout when conn is idle (#3828) ([10b09ffc](https://github.com/hyperium/hyper/commit/10b09ffc04a97bbc96444172b7c5e02665827c67), closes [#3780](https://github.com/hyperium/hyper/issues/3780), [#3781](https://github.com/hyperium/hyper/issues/3781))
+  * change `max_local_error_reset_streams` function to `&mut self` (#3820) ([e981a91e](https://github.com/hyperium/hyper/commit/e981a91e68aa92b0dee771362de771daa31c713e))
+
+
+#### Features
+
+* **ext:** add `ext::on_informational()` callback extension (#3818) ([8ce1fcfa](https://github.com/hyperium/hyper/commit/8ce1fcfae97611ace027b9e26717ae957b323f24), closes [#2565](https://github.com/hyperium/hyper/issues/2565))
+* **server:** add `http1::Builder::ignore_invalid_headers(bool)` option (#3824) ([3817a79b](https://github.com/hyperium/hyper/commit/3817a79b213f840302d7e27fac8508de9caada0f))
+
+
+#### Breaking Changes
+
+* `http2::Builder::max_local_error_reset_streams()` now takes `&mut self` and returns `&mut Self`. In practice, this shouldn't break almost anyone. It was the wrong receiver and return types.
+ ([e981a91e](https://github.com/hyperium/hyper/commit/e981a91e68aa92b0dee771362de771daa31c713e))
+
+
+### v1.5.2 (2024-12-16)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * fix intermitent panic parsing partial headers (#3812) ([a131111f](https://github.com/hyperium/hyper/commit/a131111f9c3189bab36fed9f46872c88dc0d601e), closes [#3811](https://github.com/hyperium/hyper/issues/3811))
+  * skip debug assertion of content length for HEAD responses (#3795) ([eaf2267c](https://github.com/hyperium/hyper/commit/eaf2267cdc148604469fb09da22646f31710107a), closes [#3794](https://github.com/hyperium/hyper/issues/3794))
+
+
+#### Features
+
+* **ffi:** add cargo-c support (#3787) ([7f4a6826](https://github.com/hyperium/hyper/commit/7f4a68265cb897d15b04fc772639234554ba79e8), closes [#3786](https://github.com/hyperium/hyper/issues/3786))
+
+
+### v1.5.1 (2024-11-19)
+
+
+#### Bug Fixes
+
+* **http2:**
+  * pass proper value to h2 max_local_error_reset_streams ([4a20147a](https://github.com/hyperium/hyper/commit/4a20147a1b73003860a8391c4b89ccd8a78a832e))
+  * improve graceful shutdown during handshake (#3729) ([13b05943](https://github.com/hyperium/hyper/commit/13b0594348916b901ad7e1c838b9d90298db6af4))
+
+
 ## v1.5.0 (2024-10-15)
 
 

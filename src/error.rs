@@ -240,6 +240,10 @@ impl Error {
 
     /// Returns true if the error was caused by a timeout.
     pub fn is_timeout(&self) -> bool {
+        #[cfg(all(feature = "http1", feature = "server"))]
+        if matches!(self.inner.kind, Kind::HeaderTimeout) {
+            return true;
+        }
         self.find_source::<TimedOut>().is_some()
     }
 

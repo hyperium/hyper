@@ -1,15 +1,15 @@
-use std::ffi::c_void;
+use std::ffi::{c_int, c_void};
 use std::mem::ManuallyDrop;
 use std::ptr;
 use std::task::{Context, Poll};
 
 use http_body_util::BodyExt as _;
-use libc::{c_int, size_t};
 
 use super::task::{hyper_context, hyper_task, hyper_task_return_type, AsTaskType};
 use super::userdata::{hyper_userdata_drop, Userdata};
 use super::HYPER_ITER_CONTINUE;
 use crate::body::{Bytes, Frame, Incoming as IncomingBody};
+use crate::ffi::size_t;
 
 /// A streaming HTTP body.
 ///

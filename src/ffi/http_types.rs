@@ -1,6 +1,6 @@
+use std::ffi::{c_int, c_void};
+
 use bytes::Bytes;
-use libc::{c_int, size_t};
-use std::ffi::c_void;
 use std::sync::Arc;
 
 use super::body::hyper_body;
@@ -10,6 +10,7 @@ use super::userdata::{hyper_userdata_drop, Userdata};
 use super::HYPER_ITER_CONTINUE;
 use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
+use crate::ffi::size_t;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{HeaderMap, Method, Request, Response, Uri};
 
@@ -71,7 +72,7 @@ pub struct hyper_headers {
 }
 
 #[derive(Clone)]
-pub(crate) struct OnInformational {
+struct OnInformational {
     func: hyper_request_on_informational_callback,
     userdata: Arc<Userdata>,
 }
@@ -397,7 +398,7 @@ ffi_fn! {
             userdata: Arc::new(Userdata::new(data, drop)),
         };
         let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
-        req.0.extensions_mut().insert(ext);
+        crate::ext::on_informational_raw(&mut req.0, ext);
         hyper_code::HYPERE_OK
     }
 }
@@ -779,8 +780,9 @@ unsafe fn raw_name_value(
 
 // ===== impl OnInformational =====
 
-impl OnInformational {
-    pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
+impl crate::ext::OnInformationalCallback for OnInformational {
+    fn on_informational(&self, resp: Response<()>) {
+        let resp = resp.map(|()| IncomingBody::empty());
         let mut resp = hyper_response::from(resp);
         (self.func)(self.userdata.as_ptr(), &mut resp);
     }

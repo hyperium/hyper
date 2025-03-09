@@ -117,7 +117,7 @@ async fn main() -> Result<()> {
         let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
-            let service = service_fn(move |req| response_examples(req));
+            let service = service_fn(response_examples);
 
             if let Err(err) = http1::Builder::new().serve_connection(io, service).await {
                 println!("Failed to serve connection: {:?}", err);

@@ -19,6 +19,15 @@ mod h1_reason_phrase;
 #[cfg(any(feature = "http1", feature = "ffi"))]
 pub use h1_reason_phrase::ReasonPhrase;
 
+#[cfg(all(feature = "http1", feature = "client"))]
+mod informational;
+#[cfg(all(feature = "http1", feature = "client"))]
+pub use informational::on_informational;
+#[cfg(all(feature = "http1", feature = "client"))]
+pub(crate) use informational::OnInformational;
+#[cfg(all(feature = "http1", feature = "client", feature = "ffi"))]
+pub(crate) use informational::{on_informational_raw, OnInformationalCallback};
+
 #[cfg(feature = "http2")]
 /// Represents the `:protocol` pseudo-header used by
 /// the [Extended CONNECT Protocol].

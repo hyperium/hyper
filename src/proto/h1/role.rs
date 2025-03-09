@@ -100,10 +100,8 @@ fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
             if bytes[i + 1..].chunks(3).next() == Some(&b"\n\r\n"[..]) {
                 return true;
             }
-        } else if b == b'\n' {
-            if bytes.get(i + 1) == Some(&b'\n') {
-                return true;
-            }
+        } else if b == b'\n' && bytes.get(i + 1) == Some(&b'\n') {
+            return true;
         }
     }
 
@@ -702,12 +700,14 @@ impl Server {
                             #[cfg(debug_assertions)]
                             {
                                 if let Some(len) = headers::content_length_parse(&value) {
-                                    assert!(
+                                    if msg.req_method != &Some(Method::HEAD) || known_len != 0 {
+                                        assert!(
                                         len == known_len,
                                         "payload claims content-length of {}, custom content-length header claims {}",
                                         known_len,
                                         len,
                                     );
+                                    }
                                 }
                             }
 
@@ -1153,10 +1153,9 @@ impl Http1Transaction for Client {
                 }));
             }
 
-            #[cfg(feature = "ffi")]
             if head.subject.is_informational() {
                 if let Some(callback) = ctx.on_informational {
-                    callback.call(head.into_response(crate::body::Incoming::empty()));
+                    callback.call(head.into_response(()));
                 }
             }
 
@@ -1620,7 +1619,7 @@ fn write_headers_original_case(
 struct FastWrite<'a>(&'a mut Vec<u8>);
 
 #[cfg(feature = "client")]
-impl<'a> fmt::Write for FastWrite<'a> {
+impl fmt::Write for FastWrite<'_> {
     #[inline]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         extend(self.0, s.as_bytes());
@@ -1644,6 +1643,7 @@ mod tests {
 
     use super::*;
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_parse_request() {
         let _ = pretty_env_logger::try_init();
@@ -1660,7 +1660,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut None,
             },
         )
@@ -1688,7 +1688,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1699,6 +1699,7 @@ mod tests {
         assert_eq!(msg.head.headers["Content-Length"], "0");
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_parse_request_errors() {
         let mut raw = BytesMut::from("GET htt:p// HTTP/1.1\r\nHost: hyper.rs\r\n\r\n");
@@ -1711,13 +1712,13 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
 
-    const H09_RESPONSE: &'static str = "Baguettes are super delicious, don't you agree?";
+    const H09_RESPONSE: &str = "Baguettes are super delicious, don't you agree?";
 
     #[test]
     fn test_parse_response_h09_allowed() {
@@ -1732,7 +1733,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: true,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1755,14 +1756,14 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
         assert_eq!(raw, H09_RESPONSE);
     }
 
-    const RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON: &'static str =
+    const RESPONSE_WITH_WHITESPACE_BETWEEN_HEADER_NAME_AND_COLON: &str =
         "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Credentials : true\r\n\r\n";
 
     #[test]
@@ -1782,7 +1783,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1806,12 +1807,13 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_parse_preserve_header_case_in_request() {
         let mut raw =
@@ -1825,7 +1827,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
-            #[cfg(feature = "ffi")]
+            #[cfg(feature = "client")]
             on_informational: &mut None,
         };
         let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
@@ -1837,19 +1839,18 @@ mod tests {
         assert_eq!(
             orig_headers
                 .get_all_internal(&HeaderName::from_static("host"))
-                .into_iter()
                 .collect::<Vec<_>>(),
             vec![&Bytes::from("Host")]
         );
         assert_eq!(
             orig_headers
                 .get_all_internal(&HeaderName::from_static("x-bread"))
-                .into_iter()
                 .collect::<Vec<_>>(),
             vec![&Bytes::from("X-BREAD")]
         );
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_decoder_request() {
         fn parse(s: &str) -> ParsedMessage<RequestLine> {
@@ -1865,7 +1866,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -1886,7 +1887,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2116,7 +2117,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 }
             )
@@ -2137,7 +2138,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2158,7 +2159,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2460,9 +2461,11 @@ mod tests {
             Encode {
                 head: &mut head,
                 body: Some(BodyLength::Known(10)),
+                #[cfg(feature = "server")]
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                #[cfg(feature = "server")]
                 date_header: true,
             },
             &mut vec,
@@ -2492,9 +2495,11 @@ mod tests {
             Encode {
                 head: &mut head,
                 body: Some(BodyLength::Known(10)),
+                #[cfg(feature = "server")]
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: false,
+                #[cfg(feature = "server")]
                 date_header: true,
             },
             &mut vec,
@@ -2527,9 +2532,11 @@ mod tests {
             Encode {
                 head: &mut head,
                 body: Some(BodyLength::Known(10)),
+                #[cfg(feature = "server")]
                 keep_alive: true,
                 req_method: &mut None,
                 title_case_headers: true,
+                #[cfg(feature = "server")]
                 date_header: true,
             },
             &mut vec,
@@ -2543,6 +2550,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_server_encode_connect_method() {
         let mut head = MessageHead::default();
@@ -2564,6 +2572,7 @@ mod tests {
         assert!(encoder.is_last());
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_server_response_encode_title_case() {
         use crate::proto::BodyLength;
@@ -2597,6 +2606,7 @@ mod tests {
         assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_server_response_encode_orig_case() {
         use crate::proto::BodyLength;
@@ -2632,6 +2642,7 @@ mod tests {
         assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_server_response_encode_orig_and_title_case() {
         use crate::proto::BodyLength;
@@ -2668,6 +2679,7 @@ mod tests {
         assert_eq!(&vec[..expected_response.len()], &expected_response[..]);
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn test_disabled_date_header() {
         use crate::proto::BodyLength;
@@ -2717,7 +2729,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut None,
             },
         )
@@ -2727,6 +2739,7 @@ mod tests {
         assert_eq!(parsed.head.headers["server"], "hello\tworld");
     }
 
+    #[cfg(feature = "server")]
     #[test]
     fn parse_too_large_headers() {
         fn gen_req_with_headers(num: usize) -> String {
@@ -2760,7 +2773,7 @@ mod tests {
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
                         h09_responses: false,
-                        #[cfg(feature = "ffi")]
+                        #[cfg(feature = "client")]
                         on_informational: &mut None,
                     },
                 );
@@ -2784,7 +2797,7 @@ mod tests {
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
                         h09_responses: false,
-                        #[cfg(feature = "ffi")]
+                        #[cfg(feature = "client")]
                         on_informational: &mut None,
                     },
                 );
@@ -2953,7 +2966,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
@@ -2998,7 +3011,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(feature = "client")]
                     on_informational: &mut None,
                 },
             )
