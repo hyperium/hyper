@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1738072451172,
+  "lastUpdate": 1742137383670,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9539,6 +9539,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 50439,
             "range": "± 8997.92",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "clonecode@outlook.com",
+            "name": "jimmycathy",
+            "username": "jimmycathy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "68bae2b53f8db4b0440e49b7e151e7a99229146c",
+          "message": "docs(ffi): remove redundant backticks (#3855)\n\nSigned-off-by: jimmycathy <clonecode@outlook.com>",
+          "timestamp": "2025-03-16T15:02:17Z",
+          "tree_id": "570e01613479b172b97a49e55025742c6860f092",
+          "url": "https://github.com/hyperium/hyper/commit/68bae2b53f8db4b0440e49b7e151e7a99229146c"
+        },
+        "date": 1742137381223,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48318,
+            "range": "± 8972.93",
             "unit": "ns/iter"
           }
         ]
