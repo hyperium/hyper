@@ -90,7 +90,7 @@ struct ExecWaker(AtomicBool);
 /// - hyper_body_data:            Creates a task that will poll a response body for the next buffer of data.
 /// - hyper_body_foreach:         Creates a task to execute the callback with each body chunk received.
 ///
-/// Tasks then have a userdata associated with them using `hyper_task_set_userdata``. This
+/// Tasks then have a userdata associated with them using `hyper_task_set_userdata`. This
 /// is important, for instance, to associate a request id with a given request. When multiple
 /// tasks are running on the same executor, this allows distinguishing tasks for different
 /// requests.
@@ -508,7 +508,7 @@ ffi_fn! {
     /// Creates a waker associated with the task context.
     ///
     /// The waker can be used to inform the task's executor that the task is
-    /// ready to make progress (using `hyper_waker_wake``).
+    /// ready to make progress (using `hyper_waker_wake`).
     ///
     /// Typically this only needs to be called once, but it can be called
     /// multiple times, returning a new waker each time.
