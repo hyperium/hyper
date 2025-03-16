@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742137383670,
+  "lastUpdate": 1742137446882,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -50017,6 +50017,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4962770,
             "range": "± 180808.08",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "clonecode@outlook.com",
+            "name": "jimmycathy",
+            "username": "jimmycathy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "68bae2b53f8db4b0440e49b7e151e7a99229146c",
+          "message": "docs(ffi): remove redundant backticks (#3855)\n\nSigned-off-by: jimmycathy <clonecode@outlook.com>",
+          "timestamp": "2025-03-16T15:02:17Z",
+          "tree_id": "570e01613479b172b97a49e55025742c6860f092",
+          "url": "https://github.com/hyperium/hyper/commit/68bae2b53f8db4b0440e49b7e151e7a99229146c"
+        },
+        "date": 1742137444664,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67369,
+            "range": "± 5787.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4338046,
+            "range": "± 474101.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21226,
+            "range": "± 366.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23116,
+            "range": "± 933.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31994,
+            "range": "± 796.08",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 104338,
+            "range": "± 5761.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 36507,
+            "range": "± 1143.31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 89317,
+            "range": "± 7851.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24023067,
+            "range": "± 32274898.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7809496,
+            "range": "± 237685.01",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7583570,
+            "range": "± 510179.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50788140,
+            "range": "± 1666834.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 59041380,
+            "range": "± 9101664.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5260406,
+            "range": "± 4626831.07",
             "unit": "ns/iter"
           }
         ]
