@@ -4,13 +4,12 @@ use std::future::Future;
 use std::io;
 use std::marker::{PhantomData, Unpin};
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 #[cfg(feature = "server")]
 use std::time::{Duration, Instant};
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use futures_util::ready;
 use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
 use http_body::Frame;
@@ -1174,7 +1173,7 @@ mod tests {
             .unwrap();
 
         b.iter(|| {
-            rt.block_on(futures_util::future::poll_fn(|cx| {
+            rt.block_on(std::future::poll_fn(|cx| {
                 match conn.poll_read_head(cx) {
                     Poll::Ready(Some(Ok(x))) => {
                         ::test::black_box(&x);
