@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742835575903,
+  "lastUpdate": 1742835644880,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -50155,6 +50155,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5260406,
             "range": "± 4626831.07",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hugo@whynothugo.nl",
+            "name": "Hugo",
+            "username": "WhyNotHugo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c449528a33d266a8ca1210baca11e5d649ca6c27",
+          "message": "test(body): add proper cfgs to body unit tests (#3864)\n\nRunning `cargo test` fails to compile because tests rely on types which\nare behind a #[cfg(…)] which is disabled by default.\n\nAdd a #[cfg(…)] directive to tests which rely on types which are also\nbehind a #[cfg(…)] directive, so that these tests run only if the types\non which they depend exist.",
+          "timestamp": "2025-03-24T12:58:46-04:00",
+          "tree_id": "9ec672eb0448461bb4cd6abd9862fc132a7adc03",
+          "url": "https://github.com/hyperium/hyper/commit/c449528a33d266a8ca1210baca11e5d649ca6c27"
+        },
+        "date": 1742835641765,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68743,
+            "range": "± 1268.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4243194,
+            "range": "± 133480.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21756,
+            "range": "± 351.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24028,
+            "range": "± 540.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31930,
+            "range": "± 633.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99448,
+            "range": "± 2423.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 36409,
+            "range": "± 895.04",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 90404,
+            "range": "± 1342.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24287163,
+            "range": "± 32678227.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7873186,
+            "range": "± 146961.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7692936,
+            "range": "± 178655.31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51024944,
+            "range": "± 667183.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 59410098,
+            "range": "± 8913486.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5257633,
+            "range": "± 4092259.32",
             "unit": "ns/iter"
           }
         ]
