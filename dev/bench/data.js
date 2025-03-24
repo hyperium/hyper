@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742137446882,
+  "lastUpdate": 1742835575903,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9569,6 +9569,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48318,
             "range": "± 8972.93",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hugo@whynothugo.nl",
+            "name": "Hugo",
+            "username": "WhyNotHugo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c449528a33d266a8ca1210baca11e5d649ca6c27",
+          "message": "test(body): add proper cfgs to body unit tests (#3864)\n\nRunning `cargo test` fails to compile because tests rely on types which\nare behind a #[cfg(…)] which is disabled by default.\n\nAdd a #[cfg(…)] directive to tests which rely on types which are also\nbehind a #[cfg(…)] directive, so that these tests run only if the types\non which they depend exist.",
+          "timestamp": "2025-03-24T12:58:46-04:00",
+          "tree_id": "9ec672eb0448461bb4cd6abd9862fc132a7adc03",
+          "url": "https://github.com/hyperium/hyper/commit/c449528a33d266a8ca1210baca11e5d649ca6c27"
+        },
+        "date": 1742835572776,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48024,
+            "range": "± 8251.90",
             "unit": "ns/iter"
           }
         ]
