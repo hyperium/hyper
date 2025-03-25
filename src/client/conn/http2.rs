@@ -244,7 +244,7 @@ where
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match ready!(Pin::new(&mut self.inner.1).poll(cx))? {
             proto::Dispatched::Shutdown => Poll::Ready(Ok(())),
-            #[cfg(feature = "http1")]
+            #[cfg(http1)]
             proto::Dispatched::Upgrade(_pending) => unreachable!("http2 cannot upgrade"),
         }
     }

@@ -1,34 +1,31 @@
 //! HTTP extensions.
 
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[cfg(any(http1_client, http1_server))]
 use bytes::Bytes;
-#[cfg(any(
-    all(any(feature = "client", feature = "server"), feature = "http1"),
-    feature = "ffi"
-))]
+#[cfg(any(http1_client, http1_server, ffi))]
 use http::header::HeaderName;
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[cfg(any(http1_client, http1_server))]
 use http::header::{HeaderMap, IntoHeaderName, ValueIter};
-#[cfg(feature = "ffi")]
+#[cfg(ffi)]
 use std::collections::HashMap;
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 use std::fmt;
 
-#[cfg(any(feature = "http1", feature = "ffi"))]
+#[cfg(any(http1, ffi))]
 mod h1_reason_phrase;
-#[cfg(any(feature = "http1", feature = "ffi"))]
+#[cfg(any(http1, ffi))]
 pub use h1_reason_phrase::ReasonPhrase;
 
-#[cfg(all(feature = "http1", feature = "client"))]
+#[cfg(http1_client)]
 mod informational;
-#[cfg(all(feature = "http1", feature = "client"))]
+#[cfg(http1_client)]
 pub use informational::on_informational;
-#[cfg(all(feature = "http1", feature = "client"))]
+#[cfg(http1_client)]
 pub(crate) use informational::OnInformational;
-#[cfg(all(feature = "http1", feature = "client", feature = "ffi"))]
+#[cfg(all(http1_client, ffi))]
 pub(crate) use informational::{on_informational_raw, OnInformationalCallback};
 
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 /// Represents the `:protocol` pseudo-header used by
 /// the [Extended CONNECT Protocol].
 ///
@@ -38,7 +35,7 @@ pub struct Protocol {
     inner: h2::ext::Protocol,
 }
 
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 impl Protocol {
     /// Converts a static string to a protocol name.
     pub const fn from_static(value: &'static str) -> Self {
@@ -52,18 +49,18 @@ impl Protocol {
         self.inner.as_str()
     }
 
-    #[cfg(feature = "server")]
+    #[cfg(server)]
     pub(crate) fn from_inner(inner: h2::ext::Protocol) -> Self {
         Self { inner }
     }
 
-    #[cfg(all(feature = "client", feature = "http2"))]
+    #[cfg(http2_client)]
     pub(crate) fn into_inner(self) -> h2::ext::Protocol {
         self.inner
     }
 }
 
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 impl<'a> From<&'a str> for Protocol {
     fn from(value: &'a str) -> Self {
         Self {
@@ -72,14 +69,14 @@ impl<'a> From<&'a str> for Protocol {
     }
 }
 
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 impl AsRef<[u8]> for Protocol {
     fn as_ref(&self) -> &[u8] {
         self.inner.as_ref()
     }
 }
 
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 impl fmt::Debug for Protocol {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.inner.fmt(f)
@@ -107,15 +104,15 @@ impl fmt::Debug for Protocol {
 /// ```
 ///
 /// [`preserve_header_case`]: /client/struct.Client.html#method.preserve_header_case
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[cfg(any(http1_client, http1_server))]
 #[derive(Clone, Debug)]
 pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[cfg(any(http1_client, http1_server))]
 impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
-    #[cfg(feature = "client")]
+    #[cfg(client)]
     pub(crate) fn get_all<'a>(
         &'a self,
         name: &HeaderName,
@@ -125,22 +122,22 @@ impl HeaderCaseMap {
 
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
-    #[cfg(any(feature = "client", feature = "server"))]
+    #[cfg(any(client, server))]
     pub(crate) fn get_all_internal(&self, name: &HeaderName) -> ValueIter<'_, Bytes> {
         self.0.get_all(name).into_iter()
     }
 
-    #[cfg(any(feature = "client", feature = "server"))]
+    #[cfg(any(client, server))]
     pub(crate) fn default() -> Self {
         Self(Default::default())
     }
 
-    #[cfg(any(test, feature = "ffi"))]
+    #[cfg(any(test, ffi))]
     pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
         self.0.insert(name, orig);
     }
 
-    #[cfg(any(feature = "client", feature = "server"))]
+    #[cfg(any(client, server))]
     pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
     where
         N: IntoHeaderName,
@@ -149,7 +146,7 @@ impl HeaderCaseMap {
     }
 }
 
-#[cfg(feature = "ffi")]
+#[cfg(ffi)]
 #[derive(Clone, Debug)]
 /// Hashmap<Headername, numheaders with that name>
 pub(crate) struct OriginalHeaderOrder {
@@ -164,7 +161,7 @@ pub(crate) struct OriginalHeaderOrder {
     entry_order: Vec<(HeaderName, usize)>,
 }
 
-#[cfg(all(feature = "http1", feature = "ffi"))]
+#[cfg(all(http1, ffi))]
 impl OriginalHeaderOrder {
     pub(crate) fn default() -> Self {
         OriginalHeaderOrder {

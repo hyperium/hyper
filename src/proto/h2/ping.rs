@@ -232,7 +232,7 @@ impl Recorder {
 
     /// If the incoming stream is already closed, convert self into
     /// a disabled reporter.
-    #[cfg(feature = "client")]
+    #[cfg(client)]
     pub(super) fn for_stream(self, stream: &h2::RecvStream) -> Self {
         if stream.is_end_stream() {
             disabled()

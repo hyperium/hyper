@@ -13,7 +13,7 @@ use http::Request;
 
 use super::{Http1Transaction, Wants};
 use crate::body::{Body, DecodedLength, Incoming as IncomingBody};
-#[cfg(feature = "client")]
+#[cfg(client)]
 use crate::client::dispatch::TrySendError;
 use crate::common::task;
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
@@ -87,7 +87,7 @@ where
         }
     }
 
-    #[cfg(feature = "server")]
+    #[cfg(server)]
     pub(crate) fn disable_keep_alive(&mut self) {
         self.conn.disable_keep_alive();
 
