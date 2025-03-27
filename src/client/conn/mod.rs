@@ -14,9 +14,9 @@
 //!
 //! See the [client guide](https://hyper.rs/guides/1/client/basic/).
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 pub mod http1;
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 pub mod http2;
 
 pub use super::dispatch::TrySendError;

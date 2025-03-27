@@ -114,7 +114,7 @@ pub struct Builder {
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     h1_max_headers: Option<usize>,
-    #[cfg(feature = "ffi")]
+    #[cfg(ffi)]
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
@@ -314,7 +314,7 @@ impl Builder {
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,
-            #[cfg(feature = "ffi")]
+            #[cfg(ffi)]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
         }
@@ -469,7 +469,7 @@ impl Builder {
     /// such an extension in any provided `Request`.
     ///
     /// Default is false.
-    #[cfg(feature = "ffi")]
+    #[cfg(ffi)]
     pub fn preserve_header_order(&mut self, enabled: bool) -> &mut Builder {
         self.h1_preserve_header_order = enabled;
         self
@@ -545,7 +545,7 @@ impl Builder {
             if let Some(max_headers) = opts.h1_max_headers {
                 conn.set_http1_max_headers(max_headers);
             }
-            #[cfg(feature = "ffi")]
+            #[cfg(ffi)]
             if opts.h1_preserve_header_order {
                 conn.set_preserve_header_order();
             }

@@ -268,7 +268,7 @@ ffi_fn! {
     /// be valid after the callback finishes. You must copy any data you wish
     /// to persist.
     fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
-        #[cfg(feature = "client")]
+        #[cfg(client)]
         {
         let ext = OnInformational {
             func: callback,
@@ -278,7 +278,7 @@ ffi_fn! {
         crate::ext::on_informational_raw(&mut req.0, ext);
         hyper_code::HYPERE_OK
         }
-        #[cfg(not(feature = "client"))]
+        #[cfg(not(client))]
         {
         drop((req, callback, data));
         hyper_code::HYPERE_FEATURE_NOT_ENABLED
@@ -575,7 +575,7 @@ unsafe fn raw_name_value(
 
 // ===== impl OnInformational =====
 
-#[cfg(feature = "client")]
+#[cfg(client)]
 impl crate::ext::OnInformationalCallback for OnInformational {
     fn on_informational(&self, res: http::Response<()>) {
         let res = res.map(|()| IncomingBody::empty());
@@ -637,7 +637,7 @@ mod tests {
         }
     }
 
-    #[cfg(all(feature = "http1", feature = "ffi"))]
+    #[cfg(all(http1, ffi))]
     #[test]
     fn test_headers_foreach_order_preserved() {
         let mut headers = hyper_headers::default();

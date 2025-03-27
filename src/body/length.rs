@@ -3,7 +3,7 @@ use std::fmt;
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) struct DecodedLength(u64);
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(any(http1, http2))]
 impl From<Option<u64>> for DecodedLength {
     fn from(len: Option<u64>) -> Self {
         len.and_then(|len| {
@@ -14,7 +14,7 @@ impl From<Option<u64>> for DecodedLength {
     }
 }
 
-#[cfg(any(feature = "http1", feature = "http2", test))]
+#[cfg(any(http1, http2, test))]
 const MAX_LEN: u64 = u64::MAX - 2;
 
 impl DecodedLength {
@@ -33,17 +33,14 @@ impl DecodedLength {
     /// Should only be called if previously confirmed this isn't
     /// CLOSE_DELIMITED or CHUNKED.
     #[inline]
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+    #[cfg(any(http1_client, http1_server))]
     pub(crate) fn danger_len(self) -> u64 {
         debug_assert!(self.0 < Self::CHUNKED.0);
         self.0
     }
 
     /// Converts to an Option<u64> representing a Known or Unknown length.
-    #[cfg(all(
-        any(feature = "http1", feature = "http2"),
-        any(feature = "client", feature = "server")
-    ))]
+    #[cfg(any(http_client, http_server))]
     pub(crate) fn into_opt(self) -> Option<u64> {
         match self {
             DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => None,
@@ -52,7 +49,7 @@ impl DecodedLength {
     }
 
     /// Checks the `u64` is within the maximum allowed for content-length.
-    #[cfg(any(feature = "http1", feature = "http2"))]
+    #[cfg(any(http1, http2))]
     pub(crate) fn checked_new(len: u64) -> Result<Self, crate::error::Parse> {
         if len <= MAX_LEN {
             Ok(DecodedLength(len))
@@ -62,10 +59,7 @@ impl DecodedLength {
         }
     }
 
-    #[cfg(all(
-        any(feature = "http1", feature = "http2"),
-        any(feature = "client", feature = "server")
-    ))]
+    #[cfg(any(http_client, http_server))]
     pub(crate) fn sub_if(&mut self, amt: u64) {
         match *self {
             DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => (),
@@ -80,7 +74,7 @@ impl DecodedLength {
     /// This includes 0, which of course is an exact known length.
     ///
     /// It would return false if "chunked" or otherwise size-unknown.
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    #[cfg(any(http2_client, http2_server))]
     pub(crate) fn is_exact(&self) -> bool {
         self.0 <= MAX_LEN
     }
