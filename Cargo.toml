@@ -240,6 +240,3 @@ required-features = ["full"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["full"]
-
-[build-dependencies]
-cfg_aliases = "0.2.1"
