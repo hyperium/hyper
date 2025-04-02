@@ -135,7 +135,7 @@ pub(super) enum User {
     ManualUpgrade,
 
     /// The dispatch task is gone.
-    #[cfg(any(http1_client, http1_server))]
+    #[cfg(any(http_client))]
     DispatchGone,
 
     /// User aborted in an FFI callback.
