@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1742835644880,
+  "lastUpdate": 1743792917475,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9599,6 +9599,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48024,
             "range": "± 8251.90",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me+cratelyn@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ede24d2714ebce9113b88c94ec8e7104b637de30",
+          "message": "docs(service): add `HttpService` documentation (#3869)\n\nthis commit introduces some additional documentation to the\n`HttpService` trait, and the `Service` trait.\n\nnotably, this commit introduces some intradoc links, so that rustdoc\nwill render links to types like `http::Request` and `http::Response`, or\nto the `Body` trait.\n\nadditionally, mention of `hyper-util` is added to the `Service` trait,\nto direct users to the glue implementations that they will likely need\nto interact with e.g. `tower`.\n\nSigned-off-by: katelyn martin <me+cratelyn@katelyn.world>",
+          "timestamp": "2025-04-04T14:54:23-04:00",
+          "tree_id": "ad1e4c3ef7844c935739dce7808a669ed881f997",
+          "url": "https://github.com/hyperium/hyper/commit/ede24d2714ebce9113b88c94ec8e7104b637de30"
+        },
+        "date": 1743792914616,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46458,
+            "range": "± 9358.51",
             "unit": "ns/iter"
           }
         ]
