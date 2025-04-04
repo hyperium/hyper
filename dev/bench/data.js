@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1743792917475,
+  "lastUpdate": 1743792982005,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -50293,6 +50293,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5257633,
             "range": "± 4092259.32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "me+cratelyn@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ede24d2714ebce9113b88c94ec8e7104b637de30",
+          "message": "docs(service): add `HttpService` documentation (#3869)\n\nthis commit introduces some additional documentation to the\n`HttpService` trait, and the `Service` trait.\n\nnotably, this commit introduces some intradoc links, so that rustdoc\nwill render links to types like `http::Request` and `http::Response`, or\nto the `Body` trait.\n\nadditionally, mention of `hyper-util` is added to the `Service` trait,\nto direct users to the glue implementations that they will likely need\nto interact with e.g. `tower`.\n\nSigned-off-by: katelyn martin <me+cratelyn@katelyn.world>",
+          "timestamp": "2025-04-04T14:54:23-04:00",
+          "tree_id": "ad1e4c3ef7844c935739dce7808a669ed881f997",
+          "url": "https://github.com/hyperium/hyper/commit/ede24d2714ebce9113b88c94ec8e7104b637de30"
+        },
+        "date": 1743792979712,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67771,
+            "range": "± 5771.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 5139683,
+            "range": "± 583949.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21796,
+            "range": "± 4247.36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23511,
+            "range": "± 578.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31825,
+            "range": "± 583.08",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 96860,
+            "range": "± 2870.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 36252,
+            "range": "± 963.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 90344,
+            "range": "± 3214.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24391618,
+            "range": "± 32680992.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7864176,
+            "range": "± 120583.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7720658,
+            "range": "± 113228.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 55410342,
+            "range": "± 1871822.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 63263009,
+            "range": "± 9734200.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5615672,
+            "range": "± 4194107.46",
             "unit": "ns/iter"
           }
         ]
