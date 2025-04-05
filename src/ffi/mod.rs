@@ -33,7 +33,7 @@
 // the `Cargo.toml`.
 //
 // But for now, give a clear message that this compile error is expected.
-#[cfg(not(all(feature = "client", feature = "http1")))]
+#[cfg(not(http1_client))]
 compile_error!("The `ffi` feature currently requires the `client` and `http1` features.");
 
 #[cfg(not(hyper_unstable_ffi))]

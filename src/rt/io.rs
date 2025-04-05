@@ -177,25 +177,25 @@ impl<'data> ReadBuf<'data> {
     }
 
     #[inline]
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    #[cfg(any(http2_client, http2_server))]
     pub(crate) unsafe fn set_init(&mut self, n: usize) {
         self.init = self.init.max(n);
     }
 
     #[inline]
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    #[cfg(any(http2_client, http2_server))]
     pub(crate) unsafe fn set_filled(&mut self, n: usize) {
         self.filled = self.filled.max(n);
     }
 
     #[inline]
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    #[cfg(any(http2_client, http2_server))]
     pub(crate) fn len(&self) -> usize {
         self.filled
     }
 
     #[inline]
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    #[cfg(any(http2_client, http2_server))]
     pub(crate) fn init_len(&self) -> usize {
         self.init
     }

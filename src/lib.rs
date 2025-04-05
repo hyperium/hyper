@@ -1,9 +1,9 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(test, deny(rust_2018_idioms))]
-#![cfg_attr(all(test, feature = "full"), deny(unreachable_pub))]
-#![cfg_attr(all(test, feature = "full"), deny(warnings))]
-#![cfg_attr(all(test, feature = "nightly"), feature(test))]
+#![cfg_attr(all(test, full), deny(unreachable_pub))]
+#![cfg_attr(all(test, full), deny(warnings))]
+#![cfg_attr(all(test, nightly), feature(test))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # hyper
@@ -93,7 +93,7 @@
 #[doc(hidden)]
 pub use http;
 
-#[cfg(all(test, feature = "nightly"))]
+#[cfg(all(test, nightly))]
 extern crate test;
 
 #[doc(no_inline)]
@@ -117,8 +117,8 @@ pub mod rt;
 pub mod service;
 pub mod upgrade;
 
-#[cfg(feature = "ffi")]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "ffi", hyper_unstable_ffi))))]
+#[cfg(ffi)]
+#[cfg_attr(docsrs, doc(cfg(all(ffi, hyper_unstable_ffi))))]
 pub mod ffi;
 
 cfg_proto! {
@@ -127,13 +127,13 @@ cfg_proto! {
 }
 
 cfg_feature! {
-    #![feature = "client"]
+    #![client]
 
     pub mod client;
 }
 
 cfg_feature! {
-    #![feature = "server"]
+    #![server]
 
     pub mod server;
 }

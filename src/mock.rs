@@ -1,37 +1,37 @@
 // FIXME: re-implement tests with `async/await`
 /*
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 use std::collections::HashMap;
 use std::cmp;
 use std::io::{self, Read, Write};
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 use std::sync::{Arc, Mutex};
 
 use bytes::Buf;
 use futures::{Async, Poll};
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 use futures::Future;
 use futures::task::{self, Task};
 use tokio_io::{AsyncRead, AsyncWrite};
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 use crate::client::connect::{Connect, Connected, Destination};
 
 
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 pub struct Duplex {
     inner: Arc<Mutex<DuplexInner>>,
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 struct DuplexInner {
     handle_read_task: Option<Task>,
     read: AsyncIo<MockCursor>,
     write: AsyncIo<MockCursor>,
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl Duplex {
     pub(crate) fn channel() -> (Duplex, DuplexHandle) {
         let mut inner = DuplexInner {
@@ -56,14 +56,14 @@ impl Duplex {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl Read for Duplex {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.inner.lock().unwrap().read.read(buf)
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl Write for Duplex {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let mut inner = self.inner.lock().unwrap();
@@ -80,11 +80,11 @@ impl Write for Duplex {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl AsyncRead for Duplex {
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl AsyncWrite for Duplex {
     fn shutdown(&mut self) -> Poll<(), io::Error> {
         Ok(().into())
@@ -99,12 +99,12 @@ impl AsyncWrite for Duplex {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 pub struct DuplexHandle {
     inner: Arc<Mutex<DuplexInner>>,
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl DuplexHandle {
     pub fn read(&self, buf: &mut [u8]) -> Poll<usize, io::Error> {
         let mut inner = self.inner.lock().unwrap();
@@ -131,7 +131,7 @@ impl DuplexHandle {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl Drop for DuplexHandle {
     fn drop(&mut self) {
         trace!("mock duplex handle drop");
@@ -143,19 +143,19 @@ impl Drop for DuplexHandle {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 type BoxedConnectFut = Box<dyn Future<Item=(Duplex, Connected), Error=io::Error> + Send>;
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 #[derive(Clone)]
 pub struct MockConnector {
     mocks: Arc<Mutex<MockedConnections>>,
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 struct MockedConnections(HashMap<String, Vec<BoxedConnectFut>>);
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl MockConnector {
     pub fn new() -> MockConnector {
         MockConnector {
@@ -195,7 +195,7 @@ impl MockConnector {
     }
 }
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl Connect for MockConnector {
     type Transport = Duplex;
     type Error = io::Error;
@@ -217,7 +217,7 @@ impl Connect for MockConnector {
 }
 
 
-#[cfg(feature = "runtime")]
+#[cfg(runtime)]
 impl Drop for MockedConnections {
     fn drop(&mut self) {
         if !::std::thread::panicking() {

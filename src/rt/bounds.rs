@@ -3,14 +3,14 @@
 //! Traits in this module ease setting bounds and usually automatically
 //! implemented by implementing another trait.
 
-#[cfg(all(feature = "server", feature = "http2"))]
+#[cfg(http2_server)]
 pub use self::h2::Http2ServerConnExec;
 
-#[cfg(all(feature = "client", feature = "http2"))]
+#[cfg(http2_client)]
 pub use self::h2_client::Http2ClientConnExec;
 
-#[cfg(all(feature = "client", feature = "http2"))]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "client", feature = "http2"))))]
+#[cfg(http2_client)]
+#[cfg_attr(docsrs, doc(cfg(http2_client)))]
 mod h2_client {
     use std::{error::Error, future::Future};
 
@@ -63,8 +63,8 @@ mod h2_client {
     }
 }
 
-#[cfg(all(feature = "server", feature = "http2"))]
-#[cfg_attr(docsrs, doc(cfg(all(feature = "server", feature = "http2"))))]
+#[cfg(http2_server)]
+#[cfg_attr(docsrs, doc(cfg(http2_server)))]
 mod h2 {
     use crate::{proto::h2::server::H2Stream, rt::Executor};
     use http_body::Body;

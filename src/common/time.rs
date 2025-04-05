@@ -1,7 +1,4 @@
-#[cfg(any(
-    all(any(feature = "client", feature = "server"), feature = "http2"),
-    all(feature = "server", feature = "http1"),
-))]
+#[cfg(any(http_server, http2_client))]
 use std::time::Duration;
 use std::{fmt, sync::Arc};
 use std::{pin::Pin, time::Instant};
@@ -16,7 +13,7 @@ pub(crate) enum Time {
     Empty,
 }
 
-#[cfg(all(feature = "server", feature = "http1"))]
+#[cfg(http1_server)]
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Dur {
     Default(Option<Duration>),
@@ -30,7 +27,7 @@ impl fmt::Debug for Time {
 }
 
 impl Time {
-    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    #[cfg(any(http2_client, http2_server))]
     pub(crate) fn sleep(&self, duration: Duration) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
@@ -40,7 +37,7 @@ impl Time {
         }
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(http1)]
     pub(crate) fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
@@ -59,7 +56,7 @@ impl Time {
         }
     }
 
-    #[cfg(all(feature = "server", feature = "http1"))]
+    #[cfg(http1_server)]
     pub(crate) fn check(&self, dur: Dur, name: &'static str) -> Option<Duration> {
         match dur {
             Dur::Default(Some(dur)) => match self {
