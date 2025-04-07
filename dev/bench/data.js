@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1743792982005,
+  "lastUpdate": 1744028283393,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9629,6 +9629,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46458,
             "range": "± 9358.51",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "36598604+Muffeter@users.noreply.github.com",
+            "name": "ZenTeaCC",
+            "username": "Muffeter"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ea5b49b7d4e18c1eaa7f42db0ff91d1dcca56a04",
+          "message": "docs(examples): alias Builder for clarity in http_proxy (#3873)",
+          "timestamp": "2025-04-07T08:17:10-04:00",
+          "tree_id": "f60fe1ff511adb512dd393206410834d8923e476",
+          "url": "https://github.com/hyperium/hyper/commit/ea5b49b7d4e18c1eaa7f42db0ff91d1dcca56a04"
+        },
+        "date": 1744028281109,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45289,
+            "range": "± 8612.56",
             "unit": "ns/iter"
           }
         ]
