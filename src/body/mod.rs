@@ -26,19 +26,13 @@ pub use http_body::SizeHint;
 
 pub use self::incoming::Incoming;
 
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[cfg(any(http1_client, http1_server))]
 pub(crate) use self::incoming::Sender;
-#[cfg(all(
-    any(feature = "http1", feature = "http2"),
-    any(feature = "client", feature = "server")
-))]
+#[cfg(any(http_client, http_server))]
 pub(crate) use self::length::DecodedLength;
 
 mod incoming;
-#[cfg(all(
-    any(feature = "http1", feature = "http2"),
-    any(feature = "client", feature = "server")
-))]
+#[cfg(any(http_client, http_server))]
 mod length;
 
 fn _assert_send_sync() {

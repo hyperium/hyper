@@ -195,7 +195,7 @@ fn checkout_win_allows_connect_future_to_be_pooled() {
     }
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(nightly)]
 #[bench]
 fn bench_http1_get_0b(b: &mut test::Bencher) {
     let _ = pretty_env_logger::try_init();
@@ -227,7 +227,7 @@ fn bench_http1_get_0b(b: &mut test::Bencher) {
     });
 }
 
-#[cfg(feature = "nightly")]
+#[cfg(nightly)]
 #[bench]
 fn bench_http1_get_10b(b: &mut test::Bencher) {
     let _ = pretty_env_logger::try_init();

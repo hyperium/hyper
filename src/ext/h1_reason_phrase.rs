@@ -11,7 +11,7 @@ use bytes::Bytes;
 /// the response will not contain a `ReasonPhrase`.
 ///
 /// ```no_run
-/// # #[cfg(all(feature = "tcp", feature = "client", feature = "http1"))]
+/// # #[cfg(all(feature = "tcp", client, http1))]
 /// # async fn fake_fetch() -> hyper::Result<()> {
 /// use hyper::{Client, Uri};
 /// use hyper::ext::ReasonPhrase;
@@ -53,7 +53,7 @@ impl ReasonPhrase {
     ///
     /// Use with care; invalid bytes in a reason phrase can cause serious security problems if
     /// emitted in a response.
-    #[cfg(feature = "client")]
+    #[cfg(client)]
     pub(crate) fn from_bytes_unchecked(reason: Bytes) -> Self {
         Self(reason)
     }

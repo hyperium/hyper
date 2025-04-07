@@ -1067,7 +1067,7 @@ mod tests {
         all_async_cases(content, content, Decoder::eof()).await;
     }
 
-    #[cfg(all(feature = "nightly", not(miri)))]
+    #[cfg(all(nightly, not(miri)))]
     #[bench]
     fn bench_decode_chunked_1kb(b: &mut test::Bencher) {
         let rt = new_runtime();
@@ -1096,7 +1096,7 @@ mod tests {
         });
     }
 
-    #[cfg(all(feature = "nightly", not(miri)))]
+    #[cfg(all(nightly, not(miri)))]
     #[bench]
     fn bench_decode_length_1kb(b: &mut test::Bencher) {
         let rt = new_runtime();
@@ -1120,7 +1120,7 @@ mod tests {
         });
     }
 
-    #[cfg(feature = "nightly")]
+    #[cfg(nightly)]
     fn new_runtime() -> tokio::runtime::Runtime {
         tokio::runtime::Builder::new_current_thread()
             .enable_all()
