@@ -4,11 +4,10 @@ use std::error::Error as StdError;
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
-use std::task::{Context, Poll};
+use std::task::{ready, Context, Poll};
 
 use crate::rt::{Read, Write};
 use bytes::Bytes;
-use futures_util::ready;
 use http::{Request, Response};
 use httparse::ParserConfig;
 
@@ -92,7 +91,7 @@ where
     /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
     pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
         let mut conn = Some(self);
-        futures_util::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
+        std::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
             ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
             Poll::Ready(Ok(conn.take().unwrap().into_parts()))
         })
@@ -148,7 +147,7 @@ impl<B> SendRequest<B> {
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
-        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
+        std::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /// Checks if the connection is currently ready to send a request.
