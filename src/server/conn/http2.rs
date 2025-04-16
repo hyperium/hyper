@@ -78,6 +78,11 @@ where
     pub fn graceful_shutdown(mut self: Pin<&mut Self>) {
         self.conn.graceful_shutdown();
     }
+
+    /// Checks if there are any streams
+    pub fn has_streams(&self) -> bool {
+        self.conn.has_streams()
+    }
 }
 
 impl<I, B, S, E> Future for Connection<I, S, E>

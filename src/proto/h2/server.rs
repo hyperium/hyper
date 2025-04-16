@@ -189,6 +189,14 @@ where
             }
         }
     }
+
+    /// Checks if there are any streams
+    pub(crate) fn has_streams(&self) -> bool {
+        match self.state {
+            State::Handshaking { .. } => false,
+            State::Serving(ref srv) => srv.conn.has_streams(),
+        }
+    }
 }
 
 impl<T, S, B, E> Future for Server<T, S, B, E>
