@@ -190,6 +190,11 @@ where
         }
     }
 
+    /// Checks if handshaking has completed
+    pub(crate) fn has_handshake_completed(&self) -> bool {
+        matches!(self.state, State::Serving { .. })
+    }
+
     /// Checks if there are any streams
     pub(crate) fn has_streams(&self) -> bool {
         match self.state {

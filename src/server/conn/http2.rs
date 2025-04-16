@@ -79,6 +79,11 @@ where
         self.conn.graceful_shutdown();
     }
 
+    /// Checks if handshaking has completed
+    pub fn has_handshake_completed(&self) -> bool {
+        self.conn.has_handshake_completed()
+    }
+
     /// Checks if there are any streams
     pub fn has_streams(&self) -> bool {
         self.conn.has_streams()
