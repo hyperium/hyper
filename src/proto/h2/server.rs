@@ -189,6 +189,19 @@ where
             }
         }
     }
+
+    /// Checks if handshaking has completed
+    pub(crate) fn has_handshake_completed(&self) -> bool {
+        matches!(self.state, State::Serving { .. })
+    }
+
+    /// Checks if there are any streams
+    pub(crate) fn has_streams(&self) -> bool {
+        match self.state {
+            State::Handshaking { .. } => false,
+            State::Serving(ref srv) => srv.conn.has_streams(),
+        }
+    }
 }
 
 impl<T, S, B, E> Future for Server<T, S, B, E>
