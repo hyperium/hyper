@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1744028342393,
+  "lastUpdate": 1745244602607,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9659,6 +9659,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45289,
             "range": "± 8612.56",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0369f5e86406abbd94091ee5120181632c5d98d2",
+          "message": "docs(MAINTAINERS): add katelyn martin as collaborator (#3878)",
+          "timestamp": "2025-04-21T10:09:14-04:00",
+          "tree_id": "0226d29cb59ae4ada6d5d55036d67a90d2310394",
+          "url": "https://github.com/hyperium/hyper/commit/0369f5e86406abbd94091ee5120181632c5d98d2"
+        },
+        "date": 1745244600234,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44817,
+            "range": "± 8423.88",
             "unit": "ns/iter"
           }
         ]
