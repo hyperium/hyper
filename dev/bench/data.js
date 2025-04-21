@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1745244602607,
+  "lastUpdate": 1745244661418,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -50569,6 +50569,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5324341,
             "range": "± 4710373.94",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0369f5e86406abbd94091ee5120181632c5d98d2",
+          "message": "docs(MAINTAINERS): add katelyn martin as collaborator (#3878)",
+          "timestamp": "2025-04-21T10:09:14-04:00",
+          "tree_id": "0226d29cb59ae4ada6d5d55036d67a90d2310394",
+          "url": "https://github.com/hyperium/hyper/commit/0369f5e86406abbd94091ee5120181632c5d98d2"
+        },
+        "date": 1745244659049,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68572,
+            "range": "± 1705.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4383951,
+            "range": "± 153170.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21224,
+            "range": "± 350.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22818,
+            "range": "± 314.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30652,
+            "range": "± 383.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 95229,
+            "range": "± 1714.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34278,
+            "range": "± 975.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 87888,
+            "range": "± 2418.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23959382,
+            "range": "± 32384294.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24026419,
+            "range": "± 16417404.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7510176,
+            "range": "± 103963.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50118794,
+            "range": "± 1070751.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 58473981,
+            "range": "± 8852918.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5127294,
+            "range": "± 4547414.40",
             "unit": "ns/iter"
           }
         ]
