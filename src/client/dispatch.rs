@@ -304,6 +304,15 @@ impl<T> TrySendError<T> {
         self.message.take()
     }
 
+    /// Returns a reference to the recovered message.
+    ///
+    /// The message will not always have been recovered. If an error occurs
+    /// after the message has been serialized onto the connection, it will not
+    /// be available here.
+    pub fn message(&self) -> Option<&T> {
+        self.message.as_ref()
+    }
+
     /// Consumes this to return the inner error.
     pub fn into_error(self) -> crate::Error {
         self.error
