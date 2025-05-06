@@ -131,6 +131,12 @@ pub(super) enum User {
         feature = "ffi"
     ))]
     BodyWriteAborted,
+    /// User tried to send a connect request with a nonzero body
+    #[cfg(all(
+        any(feature = "client", feature = "server"),
+        feature = "http2"
+    ))]
+    InvalidConnectWithBody,
     /// Error from future of user's Service.
     #[cfg(any(
         all(any(feature = "client", feature = "server"), feature = "http1"),
@@ -395,6 +401,11 @@ impl Error {
         Error::new_user(User::Body).with(cause)
     }
 
+    #[cfg(all( any(feature = "client", feature = "server"), feature = "http2"))]
+    pub(super) fn new_user_invalid_connect() -> Error {
+        Error::new_user(User::InvalidConnectWithBody)
+    }
+
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(super) fn new_shutdown(cause: std::io::Error) -> Error {
         Error::new(Kind::Shutdown).with(cause)
@@ -496,6 +507,11 @@ impl Error {
                 all(any(feature = "client", feature = "server"), feature = "http1"),
                 all(feature = "server", feature = "http2")
             ))]
+            #[cfg(all(
+                any(feature = "client", feature = "server"),
+                feature = "http2"
+            ))]
+            Kind::User(User::InvalidConnectWithBody) => " user sent connect request with non-zero body via HTTP/2",
             Kind::User(User::Service) => "error from user's Service",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
