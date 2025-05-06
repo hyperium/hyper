@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746543209586,
+  "lastUpdate": 1746566314094,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9779,6 +9779,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45988,
             "range": "± 5747.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "143520128+samp5@users.noreply.github.com",
+            "name": "Sam Praneis",
+            "username": "samp5"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "42aff8726dbcfb1954614c867ab243d5fda1f546",
+          "message": "refactor(http2): add decriptive error for non-empty body in CONNECT request (#3886)\n\nCloses #3858",
+          "timestamp": "2025-05-06T17:17:39-04:00",
+          "tree_id": "a8bb4de142268a7fddc2b1fc741b9629dcf67b9a",
+          "url": "https://github.com/hyperium/hyper/commit/42aff8726dbcfb1954614c867ab243d5fda1f546"
+        },
+        "date": 1746566307719,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49694,
+            "range": "± 8827.24",
             "unit": "ns/iter"
           }
         ]
