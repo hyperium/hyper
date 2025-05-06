@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746543144319,
+  "lastUpdate": 1746543209586,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -50983,6 +50983,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4980389,
             "range": "± 4127189.56",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "efa0b26958386ffaf646e6d9a3150ca5041162a3",
+          "message": "feat(client): add a `TrySendError::error()` method (#3885)\n\nthis commit introduces a new inherent method to\n`hyper::client::conn::TrySendError<T>`.\n\nthis error type includes a `TrySendError::into_error()` method today\nthat will consume the `TrySendError<T>`, returning the inner error. this\ncommit introduces a new method that allows callers to inspect the error,\ne.g. to update metrics, without needing to consume the error.\n\nthis is akin to #3884, which added the `TrySendError::message()` method\nthat returns a reference to the `T`-typed message when applicable.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2025-05-06T10:51:36-04:00",
+          "tree_id": "4e23161ee6db06846ae48baa7fa4ce19e599b5ab",
+          "url": "https://github.com/hyperium/hyper/commit/efa0b26958386ffaf646e6d9a3150ca5041162a3"
+        },
+        "date": 1746543207162,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67700,
+            "range": "± 1386.71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4195442,
+            "range": "± 215429.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21281,
+            "range": "± 282.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23202,
+            "range": "± 447.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31533,
+            "range": "± 1125.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 95064,
+            "range": "± 1069.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35665,
+            "range": "± 734.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 89207,
+            "range": "± 1649.26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23917871,
+            "range": "± 32371180.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 32023256,
+            "range": "± 16267920.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7425628,
+            "range": "± 69974.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48405601,
+            "range": "± 873007.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57030507,
+            "range": "± 8958148.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5065533,
+            "range": "± 4535177.20",
             "unit": "ns/iter"
           }
         ]
