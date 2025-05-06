@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1745874375744,
+  "lastUpdate": 1746499452065,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9719,6 +9719,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46919,
             "range": "± 7965.68",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "03fd6aff88c99a0842bb2e578a4993a432c03049",
+          "message": "feat(client): add a `TrySendError::message()` method (#3884)\n\nthis commit introduces a new inherent method to\n`hyper::client::conn::TrySendError<T>`.\n\nthis error type includes a `TrySendError::take_message()` method today\nthat will return an owned instance of the inbound message, should the\nunderlying dispatch have been closed before serialization of the message\never began.\n\nthis commit introduces a new method that allows callers to inspect the\nmessage, e.g. to update metrics, without needing to take ownership of\nthe message.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2025-05-05T22:43:22-04:00",
+          "tree_id": "0c7703362a8dcfebef6dc43b5e806eedc92446ce",
+          "url": "https://github.com/hyperium/hyper/commit/03fd6aff88c99a0842bb2e578a4993a432c03049"
+        },
+        "date": 1746499449204,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45231,
+            "range": "± 8145.87",
             "unit": "ns/iter"
           }
         ]
