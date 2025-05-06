@@ -1377,7 +1377,7 @@ async fn nonempty_parse_eof_returns_error() {
         .expect_err("partial parse eof is error");
 }
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 #[tokio::test]
 async fn http1_allow_half_close() {
     let (listener, addr) = setup_tcp_listener();
@@ -1411,7 +1411,7 @@ async fn http1_allow_half_close() {
     t1.join().expect("client thread");
 }
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 #[tokio::test]
 async fn disconnect_after_reading_request_before_responding() {
     let (listener, addr) = setup_tcp_listener();
@@ -2324,7 +2324,7 @@ async fn illegal_request_length_returns_400_response() {
         .expect_err("illegal Content-Length should error");
 }
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 #[test]
 #[should_panic]
 fn max_buf_size_panic_too_small() {
@@ -2332,14 +2332,14 @@ fn max_buf_size_panic_too_small() {
     http1::Builder::new().max_buf_size(MAX);
 }
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 #[test]
 fn max_buf_size_no_panic() {
     const MAX: usize = 8193;
     http1::Builder::new().max_buf_size(MAX);
 }
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 #[tokio::test]
 async fn max_buf_size() {
     let (listener, addr) = setup_tcp_listener();
@@ -2366,7 +2366,7 @@ async fn max_buf_size() {
         .expect_err("should TooLarge error");
 }
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 #[tokio::test]
 async fn graceful_shutdown_before_first_request_no_block() {
     let (listener, addr) = setup_tcp_listener();

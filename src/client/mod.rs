@@ -15,7 +15,7 @@
 mod tests;
 
 cfg_feature! {
-    #![any(feature = "http1", feature = "http2")]
+    #![any(http1, http2)]
 
     pub mod conn;
     pub(super) mod dispatch;

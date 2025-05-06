@@ -29,7 +29,7 @@ pub enum hyper_code {
     /// Aborted by a user supplied callback.
     HYPERE_ABORTED_BY_CALLBACK,
     /// An optional hyper feature was not enabled.
-    #[cfg_attr(feature = "http2", allow(unused))]
+    #[cfg_attr(http2, allow(unused))]
     HYPERE_FEATURE_NOT_ENABLED,
     /// The peer sent an HTTP message that could not be parsed.
     HYPERE_INVALID_PEER_MESSAGE,

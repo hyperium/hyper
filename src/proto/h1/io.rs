@@ -74,7 +74,7 @@ where
         }
     }
 
-    #[cfg(feature = "server")]
+    #[cfg(server)]
     pub(crate) fn set_flush_pipeline(&mut self, enabled: bool) {
         debug_assert!(!self.write_buf.has_remaining());
         self.flush_pipeline = enabled;
@@ -93,7 +93,7 @@ where
         self.write_buf.max_buf_size = max;
     }
 
-    #[cfg(feature = "client")]
+    #[cfg(client)]
     pub(crate) fn set_read_buf_exact_size(&mut self, sz: usize) {
         self.read_buf_strategy = ReadStrategy::Exact(sz);
     }
@@ -117,7 +117,7 @@ where
     }
 
     #[cfg(test)]
-    #[cfg(feature = "nightly")]
+    #[cfg(nightly)]
     pub(super) fn read_buf_mut(&mut self) -> &mut BytesMut {
         &mut self.read_buf
     }
@@ -185,10 +185,10 @@ where
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
                     h1_max_headers: parse_ctx.h1_max_headers,
                     preserve_header_case: parse_ctx.preserve_header_case,
-                    #[cfg(feature = "ffi")]
+                    #[cfg(ffi)]
                     preserve_header_order: parse_ctx.preserve_header_order,
                     h09_responses: parse_ctx.h09_responses,
-                    #[cfg(feature = "client")]
+                    #[cfg(client)]
                     on_informational: parse_ctx.on_informational,
                 },
             )? {
@@ -360,7 +360,7 @@ enum ReadStrategy {
         next: usize,
         max: usize,
     },
-    #[cfg(feature = "client")]
+    #[cfg(client)]
     Exact(usize),
 }
 
@@ -376,7 +376,7 @@ impl ReadStrategy {
     fn next(&self) -> usize {
         match *self {
             ReadStrategy::Adaptive { next, .. } => next,
-            #[cfg(feature = "client")]
+            #[cfg(client)]
             ReadStrategy::Exact(exact) => exact,
         }
     }
@@ -384,7 +384,7 @@ impl ReadStrategy {
     fn max(&self) -> usize {
         match *self {
             ReadStrategy::Adaptive { max, .. } => max,
-            #[cfg(feature = "client")]
+            #[cfg(client)]
             ReadStrategy::Exact(exact) => exact,
         }
     }
@@ -418,7 +418,7 @@ impl ReadStrategy {
                     }
                 }
             }
-            #[cfg(feature = "client")]
+            #[cfg(client)]
             ReadStrategy::Exact(_) => (),
         }
     }
@@ -648,7 +648,7 @@ mod tests {
 
     use tokio_test::io::Builder as Mock;
 
-    // #[cfg(feature = "nightly")]
+    // #[cfg(nightly)]
     // use test::Bencher;
 
     /*
@@ -707,10 +707,10 @@ mod tests {
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
                 preserve_header_case: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(ffi)]
                 preserve_header_order: false,
                 h09_responses: false,
-                #[cfg(feature = "client")]
+                #[cfg(client)]
                 on_informational: &mut None,
             };
             assert!(buffered
@@ -949,7 +949,7 @@ mod tests {
         assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
     }
 
-    // #[cfg(feature = "nightly")]
+    // #[cfg(nightly)]
     // #[bench]
     // fn bench_write_buf_flatten_buffer_chunk(b: &mut Bencher) {
     //     let s = "Hello, World!";

@@ -14,7 +14,7 @@
 //! module, allowing you to set configuration for both. The builder will then check
 //! the version of the incoming connection and serve it accordingly.
 
-#[cfg(feature = "http1")]
+#[cfg(http1)]
 pub mod http1;
-#[cfg(feature = "http2")]
+#[cfg(http2)]
 pub mod http2;

@@ -30,7 +30,7 @@ cfg_server! {
 pub(crate) trait Http1Transaction {
     type Incoming;
     type Outgoing: Default;
-    #[cfg(feature = "tracing")]
+    #[cfg(tracing)]
     const LOG: &'static str;
     fn parse(bytes: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<Self::Incoming>;
     fn encode(enc: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
@@ -74,10 +74,10 @@ pub(crate) struct ParseContext<'a> {
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
     preserve_header_case: bool,
-    #[cfg(feature = "ffi")]
+    #[cfg(ffi)]
     preserve_header_order: bool,
     h09_responses: bool,
-    #[cfg(feature = "client")]
+    #[cfg(client)]
     on_informational: &'a mut Option<crate::ext::OnInformational>,
 }
 
@@ -85,11 +85,11 @@ pub(crate) struct ParseContext<'a> {
 pub(crate) struct Encode<'a, T> {
     head: &'a mut MessageHead<T>,
     body: Option<BodyLength>,
-    #[cfg(feature = "server")]
+    #[cfg(server)]
     keep_alive: bool,
     req_method: &'a mut Option<Method>,
     title_case_headers: bool,
-    #[cfg(feature = "server")]
+    #[cfg(server)]
     date_header: bool,
 }
 
