@@ -676,7 +676,7 @@ where
                         debug!("h2 connect request with non-zero body not supported");
                         cb.send(Err(TrySendError {
                             error: crate::Error::new_user_invalid_connect(),
-                            message: None
+                            message: None,
                         }));
                         continue;
                     }
