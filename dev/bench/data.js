@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746566314094,
+  "lastUpdate": 1746566373674,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -51121,6 +51121,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5065533,
             "range": "± 4535177.20",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "143520128+samp5@users.noreply.github.com",
+            "name": "Sam Praneis",
+            "username": "samp5"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "42aff8726dbcfb1954614c867ab243d5fda1f546",
+          "message": "refactor(http2): add decriptive error for non-empty body in CONNECT request (#3886)\n\nCloses #3858",
+          "timestamp": "2025-05-06T17:17:39-04:00",
+          "tree_id": "a8bb4de142268a7fddc2b1fc741b9629dcf67b9a",
+          "url": "https://github.com/hyperium/hyper/commit/42aff8726dbcfb1954614c867ab243d5fda1f546"
+        },
+        "date": 1746566370462,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67973,
+            "range": "± 1210.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4238669,
+            "range": "± 271045.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21343,
+            "range": "± 409.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22983,
+            "range": "± 15567.20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30973,
+            "range": "± 592.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 95779,
+            "range": "± 4444.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35480,
+            "range": "± 7427.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 88251,
+            "range": "± 1470.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23936978,
+            "range": "± 32328577.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 32011084,
+            "range": "± 4640680.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7460271,
+            "range": "± 77141.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49240519,
+            "range": "± 1760210.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57261952,
+            "range": "± 9287119.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5088220,
+            "range": "± 4551451.22",
             "unit": "ns/iter"
           }
         ]
