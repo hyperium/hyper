@@ -511,7 +511,7 @@ impl Error {
                 any(feature = "client", feature = "server"),
                 feature = "http2"
             ))]
-            Kind::User(User::InvalidConnectWithBody) => " user sent connect request with non-zero body via HTTP/2",
+            Kind::User(User::InvalidConnectWithBody) => "user sent CONNECT request with non-zero body",
             Kind::User(User::Service) => "error from user's Service",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
