@@ -317,6 +317,11 @@ impl<T> TrySendError<T> {
     pub fn into_error(self) -> crate::Error {
         self.error
     }
+
+    /// Returns a reference to the inner error.
+    pub fn error(&self) -> &crate::Error {
+        &self.error
+    }
 }
 
 #[cfg(feature = "http2")]
