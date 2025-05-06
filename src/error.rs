@@ -500,14 +500,14 @@ impl Error {
                 feature = "ffi"
             ))]
             Kind::User(User::BodyWriteAborted) => "user body write aborted",
-            #[cfg(any(
-                all(any(feature = "client", feature = "server"), feature = "http1"),
-                all(feature = "server", feature = "http2")
-            ))]
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
             Kind::User(User::InvalidConnectWithBody) => {
                 "user sent CONNECT request with non-zero body"
             }
+            #[cfg(any(
+                all(any(feature = "client", feature = "server"), feature = "http1"),
+                all(feature = "server", feature = "http2")
+            ))]
             Kind::User(User::Service) => "error from user's Service",
             #[cfg(any(feature = "http1", feature = "http2"))]
             #[cfg(feature = "server")]
