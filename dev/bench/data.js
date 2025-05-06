@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746499511697,
+  "lastUpdate": 1746543144319,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9749,6 +9749,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45231,
             "range": "± 8145.87",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "efa0b26958386ffaf646e6d9a3150ca5041162a3",
+          "message": "feat(client): add a `TrySendError::error()` method (#3885)\n\nthis commit introduces a new inherent method to\n`hyper::client::conn::TrySendError<T>`.\n\nthis error type includes a `TrySendError::into_error()` method today\nthat will consume the `TrySendError<T>`, returning the inner error. this\ncommit introduces a new method that allows callers to inspect the error,\ne.g. to update metrics, without needing to consume the error.\n\nthis is akin to #3884, which added the `TrySendError::message()` method\nthat returns a reference to the `T`-typed message when applicable.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2025-05-06T10:51:36-04:00",
+          "tree_id": "4e23161ee6db06846ae48baa7fa4ce19e599b5ab",
+          "url": "https://github.com/hyperium/hyper/commit/efa0b26958386ffaf646e6d9a3150ca5041162a3"
+        },
+        "date": 1746543141889,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45988,
+            "range": "± 5747.73",
             "unit": "ns/iter"
           }
         ]
