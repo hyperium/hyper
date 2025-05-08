@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::fmt::{self, Write};
 use std::str;
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 #[cfg(feature = "http2")]
 use http::header::HeaderValue;
@@ -68,8 +68,13 @@ impl CachedDate {
     }
 
     fn update(&mut self, now: SystemTime) {
+        let nanos = now
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .subsec_nanos();
+
         self.render(now);
-        self.next_update = now + Duration::new(1, 0);
+        self.next_update = now + Duration::new(1, 0) - Duration::from_nanos(nanos as u64);
     }
 
     fn render(&mut self, now: SystemTime) {
