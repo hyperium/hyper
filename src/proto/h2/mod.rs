@@ -6,7 +6,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::{Buf, Bytes};
-use futures_util::ready;
+use futures_core::ready;
 use h2::{Reason, RecvStream, SendStream};
 use http::header::{HeaderName, CONNECTION, TE, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
