@@ -27,6 +27,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
 
 use hyper::body::{Body, Incoming as IncomingBody};
+use hyper::server::conn::http1::GracefulShutdownConfig;
 use hyper::server::conn::{http1, http2};
 use hyper::service::{service_fn, Service};
 use hyper::{Method, Request, Response, StatusCode, Uri, Version};
@@ -1345,6 +1346,38 @@ async fn http1_graceful_shutdown_after_upgrade() {
     conn.as_mut().graceful_shutdown();
 }
 
+/// When hyper reached 1.0 the `Connection::graceful_shutdown` did not require a timer.
+/// It would immediately close connections that were idle or had not received any bytes.
+/// A later release made it possible to wait some Duration before closing the inactive connection.
+/// Here we confirm that `Connection::graceful_shutdown` does not require a timer.
+#[tokio::test]
+async fn http1_graceful_shutdown_no_timer_required_for_zero_second_next_byte_timeout() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let mut stream = TkTcpStream::connect(addr).await.unwrap();
+
+        stream.write_all(b"GET / HTTP/1.1\r\n\r\n").await.unwrap();
+
+        let mut buf = vec![];
+        stream.read_to_end(&mut buf).await.unwrap();
+    });
+
+    let socket = listener.accept().await.unwrap().0;
+    let socket = TokioIo::new(socket);
+
+    // Construct a builder that does not call the `.timer` method.
+    let future = http1::Builder::new().serve_connection(socket, HelloWorld);
+    pin!(future);
+
+    future.as_mut().graceful_shutdown();
+
+    tokio::time::timeout(Duration::from_secs(5), future)
+        .await
+        .unwrap()
+        .unwrap();
+}
+
 #[tokio::test]
 async fn empty_parse_eof_does_not_return_error() {
     let (listener, addr) = setup_tcp_listener();
@@ -2390,6 +2423,66 @@ async fn graceful_shutdown_before_first_request_no_block() {
         .await
         .expect("timed out waiting for graceful shutdown")
         .expect("error receiving response");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn graceful_shutdown_grace_period_for_first_byte() {
+    // (Client wait before sending, Server first byte timeout, Expected completed response)
+    let test_cases = [
+        // When the client sends bytes before the grace period we expect a response.
+        (500, 1000, true),
+        // When the client sends bytes after the grace period we do not expect a response.
+        (1000, 500, false),
+    ];
+    for (client_wait_before_sending, server_first_byte_timeout, expected_to_respond) in test_cases {
+        let (listener, addr) = setup_tcp_listener();
+
+        let graceful_shutdown_first_byte_timeout = Duration::from_millis(server_first_byte_timeout);
+        let client_wait_before_sending = Duration::from_millis(client_wait_before_sending);
+
+        tokio::spawn(async move {
+            let socket = listener.accept().await.unwrap().0;
+            let socket = TokioIo::new(socket);
+
+            let future = http1::Builder::new()
+                .timer(TokioTimer)
+                .serve_connection(socket, HelloWorld);
+            pin!(future);
+
+            let mut graceful_config = GracefulShutdownConfig::default();
+            graceful_config.first_byte_read_timeout(graceful_shutdown_first_byte_timeout);
+            future
+                .as_mut()
+                .graceful_shutdown_with_config(graceful_config);
+
+            future.await.unwrap();
+        });
+
+        let mut stream = TkTcpStream::connect(addr).await.unwrap();
+
+        tokio::time::sleep(client_wait_before_sending).await;
+        stream.write_all(b"GET / HTTP/1.1\r\n\r\n").await.unwrap();
+
+        let mut buf = vec![];
+        stream.read_to_end(&mut buf).await.unwrap();
+
+        if expected_to_respond {
+            assert!(buf.starts_with(b"HTTP/1.1 200 OK\r\nconnection: close"));
+        } else {
+            assert!(buf.is_empty());
+        }
+
+        // Since the server was gracefully shut down it should not respond to any further requests.
+        {
+            stream.write_all(b"GET / HTTP/1.1\r\n\r\n").await.unwrap();
+
+            let mut buf = vec![];
+            stream.read_to_end(&mut buf).await.unwrap();
+
+            assert_eq!(buf.len(), 0);
+        }
+    }
 }
 
 #[test]

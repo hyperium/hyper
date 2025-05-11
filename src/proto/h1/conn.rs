@@ -59,11 +59,9 @@ where
                 h1_parser_config: ParserConfig::default(),
                 h1_max_headers: None,
                 #[cfg(feature = "server")]
-                h1_header_read_timeout: None,
+                h1_header_read_timeout: TimeoutState::default(),
                 #[cfg(feature = "server")]
-                h1_header_read_timeout_fut: None,
-                #[cfg(feature = "server")]
-                h1_header_read_timeout_running: false,
+                h1_graceful_shutdown_first_byte_read_timeout: TimeoutState::default(),
                 #[cfg(feature = "server")]
                 date_header: true,
                 #[cfg(feature = "server")]
@@ -143,7 +141,14 @@ where
 
     #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
-        self.state.h1_header_read_timeout = Some(val);
+        self.state.h1_header_read_timeout.timeout = Some(val);
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn set_http1_graceful_shutdown_first_byte_read_timeout(&mut self, val: Duration) {
+        self.state
+            .h1_graceful_shutdown_first_byte_read_timeout
+            .timeout = Some(val);
     }
 
     #[cfg(feature = "server")]
@@ -208,6 +213,19 @@ where
         read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
     }
 
+    fn close_if_inactive(&mut self) {
+        // When a graceful shutdown is triggered we wait for up to some
+        // `Duration` to allow for the client to begin transmitting bytes to the
+        // server.
+        // If that duration has elapsed and the connection is still idle, or
+        // no bytes have been received on the connection, then we close it.
+        // This prevents inactive connections from keeping the server alive
+        // despite having no intention of sending a request.
+        if self.is_idle() || self.has_initial_read_write_state() {
+            self.state.close();
+        }
+    }
+
     pub(super) fn poll_read_head(
         &mut self,
         cx: &mut Context<'_>,
@@ -216,20 +234,46 @@ where
         trace!("Conn::read_head");
 
         #[cfg(feature = "server")]
-        if !self.state.h1_header_read_timeout_running {
-            if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout {
+        if !self.state.h1_header_read_timeout.is_running {
+            if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout.timeout {
+                self.state.h1_header_read_timeout.is_running = true;
                 let deadline = Instant::now() + h1_header_read_timeout;
-                self.state.h1_header_read_timeout_running = true;
-                match self.state.h1_header_read_timeout_fut {
+                match self.state.h1_header_read_timeout.deadline_fut {
                     Some(ref mut h1_header_read_timeout_fut) => {
                         trace!("resetting h1 header read timeout timer");
                         self.state.timer.reset(h1_header_read_timeout_fut, deadline);
                     }
                     None => {
                         trace!("setting h1 header read timeout timer");
-                        self.state.h1_header_read_timeout_fut =
+                        self.state.h1_header_read_timeout.deadline_fut =
                             Some(self.state.timer.sleep_until(deadline));
                     }
+                }
+            }
+        }
+
+        #[cfg(feature = "server")]
+        if !self
+            .state
+            .h1_graceful_shutdown_first_byte_read_timeout
+            .is_running
+        {
+            if let Some(h1_graceful_shutdown_timeout) = self
+                .state
+                .h1_graceful_shutdown_first_byte_read_timeout
+                .timeout
+            {
+                if h1_graceful_shutdown_timeout == Duration::from_secs(0) {
+                    self.close_if_inactive();
+                } else {
+                    self.state
+                        .h1_graceful_shutdown_first_byte_read_timeout
+                        .is_running = true;
+
+                    let deadline = Instant::now() + h1_graceful_shutdown_timeout;
+                    self.state
+                        .h1_graceful_shutdown_first_byte_read_timeout
+                        .deadline_fut = Some(self.state.timer.sleep_until(deadline));
                 }
             }
         }
@@ -253,15 +297,35 @@ where
             Poll::Ready(Err(e)) => return self.on_read_head_error(e),
             Poll::Pending => {
                 #[cfg(feature = "server")]
-                if self.state.h1_header_read_timeout_running {
+                if self.state.h1_header_read_timeout.is_running {
                     if let Some(ref mut h1_header_read_timeout_fut) =
-                        self.state.h1_header_read_timeout_fut
+                        self.state.h1_header_read_timeout.deadline_fut
                     {
                         if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
-                            self.state.h1_header_read_timeout_running = false;
+                            self.state.h1_header_read_timeout.is_running = false;
 
                             warn!("read header from client timeout");
                             return Poll::Ready(Some(Err(crate::Error::new_header_timeout())));
+                        }
+                    }
+                }
+
+                #[cfg(feature = "server")]
+                if self
+                    .state
+                    .h1_graceful_shutdown_first_byte_read_timeout
+                    .is_running
+                {
+                    if let Some(ref mut h1_graceful_shutdown_timeout_fut) = self
+                        .state
+                        .h1_graceful_shutdown_first_byte_read_timeout
+                        .deadline_fut
+                    {
+                        if Pin::new(h1_graceful_shutdown_timeout_fut)
+                            .poll(cx)
+                            .is_ready()
+                        {
+                            self.close_if_inactive();
                         }
                     }
                 }
@@ -272,8 +336,8 @@ where
 
         #[cfg(feature = "server")]
         {
-            self.state.h1_header_read_timeout_running = false;
-            self.state.h1_header_read_timeout_fut = None;
+            self.state.h1_header_read_timeout.is_running = false;
+            self.state.h1_header_read_timeout.deadline_fut = None;
         }
 
         // Note: don't deconstruct `msg` into local variables, it appears
@@ -872,14 +936,14 @@ where
     }
 
     #[cfg(feature = "server")]
+    pub(crate) fn is_idle(&mut self) -> bool {
+        self.state.is_idle()
+    }
+
+    #[cfg(feature = "server")]
     pub(crate) fn disable_keep_alive(&mut self) {
-        if self.state.is_idle() {
-            trace!("disable_keep_alive; closing idle connection");
-            self.state.close();
-        } else {
-            trace!("disable_keep_alive; in-progress connection");
-            self.state.disable_keep_alive();
-        }
+        trace!("disable_keep_alive");
+        self.state.disable_keep_alive();
     }
 
     pub(crate) fn take_error(&mut self) -> crate::Result<()> {
@@ -925,11 +989,11 @@ struct State {
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
     #[cfg(feature = "server")]
-    h1_header_read_timeout: Option<Duration>,
+    h1_header_read_timeout: TimeoutState,
+    /// If a graceful shutdown is initiated, and the `TimeoutState` duration has elapsed without
+    /// receiving any bytes from the client, the connection will be closed.
     #[cfg(feature = "server")]
-    h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
-    #[cfg(feature = "server")]
-    h1_header_read_timeout_running: bool,
+    h1_graceful_shutdown_first_byte_read_timeout: TimeoutState,
     #[cfg(feature = "server")]
     date_header: bool,
     #[cfg(feature = "server")]
@@ -1149,6 +1213,14 @@ impl State {
         self.upgrade = Some(tx);
         rx
     }
+}
+
+#[derive(Default)]
+#[cfg(feature = "server")]
+struct TimeoutState {
+    timeout: Option<Duration>,
+    deadline_fut: Option<Pin<Box<dyn Sleep>>>,
+    is_running: bool,
 }
 
 #[cfg(test)]
