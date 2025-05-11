@@ -111,7 +111,7 @@ fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
 pub(super) fn encode_headers<T>(
     enc: Encode<'_, T::Outgoing>,
     dst: &mut Vec<u8>,
-) -> crate::Result<Encoder>
+) -> crate::Result<Option<Encoder>>
 where
     T: Http1Transaction,
 {
@@ -358,7 +358,10 @@ impl Http1Transaction for Server {
         }))
     }
 
-    fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+    fn encode(
+        msg: Encode<'_, Self::Outgoing>,
+        dst: &mut Vec<u8>,
+    ) -> crate::Result<Option<Encoder>> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
             msg.head.subject,
@@ -368,25 +371,19 @@ impl Http1Transaction for Server {
 
         let mut wrote_len = false;
 
-        // hyper currently doesn't support returning 1xx status codes as a Response
-        // This is because Service only allows returning a single Response, and
-        // so if you try to reply with a e.g. 100 Continue, you have no way of
-        // replying with the latter status code response.
-        let (ret, is_last) = if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
-            (Ok(()), true)
+        let informational = msg.head.subject.is_informational();
+
+        let is_last = if msg.head.subject == StatusCode::SWITCHING_PROTOCOLS {
+            true
         } else if msg.req_method == &Some(Method::CONNECT) && msg.head.subject.is_success() {
             // Sending content-length or transfer-encoding header on 2xx response
             // to CONNECT is forbidden in RFC 7231.
             wrote_len = true;
-            (Ok(()), true)
-        } else if msg.head.subject.is_informational() {
-            warn!("response with 1xx status code not supported");
-            *msg.head = MessageHead::default();
-            msg.head.subject = StatusCode::INTERNAL_SERVER_ERROR;
-            msg.body = None;
-            (Err(crate::Error::new_user_unsupported_status_code()), true)
+            true
+        } else if informational {
+            false
         } else {
-            (Ok(()), !msg.keep_alive)
+            !msg.keep_alive
         };
 
         // In some error cases, we don't know about the invalid message until already
@@ -444,6 +441,7 @@ impl Http1Transaction for Server {
             }
             orig_headers => orig_headers,
         };
+
         let encoder = if let Some(orig_headers) = orig_headers {
             Self::encode_headers_with_original_case(
                 msg,
@@ -457,7 +455,11 @@ impl Http1Transaction for Server {
             Self::encode_headers_with_lower_case(msg, dst, is_last, orig_len, wrote_len)?
         };
 
-        ret.map(|()| encoder)
+        // If we're sending a 1xx informational response, it won't have a body,
+        // so we'll return `None` here.  Additionally, that will tell
+        // `Conn::write_head` to stay in the `Writing::Init` state since we
+        // haven't yet sent the final response.
+        Ok(if informational { None } else { Some(encoder) })
     }
 
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
@@ -1167,7 +1169,10 @@ impl Http1Transaction for Client {
         }
     }
 
-    fn encode(msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
+    fn encode(
+        msg: Encode<'_, Self::Outgoing>,
+        dst: &mut Vec<u8>,
+    ) -> crate::Result<Option<Encoder>> {
         trace!(
             "Client::encode method={:?}, body={:?}",
             msg.head.subject.0,
@@ -1213,7 +1218,7 @@ impl Http1Transaction for Client {
         extend(dst, b"\r\n");
         msg.head.headers.clear(); //TODO: remove when switching to drain()
 
-        Ok(body)
+        Ok(Some(body))
     }
 
     fn on_error(_err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
