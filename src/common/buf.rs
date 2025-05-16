@@ -75,11 +75,7 @@ impl<T: Buf> Buf for BufList<T> {
         // Our inner buffer may have an optimized version of copy_to_bytes, and if the whole
         // request can be fulfilled by the front buffer, we can take advantage.
         match self.bufs.front_mut() {
-            Some(front) if front.remaining() == len => {
-                let b = front.copy_to_bytes(len);
-                self.bufs.pop_front();
-                b
-            }
+            Some(front) if front.remaining() == len => self.bytes.pop_front().unwrap(),
             Some(front) if front.remaining() > len => front.copy_to_bytes(len),
             _ => {
                 assert!(len <= self.remaining(), "`len` greater than remaining");
