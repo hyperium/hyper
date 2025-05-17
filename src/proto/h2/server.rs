@@ -5,7 +5,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures_util::ready;
+use futures_core::ready;
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
 use http::{Method, Request};

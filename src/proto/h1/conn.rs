@@ -10,7 +10,7 @@ use std::time::{Duration, Instant};
 
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use futures_util::ready;
+use futures_core::ready;
 use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
 use http_body::Frame;

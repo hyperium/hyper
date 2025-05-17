@@ -4,7 +4,7 @@
 //! - The consumer is only notified if the value is different.
 //! - The value `0` is reserved for closed.
 
-use futures_util::task::AtomicWaker;
+use atomic_waker::AtomicWaker;
 use std::sync::{
     atomic::{AtomicUsize, Ordering},
     Arc,

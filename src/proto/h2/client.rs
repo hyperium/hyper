@@ -11,9 +11,7 @@ use crate::rt::{Read, Write};
 use bytes::Bytes;
 use futures_channel::mpsc::{Receiver, Sender};
 use futures_channel::{mpsc, oneshot};
-use futures_util::future::{Either, FusedFuture, FutureExt as _};
-use futures_util::ready;
-use futures_util::stream::{StreamExt as _, StreamFuture};
+use futures_core::{ready, FusedFuture, FusedStream, Stream};
 use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
 use http::{Method, StatusCode};
@@ -23,6 +21,7 @@ use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::client::dispatch::{Callback, SendWhen, TrySendError};
+use crate::common::either::Either;
 use crate::common::io::Compat;
 use crate::common::time::Time;
 use crate::ext::Protocol;
@@ -164,10 +163,8 @@ where
     // 'Client' has been dropped. This is to get around a bug
     // in h2 where dropping all SendRequests won't notify a
     // parked Connection.
-    let (conn_drop_ref, rx) = mpsc::channel(1);
+    let (conn_drop_ref, conn_drop_rx) = mpsc::channel(1);
     let (cancel_tx, conn_eof) = oneshot::channel();
-
-    let conn_drop_rx = rx.into_future();
 
     let ping_config = new_ping_config(config);
 
@@ -176,9 +173,9 @@ where
         let (recorder, ponger) = ping::channel(pp, ping_config, timer);
 
         let conn: Conn<_, B> = Conn::new(ponger, conn);
-        (Either::Left(conn), recorder)
+        (Either::left(conn), recorder)
     } else {
-        (Either::Right(conn), ping::disabled())
+        (Either::right(conn), ping::disabled())
     };
     let conn: ConnMapErr<T, B> = ConnMapErr {
         conn,
@@ -305,7 +302,7 @@ pin_project! {
         T: Unpin,
     {
         #[pin]
-        drop_rx: StreamFuture<Receiver<Infallible>>,
+        drop_rx: Receiver<Infallible>,
         #[pin]
         cancel_tx: Option<oneshot::Sender<Infallible>>,
         #[pin]
@@ -320,7 +317,7 @@ where
 {
     fn new(
         conn: ConnMapErr<T, B>,
-        drop_rx: StreamFuture<Receiver<Infallible>>,
+        drop_rx: Receiver<Infallible>,
         cancel_tx: oneshot::Sender<Infallible>,
     ) -> Self {
         Self {
@@ -341,12 +338,12 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.project();
 
-        if !this.conn.is_terminated() && this.conn.poll_unpin(cx).is_ready() {
+        if !this.conn.is_terminated() && Pin::new(&mut this.conn).poll(cx).is_ready() {
             // ok or err, the `conn` has finished.
             return Poll::Ready(());
         }
 
-        if !this.drop_rx.is_terminated() && this.drop_rx.poll_unpin(cx).is_ready() {
+        if !this.drop_rx.is_terminated() && Pin::new(&mut this.drop_rx).poll_next(cx).is_ready() {
             // mpsc has been dropped, hopefully polling
             // the connection some more should start shutdown
             // and then close.
@@ -468,7 +465,7 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> std::task::Poll<Self::Output> {
         let mut this = self.project();
 
-        match this.pipe.poll_unpin(cx) {
+        match Pin::new(&mut this.pipe).poll(cx) {
             Poll::Ready(result) => {
                 if let Err(_e) = result {
                     debug!("client request body error: {}", _e);
