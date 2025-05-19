@@ -6,7 +6,7 @@ use std::task::{Context, Poll};
 
 use crate::rt::{Read, ReadBuf, Write};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use futures_util::ready;
+use futures_core::ready;
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
 use crate::common::buf::BufList;

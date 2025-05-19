@@ -9,7 +9,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
-use futures_util::ready;
+use futures_core::ready;
 use pin_project_lite::pin_project;
 
 use crate::body::{Body, Incoming as IncomingBody};
