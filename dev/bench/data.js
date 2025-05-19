@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747679976335,
+  "lastUpdate": 1747687226738,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9839,6 +9839,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47255,
             "range": "± 8492.59",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pwychowaniec@pm.me",
+            "name": "Patryk Wychowaniec",
+            "username": "Patryk27"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "436cadd1ac08a9508a46f550e03281db9f2fee97",
+          "message": "fix(server): improve caching accuracy of Date header (#3887)\n\n`CachedDate` gets updated every second, but the current logic doesn't\ntake into account milliseconds - if the application starts at\n`12:00:00.600`, hyper will report `date: ...T120000` up until\n`12:00:01.599`, which is overzealous.\n\nWe can sidestep this by subtracing the nanoseconds part (which includes\nmilliseconds) from the time passed to `CachedDate::update()`.",
+          "timestamp": "2025-05-19T16:39:39-04:00",
+          "tree_id": "eb9cd9cf1eb277cb704f42701786807ee54e6f54",
+          "url": "https://github.com/hyperium/hyper/commit/436cadd1ac08a9508a46f550e03281db9f2fee97"
+        },
+        "date": 1747687223890,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45147,
+            "range": "± 8108.18",
             "unit": "ns/iter"
           }
         ]
