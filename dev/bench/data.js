@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747679915611,
+  "lastUpdate": 1747679976335,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -51259,6 +51259,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5088220,
             "range": "± 4551451.22",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanna.kruppe@gmail.com",
+            "name": "Hanna Kruppe",
+            "username": "hanna-kruppe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e11b2ad91c89ccd2d8e75a431c3e1abad4dcc9f1",
+          "message": "refactor(lib): drop futures-util except in ffi (#3890)\n\nMake hyper usable for h1/h2 and client/server without this heavyweight\ndependency. It's about 17k lines of code and takes up to 1.7 seconds to\ncompile on my machine, but hyper is only using a tiny fraction of it.\nLarger applications probably still pull in futures-util by other means,\nbut it's no longer as unavoidable as in the early days of the ecosystem.\n\nTo remove futures-util without raising MSRV, I took these steps:\n\n* When futures-util just re-exports something from its dependencies,\n  use it directly from the source.\n* Inline trivial helpers like `poll_unpin` that \"only\" communicate\n  intent a little better but don't save any significant amount of code.\n* Refactor the h2 client code to avoid `StreamFuture` for the \"Client\n  has been dropped\" detection -- just poll the mpsc channel directly.\n* Implement a couple of small helpers from scratch when they're\n  straightforward and fit on one screen each. The majority of this is\n  polyfills for standard library APIs that would require a higher MSRV.\n* Use `AtomicWaker` from the `atomic-waker` crate, a separately\n  published copy of the futures-util type of the same name. While the\n  two crates are owned by different organizations (smol-rs vs.\n  rust-lang), it's mostly the same people maintaining both copies.\n\nThe uses of future-util in hyper's tests/benches/examples and in the\n`ffi` module seem much harder to remove entirely, so I did not touch\nthose modules at all.",
+          "timestamp": "2025-05-19T14:37:45-04:00",
+          "tree_id": "16bc2b21268d2077736c44ae12e243a77d6e21d9",
+          "url": "https://github.com/hyperium/hyper/commit/e11b2ad91c89ccd2d8e75a431c3e1abad4dcc9f1"
+        },
+        "date": 1747679973203,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68035,
+            "range": "± 725.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4552958,
+            "range": "± 360496.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21187,
+            "range": "± 262.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23011,
+            "range": "± 506.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30642,
+            "range": "± 808.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 97603,
+            "range": "± 4282.76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34732,
+            "range": "± 1172.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 88986,
+            "range": "± 1575.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23997428,
+            "range": "± 32426963.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23992479,
+            "range": "± 20832716.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7464213,
+            "range": "± 133093.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49168479,
+            "range": "± 580827.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57912189,
+            "range": "± 8826008.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5159129,
+            "range": "± 4635724.83",
             "unit": "ns/iter"
           }
         ]
