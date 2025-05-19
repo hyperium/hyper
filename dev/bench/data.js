@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1746566373674,
+  "lastUpdate": 1747679915611,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9809,6 +9809,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49694,
             "range": "± 8827.24",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanna.kruppe@gmail.com",
+            "name": "Hanna Kruppe",
+            "username": "hanna-kruppe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e11b2ad91c89ccd2d8e75a431c3e1abad4dcc9f1",
+          "message": "refactor(lib): drop futures-util except in ffi (#3890)\n\nMake hyper usable for h1/h2 and client/server without this heavyweight\ndependency. It's about 17k lines of code and takes up to 1.7 seconds to\ncompile on my machine, but hyper is only using a tiny fraction of it.\nLarger applications probably still pull in futures-util by other means,\nbut it's no longer as unavoidable as in the early days of the ecosystem.\n\nTo remove futures-util without raising MSRV, I took these steps:\n\n* When futures-util just re-exports something from its dependencies,\n  use it directly from the source.\n* Inline trivial helpers like `poll_unpin` that \"only\" communicate\n  intent a little better but don't save any significant amount of code.\n* Refactor the h2 client code to avoid `StreamFuture` for the \"Client\n  has been dropped\" detection -- just poll the mpsc channel directly.\n* Implement a couple of small helpers from scratch when they're\n  straightforward and fit on one screen each. The majority of this is\n  polyfills for standard library APIs that would require a higher MSRV.\n* Use `AtomicWaker` from the `atomic-waker` crate, a separately\n  published copy of the futures-util type of the same name. While the\n  two crates are owned by different organizations (smol-rs vs.\n  rust-lang), it's mostly the same people maintaining both copies.\n\nThe uses of future-util in hyper's tests/benches/examples and in the\n`ffi` module seem much harder to remove entirely, so I did not touch\nthose modules at all.",
+          "timestamp": "2025-05-19T14:37:45-04:00",
+          "tree_id": "16bc2b21268d2077736c44ae12e243a77d6e21d9",
+          "url": "https://github.com/hyperium/hyper/commit/e11b2ad91c89ccd2d8e75a431c3e1abad4dcc9f1"
+        },
+        "date": 1747679912470,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47255,
+            "range": "± 8492.59",
             "unit": "ns/iter"
           }
         ]
