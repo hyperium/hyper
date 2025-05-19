@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747687226738,
+  "lastUpdate": 1747687287538,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -51397,6 +51397,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5159129,
             "range": "± 4635724.83",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pwychowaniec@pm.me",
+            "name": "Patryk Wychowaniec",
+            "username": "Patryk27"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "436cadd1ac08a9508a46f550e03281db9f2fee97",
+          "message": "fix(server): improve caching accuracy of Date header (#3887)\n\n`CachedDate` gets updated every second, but the current logic doesn't\ntake into account milliseconds - if the application starts at\n`12:00:00.600`, hyper will report `date: ...T120000` up until\n`12:00:01.599`, which is overzealous.\n\nWe can sidestep this by subtracing the nanoseconds part (which includes\nmilliseconds) from the time passed to `CachedDate::update()`.",
+          "timestamp": "2025-05-19T16:39:39-04:00",
+          "tree_id": "eb9cd9cf1eb277cb704f42701786807ee54e6f54",
+          "url": "https://github.com/hyperium/hyper/commit/436cadd1ac08a9508a46f550e03281db9f2fee97"
+        },
+        "date": 1747687285020,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68475,
+            "range": "± 8900.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4302282,
+            "range": "± 318148.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21140,
+            "range": "± 220.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23082,
+            "range": "± 495.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31587,
+            "range": "± 8915.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 102748,
+            "range": "± 7770.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35775,
+            "range": "± 762.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 89101,
+            "range": "± 2279.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23907805,
+            "range": "± 32353333.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 31998210,
+            "range": "± 16266783.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7431948,
+            "range": "± 100194.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48749603,
+            "range": "± 1143056.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57502619,
+            "range": "± 8695009.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5126880,
+            "range": "± 4533388.27",
             "unit": "ns/iter"
           }
         ]
