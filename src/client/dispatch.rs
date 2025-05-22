@@ -323,6 +323,36 @@ impl<T> TrySendError<T> {
     }
 }
 
+impl<B> crate::client::conn::http1::SendRequest<B> {
+    /// Polls to determine whether this sender can be used yet for a request.
+    ///
+    /// If the associated connection is closed, this returns a [`TrySendError<T>`].
+    pub fn try_poll_ready(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), TrySendError<Request<B>>>> {
+        self.poll_ready(cx).map_err(|error| TrySendError {
+            error,
+            message: None,
+        })
+    }
+}
+
+impl<B> crate::client::conn::http2::SendRequest<B> {
+    /// Polls to determine whether this sender can be used yet for a request.
+    ///
+    /// If the associated connection is closed, this returns a [`TrySendError<T>`].
+    pub fn try_poll_ready(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Result<(), TrySendError<Request<B>>>> {
+        self.poll_ready(cx).map_err(|error| TrySendError {
+            error,
+            message: None,
+        })
+    }
+}
+
 #[cfg(feature = "http2")]
 pin_project! {
     pub struct SendWhen<B>
