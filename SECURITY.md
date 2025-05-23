@@ -1,9 +1,13 @@
 # Security Policy
 
-hyper (and related projects in hyperium) use the same security policy as the [Tokio project][tokio-security].
+hyper (and related projects in hyperium) take security seriously, and greatly appreciate responsibile disclosure.
 
 ## Report a security issue
 
-The process for reporting an issue is the same as the [Tokio project][tokio-security]. This includes private reporting via security@tokio.rs.
+To report a security issue in hyper, or another crate in the hyperium organization, please [report a new draft GitHub Security Advisory](https://github.com/hyperium/hyper/security/advisories/new).
 
-[tokio-security]: https://github.com/tokio-rs/tokio/security/policy
+We will discuss it privately with you. hyper maintainers will determine the impact and release details. Participation in security issue coordination is at the discretion of hyper maintainers.
+
+## Transparency
+
+We are committed to transparency in the security issue disclosure process. Advisories will be disclosed publicly once a patch is released, and if appropriate, added to the RustSec advisory database.
