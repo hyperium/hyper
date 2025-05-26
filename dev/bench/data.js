@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1747687287538,
+  "lastUpdate": 1748285760899,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9869,6 +9869,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45147,
             "range": "± 8108.18",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c88df7886c74a1ade69c0b4c68eaf570c8111622",
+          "message": "docs(SECURITY): update policy to use GSA drafts when reporting vulnerabilities (#3894)",
+          "timestamp": "2025-05-26T14:55:09-04:00",
+          "tree_id": "204eb89d563030cfb826207d612385a8a28c9372",
+          "url": "https://github.com/hyperium/hyper/commit/c88df7886c74a1ade69c0b4c68eaf570c8111622"
+        },
+        "date": 1748285757928,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43994,
+            "range": "± 8294.54",
             "unit": "ns/iter"
           }
         ]
