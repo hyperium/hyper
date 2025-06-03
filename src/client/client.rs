@@ -1228,6 +1228,26 @@ impl Builder {
         self
     }
 
+    /// Sets the initial maximum of locally initiated (send) streams.Add commentMore actions
+    ///
+    /// This value will be overwritten by the value included in the initial
+    /// SETTINGS frame received from the peer as part of a [connection preface].
+    ///
+    /// Passing `None` will do nothing.
+    ///
+    /// If not set, hyper will use a default.
+    ///
+    /// [connection preface]: https://httpwg.org/specs/rfc9113.html#preface
+    #[cfg(feature = "http2")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http2")))]
+    pub fn http2_initial_max_send_streams(
+        &mut self,
+        initial: impl Into<Option<usize>>,
+    ) -> &mut Self {
+        self.h2_builder.initial_max_send_streams(initial);
+        self
+    }
+
     /// Sets whether to use an adaptive flow control.
     ///
     /// Enabling this will override the limits set in
