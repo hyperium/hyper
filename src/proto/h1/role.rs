@@ -405,15 +405,18 @@ impl Http1Transaction for Server {
         {
             extend(dst, b"HTTP/1.1 200 OK\r\n");
         } else {
-            match msg.head.version {
-                Version::HTTP_10 => extend(dst, b"HTTP/1.0 "),
-                Version::HTTP_11 => extend(dst, b"HTTP/1.1 "),
-                Version::HTTP_2 => {
-                    debug!("response with HTTP2 version coerced to HTTP/1.1");
-                    extend(dst, b"HTTP/1.1 ");
-                }
-                other => panic!("unexpected response version: {:?}", other),
-            }
+            extend(
+                dst,
+                match msg.head.version {
+                    Version::HTTP_10 => b"HTTP/1.0 ",
+                    Version::HTTP_11 => b"HTTP/1.1 ",
+                    Version::HTTP_2 => {
+                        debug!("response with HTTP2 version coerced to HTTP/1.1");
+                        b"HTTP/1.1 "
+                    }
+                    other => panic!("unexpected response version: {:?}", other),
+                },
+            );
 
             extend(dst, msg.head.subject.as_str().as_bytes());
             extend(dst, b" ");
@@ -1186,15 +1189,18 @@ impl Http1Transaction for Client {
         //TODO: add API to http::Uri to encode without std::fmt
         let _ = write!(FastWrite(dst), "{} ", msg.head.subject.1);
 
-        match msg.head.version {
-            Version::HTTP_10 => extend(dst, b"HTTP/1.0"),
-            Version::HTTP_11 => extend(dst, b"HTTP/1.1"),
-            Version::HTTP_2 => {
-                debug!("request with HTTP2 version coerced to HTTP/1.1");
-                extend(dst, b"HTTP/1.1");
-            }
-            other => panic!("unexpected request version: {:?}", other),
-        }
+        extend(
+            dst,
+            match msg.head.version {
+                Version::HTTP_10 => b"HTTP/1.0",
+                Version::HTTP_11 => b"HTTP/1.1",
+                Version::HTTP_2 => {
+                    debug!("request with HTTP2 version coerced to HTTP/1.1");
+                    b"HTTP/1.1"
+                }
+                other => panic!("unexpected request version: {:?}", other),
+            },
+        );
         extend(dst, b"\r\n");
 
         if let Some(orig_headers) = msg.head.extensions.get::<HeaderCaseMap>() {
