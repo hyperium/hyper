@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751043001606,
+  "lastUpdate": 1751043067457,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -51673,6 +51673,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5115159,
             "range": "± 4586080.21",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "joshka@users.noreply.github.com",
+            "name": "Josh McKinney",
+            "username": "joshka"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b8affd8a2ee5d77dec0c32050a7234e4f2f3751b",
+          "message": "feat(error): add `Error::is_shutdown()` (#3863)\n\nBenchmarking tools often cause connections to be ungracefully shutdown.\nThis makes it possible to filter these errors out.\n\nCloses #2745",
+          "timestamp": "2025-06-27T12:49:12-04:00",
+          "tree_id": "dcd4fd8ff03ee038597a86a187c98b5e6620bfab",
+          "url": "https://github.com/hyperium/hyper/commit/b8affd8a2ee5d77dec0c32050a7234e4f2f3751b"
+        },
+        "date": 1751043064685,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67217,
+            "range": "± 1212.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4380903,
+            "range": "± 465394.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20658,
+            "range": "± 342.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22583,
+            "range": "± 290.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31478,
+            "range": "± 571.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 96480,
+            "range": "± 1199.01",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 35741,
+            "range": "± 518.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 89052,
+            "range": "± 2123.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23924988,
+            "range": "± 32498826.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24074657,
+            "range": "± 16373343.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7414191,
+            "range": "± 147514.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49677556,
+            "range": "± 1235478.04",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57288165,
+            "range": "± 9570035.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5092966,
+            "range": "± 4559055.42",
             "unit": "ns/iter"
           }
         ]
