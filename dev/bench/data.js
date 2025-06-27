@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1748285814035,
+  "lastUpdate": 1751043001606,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9899,6 +9899,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43994,
             "range": "± 8294.54",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "joshka@users.noreply.github.com",
+            "name": "Josh McKinney",
+            "username": "joshka"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b8affd8a2ee5d77dec0c32050a7234e4f2f3751b",
+          "message": "feat(error): add `Error::is_shutdown()` (#3863)\n\nBenchmarking tools often cause connections to be ungracefully shutdown.\nThis makes it possible to filter these errors out.\n\nCloses #2745",
+          "timestamp": "2025-06-27T12:49:12-04:00",
+          "tree_id": "dcd4fd8ff03ee038597a86a187c98b5e6620bfab",
+          "url": "https://github.com/hyperium/hyper/commit/b8affd8a2ee5d77dec0c32050a7234e4f2f3751b"
+        },
+        "date": 1751042998758,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48678,
+            "range": "± 7374.95",
             "unit": "ns/iter"
           }
         ]
