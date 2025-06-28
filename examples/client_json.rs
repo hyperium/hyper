@@ -42,12 +42,10 @@ async fn fetch_json(url: hyper::Uri) -> Result<Vec<User>> {
         }
     });
 
-    let authority = url.authority().unwrap().clone();
-
-    // Fetch the url...
+    // Fetch the URL...
     let req = Request::builder()
         .uri(url)
-        .header(hyper::header::HOST, authority.as_str())
+        .header(hyper::header::HOST, format!("{}:{}", host, port))
         .body(Empty::<Bytes>::new())?;
 
     let res = sender.send_request(req).await?;
