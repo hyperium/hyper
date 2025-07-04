@@ -101,7 +101,8 @@ nightly = []
 level = "warn"
 check-cfg = [
     'cfg(hyper_unstable_tracing)',
-    'cfg(hyper_unstable_ffi)'
+    'cfg(hyper_unstable_ffi)',
+    'cfg(hyper_unstable_quic)',
 ]
 
 [package.metadata.docs.rs]
