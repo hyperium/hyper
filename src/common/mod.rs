@@ -7,6 +7,7 @@ pub(crate) mod either;
 #[cfg(any(
     all(feature = "client", any(feature = "http1", feature = "http2")),
     all(feature = "server", feature = "http1"),
+    all(feature = "server", feature = "http3"),
 ))]
 pub(crate) mod future;
 pub(crate) mod io;
