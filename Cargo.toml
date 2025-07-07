@@ -137,6 +137,11 @@ path = "examples/client_json.rs"
 required-features = ["full"]
 
 [[example]]
+name = "client_100_continue"
+path = "examples/client_100_continue.rs"
+required-features = ["full"]
+
+[[example]]
 name = "echo"
 path = "examples/echo.rs"
 required-features = ["full"]
