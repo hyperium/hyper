@@ -4,11 +4,15 @@ use std::future::Future;
 use std::io;
 use std::marker::{PhantomData, Unpin};
 use std::pin::Pin;
+#[cfg(feature = "server")]
+use std::sync::Arc;
 use std::task::{Context, Poll};
 #[cfg(feature = "server")]
 use std::time::{Duration, Instant};
 
 use crate::rt::{Read, Write};
+#[cfg(feature = "server")]
+use crate::server::conn::http1::Http1ErrorResponder;
 use bytes::{Buf, Bytes};
 use futures_core::ready;
 use http::header::{HeaderValue, CONNECTION, TE};
@@ -60,6 +64,8 @@ where
                 h1_max_headers: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
+                #[cfg(feature = "server")]
+                h1_error_responder: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout_fut: None,
                 #[cfg(feature = "server")]
@@ -154,6 +160,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn disable_date_header(&mut self) {
         self.state.date_header = false;
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn set_error_responder(&mut self, val: Arc<dyn Http1ErrorResponder>) {
+        self.state.h1_error_responder = Some(val);
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -810,10 +821,16 @@ where
             if self.has_h2_prefix() {
                 return Err(crate::Error::new_version_h2());
             }
-            if let Some(msg) = T::on_error(&err) {
+
+            if let Some(msg) = T::on_error(
+                &err,
+                #[cfg(feature = "server")]
+                &self.state.h1_error_responder,
+            ) {
                 // Drop the cached headers so as to not trigger a debug
                 // assert in `write_head`...
                 self.state.cached_headers.take();
+                debug!("writing head");
                 self.write_head(msg, None);
                 self.state.error = Some(err);
                 return Ok(());
@@ -926,6 +943,8 @@ struct State {
     h1_max_headers: Option<usize>,
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
+    #[cfg(feature = "server")]
+    h1_error_responder: Option<Arc<dyn Http1ErrorResponder>>,
     #[cfg(feature = "server")]
     h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
     #[cfg(feature = "server")]
