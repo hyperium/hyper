@@ -2,6 +2,8 @@ use std::mem::MaybeUninit;
 
 #[cfg(feature = "client")]
 use std::fmt::{self, Write as _};
+#[cfg(feature = "server")]
+use std::sync::Arc;
 
 use bytes::Bytes;
 use bytes::BytesMut;
@@ -16,6 +18,8 @@ use smallvec::{smallvec, smallvec_inline, SmallVec};
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::date;
+#[cfg(feature = "server")]
+use crate::error::Kind;
 use crate::error::Parse;
 use crate::ext::HeaderCaseMap;
 #[cfg(feature = "ffi")]
@@ -27,6 +31,8 @@ use crate::proto::h1::{
 #[cfg(feature = "client")]
 use crate::proto::RequestHead;
 use crate::proto::{BodyLength, MessageHead, RequestLine};
+#[cfg(feature = "server")]
+use crate::server::conn::http1::Http1ErrorResponder;
 
 pub(crate) const DEFAULT_MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
@@ -126,6 +132,30 @@ pub(crate) enum Client {}
 
 #[cfg(feature = "server")]
 pub(crate) enum Server {}
+
+#[cfg(feature = "server")]
+pub(crate) fn default_error_response(kind: &Kind) -> Option<crate::Response<()>> {
+    use crate::error::Kind;
+    use crate::error::Parse;
+    use http::StatusCode;
+    let status = match kind {
+        Kind::Parse(Parse::Method)
+        | Kind::Parse(Parse::Header(_))
+        | Kind::Parse(Parse::Uri)
+        | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
+        Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
+        Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,
+        _ => return None,
+    };
+
+    debug!("building automatic response ({}) for parse error", status);
+    let msg = MessageHead {
+        subject: status,
+        ..Default::default()
+    }
+    .into_response(());
+    Some(msg)
+}
 
 #[cfg(feature = "server")]
 impl Http1Transaction for Server {
@@ -460,24 +490,19 @@ impl Http1Transaction for Server {
         ret.map(|()| encoder)
     }
 
-    fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
-        use crate::error::Kind;
-        let status = match *err.kind() {
-            Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header(_))
-            | Kind::Parse(Parse::Uri)
-            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
-            Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
-            Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,
-            _ => return None,
-        };
-
-        debug!("sending automatic response ({}) for parse error", status);
-        let msg = MessageHead {
-            subject: status,
-            ..Default::default()
-        };
-        Some(msg)
+    fn on_error(
+        err: &crate::Error,
+        responder: &Option<Arc<dyn Http1ErrorResponder>>,
+    ) -> Option<MessageHead<Self::Outgoing>> {
+        use crate::server::conn::http1::Http1ErrorReason;
+        let reason = Http1ErrorReason::from_kind(err.kind());
+        responder
+            .as_ref()
+            .map_or_else(
+                || default_error_response(err.kind()),
+                |er| er.respond(&reason),
+            )
+            .map(|rsp| MessageHead::from_response(rsp))
     }
 
     fn is_server() -> bool {
@@ -1216,7 +1241,10 @@ impl Http1Transaction for Client {
         Ok(body)
     }
 
-    fn on_error(_err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
+    fn on_error(
+        _err: &crate::Error,
+        #[cfg(feature = "server")] _responder: &Option<Arc<dyn Http1ErrorResponder>>,
+    ) -> Option<MessageHead<Self::Outgoing>> {
         // we can't tell the server about any errors it creates
         None
     }

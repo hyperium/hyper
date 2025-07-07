@@ -8,6 +8,7 @@ use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
+use crate::error::Kind;
 use crate::rt::{Read, Write};
 use crate::upgrade::Upgraded;
 use bytes::Bytes;
@@ -70,6 +71,7 @@ pin_project_lite::pin_project! {
 #[derive(Clone, Debug)]
 pub struct Builder {
     h1_parser_config: httparse::ParserConfig,
+    h1_error_responder: Option<Arc<dyn Http1ErrorResponder>>,
     timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
@@ -81,6 +83,49 @@ pub struct Builder {
     max_buf_size: Option<usize>,
     pipeline_flush: bool,
     date_header: bool,
+}
+
+/// Reason an error arose duing client request parsing
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum Http1ErrorReason {
+    /// Method in the request was invalid or malformed
+    InvalidMethod,
+    /// URI was invalid or malformed
+    InvalidUri,
+    /// Version was invalid or malformed
+    InvalidVersion,
+    /// Header line was invalid or malformed
+    InvalidHeader,
+    /// URI exceeded the server's maximum allowed length
+    UriTooLong,
+    /// Headers exceeded the server's maximum allowed size
+    HeadersTooLarge,
+    /// Internal hyper error occured during processing
+    InternalError,
+}
+
+impl Http1ErrorReason {
+    pub(crate) fn from_kind(kind: &Kind) -> Self {
+        use crate::error::Kind;
+        use crate::error::Parse;
+        match kind {
+            Kind::Parse(Parse::Method) => Http1ErrorReason::InvalidMethod,
+            Kind::Parse(Parse::Header(_)) => Http1ErrorReason::InvalidHeader,
+            Kind::Parse(Parse::Uri) => Http1ErrorReason::InvalidUri,
+            Kind::Parse(Parse::Version) => Http1ErrorReason::InvalidVersion,
+            Kind::Parse(Parse::TooLarge) => Http1ErrorReason::HeadersTooLarge,
+            Kind::Parse(Parse::UriTooLong) => Http1ErrorReason::UriTooLong,
+            _ => Http1ErrorReason::InternalError,
+        }
+    }
+}
+
+/// Customizable error responses for overring server defaults
+///
+pub trait Http1ErrorResponder: Send + Sync + std::fmt::Debug {
+    /// Respond to some [`Http1ErrorReason`]
+    fn respond(&self, cause: &Http1ErrorReason) -> Option<crate::Response<()>>;
 }
 
 /// Deconstructed parts of a `Connection`.
@@ -233,6 +278,7 @@ impl Builder {
     pub fn new() -> Self {
         Self {
             h1_parser_config: Default::default(),
+            h1_error_responder: None,
             timer: Time::Empty,
             h1_half_close: false,
             h1_keep_alive: true,
@@ -273,6 +319,16 @@ impl Builder {
     /// Default is false.
     pub fn title_case_headers(&mut self, enabled: bool) -> &mut Self {
         self.h1_title_case_headers = enabled;
+        self
+    }
+
+    /// Set error responder for this connection.
+    ///
+    /// The error responder is used to generate custom error responses when the server encounters
+    /// an error during request processing.
+    ///
+    pub fn error_responder(&mut self, responder: Arc<dyn Http1ErrorResponder>) -> &mut Self {
+        self.h1_error_responder = Some(responder);
         self
     }
 
@@ -471,6 +527,10 @@ impl Builder {
                 conn.set_write_strategy_flatten();
             }
         }
+        if let Some(responder) = &self.h1_error_responder {
+            conn.set_error_responder(responder.clone());
+        }
+
         conn.set_flush_pipeline(self.pipeline_flush);
         if let Some(max) = self.max_buf_size {
             conn.set_max_buf_size(max);
