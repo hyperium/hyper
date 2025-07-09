@@ -150,7 +150,7 @@ impl Upgraded {
     /// `Upgraded` back.
     pub fn downcast<T: Read + Write + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
-        match io.__hyper_downcast() {
+        match io.__hyper_downcast::<T>() {
             Ok(t) => Ok(Parts {
                 io: *t,
                 read_buf: buf,
