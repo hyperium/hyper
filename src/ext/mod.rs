@@ -1,4 +1,38 @@
-//! HTTP extensions.
+//! Extensions for HTTP messages in Hyper.
+//!
+//! This module provides types and utilities that extend the capabilities of HTTP requests and responses
+//! in Hyper. Extensions are additional pieces of information or features that can be attached to HTTP
+//! messages via the [`http::Extensions`] map, which is
+//! accessible through methods like [`http::Request::extensions`] and [`http::Response::extensions`].
+//!
+//! # What are extensions?
+//!
+//! Extensions allow Hyper to associate extra metadata or behaviors with HTTP messages, beyond the standard
+//! headers and body. These can be used by advanced users and library authors to access protocol-specific
+//! features, track original header casing, handle informational responses, and more.
+//!
+//! # How to access extensions
+//!
+//! Extensions are stored in the `Extensions` map of a request or response. You can access them using:
+//!
+//! ```rust
+//! if let Some(ext) = response.extensions().get::<hyper::ext::ReasonPhrase>() {
+//!     // use the extension
+//! }
+//! ```
+//!
+//! # Extension Groups
+//!
+//! The extensions in this module can be grouped as follows:
+//!
+//! - **HTTP/1 Reason Phrase**: [`ReasonPhrase`] — Access non-canonical reason phrases in HTTP/1 responses.
+//! - **Informational Responses**: [`on_informational`] — Register callbacks for 1xx HTTP/1 responses on the client.
+//! - **Header Case Tracking**: Internal types for tracking the original casing and order of headers as received.
+//! - **HTTP/2 Protocol Extensions**: [`Protocol`] — Access the `:protocol` pseudo-header for Extended CONNECT in HTTP/2.
+//!
+//! Some extensions are only available for specific protocols (HTTP/1 or HTTP/2) or use cases (client, server, FFI).
+//!
+//! See the documentation on each item for details about its usage and requirements.
 
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use bytes::Bytes;
