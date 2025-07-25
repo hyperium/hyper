@@ -16,6 +16,7 @@
 //! Extensions are stored in the `Extensions` map of a request or response. You can access them using:
 //!
 //! ```rust
+//! # let response = http::Response::new(());
 //! if let Some(ext) = response.extensions().get::<hyper::ext::ReasonPhrase>() {
 //!     // use the extension
 //! }
