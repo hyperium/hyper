@@ -62,7 +62,6 @@ pub(crate) use informational::OnInformational;
 #[cfg(all(feature = "http1", feature = "client", feature = "ffi"))]
 pub(crate) use informational::{on_informational_raw, OnInformationalCallback};
 
-
 #[cfg(feature = "http2")]
 /// Extension type representing the `:protocol` pseudo-header in HTTP/2.
 ///
