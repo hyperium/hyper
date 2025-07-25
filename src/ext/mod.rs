@@ -62,11 +62,26 @@ pub(crate) use informational::OnInformational;
 #[cfg(all(feature = "http1", feature = "client", feature = "ffi"))]
 pub(crate) use informational::{on_informational_raw, OnInformationalCallback};
 
+
 #[cfg(feature = "http2")]
-/// Represents the `:protocol` pseudo-header used by
-/// the [Extended CONNECT Protocol].
+/// Extension type representing the `:protocol` pseudo-header in HTTP/2.
 ///
-/// [Extended CONNECT Protocol]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+/// The `Protocol` extension allows access to the value of the `:protocol` pseudo-header
+/// used by the [Extended CONNECT Protocol](https://datatracker.ietf.org/doc/html/rfc8441#section-4).
+/// This extension is only sent on HTTP/2 CONNECT requests, most commonly with the value `websocket`.
+///
+/// # Example
+///
+/// ```rust
+/// use hyper::ext::Protocol;
+/// use http::{Request, Method, Version};
+///
+/// let mut req = Request::new(());
+/// *req.method_mut() = Method::CONNECT;
+/// *req.version_mut() = Version::HTTP_2;
+/// req.extensions_mut().insert(Protocol::from_static("websocket"));
+/// // Now the request will include the `:protocol` pseudo-header with value "websocket"
+/// ```
 #[derive(Clone, Eq, PartialEq)]
 pub struct Protocol {
     inner: h2::ext::Protocol,
