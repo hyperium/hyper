@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1751043067457,
+  "lastUpdate": 1753704717708,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9929,6 +9929,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48678,
             "range": "± 7374.95",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "283fd2381da6d27731db61aad20c68bad9e9af36",
+          "message": "docs: improve `ext` module overview and `Protocol` docs (#3921)",
+          "timestamp": "2025-07-28T08:11:10-04:00",
+          "tree_id": "a480928ed0df089684412e703fe705a783f0f6ba",
+          "url": "https://github.com/hyperium/hyper/commit/283fd2381da6d27731db61aad20c68bad9e9af36"
+        },
+        "date": 1753704715406,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 52362,
+            "range": "± 6420.48",
             "unit": "ns/iter"
           }
         ]
