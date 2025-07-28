@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1753704717708,
+  "lastUpdate": 1753704737280,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -9959,6 +9959,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 52362,
             "range": "± 6420.48",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "974289fb3dc40db87f7e759c27cdba4e1eb407d4",
+          "message": "docs(rt): improve `rt` module overview (#3920)",
+          "timestamp": "2025-07-28T08:11:30-04:00",
+          "tree_id": "d842bda3e14b8b50e04f6330a3fc96e502e92200",
+          "url": "https://github.com/hyperium/hyper/commit/974289fb3dc40db87f7e759c27cdba4e1eb407d4"
+        },
+        "date": 1753704734791,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 52475,
+            "range": "± 8716.30",
             "unit": "ns/iter"
           }
         ]
