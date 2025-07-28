@@ -1,11 +1,17 @@
 //! Runtime components
 //!
-//! The traits and types within this module are used to allow plugging in
-//! runtime types. These include:
+//! This module provides traits and types that allow hyper to be runtime-agnostic.
+//! By abstracting over async runtimes, hyper can work with different executors, timers, and IO transports.
 //!
-//! - Executors
-//! - Timers
-//! - IO transports
+//! The main components in this module are:
+//!
+//! - **Executors**: Traits for spawning and running futures, enabling integration with any async runtime.
+//! - **Timers**: Abstractions for sleeping and scheduling tasks, allowing time-based operations to be runtime-independent.
+//! - **IO Transports**: Traits for asynchronous reading and writing, so hyper can work with various IO backends.
+//!
+//! By implementing these traits, you can customize how hyper interacts with your chosen runtime environment.
+//!
+//! To learn more, [check out the runtime guide](https://hyper.rs/guides/1/init/runtime/).
 
 pub mod bounds;
 mod io;
