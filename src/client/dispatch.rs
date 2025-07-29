@@ -1,3 +1,5 @@
+use std::error::Error as StdError;
+use std::fmt;
 use std::task::{Context, Poll};
 #[cfg(feature = "http2")]
 use std::{future::Future, pin::Pin};
@@ -320,6 +322,22 @@ impl<T> TrySendError<T> {
     /// Returns a reference to the inner error.
     pub fn error(&self) -> &crate::Error {
         &self.error
+    }
+}
+
+impl<T> fmt::Display for TrySendError<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Self { error, message: _ } = self;
+        write!(f, "{}", error)
+    }
+}
+
+impl<T> StdError for TrySendError<T>
+where
+    T: std::fmt::Debug,
+{
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.error)
     }
 }
 
