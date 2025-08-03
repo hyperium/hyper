@@ -135,6 +135,39 @@ impl fmt::Debug for Protocol {
     }
 }
 
+/// Raw request headers as sent over the TLS or TCP connection.
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[derive(Clone, Debug)]
+pub struct RawRequestHeaders(Bytes);
+
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+impl RawRequestHeaders {
+    /// Returns the raw bytes sent for the header of the request.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+    pub(crate) fn from(bytes: Bytes) -> Self {
+        Self(bytes)
+    }
+}
+
+/// Raw response headers as sent over the TLS or TCP connection.
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[derive(Clone, Debug)]
+pub struct RawResponseHeaders(Bytes);
+
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+impl RawResponseHeaders {
+    /// Returns the raw bytes received for the header of the response.
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+    #[cfg(feature = "client")]
+    pub(crate) fn from(bytes: Bytes) -> Self {
+        Self(bytes)
+    }
+}
+
 /// A map from header names to their original casing as received in an HTTP message.
 ///
 /// If an HTTP/1 response `res` is parsed on a connection whose option
