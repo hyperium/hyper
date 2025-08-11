@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754915520209,
+  "lastUpdate": 1754917684323,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10019,6 +10019,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48117,
             "range": "± 8071.77",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "1911860538@qq.com",
+            "name": "Name",
+            "username": "1911860538"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8ad2595c0363be85dadd0da18eeb994686e88655",
+          "message": "test(common): add missing assertion in full_rewind test (#3926)\n\nCo-authored-by: 1911860538 <alxps1911@gmail.com>",
+          "timestamp": "2025-08-11T09:07:14-04:00",
+          "tree_id": "68870319ae676e2fc18be6e5b1ab02f7acdd3455",
+          "url": "https://github.com/hyperium/hyper/commit/8ad2595c0363be85dadd0da18eeb994686e88655"
+        },
+        "date": 1754917681588,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48117,
+            "range": "± 7756.37",
             "unit": "ns/iter"
           }
         ]
