@@ -276,7 +276,7 @@ impl Builder {
         self
     }
 
-    // Set whether multiple spaces are allowed as delimiters in request lines.
+    /// Set whether multiple spaces are allowed as delimiters in request lines.
     pub fn allow_multiple_spaces_in_request_line_delimiters(&mut self, enabled: bool) -> &mut Self {
         self.h1_parser_config
             .allow_multiple_spaces_in_request_line_delimiters(enabled);
