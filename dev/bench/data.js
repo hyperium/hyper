@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1754917743533,
+  "lastUpdate": 1755019579888,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10049,6 +10049,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48117,
             "range": "± 7756.37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanna.kruppe@gmail.com",
+            "name": "Hanna Kruppe",
+            "username": "hanna-kruppe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "caa166c756ea4df8e452e110678fdab2d7b296f6",
+          "message": "chore(dependencies): avoid implicit cargo feature of futures-util (#3931)\n\nFix a mistake in commit e11b2ad: use the 'dep:' syntax for futures-util, so\nthat Cargo won't implicitly create a feature called 'futures-util'.\nRemoving features is semver-breaking, but said commit hasn't been in any\nrelease yet, so it can still be fixed now.",
+          "timestamp": "2025-08-12T13:25:33-04:00",
+          "tree_id": "ce36f60a66b3cf797481d5a1317adec9b14d9149",
+          "url": "https://github.com/hyperium/hyper/commit/caa166c756ea4df8e452e110678fdab2d7b296f6"
+        },
+        "date": 1755019577399,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48858,
+            "range": "± 7752.59",
             "unit": "ns/iter"
           }
         ]
