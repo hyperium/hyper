@@ -88,7 +88,7 @@ client = ["dep:want", "dep:pin-project-lite", "dep:smallvec"]
 server = ["dep:httpdate", "dep:pin-project-lite", "dep:smallvec"]
 
 # C-API support (currently unstable (no semver))
-ffi = ["dep:http-body-util", "futures-util"]
+ffi = ["dep:http-body-util", "dep:futures-util"]
 capi = []
 
 # Utilize tracing (currently unstable)
