@@ -5,6 +5,11 @@ use httparse::ParserConfig;
 use crate::body::DecodedLength;
 use crate::proto::{BodyLength, MessageHead};
 
+#[cfg(feature = "server")]
+use crate::server::conn::http1::Http1ErrorResponder;
+#[cfg(feature = "server")]
+use std::sync::Arc;
+
 pub(crate) use self::conn::Conn;
 pub(crate) use self::decode::Decoder;
 pub(crate) use self::dispatch::Dispatcher;
@@ -35,7 +40,10 @@ pub(crate) trait Http1Transaction {
     fn parse(bytes: &mut BytesMut, ctx: ParseContext<'_>) -> ParseResult<Self::Incoming>;
     fn encode(enc: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder>;
 
-    fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>>;
+    fn on_error(
+        err: &crate::Error,
+        #[cfg(feature = "server")] responder: &Option<Arc<dyn Http1ErrorResponder>>,
+    ) -> Option<MessageHead<Self::Outgoing>>;
 
     fn is_client() -> bool {
         !Self::is_server()

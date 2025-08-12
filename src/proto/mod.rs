@@ -60,7 +60,7 @@ pub(crate) enum Dispatched {
     Upgrade(crate::upgrade::Pending),
 }
 
-#[cfg(all(feature = "client", feature = "http1"))]
+#[cfg(all(any(feature = "server", feature = "client"), feature = "http1"))]
 impl MessageHead<http::StatusCode> {
     fn into_response<B>(self, body: B) -> http::Response<B> {
         let mut res = http::Response::new(body);
@@ -69,5 +69,16 @@ impl MessageHead<http::StatusCode> {
         *res.version_mut() = self.version;
         *res.extensions_mut() = self.extensions;
         res
+    }
+
+    #[cfg(feature = "server")]
+    fn from_response(response: http::Response<()>) -> Self {
+        let (parts, _) = response.into_parts();
+        Self {
+            version: parts.version,
+            subject: parts.status,
+            headers: parts.headers,
+            extensions: parts.extensions,
+        }
     }
 }
