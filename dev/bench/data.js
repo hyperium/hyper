@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1755019579888,
+  "lastUpdate": 1755019644243,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -52363,6 +52363,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4909021,
             "range": "± 4522813.53",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "hanna.kruppe@gmail.com",
+            "name": "Hanna Kruppe",
+            "username": "hanna-kruppe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "caa166c756ea4df8e452e110678fdab2d7b296f6",
+          "message": "chore(dependencies): avoid implicit cargo feature of futures-util (#3931)\n\nFix a mistake in commit e11b2ad: use the 'dep:' syntax for futures-util, so\nthat Cargo won't implicitly create a feature called 'futures-util'.\nRemoving features is semver-breaking, but said commit hasn't been in any\nrelease yet, so it can still be fixed now.",
+          "timestamp": "2025-08-12T13:25:33-04:00",
+          "tree_id": "ce36f60a66b3cf797481d5a1317adec9b14d9149",
+          "url": "https://github.com/hyperium/hyper/commit/caa166c756ea4df8e452e110678fdab2d7b296f6"
+        },
+        "date": 1755019642116,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 77357,
+            "range": "± 2629.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4426015,
+            "range": "± 332307.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20761,
+            "range": "± 300.48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22914,
+            "range": "± 360.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30273,
+            "range": "± 584.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99831,
+            "range": "± 1304.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34400,
+            "range": "± 866.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 87257,
+            "range": "± 2034.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23894593,
+            "range": "± 32431708.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23987331,
+            "range": "± 16402440.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7412966,
+            "range": "± 90063.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48695847,
+            "range": "± 601697.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57191506,
+            "range": "± 8491402.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5022360,
+            "range": "± 4515627.24",
             "unit": "ns/iter"
           }
         ]
