@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1755019644243,
+  "lastUpdate": 1755272584951,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10079,6 +10079,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48858,
             "range": "± 7752.59",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mccordryan00@gmail.com",
+            "name": "Ryan",
+            "username": "mccordryan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9749184f8a21c387e404d628aceb992f0bf93e49",
+          "message": "feat(server): add `allow_multiple_spaces_in_request_line_delimiters` http1 builder method (#3929)",
+          "timestamp": "2025-08-15T11:42:20-04:00",
+          "tree_id": "2bab3a10109df62ef279a1f3f2372107cc9be0f8",
+          "url": "https://github.com/hyperium/hyper/commit/9749184f8a21c387e404d628aceb992f0bf93e49"
+        },
+        "date": 1755272582819,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47720,
+            "range": "± 8263.51",
             "unit": "ns/iter"
           }
         ]
