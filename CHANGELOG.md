@@ -1,3 +1,20 @@
+## v1.7.0 (2025-08-18)
+
+
+#### Bug Fixes
+
+* **server:** improve caching accuracy of Date header (#3887) ([436cadd1](https://github.com/hyperium/hyper/commit/436cadd1ac08a9508a46f550e03281db9f2fee97))
+
+
+#### Features
+
+* **client:**
+  * add a `TrySendError::error()` method (#3885) ([efa0b269](https://github.com/hyperium/hyper/commit/efa0b26958386ffaf646e6d9a3150ca5041162a3))
+  * add a `TrySendError::message()` method (#3884) ([03fd6aff](https://github.com/hyperium/hyper/commit/03fd6aff88c99a0842bb2e578a4993a432c03049))
+* **error:** add `Error::is_shutdown()` (#3863) ([b8affd8a](https://github.com/hyperium/hyper/commit/b8affd8a2ee5d77dec0c32050a7234e4f2f3751b), closes [#2745](https://github.com/hyperium/hyper/issues/2745))
+* **server:** add `allow_multiple_spaces_in_request_line_delimiters` http1 builder method (#3929) ([9749184f](https://github.com/hyperium/hyper/commit/9749184f8a21c387e404d628aceb992f0bf93e49))
+
+
 ## v1.6.0 (2025-01-28)
 
 
