@@ -32,6 +32,8 @@ futures-util = { version = "0.3", default-features = false }
 
 * [`client_json`](client_json.rs) - A simple program that GETs some json, reads the body asynchronously, parses it with serde and outputs the result.
 
+* [`client_100_continue`](client_100_continue.rs) - A POST client that demonstrates HTTP 100 Continue functionality with a delayed body that waits for the server's 100 Continue response before sending the request body.
+
 ### Servers
 
 * [`hello`](hello.rs) - A simple server that returns "Hello World!".
