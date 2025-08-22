@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1755525288160,
+  "lastUpdate": 1755857975832,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10139,6 +10139,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45818,
             "range": "± 2516.31",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "64ab7ae3394ab073ccf506b0673a82635d63d1ff",
+          "message": "chore(ci): update to actions/checkout@v5 (#3935)",
+          "timestamp": "2025-08-22T06:18:49-04:00",
+          "tree_id": "642c001d0577532daeed6536f5b525b7cdfad925",
+          "url": "https://github.com/hyperium/hyper/commit/64ab7ae3394ab073ccf506b0673a82635d63d1ff"
+        },
+        "date": 1755857973709,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47661,
+            "range": "± 7125.40",
             "unit": "ns/iter"
           }
         ]
