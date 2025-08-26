@@ -112,6 +112,8 @@ pub struct Builder {
     h1_parser_config: ParserConfig,
     h1_writev: Option<bool>,
     h1_title_case_headers: bool,
+    h1_record_raw_request_headers: bool,
+    h1_record_raw_response_headers: bool,
     h1_preserve_header_case: bool,
     h1_max_headers: Option<usize>,
     #[cfg(feature = "ffi")]
@@ -312,6 +314,8 @@ impl Builder {
             h1_read_buf_exact_size: None,
             h1_parser_config: Default::default(),
             h1_title_case_headers: false,
+            h1_record_raw_request_headers: false,
+            h1_record_raw_response_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,
             #[cfg(feature = "ffi")]
@@ -428,6 +432,22 @@ impl Builder {
         self
     }
 
+    /// Set whether to record the raw headers sent.
+    ///
+    /// Default is false.
+    pub fn record_raw_request_headers(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_record_raw_request_headers = enabled;
+        self
+    }
+
+    /// Set whether to record the raw headers received.
+    ///
+    /// Default is false.
+    pub fn record_raw_response_headers(&mut self, enabled: bool) -> &mut Builder {
+        self.h1_record_raw_response_headers = enabled;
+        self
+    }
+
     /// Set whether to support preserving original header cases.
     ///
     /// Currently, this will record the original cases received, and store them
@@ -538,6 +558,12 @@ impl Builder {
             }
             if opts.h1_title_case_headers {
                 conn.set_title_case_headers();
+            }
+            if opts.h1_record_raw_request_headers {
+                conn.set_record_raw_request_headers();
+            }
+            if opts.h1_record_raw_response_headers {
+                conn.set_record_raw_response_headers();
             }
             if opts.h1_preserve_header_case {
                 conn.set_preserve_header_case();
