@@ -262,7 +262,7 @@ impl Http1Transaction for Server {
             // SAFETY: array is valid up to `headers_len`
             let header = unsafe { &*header.as_ptr() };
             let name = header_name!(&slice[header.name.0..header.name.1]);
-            let value = header_value!(slice.slice(header.value.0..header.value.1));
+            let mut value = header_value!(slice.slice(header.value.0..header.value.1));
 
             match name {
                 header::TRANSFER_ENCODING => {
@@ -309,7 +309,14 @@ impl Http1Transaction for Server {
                         keep_alive = !headers::connection_close(&value);
                     } else {
                         // HTTP/1.0
-                        keep_alive = headers::connection_keep_alive(&value);
+                        if ctx.h10_disable_keep_alive {
+                            // if h10_disable_keep_alive is set, disable keep_alive,
+                            // read and parsed the connection header as close
+                            keep_alive = false;
+                            value = HeaderValue::from_static("close");
+                        } else {
+                            keep_alive = headers::connection_keep_alive(&value);
+                        }
                     }
                 }
                 header::EXPECT => {
@@ -1057,7 +1064,7 @@ impl Http1Transaction for Client {
                 // SAFETY: array is valid up to `headers_len`
                 let header = unsafe { &*header.as_ptr() };
                 let name = header_name!(&slice[header.name.0..header.name.1]);
-                let value = header_value!(slice.slice(header.value.0..header.value.1));
+                let mut value = header_value!(slice.slice(header.value.0..header.value.1));
 
                 if let header::CONNECTION = name {
                     // keep_alive was previously set to default for Version
@@ -1066,7 +1073,14 @@ impl Http1Transaction for Client {
                         keep_alive = !headers::connection_close(&value);
                     } else {
                         // HTTP/1.0
-                        keep_alive = headers::connection_keep_alive(&value);
+                        if ctx.h10_disable_keep_alive {
+                            // if h10_disable_keep_alive is set, disable keep_alive,
+                            // read and parsed the connection header as close
+                            keep_alive = false;
+                            value = HeaderValue::from_static("close");
+                        } else {
+                            keep_alive = headers::connection_keep_alive(&value);
+                        }
                     }
                 }
 
@@ -1565,6 +1579,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
+                h10_disable_keep_alive: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
                 #[cfg(feature = "ffi")]
@@ -1600,6 +1615,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1630,6 +1646,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1658,6 +1675,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: true,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1688,6 +1706,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1722,6 +1741,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1753,6 +1773,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1779,6 +1800,7 @@ mod tests {
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
             h09_responses: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "ffi")]
             on_informational: &mut None,
             #[cfg(feature = "ffi")]
@@ -1826,6 +1848,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]
@@ -1854,6 +1877,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]
@@ -2091,6 +2115,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]
@@ -2119,6 +2144,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]
@@ -2147,6 +2173,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]
@@ -2652,6 +2679,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
+                h10_disable_keep_alive: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
                 #[cfg(feature = "ffi")]
@@ -2766,6 +2794,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]
@@ -2814,6 +2843,7 @@ mod tests {
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
                     h09_responses: false,
+                    h10_disable_keep_alive: false,
                     #[cfg(feature = "ffi")]
                     on_informational: &mut None,
                     #[cfg(feature = "ffi")]

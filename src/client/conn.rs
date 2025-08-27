@@ -194,6 +194,7 @@ pub struct Builder {
     h1_max_buf_size: Option<usize>,
     #[cfg(feature = "ffi")]
     h1_headers_raw: bool,
+    h10_disable_keep_alive: bool,
     #[cfg(feature = "http2")]
     h2_builder: proto::h2::client::Config,
     version: Proto,
@@ -605,6 +606,7 @@ impl Builder {
             h1_max_buf_size: None,
             #[cfg(feature = "ffi")]
             h1_headers_raw: false,
+            h10_disable_keep_alive: false,
             #[cfg(feature = "http2")]
             h2_builder: Default::default(),
             #[cfg(feature = "http1")]
@@ -817,6 +819,21 @@ impl Builder {
         self
     }
 
+    /// Set whether to disable keep alive for HTTP/1.0.
+    ///
+    /// Currently, keep alive for HTTP/1.0 is supported if Connection: keep-alive is set for
+    /// either `Request` or `Response`. If this is enabled, enforcing Connection: close for
+    /// HTTP/1.0 `Request` or `Response` to make sure HTTP/1.0 connection drops and will not be
+    /// put back to H1 connection pool.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http10_disable_keep_alive(&mut self, disable: bool) -> &mut Self {
+        self.h10_disable_keep_alive = disable;
+        self
+    }
+
     /// Sets whether HTTP2 is required.
     ///
     /// Default is false.
@@ -1019,6 +1036,7 @@ impl Builder {
                             conn.set_write_strategy_flatten();
                         }
                     }
+                    conn.set_http10_disable_keep_alive(opts.h10_disable_keep_alive);
                     if opts.h1_title_case_headers {
                         conn.set_title_case_headers();
                     }

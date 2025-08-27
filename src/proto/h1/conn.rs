@@ -51,6 +51,7 @@ where
                 cached_headers: None,
                 error: None,
                 keep_alive: KA::Busy,
+                h10_disable_keep_alive: false,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
                 #[cfg(all(feature = "server", feature = "runtime"))]
@@ -128,6 +129,10 @@ where
     #[cfg(all(feature = "server", feature = "runtime"))]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
+    }
+
+    pub(crate) fn set_http10_disable_keep_alive(&mut self, disable: bool) {
+        self.state.h10_disable_keep_alive = disable;
     }
 
     #[cfg(feature = "server")]
@@ -208,6 +213,7 @@ where
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
+                h10_disable_keep_alive: self.state.h10_disable_keep_alive,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut self.state.on_informational,
                 #[cfg(feature = "ffi")]
@@ -614,7 +620,13 @@ where
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        if let Version::HTTP_10 = self.state.version {
+        // if h10_disable_keep_alive is set, force http/1.0 connection header to close.
+        // this function is only called in encode_head.
+        if self.state.h10_disable_keep_alive && head.version == Version::HTTP_10 {
+            self.state.disable_keep_alive();
+            head.headers
+                .insert(CONNECTION, HeaderValue::from_static("close"));
+        } else if let Version::HTTP_10 = self.state.version {
             // Fixes response or connection when keep-alive header is not present
             self.fix_keep_alive(head);
             // If the remote only knows HTTP/1.0, we should force ourselves
@@ -816,6 +828,7 @@ struct State {
     error: Option<crate::Error>,
     /// Current keep-alive status.
     keep_alive: KA,
+    h10_disable_keep_alive: bool,
     /// If mid-message, the HTTP Method that started it.
     ///
     /// This is used to know things such as if the message can include

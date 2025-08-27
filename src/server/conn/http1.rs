@@ -40,6 +40,7 @@ pin_project_lite::pin_project! {
 pub struct Builder {
     h1_half_close: bool,
     h1_keep_alive: bool,
+    h10_disable_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     h1_header_read_timeout: Option<Duration>,
@@ -206,6 +207,7 @@ impl Builder {
         Self {
             h1_half_close: false,
             h1_keep_alive: true,
+            h10_disable_keep_alive: false,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_header_read_timeout: None,
@@ -232,6 +234,21 @@ impl Builder {
     /// Default is true.
     pub fn keep_alive(&mut self, val: bool) -> &mut Self {
         self.h1_keep_alive = val;
+        self
+    }
+
+    /// Set whether to disable keep alive for HTTP/1.0.
+    ///
+    /// Currently, keep alive for HTTP/1.0 is supported if Connection: keep-alive is set for
+    /// either `Request` or `Response`. If this is enabled, enforcing Connection: close for
+    /// HTTP/1.0 `Request` or `Response` to make sure HTTP/1.0 connection drops and will not be
+    /// put back to H1 connection pool.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    pub fn http10_disable_keep_alive(&mut self, disable: bool) -> &mut Self {
+        self.h10_disable_keep_alive = disable;
         self
     }
 
@@ -361,6 +378,7 @@ impl Builder {
         if !self.h1_keep_alive {
             conn.disable_keep_alive();
         }
+        conn.set_http10_disable_keep_alive(self.h10_disable_keep_alive);
         if self.h1_half_close {
             conn.set_allow_half_close();
         }

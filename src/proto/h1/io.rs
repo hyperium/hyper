@@ -201,6 +201,7 @@ where
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
                     h09_responses: parse_ctx.h09_responses,
+                    h10_disable_keep_alive: parse_ctx.h10_disable_keep_alive,
                     #[cfg(feature = "ffi")]
                     on_informational: parse_ctx.on_informational,
                     #[cfg(feature = "ffi")]
@@ -755,6 +756,7 @@ mod tests {
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 h09_responses: false,
+                h10_disable_keep_alive: false,
                 #[cfg(feature = "ffi")]
                 on_informational: &mut None,
                 #[cfg(feature = "ffi")]
