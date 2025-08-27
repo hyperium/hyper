@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1755858042179,
+  "lastUpdate": 1756299961416,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10169,6 +10169,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47661,
             "range": "± 7125.40",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "1911860538@qq.com",
+            "name": "Name",
+            "username": "1911860538"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e1e1f2b46146ce766947b20117a9ab5eca9e8a3a",
+          "message": "refactor(ffi): specify \"C\" ABI explicitly in ffi_fn! macro (#3937)\n\nCo-authored-by: 1911860538 <alxps1911@gmail.com>",
+          "timestamp": "2025-08-27T09:05:13-04:00",
+          "tree_id": "102c44cab48beae135ca7bc2fa6b95433f2944b3",
+          "url": "https://github.com/hyperium/hyper/commit/e1e1f2b46146ce766947b20117a9ab5eca9e8a3a"
+        },
+        "date": 1756299959289,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45970,
+            "range": "± 7803.19",
             "unit": "ns/iter"
           }
         ]
