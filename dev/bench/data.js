@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756300019056,
+  "lastUpdate": 1756492389673,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10199,6 +10199,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45970,
             "range": "± 7803.19",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "26700668+Will-Low@users.noreply.github.com",
+            "name": "Will-Low",
+            "username": "Will-Low"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5803a9c0592209269c4009de1f3dbc55b7c115e9",
+          "message": "docs(server): update default values for `http1::Builder` (#3938)",
+          "timestamp": "2025-08-29T14:32:20-04:00",
+          "tree_id": "4cedc7c1a30cb83f50ac1b92690897a490d2b2b0",
+          "url": "https://github.com/hyperium/hyper/commit/5803a9c0592209269c4009de1f3dbc55b7c115e9"
+        },
+        "date": 1756492387325,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46330,
+            "range": "± 7601.70",
             "unit": "ns/iter"
           }
         ]
