@@ -261,7 +261,7 @@ impl Builder {
 
     /// Enables or disables HTTP/1 keep-alive.
     ///
-    /// Default is true.
+    /// Default is `true`.
     pub fn keep_alive(&mut self, val: bool) -> &mut Self {
         self.h1_keep_alive = val;
         self
@@ -270,13 +270,15 @@ impl Builder {
     /// Set whether HTTP/1 connections will write header names as title case at
     /// the socket level.
     ///
-    /// Default is false.
+    /// Default is `false`.
     pub fn title_case_headers(&mut self, enabled: bool) -> &mut Self {
         self.h1_title_case_headers = enabled;
         self
     }
 
     /// Set whether multiple spaces are allowed as delimiters in request lines.
+    ///
+    /// Default is `false`.
     pub fn allow_multiple_spaces_in_request_line_delimiters(&mut self, enabled: bool) -> &mut Self {
         self.h1_parser_config
             .allow_multiple_spaces_in_request_line_delimiters(enabled);
@@ -289,7 +291,7 @@ impl Builder {
     /// name, or does not include a colon at all, the line will be silently ignored
     /// and no error will be reported.
     ///
-    /// Default is false.
+    /// Default is `false`.
     pub fn ignore_invalid_headers(&mut self, enabled: bool) -> &mut Builder {
         self.h1_parser_config
             .ignore_invalid_headers_in_requests(enabled);
@@ -306,7 +308,7 @@ impl Builder {
     /// interact with the original cases. The only effect this can have now is
     /// to forward the cases in a proxy-like fashion.
     ///
-    /// Default is false.
+    /// Default is `false`.
     pub fn preserve_header_case(&mut self, enabled: bool) -> &mut Self {
         self.h1_preserve_header_case = enabled;
         self
@@ -381,7 +383,7 @@ impl Builder {
     ///
     /// Note that including the `date` header is recommended by RFC 7231.
     ///
-    /// Default is true.
+    /// Default is `true`.
     pub fn auto_date_header(&mut self, enabled: bool) -> &mut Self {
         self.date_header = enabled;
         self
@@ -391,7 +393,7 @@ impl Builder {
     ///
     /// Experimental, may have bugs.
     ///
-    /// Default is false.
+    /// Default is `false`.
     pub fn pipeline_flush(&mut self, enabled: bool) -> &mut Self {
         self.pipeline_flush = enabled;
         self
