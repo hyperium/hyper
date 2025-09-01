@@ -86,6 +86,7 @@ pub(crate) struct ParseContext<'a> {
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
     h09_responses: bool,
+    h10_disable_keep_alive: bool,
     #[cfg(feature = "ffi")]
     on_informational: &'a mut Option<crate::ffi::OnInformational>,
     #[cfg(feature = "ffi")]

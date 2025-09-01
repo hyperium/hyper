@@ -119,6 +119,7 @@ pub struct Builder {
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
     h1_max_buf_size: Option<usize>,
+    h10_disable_keep_alive: bool,
 }
 
 /// Returns a handshake future over some IO.
@@ -305,6 +306,7 @@ impl Builder {
             #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
+            h10_disable_keep_alive: false,
         }
     }
 
@@ -508,6 +510,7 @@ impl Builder {
                     conn.set_write_strategy_flatten();
                 }
             }
+            conn.set_http10_disable_keep_alive(opts.h10_disable_keep_alive);
             if opts.h1_title_case_headers {
                 conn.set_title_case_headers();
             }

@@ -257,6 +257,24 @@ impl<I, E> Builder<I, E> {
         self
     }
 
+    /// Set whether to disable keep alive for HTTP/1.0.
+    ///
+    /// Currently, keep alive for HTTP/1.0 is supported if Connection: keep-alive is set for
+    /// either `Request` or `Response`. If this is enabled, enforcing Connection: close for
+    /// HTTP/1.0 `Request` or `Response` to make sure HTTP/1.0 connection drops and will not be
+    /// put back to H1 connection pool.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http10_disable_keep_alive(mut self, disable: bool) -> Self {
+        self.protocol.http10_disable_keep_alive(disable);
+        self
+    }
+
+
     /// Set whether HTTP/1 connections should support half-closures.
     ///
     /// Clients can chose to shutdown their write-side while waiting

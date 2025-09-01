@@ -111,6 +111,7 @@ pub struct Http<E = Exec> {
     pub(crate) exec: E,
     h1_half_close: bool,
     h1_keep_alive: bool,
+    h10_disable_keep_alive: bool,
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     #[cfg(all(feature = "http1", feature = "runtime"))]
@@ -257,6 +258,7 @@ impl Http {
             exec: Exec::Default,
             h1_half_close: false,
             h1_keep_alive: true,
+            h10_disable_keep_alive: false,
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             #[cfg(all(feature = "http1", feature = "runtime"))]
@@ -313,6 +315,23 @@ impl<E> Http<E> {
     #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
     pub fn http1_keep_alive(&mut self, val: bool) -> &mut Self {
         self.h1_keep_alive = val;
+        self
+    }
+
+    /// Set whether to disable keep alive for HTTP/1.0.
+    ///
+    /// Currently, keep alive for HTTP/1.0 is supported if Connection: keep-alive is set for
+    /// either `Request` or `Response`. If this is enabled, enforcing Connection: close for
+    /// HTTP/1.0 `Request` or `Response` to make sure HTTP/1.0 connection drops and will not be
+    /// put back to H1 connection pool.
+    ///
+    /// Note that this setting does not affect HTTP/2.
+    ///
+    /// Default is false.
+    #[cfg(feature = "http1")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "http1")))]
+    pub fn http10_disable_keep_alive(&mut self, disable: bool) -> &mut Self {
+        self.h10_disable_keep_alive = disable;
         self
     }
 
@@ -621,6 +640,7 @@ impl<E> Http<E> {
             exec,
             h1_half_close: self.h1_half_close,
             h1_keep_alive: self.h1_keep_alive,
+            h10_disable_keep_alive: false,
             h1_title_case_headers: self.h1_title_case_headers,
             h1_preserve_header_case: self.h1_preserve_header_case,
             #[cfg(all(feature = "http1", feature = "runtime"))]
@@ -678,6 +698,7 @@ impl<E> Http<E> {
                 if !self.h1_keep_alive {
                     conn.disable_keep_alive();
                 }
+                conn.set_http10_disable_keep_alive(self.h10_disable_keep_alive);
                 if self.h1_half_close {
                     conn.set_allow_half_close();
                 }
@@ -765,10 +786,14 @@ where
         match self.conn {
             #[cfg(feature = "http1")]
             Some(ProtoServer::H1 { ref mut h1, .. }) => {
+                #[cfg(feature = "cloudsop_hiro_log_adapt")]
+                log::info!("h1.disable_keep_alive");
                 h1.disable_keep_alive();
             }
             #[cfg(feature = "http2")]
             Some(ProtoServer::H2 { ref mut h2 }) => {
+                #[cfg(feature = "cloudsop_hiro_log_adapt")]
+                log::info!("h2.graceful_shutdown()");
                 h2.graceful_shutdown();
             }
             None => (),
