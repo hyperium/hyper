@@ -2307,16 +2307,18 @@ mod conn {
         // Regression test for failure to fully close connections when using HTTP2 CONNECT
         // We send 2 requests and then drop them. We should see the connection gracefully close.
         use futures_util::future;
-        let (listener, addr) = setup_tk_test_server().await;
+        let (client_io, server_io) = tokio::io::duplex(1024);
+        let uri = http::Uri::builder()
+            .scheme("https")
+            .authority("hyper.rs")
+            .path_and_query("/")
+            .build()
+            .unwrap();
         let (tx, rxx) = oneshot::channel::<()>();
 
         tokio::task::spawn(async move {
             use hyper::server::conn::http2;
             use hyper::service::service_fn;
-
-            let res = listener.accept().await;
-            let (stream, _) = res.unwrap();
-            let stream = TokioIo::new(stream);
 
             let service = service_fn(move |req: Request<hyper::body::Incoming>| {
                 tokio::task::spawn(async move {
@@ -2328,15 +2330,15 @@ mod conn {
             });
 
             tokio::task::spawn(async move {
-                let conn = http2::Builder::new(TokioExecutor).serve_connection(stream, service);
+                let conn = http2::Builder::new(TokioExecutor)
+                    .serve_connection(TokioIo::new(server_io), service);
                 let _ = conn.await;
                 tx.send(()).unwrap();
             });
         });
 
-        let io = tcp_connect(&addr).await.expect("tcp connect");
         let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
-            .handshake(io)
+            .handshake(TokioIo::new(client_io))
             .await
             .expect("http handshake");
 
@@ -2358,7 +2360,7 @@ mod conn {
             let rx = rxs.pop().unwrap();
             let req = Request::builder()
                 .method(Method::CONNECT)
-                .uri(format!("{}", addr))
+                .uri(&uri)
                 .body(Empty::<Bytes>::new())
                 .expect("request builder");
 
