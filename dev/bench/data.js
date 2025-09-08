@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1756492450655,
+  "lastUpdate": 1757349607349,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10229,6 +10229,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46330,
             "range": "± 7601.70",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f9f8f44058745d23fa52abf51b96b61ee7665642",
+          "message": "tests(client): port tests to in-memory socket (#3947)\n\nsee https://github.com/hyperium/hyper/issues/3896.\n\nthis commit ports an assortment of test cases for the client to an\nin-memory socket using `tokio::io::duplex()`.\n\nthis should help reduce test flakes related to TCP close behavior.\n\nthis supersedes https://github.com/hyperium/hyper/pull/3946.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2025-09-08T12:39:18-04:00",
+          "tree_id": "2f69a68c46f6a8913c509a616ebb90f691596ae6",
+          "url": "https://github.com/hyperium/hyper/commit/f9f8f44058745d23fa52abf51b96b61ee7665642"
+        },
+        "date": 1757349605127,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46259,
+            "range": "± 7271.61",
             "unit": "ns/iter"
           }
         ]
