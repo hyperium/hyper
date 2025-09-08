@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1757349607349,
+  "lastUpdate": 1757349664293,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -53191,6 +53191,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5189036,
             "range": "± 4686138.76",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f9f8f44058745d23fa52abf51b96b61ee7665642",
+          "message": "tests(client): port tests to in-memory socket (#3947)\n\nsee https://github.com/hyperium/hyper/issues/3896.\n\nthis commit ports an assortment of test cases for the client to an\nin-memory socket using `tokio::io::duplex()`.\n\nthis should help reduce test flakes related to TCP close behavior.\n\nthis supersedes https://github.com/hyperium/hyper/pull/3946.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2025-09-08T12:39:18-04:00",
+          "tree_id": "2f69a68c46f6a8913c509a616ebb90f691596ae6",
+          "url": "https://github.com/hyperium/hyper/commit/f9f8f44058745d23fa52abf51b96b61ee7665642"
+        },
+        "date": 1757349662056,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68412,
+            "range": "± 1459.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4524457,
+            "range": "± 390444.76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20973,
+            "range": "± 326.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23240,
+            "range": "± 346.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31042,
+            "range": "± 595.57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 96553,
+            "range": "± 1947.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34882,
+            "range": "± 536.57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 88405,
+            "range": "± 1443.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23932479,
+            "range": "± 32383084.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23886791,
+            "range": "± 16414809.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7376880,
+            "range": "± 95180.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49352007,
+            "range": "± 1379700.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57490123,
+            "range": "± 9119398.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5122364,
+            "range": "± 4637361.30",
             "unit": "ns/iter"
           }
         ]
