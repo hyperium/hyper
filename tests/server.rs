@@ -14,7 +14,6 @@ use std::thread;
 use std::time::Duration;
 
 use bytes::Bytes;
-use futures_channel::oneshot;
 use futures_util::future::{self, Either, FutureExt};
 use h2::client::SendRequest;
 use h2::{RecvStream, SendStream};
@@ -25,6 +24,7 @@ use hyper::rt::{Read as AsyncRead, Write as AsyncWrite};
 use support::{TokioExecutor, TokioIo, TokioTimer};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
+use tokio::sync::oneshot;
 
 use hyper::body::{Body, Incoming as IncomingBody};
 use hyper::server::conn::{http1, http2};

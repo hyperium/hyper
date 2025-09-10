@@ -17,10 +17,10 @@ use hyper::header::{HeaderMap, HeaderName, HeaderValue};
 use hyper::{Method, Request, StatusCode, Uri, Version};
 
 use bytes::Bytes;
-use futures_channel::oneshot;
 use futures_util::future::{self, FutureExt, TryFuture, TryFutureExt};
 use support::TokioIo;
 use tokio::net::TcpStream;
+use tokio::sync::oneshot;
 mod support;
 
 fn s(buf: &[u8]) -> &str {
@@ -1494,12 +1494,12 @@ mod conn {
     use std::time::Duration;
 
     use bytes::{Buf, Bytes};
-    use futures_channel::{mpsc, oneshot};
     use futures_util::future::{self, poll_fn, FutureExt, TryFutureExt};
     use http_body_util::{BodyExt, Empty, Full, StreamBody};
     use hyper::rt::Timer;
     use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _, DuplexStream};
     use tokio::net::{TcpListener as TkTcpListener, TcpStream};
+    use tokio::sync::{mpsc, oneshot};
 
     use hyper::body::{Body, Frame};
     use hyper::client::conn;

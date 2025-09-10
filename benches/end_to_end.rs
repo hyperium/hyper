@@ -341,7 +341,7 @@ impl Opts {
         let make_request = || {
             let chunk_cnt = self.request_chunks;
             let body = if chunk_cnt > 0 {
-                let (mut tx, rx) = futures_channel::mpsc::channel(0);
+                let (mut tx, rx) = tokio::sync::mpsc::channel(0);
 
                 let chunk = self
                     .request_body

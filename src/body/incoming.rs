@@ -5,18 +5,16 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 
 use bytes::Bytes;
-#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-use futures_channel::{mpsc, oneshot};
 #[cfg(all(
     any(feature = "http1", feature = "http2"),
     any(feature = "client", feature = "server")
 ))]
 use futures_core::ready;
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-use futures_core::{stream::FusedStream, Stream}; // for mpsc::Receiver
-#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
+#[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
+use tokio::sync::{mpsc, oneshot};
 
 #[cfg(all(
     any(feature = "http1", feature = "http2"),
@@ -219,8 +217,8 @@ impl Body for Incoming {
             } => {
                 want_tx.send(WANT_READY);
 
-                if !data_rx.is_terminated() {
-                    if let Some(chunk) = ready!(Pin::new(data_rx).poll_next(cx)?) {
+                if !data_rx.is_closed() {
+                    if let Some(chunk) = ready!(Pin::new(data_rx).poll_recv(cx)?) {
                         len.sub_if(chunk.len() as u64);
                         return Poll::Ready(Some(Ok(Frame::data(chunk))));
                     }
@@ -353,9 +351,11 @@ impl Sender {
     pub(crate) fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         // Check if the receiver end has tried polling for the body yet
         ready!(self.poll_want(cx)?);
-        self.data_tx
-            .poll_ready(cx)
-            .map_err(|_| crate::Error::new_closed())
+        if self.data_tx.capacity() > 0 {
+            Poll::Ready(Ok(()))
+        } else {
+            Poll::Pending
+        }
     }
 
     fn poll_want(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {

@@ -9,13 +9,13 @@ use std::{
 
 use crate::rt::{Read, Write};
 use bytes::Bytes;
-use futures_channel::mpsc::{Receiver, Sender};
-use futures_channel::{mpsc, oneshot};
-use futures_core::{ready, FusedFuture, FusedStream, Stream};
+use futures_core::{ready, FusedFuture};
 use h2::client::{Builder, Connection, SendRequest};
 use h2::SendStream;
 use http::{Method, StatusCode};
 use pin_project_lite::pin_project;
+use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::{mpsc, oneshot};
 
 use super::ping::{Ponger, Recorder};
 use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
@@ -343,7 +343,7 @@ where
             return Poll::Ready(());
         }
 
-        if !this.drop_rx.is_terminated() && Pin::new(&mut this.drop_rx).poll_next(cx).is_ready() {
+        if !this.drop_rx.is_closed() && Pin::new(&mut this.drop_rx).poll_recv(cx).is_ready() {
             // mpsc has been dropped, hopefully polling
             // the connection some more should start shutdown
             // and then close.
