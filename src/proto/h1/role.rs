@@ -28,10 +28,23 @@ use crate::proto::h1::{
 use crate::proto::RequestHead;
 use crate::proto::{BodyLength, MessageHead, RequestLine};
 
+#[cfg(feature = "server")]
+use std::sync::OnceLock;
 pub(crate) const DEFAULT_MAX_HEADERS: usize = 100;
 const AVERAGE_HEADER_SIZE: usize = 30; // totally scientific
 #[cfg(feature = "server")]
-const MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
+const DEFAULT_MAX_URI_LEN: usize = (u16::MAX - 1) as usize;
+
+#[cfg(feature = "server")]
+fn max_uri_len() -> usize {
+    static MAX_URI_LEN: OnceLock<usize> = OnceLock::new();
+    *MAX_URI_LEN.get_or_init(|| {
+        std::env::var("HYPER_MAX_URI_LEN")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(DEFAULT_MAX_URI_LEN)
+    })
+}
 
 macro_rules! header_name {
     ($bytes:expr) => {{
@@ -169,7 +182,7 @@ impl Http1Transaction for Server {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
                     let uri = req.path.unwrap();
-                    if uri.len() > MAX_URI_LEN {
+                    if uri.len() > max_uri_len() {
                         return Err(Parse::UriTooLong);
                     }
                     method = Method::from_bytes(req.method.unwrap().as_bytes())?;
