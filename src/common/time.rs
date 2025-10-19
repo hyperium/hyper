@@ -50,6 +50,13 @@ impl Time {
         }
     }
 
+    pub(crate) fn now(&self) -> Instant {
+        match *self {
+            Time::Empty => Instant::now(),
+            Time::Timer(ref t) => t.now(),
+        }
+    }
+
     pub(crate) fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
         match *self {
             Time::Empty => {

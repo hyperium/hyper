@@ -74,6 +74,16 @@ pub trait Timer {
     /// Return a future that resolves at `deadline`.
     fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>>;
 
+    /// Return an `Instant` representing the current time
+    ///
+    /// This function is currently unstable to implement - its
+    /// definition might change in a future version of Hyper
+    ///
+    /// FIXME: do we want to mention this function in the module doc comment?
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+
     /// Reset a future to resolve at `new_deadline` instead.
     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
         *sleep = self.sleep_until(new_deadline);
