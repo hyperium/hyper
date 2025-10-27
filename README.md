@@ -23,7 +23,7 @@ hyper is a relatively low-level library, meant to be a building block for
 libraries and applications.
 
 If you are looking for a convenient HTTP client, then you may wish to consider
-[reqwest](https://github.com/seanmonstar/reqwest).
+[reqwest](https://github.com/seanmonstar/reqwest) or [deboa](https://github.com/ararog/deboa).
 
 If you are not sure what HTTP server to choose, then you may want to consider
 [axum](https://github.com/tokio-rs/axum) or
