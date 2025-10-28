@@ -43,6 +43,8 @@ use bytes::Bytes;
 ))]
 use http::header::HeaderName;
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+use http::header::InvalidHeaderName;
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use http::header::{HeaderMap, IntoHeaderName, ValueIter};
 #[cfg(feature = "ffi")]
 use std::collections::HashMap;
@@ -157,15 +159,15 @@ impl fmt::Debug for Protocol {
 ///
 /// [`preserve_header_case`]: /client/struct.Client.html#method.preserve_header_case
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-#[derive(Clone, Debug)]
-pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
+#[derive(Clone, Debug, Default)]
+pub struct HeaderCaseMap(HeaderMap<Bytes>);
 
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
     #[cfg(feature = "client")]
-    pub(crate) fn get_all<'a>(
+    pub fn get_all<'a>(
         &'a self,
         name: &HeaderName,
     ) -> impl Iterator<Item = impl AsRef<[u8]> + 'a> + 'a {
@@ -179,22 +181,23 @@ impl HeaderCaseMap {
         self.0.get_all(name).into_iter()
     }
 
-    #[cfg(any(feature = "client", feature = "server"))]
-    pub(crate) fn default() -> Self {
-        Self(Default::default())
-    }
-
-    #[cfg(any(test, feature = "ffi"))]
-    pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
+    /// Inserts a header spelling, replacing any existing ones associated with that header name.
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+    pub fn insert(&mut self, name: HeaderName, orig: Bytes) -> Result<(), InvalidHeaderName> {
+        HeaderName::from_bytes(&orig)?;
         self.0.insert(name, orig);
+        Ok(())
     }
 
-    #[cfg(any(feature = "client", feature = "server"))]
-    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
+    /// Inserts a header spelling in addition to any existing ones associated with that header name.
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+    pub fn append<N>(&mut self, name: N, orig: Bytes) -> Result<(), InvalidHeaderName>
     where
         N: IntoHeaderName,
     {
+        HeaderName::from_bytes(&orig)?;
         self.0.append(name, orig);
+        Ok(())
     }
 }
 

@@ -513,7 +513,7 @@ ffi_fn! {
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.insert(&name, value);
-                headers.orig_casing.insert(name.clone(), orig_name.clone());
+                headers.orig_casing.insert(name.clone(), orig_name.clone()).unwrap();
                 headers.orig_order.insert(name);
                 hyper_code::HYPERE_OK
             }
@@ -533,7 +533,7 @@ ffi_fn! {
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.append(&name, value);
-                headers.orig_casing.append(&name, orig_name.clone());
+                headers.orig_casing.append(&name, orig_name.clone()).unwrap();
                 headers.orig_order.append(name);
                 hyper_code::HYPERE_OK
             }
