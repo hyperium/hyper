@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1757349664293,
+  "lastUpdate": 1762785572721,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10259,6 +10259,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46259,
             "range": "± 7271.61",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ariel.byd@gmail.com",
+            "name": "Ariel Ben-Yehuda",
+            "username": "arielb1"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5509ebe6156e32d4f8986fafa25c2918a30005be",
+          "message": "feat(rt): add `Timer::now()` method to allow overriding the instant returned (#3965)\n\nThe new trait method has a default implementation just returning `Instant::now()`.\n\nAn implementer can override that, such as Tokio providing support for it's pausable clock.",
+          "timestamp": "2025-11-10T09:38:43-05:00",
+          "tree_id": "7301239d6d48871bdaac699f13f10df305d4a0d2",
+          "url": "https://github.com/hyperium/hyper/commit/5509ebe6156e32d4f8986fafa25c2918a30005be"
+        },
+        "date": 1762785570083,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 37469,
+            "range": "± 7882.51",
             "unit": "ns/iter"
           }
         ]
