@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762787503061,
+  "lastUpdate": 1762791680139,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10349,6 +10349,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49109,
             "range": "± 9539.00",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "58e0e7dc70612117ccdc40da395922f791cb273a",
+          "message": "fix(http2): fix internals of HTTP/2 CONNECT upgrades (#3967)\n\nThis refactors the way hyper handles HTTP/2 CONNECT / Extended CONNECT. Before,\nan uninhabited enum was used to try to prevent sending of the `Buf` type once\nthe STREAM had been upgraded. However, the way it was originally written was\nincorrect, and will eventually have compilation issues.\n\nThe change here is to spawn an extra task and use a channel to bridge the IO\noperations of the `Upgraded` object to be `Cursor` buffers in the new task.\n\nref: https://github.com/rust-lang/rust/issues/147588\nCloses #3966 \n\nBREAKING CHANGE: The HTTP/2 client connection no longer allows an executor\n  that can not spawn itself.\n  \n  This was an oversight originally. The client connection will now include spawning\n  a future that keeps a copy of the executor to spawn other futures. Thus, if it is\n  `!Send`, it needs to spawn `!Send` futures. The likelihood of executors that match\n  the previously allowed behavior should be very remote.\n\n  There is also technically a semver break in here, which is that the\n  `Http2ClientConnExec` trait no longer dyn-compatible, because it now expects to\n  be `Clone`. This should not break usage of the `conn` builder, because it already\n  separately had `E: Clone` bounds. If someone were using `dyn Http2ClientConnExec`,\n  that will break. However, there is no purpose for doing so, and it is not usable\n  otherwise, since the trait only exists to propagate bounds into hyper. Thus, the\n  breakage should not affect anyone.",
+          "timestamp": "2025-11-10T11:20:31-05:00",
+          "tree_id": "148c7e0a73f0924c9be0b50bb1d19d7aa1685bc0",
+          "url": "https://github.com/hyperium/hyper/commit/58e0e7dc70612117ccdc40da395922f791cb273a"
+        },
+        "date": 1762791677963,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49755,
+            "range": "± 6632.60",
             "unit": "ns/iter"
           }
         ]
