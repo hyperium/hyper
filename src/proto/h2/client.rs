@@ -18,7 +18,7 @@ use http::{Method, StatusCode};
 use pin_project_lite::pin_project;
 
 use super::ping::{Ponger, Recorder};
-use super::{ping, H2Upgraded, PipeToSendStream, SendBuf};
+use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::client::dispatch::{Callback, SendWhen, TrySendError};
 use crate::common::either::Either;
@@ -26,9 +26,8 @@ use crate::common::io::Compat;
 use crate::common::time::Time;
 use crate::ext::Protocol;
 use crate::headers;
-use crate::proto::h2::UpgradedSendStream;
 use crate::proto::Dispatched;
-use crate::rt::bounds::Http2ClientConnExec;
+use crate::rt::bounds::{Http2ClientConnExec, Http2UpgradedExec};
 use crate::upgrade::Upgraded;
 use crate::{Request, Response};
 use h2::client::ResponseFuture;
@@ -151,7 +150,7 @@ where
     T: Read + Write + Unpin,
     B: Body + 'static,
     B::Data: Send + 'static,
-    E: Http2ClientConnExec<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Clone + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
 {
     let (h2_tx, mut conn) = new_builder(config)
@@ -357,7 +356,7 @@ where
 
 pin_project! {
     #[project = H2ClientFutureProject]
-    pub enum H2ClientFuture<B, T>
+    pub enum H2ClientFuture<B, T, E>
     where
         B: http_body::Body,
         B: 'static,
@@ -372,7 +371,7 @@ pin_project! {
         },
         Send {
             #[pin]
-            send_when: SendWhen<B>,
+            send_when: SendWhen<B, E>,
         },
         Task {
             #[pin]
@@ -381,11 +380,12 @@ pin_project! {
     }
 }
 
-impl<B, T> Future for H2ClientFuture<B, T>
+impl<B, T, E> Future for H2ClientFuture<B, T, E>
 where
     B: http_body::Body + 'static,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
+    E: Http2UpgradedExec<B::Data>,
 {
     type Output = ();
 
@@ -484,7 +484,7 @@ impl<B, E, T> ClientTask<B, E, T>
 where
     B: Body + 'static + Unpin,
     B::Data: Send,
-    E: Http2ClientConnExec<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Clone + Unpin,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
     T: Read + Write + Unpin,
 {
@@ -529,6 +529,7 @@ where
                     fut: f.fut,
                     ping: Some(ping),
                     send_stream: Some(send_stream),
+                    exec: self.executor.clone(),
                 },
                 call_back: Some(f.cb),
             },
@@ -537,28 +538,29 @@ where
 }
 
 pin_project! {
-    pub(crate) struct ResponseFutMap<B>
+    pub(crate) struct ResponseFutMap<B, E>
     where
         B: Body,
         B: 'static,
     {
         #[pin]
         fut: ResponseFuture,
-        #[pin]
         ping: Option<Recorder>,
         #[pin]
         send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
+        exec: E,
     }
 }
 
-impl<B> Future for ResponseFutMap<B>
+impl<B, E> Future for ResponseFutMap<B, E>
 where
     B: Body + 'static,
+    E: Http2UpgradedExec<B::Data>,
 {
     type Output = Result<Response<crate::body::Incoming>, (crate::Error, Option<Request<B>>)>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let mut this = self.project();
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        let mut this = self.as_mut().project();
 
         let result = ready!(this.fut.poll(cx));
 
@@ -585,13 +587,10 @@ where
                     let mut res = Response::from_parts(parts, IncomingBody::empty());
 
                     let (pending, on_upgrade) = crate::upgrade::pending();
-                    let io = H2Upgraded {
-                        ping,
-                        send_stream: unsafe { UpgradedSendStream::new(send_stream) },
-                        recv_stream,
-                        buf: Bytes::new(),
-                    };
-                    let upgraded = Upgraded::new(io, Bytes::new());
+
+                    let (h2_up, up_task) = super::upgrade::pair(send_stream, recv_stream, ping);
+                    self.exec.execute_upgrade(up_task);
+                    let upgraded = Upgraded::new(h2_up, Bytes::new());
 
                     pending.fulfill(upgraded);
                     res.extensions_mut().insert(on_upgrade);
@@ -620,7 +619,7 @@ where
     B: Body + 'static + Unpin,
     B::Data: Send,
     B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
-    E: Http2ClientConnExec<B, T> + Unpin,
+    E: Http2ClientConnExec<B, T> + Clone + Unpin,
     T: Read + Write + Unpin,
 {
     type Output = crate::Result<Dispatched>;
