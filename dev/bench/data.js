@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762785572721,
+  "lastUpdate": 1762785632597,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -53329,6 +53329,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5122364,
             "range": "± 4637361.30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ariel.byd@gmail.com",
+            "name": "Ariel Ben-Yehuda",
+            "username": "arielb1"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5509ebe6156e32d4f8986fafa25c2918a30005be",
+          "message": "feat(rt): add `Timer::now()` method to allow overriding the instant returned (#3965)\n\nThe new trait method has a default implementation just returning `Instant::now()`.\n\nAn implementer can override that, such as Tokio providing support for it's pausable clock.",
+          "timestamp": "2025-11-10T09:38:43-05:00",
+          "tree_id": "7301239d6d48871bdaac699f13f10df305d4a0d2",
+          "url": "https://github.com/hyperium/hyper/commit/5509ebe6156e32d4f8986fafa25c2918a30005be"
+        },
+        "date": 1762785630524,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67323,
+            "range": "± 1426.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4382492,
+            "range": "± 304683.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20955,
+            "range": "± 1120.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22970,
+            "range": "± 375.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30678,
+            "range": "± 474.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 94388,
+            "range": "± 3436.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34458,
+            "range": "± 1193.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 87588,
+            "range": "± 1305.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23915803,
+            "range": "± 32409734.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7332524,
+            "range": "± 201163.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7123203,
+            "range": "± 80730.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 47628718,
+            "range": "± 1273555.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 56714777,
+            "range": "± 10521553.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5109606,
+            "range": "± 4191023.45",
             "unit": "ns/iter"
           }
         ]
