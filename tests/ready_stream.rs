@@ -11,7 +11,6 @@ use std::io;
 use std::pin::Pin;
 use std::task::{ready, Context, Poll};
 use tokio::sync::mpsc;
-use tracing::{error, info};
 
 pin_project! {
     #[derive(Debug)]
@@ -139,7 +138,7 @@ impl Write for TxReadyStream {
                 Poll::Ready(Ok(len))
             }
             Err(_) => {
-                error!("ReadyStream::poll_write failed - channel closed");
+                println!("ReadyStream::poll_write failed - channel closed");
                 Poll::Ready(Err(io::Error::new(
                     io::ErrorKind::BrokenPipe,
                     "Write channel closed",
@@ -165,7 +164,7 @@ impl Write for TxReadyStream {
 
         // Abort the panic task if it exists
         if let Some(task) = self.panic_task.take() {
-            info!("Task polled to completion. Aborting panic (aka waker stand-in task).");
+            println!("Task polled to completion. Aborting panic (aka waker stand-in task).");
             task.abort();
         }
 
@@ -178,24 +177,10 @@ impl Write for TxReadyStream {
     }
 }
 
-fn init_tracing() {
-    use std::sync::Once;
-    static INIT: Once = Once::new();
-    INIT.call_once(|| {
-        tracing_subscriber::fmt()
-            .with_max_level(tracing::Level::INFO)
-            .with_target(true)
-            .with_thread_ids(true)
-            .with_thread_names(true)
-            .init();
-    });
-}
-
 const TOTAL_CHUNKS: usize = 16;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn body_test() {
-    init_tracing();
     // Create a pair of connected streams
     let (server_stream, mut client_stream) = TxReadyStream::new_pair();
 
@@ -203,7 +188,7 @@ async fn body_test() {
     http_builder.max_buf_size(CHUNK_SIZE);
     const CHUNK_SIZE: usize = 64 * 1024;
     let service = service_fn(|_| async move {
-        info!(
+        println!(
             "Creating payload of {} chunks of {} KiB each ({} MiB total)...",
             TOTAL_CHUNKS,
             CHUNK_SIZE / 1024,
@@ -216,7 +201,7 @@ async fn body_test() {
                 .map(|b| Ok::<_, Infallible>(Frame::data(b))),
         );
         let body = StreamBody::new(stream);
-        info!("Server: Sending data response...");
+        println!("Server: Sending data response...");
         Ok::<_, hyper::Error>(
             Response::builder()
                 .status(StatusCode::OK)
@@ -230,14 +215,14 @@ async fn body_test() {
     let server_task = tokio::spawn(async move {
         let conn = http_builder.serve_connection(server_stream, service);
         if let Err(e) = conn.await {
-            error!("Server connection error: {}", e);
+            println!("Server connection error: {}", e);
         }
     });
 
     let get_request = "GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n";
     client_stream.send(get_request.as_bytes()).unwrap();
 
-    info!("Client is reading response...");
+    println!("Client is reading response...");
     let mut bytes_received = 0;
     while let Some(chunk) = client_stream.recv().await {
         bytes_received += chunk.len();
@@ -245,5 +230,5 @@ async fn body_test() {
     // Clean up
     server_task.abort();
 
-    info!(bytes_received, "Client done receiving bytes");
+    println!("Client done receiving bytes: {}", bytes_received);
 }

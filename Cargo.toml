@@ -66,7 +66,6 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = "0.7.10"
-tracing-subscriber = "0.3"
 
 [features]
 # Nothing by default
@@ -243,7 +242,7 @@ required-features = ["full"]
 [[test]]
 name = "ready_stream"
 path = "tests/ready_stream.rs"
-required-features = ["full", "tracing"]
+required-features = ["full"]
 
 [[test]]
 name = "server"
