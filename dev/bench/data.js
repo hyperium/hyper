@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1762868793844,
+  "lastUpdate": 1763068342741,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10409,6 +10409,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45777,
             "range": "± 7235.32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4492f31e9429c34166da5a069c00b65be20e4a02",
+          "message": "fix(http1): fix consuming extra CPU from previous change (#3977)\n\nRevert \"fix(http1): fix rare missed write wakeup on connections (#3952)\"\n\nThis reverts commit 2377b893f6e64ca9878e4f25d1472b96baa7e3ea.",
+          "timestamp": "2025-11-13T16:11:36-05:00",
+          "tree_id": "d2cfc5a5ae1c053f294bca9adcd8cc4caab9a898",
+          "url": "https://github.com/hyperium/hyper/commit/4492f31e9429c34166da5a069c00b65be20e4a02"
+        },
+        "date": 1763068340359,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49436,
+            "range": "± 8426.75",
             "unit": "ns/iter"
           }
         ]
