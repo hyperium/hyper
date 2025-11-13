@@ -317,15 +317,10 @@ impl Http1Transaction for Server {
             if let Some(ref mut header_case_map) = header_case_map {
                 use crate::ext::CasedHeaderName;
 
-                header_case_map
-                    .append(
-                        CasedHeaderName::new(
-                            name.clone(),
-                            slice.slice(header.name.0..header.name.1),
-                        )
+                header_case_map.append(
+                    CasedHeaderName::new(name.clone(), slice.slice(header.name.0..header.name.1))
                         .unwrap(),
-                    )
-                    .unwrap();
+                );
             }
 
             #[cfg(feature = "ffi")]
@@ -1118,15 +1113,13 @@ impl Http1Transaction for Client {
                 if let Some(ref mut header_case_map) = header_case_map {
                     use crate::ext::CasedHeaderName;
 
-                    header_case_map
-                        .append(
-                            CasedHeaderName::new(
-                                name.clone(),
-                                slice.slice(header.name.0..header.name.1),
-                            )
-                            .unwrap(),
+                    header_case_map.append(
+                        CasedHeaderName::new(
+                            name.clone(),
+                            slice.slice(header.name.0..header.name.1),
                         )
-                        .unwrap();
+                        .unwrap(),
+                    );
                 }
 
                 #[cfg(feature = "ffi")]
@@ -2509,9 +2502,7 @@ mod tests {
             .insert("content-type", HeaderValue::from_static("application/json"));
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers
-            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
-            .unwrap();
+        orig_headers.insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap());
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2548,9 +2539,7 @@ mod tests {
             .insert("content-type", HeaderValue::from_static("application/json"));
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers
-            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
-            .unwrap();
+        orig_headers.insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap());
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2645,9 +2634,7 @@ mod tests {
             .insert("content-type", HeaderValue::from_static("application/json"));
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers
-            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
-            .unwrap();
+        orig_headers.insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap());
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2683,9 +2670,7 @@ mod tests {
             .insert("content-type", HeaderValue::from_static("application/json"));
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers
-            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
-            .unwrap();
+        orig_headers.insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap());
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2722,9 +2707,7 @@ mod tests {
             .insert("content-type", HeaderValue::from_static("application/json"));
 
         let mut orig_headers = HeaderCaseMap::default();
-        orig_headers
-            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
-            .unwrap();
+        orig_headers.insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap());
         head.extensions.insert(orig_headers);
 
         let mut vec = Vec::new();
@@ -2929,9 +2912,7 @@ mod tests {
         let name = http::header::HeaderName::from_static("x-empty");
         headers.insert(&name, "".parse().expect("parse empty"));
         let mut orig_cases = HeaderCaseMap::default();
-        orig_cases
-            .insert(CasedHeaderName::new(name, Bytes::from_static(b"X-EmptY")).unwrap())
-            .unwrap();
+        orig_cases.insert(CasedHeaderName::new(name, Bytes::from_static(b"X-EmptY")).unwrap());
 
         let mut dst = Vec::new();
         super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
@@ -2951,11 +2932,8 @@ mod tests {
 
         let mut orig_cases = HeaderCaseMap::default();
         orig_cases
-            .insert(CasedHeaderName::new(name.clone(), Bytes::from_static(b"X-Empty")).unwrap())
-            .unwrap();
-        orig_cases
-            .append(CasedHeaderName::new(name, Bytes::from_static(b"X-EMPTY")).unwrap())
-            .unwrap();
+            .insert(CasedHeaderName::new(name.clone(), Bytes::from_static(b"X-Empty")).unwrap());
+        orig_cases.append(CasedHeaderName::new(name, Bytes::from_static(b"X-EMPTY")).unwrap());
 
         let mut dst = Vec::new();
         super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);

@@ -185,16 +185,14 @@ impl HeaderCaseMap {
 
     /// Inserts a header spelling, replacing any existing ones associated with that header name.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-    pub fn insert(&mut self, name: CasedHeaderName) -> Result<(), InvalidHeaderName> {
+    pub fn insert(&mut self, name: CasedHeaderName) {
         self.0.insert(name.0, name.1);
-        Ok(())
     }
 
     /// Inserts a header spelling in addition to any existing ones associated with that header name.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-    pub fn append(&mut self, name: CasedHeaderName) -> Result<(), InvalidHeaderName> {
+    pub fn append(&mut self, name: CasedHeaderName) {
         self.0.append(name.0, name.1);
-        Ok(())
     }
 }
 
