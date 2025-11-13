@@ -42,10 +42,12 @@ use bytes::Bytes;
     feature = "ffi"
 ))]
 use http::header::HeaderName;
+#[cfg(all(feature = "http1", feature = "ffi"))]
+use http::header::IntoHeaderName;
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use http::header::InvalidHeaderName;
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-use http::header::{HeaderMap, IntoHeaderName, ValueIter};
+use http::header::{HeaderMap, ValueIter};
 #[cfg(feature = "ffi")]
 use std::collections::HashMap;
 #[cfg(feature = "http2")]
@@ -183,21 +185,62 @@ impl HeaderCaseMap {
 
     /// Inserts a header spelling, replacing any existing ones associated with that header name.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-    pub fn insert(&mut self, name: HeaderName, orig: Bytes) -> Result<(), InvalidHeaderName> {
-        HeaderName::from_bytes(&orig)?;
-        self.0.insert(name, orig);
+    pub fn insert(&mut self, name: CasedHeaderName) -> Result<(), InvalidHeaderName> {
+        self.0.insert(name.0, name.1);
         Ok(())
     }
 
     /// Inserts a header spelling in addition to any existing ones associated with that header name.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-    pub fn append<N>(&mut self, name: N, orig: Bytes) -> Result<(), InvalidHeaderName>
-    where
-        N: IntoHeaderName,
-    {
-        HeaderName::from_bytes(&orig)?;
-        self.0.append(name, orig);
+    pub fn append(&mut self, name: CasedHeaderName) -> Result<(), InvalidHeaderName> {
+        self.0.append(name.0, name.1);
         Ok(())
+    }
+}
+
+/// An error converting a header name spelling to a [`CasedHeaderName`].
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[derive(Debug)]
+pub enum CasedHeaderNameError {
+    /// Error parsing the header name
+    Invalid(InvalidHeaderName),
+    /// The parsed header name doesn't match the spelling's
+    NoMatch,
+}
+
+/// A header casing representation, guaranteed to be a valid [`http::HeaderName`].
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+#[derive(Debug)]
+pub struct CasedHeaderName(HeaderName, Bytes);
+
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+impl CasedHeaderName {
+    /// Constructs a header casing representation.
+    pub fn new(name: HeaderName, orig: Bytes) -> Result<Self, CasedHeaderNameError> {
+        let orig_parsed =
+            HeaderName::from_bytes(&orig).map_err(|err| CasedHeaderNameError::Invalid(err))?;
+
+        if orig_parsed != name {
+            Err(CasedHeaderNameError::NoMatch)
+        } else {
+            Ok(CasedHeaderName(name.into(), orig))
+        }
+    }
+}
+
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+impl TryFrom<Bytes> for CasedHeaderName {
+    type Error = InvalidHeaderName;
+
+    fn try_from(orig: Bytes) -> Result<Self, Self::Error> {
+        HeaderName::from_bytes(&orig).map(|name| CasedHeaderName(name, orig))
+    }
+}
+
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+impl From<CasedHeaderName> for HeaderName {
+    fn from(value: CasedHeaderName) -> Self {
+        value.0
     }
 }
 

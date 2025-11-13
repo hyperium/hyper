@@ -315,8 +315,16 @@ impl Http1Transaction for Server {
             }
 
             if let Some(ref mut header_case_map) = header_case_map {
+                use crate::ext::CasedHeaderName;
+
                 header_case_map
-                    .append(&name, slice.slice(header.name.0..header.name.1))
+                    .append(
+                        CasedHeaderName::new(
+                            name.clone(),
+                            slice.slice(header.name.0..header.name.1),
+                        )
+                        .unwrap(),
+                    )
                     .unwrap();
             }
 
@@ -1108,8 +1116,16 @@ impl Http1Transaction for Client {
                 }
 
                 if let Some(ref mut header_case_map) = header_case_map {
+                    use crate::ext::CasedHeaderName;
+
                     header_case_map
-                        .append(&name, slice.slice(header.name.0..header.name.1))
+                        .append(
+                            CasedHeaderName::new(
+                                name.clone(),
+                                slice.slice(header.name.0..header.name.1),
+                            )
+                            .unwrap(),
+                        )
                         .unwrap();
                 }
 
@@ -1644,6 +1660,8 @@ fn extend(dst: &mut Vec<u8>, data: &[u8]) {
 #[cfg(test)]
 mod tests {
     use bytes::BytesMut;
+
+    use crate::ext::CasedHeaderName;
 
     use super::*;
 
@@ -2492,7 +2510,7 @@ mod tests {
 
         let mut orig_headers = HeaderCaseMap::default();
         orig_headers
-            .insert(CONTENT_LENGTH, "CONTENT-LENGTH".into())
+            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
             .unwrap();
         head.extensions.insert(orig_headers);
 
@@ -2531,7 +2549,7 @@ mod tests {
 
         let mut orig_headers = HeaderCaseMap::default();
         orig_headers
-            .insert(CONTENT_LENGTH, "CONTENT-LENGTH".into())
+            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
             .unwrap();
         head.extensions.insert(orig_headers);
 
@@ -2628,7 +2646,7 @@ mod tests {
 
         let mut orig_headers = HeaderCaseMap::default();
         orig_headers
-            .insert(CONTENT_LENGTH, "CONTENT-LENGTH".into())
+            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
             .unwrap();
         head.extensions.insert(orig_headers);
 
@@ -2666,7 +2684,7 @@ mod tests {
 
         let mut orig_headers = HeaderCaseMap::default();
         orig_headers
-            .insert(CONTENT_LENGTH, "CONTENT-LENGTH".into())
+            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
             .unwrap();
         head.extensions.insert(orig_headers);
 
@@ -2705,7 +2723,7 @@ mod tests {
 
         let mut orig_headers = HeaderCaseMap::default();
         orig_headers
-            .insert(CONTENT_LENGTH, "CONTENT-LENGTH".into())
+            .insert(CasedHeaderName::new(CONTENT_LENGTH, "CONTENT-LENGTH".into()).unwrap())
             .unwrap();
         head.extensions.insert(orig_headers);
 
@@ -2912,7 +2930,7 @@ mod tests {
         headers.insert(&name, "".parse().expect("parse empty"));
         let mut orig_cases = HeaderCaseMap::default();
         orig_cases
-            .insert(name, Bytes::from_static(b"X-EmptY"))
+            .insert(CasedHeaderName::new(name, Bytes::from_static(b"X-EmptY")).unwrap())
             .unwrap();
 
         let mut dst = Vec::new();
@@ -2933,10 +2951,10 @@ mod tests {
 
         let mut orig_cases = HeaderCaseMap::default();
         orig_cases
-            .insert(name.clone(), Bytes::from_static(b"X-Empty"))
+            .insert(CasedHeaderName::new(name.clone(), Bytes::from_static(b"X-Empty")).unwrap())
             .unwrap();
         orig_cases
-            .append(name, Bytes::from_static(b"X-EMPTY"))
+            .append(CasedHeaderName::new(name, Bytes::from_static(b"X-EMPTY")).unwrap())
             .unwrap();
 
         let mut dst = Vec::new();
