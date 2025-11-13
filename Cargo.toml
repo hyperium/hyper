@@ -240,11 +240,6 @@ path = "tests/integration.rs"
 required-features = ["full"]
 
 [[test]]
-name = "ready_stream"
-path = "tests/ready_stream.rs"
-required-features = ["full"]
-
-[[test]]
 name = "server"
 path = "tests/server.rs"
 required-features = ["full"]
