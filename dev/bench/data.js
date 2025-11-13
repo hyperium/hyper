@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763068342741,
+  "lastUpdate": 1763068401572,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -54019,6 +54019,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5030336,
             "range": "± 4492608.13",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4492f31e9429c34166da5a069c00b65be20e4a02",
+          "message": "fix(http1): fix consuming extra CPU from previous change (#3977)\n\nRevert \"fix(http1): fix rare missed write wakeup on connections (#3952)\"\n\nThis reverts commit 2377b893f6e64ca9878e4f25d1472b96baa7e3ea.",
+          "timestamp": "2025-11-13T16:11:36-05:00",
+          "tree_id": "d2cfc5a5ae1c053f294bca9adcd8cc4caab9a898",
+          "url": "https://github.com/hyperium/hyper/commit/4492f31e9429c34166da5a069c00b65be20e4a02"
+        },
+        "date": 1763068399064,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68359,
+            "range": "± 5433.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4356256,
+            "range": "± 212556.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20961,
+            "range": "± 365.71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22693,
+            "range": "± 264.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30707,
+            "range": "± 587.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 103230,
+            "range": "± 5151.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34674,
+            "range": "± 942.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 87090,
+            "range": "± 1128.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23899729,
+            "range": "± 32429886.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23837763,
+            "range": "± 8438638.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7380536,
+            "range": "± 106720.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48420736,
+            "range": "± 580587.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 56672564,
+            "range": "± 8582028.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5010077,
+            "range": "± 4566185.89",
             "unit": "ns/iter"
           }
         ]
