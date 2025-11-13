@@ -1,3 +1,11 @@
+### v1.8.1 (2025-11-13)
+
+
+#### Bug Fixes
+
+* **http1:** fix consuming extra CPU from previous change (#3977) ([4492f31e](https://github.com/hyperium/hyper/commit/4492f31e9429c34166da5a069c00b65be20e4a02))
+
+
 ## v1.8.0 (2025-11-11)
 
 
