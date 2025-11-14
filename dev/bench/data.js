@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763068539707,
+  "lastUpdate": 1763141636378,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10469,6 +10469,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47235,
             "range": "± 8486.26",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "793af1ed2a3f1fd65e5a8de85b368daa58b15279",
+          "message": "docs(error): add more information about `is_incomplete_message()` (#3978)",
+          "timestamp": "2025-11-14T12:33:06-05:00",
+          "tree_id": "b049d050a6c48f683b4fe46859c4a1550ee96e79",
+          "url": "https://github.com/hyperium/hyper/commit/793af1ed2a3f1fd65e5a8de85b368daa58b15279"
+        },
+        "date": 1763141633396,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47265,
+            "range": "± 7978.37",
             "unit": "ns/iter"
           }
         ]
