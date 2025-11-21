@@ -188,20 +188,18 @@ impl Http1Transaction for Server {
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
-                Err(err) => {
-                    return Err(match err {
-                        // if invalid Token, try to determine if for method or path
-                        httparse::Error::Token => {
-                            if req.method.is_none() {
-                                Parse::Method
-                            } else {
-                                debug_assert!(req.path.is_none());
-                                Parse::Uri
-                            }
+                // if invalid Token, try to determine if for method or path
+                Err(httparse::Error::Token) => {
+                    return Err({
+                        if req.method.is_none() {
+                            Parse::Method
+                        } else {
+                            debug_assert!(req.path.is_none());
+                            Parse::Uri
                         }
-                        other => other.into(),
-                    });
+                    })
                 }
+                Err(err) => return Err(err.into()),
             }
         };
 
