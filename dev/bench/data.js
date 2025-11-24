@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763141692649,
+  "lastUpdate": 1763998701830,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10499,6 +10499,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47265,
             "range": "± 7978.37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "contact@f0rki.at",
+            "name": "Michael Rodler",
+            "username": "f0rki"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2968dbcd75509263907ec3a1f964a4c4465c0ebb",
+          "message": "chore(ci): run cargo-audit weekly to check for known vulnerabilities in dependencies. (#3246)\n\n`cargo audit` checks for dependencies with known issues. This PR adds a github workflow that runs `cargo audit` on a weekly basis on `HEAD` and whenever a dependency changes.\n\nSigned-off-by: Michael Rodler <mrodler@amazon.de>\nCo-authored-by: Michael Rodler <mrodler@amazon.de>\nCo-authored-by: f0rki <m@mrodler.eu>",
+          "timestamp": "2025-11-24T10:37:31-05:00",
+          "tree_id": "dfbb0c2eaf5ff44437c6d3cc3599f85bf4d4ad29",
+          "url": "https://github.com/hyperium/hyper/commit/2968dbcd75509263907ec3a1f964a4c4465c0ebb"
+        },
+        "date": 1763998699543,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 48498,
+            "range": "± 8605.30",
             "unit": "ns/iter"
           }
         ]
