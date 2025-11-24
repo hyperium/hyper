@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763998701830,
+  "lastUpdate": 1763998767769,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -54433,6 +54433,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5064784,
             "range": "± 4654203.88",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "contact@f0rki.at",
+            "name": "Michael Rodler",
+            "username": "f0rki"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2968dbcd75509263907ec3a1f964a4c4465c0ebb",
+          "message": "chore(ci): run cargo-audit weekly to check for known vulnerabilities in dependencies. (#3246)\n\n`cargo audit` checks for dependencies with known issues. This PR adds a github workflow that runs `cargo audit` on a weekly basis on `HEAD` and whenever a dependency changes.\n\nSigned-off-by: Michael Rodler <mrodler@amazon.de>\nCo-authored-by: Michael Rodler <mrodler@amazon.de>\nCo-authored-by: f0rki <m@mrodler.eu>",
+          "timestamp": "2025-11-24T10:37:31-05:00",
+          "tree_id": "dfbb0c2eaf5ff44437c6d3cc3599f85bf4d4ad29",
+          "url": "https://github.com/hyperium/hyper/commit/2968dbcd75509263907ec3a1f964a4c4465c0ebb"
+        },
+        "date": 1763998765387,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 75940,
+            "range": "± 1401.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4697630,
+            "range": "± 646259.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21322,
+            "range": "± 293.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23096,
+            "range": "± 396.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30628,
+            "range": "± 626.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 93840,
+            "range": "± 1538.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 34063,
+            "range": "± 771.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 86008,
+            "range": "± 2255.30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23967628,
+            "range": "± 32508709.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7640017,
+            "range": "± 115868.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7419937,
+            "range": "± 190720.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49824091,
+            "range": "± 1968255.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 58043551,
+            "range": "± 9577265.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5181031,
+            "range": "± 4592205.23",
             "unit": "ns/iter"
           }
         ]
