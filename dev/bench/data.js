@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1763998767769,
+  "lastUpdate": 1764011465859,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10529,6 +10529,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48498,
             "range": "± 8605.30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "9da18144397faf3cf1f7d04eb41d6f541f6f189e",
+          "message": "refactor(http1): simplify match of Token parse error (#3981)",
+          "timestamp": "2025-11-24T14:10:16-05:00",
+          "tree_id": "8962e73d2fe975ed9401b70f5d453fc53d32e270",
+          "url": "https://github.com/hyperium/hyper/commit/9da18144397faf3cf1f7d04eb41d6f541f6f189e"
+        },
+        "date": 1764011463784,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46847,
+            "range": "± 8340.73",
             "unit": "ns/iter"
           }
         ]
