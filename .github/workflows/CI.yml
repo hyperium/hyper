@@ -23,7 +23,12 @@ jobs:
       - features
       - ffi
       - ffi-header
+      - ffi-cargo-c
       - doc
+      - check-external-types
+      - udeps
+      - minimal-versions
+      - semver
     steps:
       - run: exit 0
 
@@ -32,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -40,7 +45,11 @@ jobs:
           components: rustfmt
 
       - name: cargo fmt --check
-        run: cargo fmt --all --check
+        run: |
+          if ! rustfmt --check --edition 2021 $(git ls-files '*.rs'); then
+            printf "Please run \`rustfmt --edition 2021 \$(git ls-files '*.rs')\` to fix rustfmt errors.\nSee docs/CODE_STYLE.md for more details.\n" >&2
+            exit 1
+          fi
 
   test:
     name: Test ${{ matrix.rust }} on ${{ matrix.os }}
@@ -70,12 +79,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ matrix.rust }}
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Test
         run: cargo test ${{ matrix.features }}
@@ -92,16 +103,25 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Resolve MSRV aware dependencies
+        run: cargo update
+        env:
+          CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS: fallback
 
       - name: Get MSRV from package metadata
         id: msrv
-        run: grep rust-version Cargo.toml | cut -d'"' -f2 | sed 's/^/version=/' >> $GITHUB_OUTPUT
+        run: echo "version=$(yq '.package.rust-version' Cargo.toml)" >> $GITHUB_OUTPUT
 
       - name: Install Rust (${{ steps.msrv.outputs.version }})
         uses: dtolnay/rust-toolchain@master
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Check
         run: cargo check --features full
@@ -113,12 +133,14 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
         with:
           components: miri
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Test
         # Can't enable tcp feature since Miri does not support the tokio runtime
@@ -130,16 +152,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cargo-hack
         uses: taiki-e/install-action@cargo-hack
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: check --feature-powerset
-        run: cargo hack check --feature-powerset --depth 2 --skip ffi -Z avoid-dev-deps
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi,tracing
+        env:
+          RUSTFLAGS: "-D dead_code -D unused_imports"
+
+      - name: check --feature-powerset with tracing feature
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --features tracing --skip ffi
+        env:
+          RUSTFLAGS: "--cfg hyper_unstable_tracing -D dead_code -D unused_imports"
 
   ffi:
     name: Test C API (FFI)
@@ -147,10 +178,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build FFI
         env:
@@ -163,27 +196,29 @@ jobs:
       - name: Run FFI unit tests
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        run: cargo test --features server,client,http1,http2,ffi --lib
+        run: cargo test --features client,http1,http2,ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Install cbindgen
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cbindgen
 
       - name: Install cargo-expand
-        uses: taiki-e/cache-cargo-install-action@v1
+        uses: taiki-e/cache-cargo-install-action@v2
         with:
           tool: cargo-expand
+
+      - uses: Swatinem/rust-cache@v2
 
       - name: Build FFI
         env:
@@ -193,16 +228,112 @@ jobs:
       - name: Ensure that hyper.h is up to date
         run: ./capi/gen_header.sh --verify
 
+  ffi-cargo-c:
+    name: Test cargo-c support (FFI)
+    needs: [style]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-c
+        env:
+          LINK: https://github.com/lu-zero/cargo-c/releases/latest/download
+          CARGO_C_FILE: cargo-c-x86_64-unknown-linux-musl.tar.gz
+        run: |
+          curl -L $LINK/$CARGO_C_FILE | tar xz -C ~/.cargo/bin
+
+      - name: Build with cargo-c
+        env:
+          RUSTFLAGS: --cfg hyper_unstable_ffi
+        run: cargo cbuild --features client,http1,http2,ffi
+
   doc:
     name: Build docs
     needs: [style, test]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
 
+      - uses: Swatinem/rust-cache@v2
+
       - name: cargo doc
-        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D broken-intra-doc-links
+        run: cargo rustdoc --features full,ffi -- --cfg docsrs --cfg hyper_unstable_ffi -D rustdoc::broken-intra-doc-links
+
+  check-external-types:
+    name: Check exposed types
+    needs: [style, test]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: nightly-2025-08-06 # Compatible version for cargo-check-external-types
+
+      - name: Install cargo-check-external-types
+        uses: taiki-e/cache-cargo-install-action@v2
+        with:
+          tool: cargo-check-external-types@0.3.0
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: check-external-types
+        run: cargo check-external-types --config .github/workflows/external-types.toml
+
+  udeps:
+    needs: [style]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-udeps
+        uses: taiki-e/install-action@cargo-udeps
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check unused dependencies on default features
+        run: cargo udeps
+
+      - name: Check unused dependencies on full features
+        run: cargo udeps --features full
+
+  minimal-versions:
+    runs-on: ubuntu-latest
+    needs: [style]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@cargo-hack
+      - uses: taiki-e/install-action@cargo-minimal-versions
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo minimal-versions check
+      - run: cargo minimal-versions check --features full
+
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
+        with:
+          feature-group: only-explicit-features
+          features: full
+          release-type: minor

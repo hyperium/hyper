@@ -2,10 +2,9 @@ use std::ffi::c_void;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use libc::size_t;
-use tokio::io::{AsyncRead, AsyncWrite};
-
 use super::task::hyper_context;
+use crate::ffi::size_t;
+use crate::rt::{Read, Write};
 
 /// Sentinel value to return from a read or write callback that the operation
 /// is pending.
@@ -19,7 +18,20 @@ type hyper_io_read_callback =
 type hyper_io_write_callback =
     extern "C" fn(*mut c_void, *mut hyper_context<'_>, *const u8, size_t) -> size_t;
 
-/// An IO object used to represent a socket or similar concept.
+/// A read/write handle for a specific connection.
+///
+/// This owns a specific TCP or TLS connection for the lifetime of
+/// that connection. It contains a read and write callback, as well as a
+/// void *userdata. Typically the userdata will point to a struct
+/// containing a file descriptor and a TLS context.
+///
+/// Methods:
+///
+/// - hyper_io_new:          Create a new IO type used to represent a transport.
+/// - hyper_io_set_read:     Set the read function for this IO transport.
+/// - hyper_io_set_write:    Set the write function for this IO transport.
+/// - hyper_io_set_userdata: Set the user data pointer for this IO to some value.
+/// - hyper_io_free:         Free an IO handle.
 pub struct hyper_io {
     read: hyper_io_read_callback,
     write: hyper_io_write_callback,
@@ -31,6 +43,14 @@ ffi_fn! {
     ///
     /// The read and write functions of this transport should be set with
     /// `hyper_io_set_read` and `hyper_io_set_write`.
+    ///
+    /// It is expected that the underlying transport is non-blocking. When
+    /// a read or write callback can't make progress because there is no
+    /// data available yet, it should use the `hyper_waker` mechanism to
+    /// arrange to be called again when data is available.
+    ///
+    /// To avoid a memory leak, the IO handle must eventually be consumed by
+    /// `hyper_io_free` or `hyper_clientconn_handshake`.
     fn hyper_io_new() -> *mut hyper_io {
         Box::into_raw(Box::new(hyper_io {
             read: read_noop,
@@ -41,10 +61,10 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Free an unused `hyper_io *`.
+    /// Free an IO handle.
     ///
-    /// This is typically only useful if you aren't going to pass ownership
-    /// of the IO handle to hyper, such as with `hyper_clientconn_handshake()`.
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_clientconn_handshake`.
     fn hyper_io_free(io: *mut hyper_io) {
         drop(non_null!(Box::from_raw(io) ?= ()));
     }
@@ -69,10 +89,11 @@ ffi_fn! {
     /// unless you have already written them yourself. It is also undefined behavior
     /// to return that more bytes have been written than actually set on the `buf`.
     ///
-    /// If there is no data currently available, a waker should be claimed from
-    /// the `ctx` and registered with whatever polling mechanism is used to signal
-    /// when data is available later on. The return value should be
-    /// `HYPER_IO_PENDING`.
+    /// If there is no data currently available, the callback should create a
+    /// `hyper_waker` from its `hyper_context` argument and register the waker
+    /// with whatever polling mechanism is used to signal when data is available
+    /// later on. The return value should be `HYPER_IO_PENDING`. See the
+    /// documentation for `hyper_waker`.
     ///
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
@@ -87,11 +108,11 @@ ffi_fn! {
     /// Data from the `buf` pointer should be written to the transport, up to
     /// `buf_len` bytes. The number of bytes written should be the return value.
     ///
-    /// If no data can currently be written, the `waker` should be cloned and
-    /// registered with whatever polling mechanism is used to signal when data
-    /// is available later on. The return value should be `HYPER_IO_PENDING`.
-    ///
-    /// Yeet.
+    /// If there is no data currently available, the callback should create a
+    /// `hyper_waker` from its `hyper_context` argument and register the waker
+    /// with whatever polling mechanism is used to signal when data is available
+    /// later on. The return value should be `HYPER_IO_PENDING`. See the documentation
+    /// for `hyper_waker`.
     ///
     /// If there is an irrecoverable error reading data, then `HYPER_IO_ERROR`
     /// should be the return value.
@@ -120,13 +141,13 @@ extern "C" fn write_noop(
     0
 }
 
-impl AsyncRead for hyper_io {
+impl Read for hyper_io {
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
-        buf: &mut tokio::io::ReadBuf<'_>,
+        mut buf: crate::rt::ReadBufCursor<'_>,
     ) -> Poll<std::io::Result<()>> {
-        let buf_ptr = unsafe { buf.unfilled_mut() }.as_mut_ptr() as *mut u8;
+        let buf_ptr = unsafe { buf.as_mut() }.as_mut_ptr() as *mut u8;
         let buf_len = buf.remaining();
 
         match (self.read)(self.userdata, hyper_context::wrap(cx), buf_ptr, buf_len) {
@@ -138,15 +159,14 @@ impl AsyncRead for hyper_io {
             ok => {
                 // We have to trust that the user's read callback actually
                 // filled in that many bytes... :(
-                unsafe { buf.assume_init(ok) };
-                buf.advance(ok);
+                unsafe { buf.advance(ok) };
                 Poll::Ready(Ok(()))
             }
         }
     }
 }
 
-impl AsyncWrite for hyper_io {
+impl Write for hyper_io {
     fn poll_write(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

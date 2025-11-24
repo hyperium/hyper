@@ -12,16 +12,16 @@ A complete list of dependencies used across these examples:
 
 ```toml
 [dependencies]
-hyper = { version = "1.0.0-rc.3", features = ["full"] }
+hyper = { version = "1", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
-pretty_env_logger = "0.4"
-http-body-util = "0.1.0-rc.2"
+pretty_env_logger = "0.5"
+http-body-util = "0.1"
 bytes = "1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-url = "2.2"
-http = "0.2"
-futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
+form_urlencoded = "1"
+http = "1"
+futures-util = { version = "0.3", default-features = false }
 ```
 
 ## Getting Started
@@ -41,6 +41,8 @@ futures-util = { version = "0.3", default-features = false, features = ["alloc"]
 ## Going Further
 
 * [`gateway`](gateway.rs) - A server gateway (reverse proxy) that proxies to the `hello` service above.
+
+* [`graceful_shutdown`](graceful_shutdown.rs) - A server that has a timeout for incoming connections and does graceful connection shutdown.
 
 * [`http_proxy`](http_proxy.rs) - A simple HTTP(S) proxy that handle and upgrade `CONNECT` requests and then proxy data between client and remote server.
 

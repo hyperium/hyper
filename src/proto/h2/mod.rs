@@ -1,20 +1,20 @@
-use bytes::{Buf, Bytes};
-use h2::{Reason, RecvStream, SendStream};
-use http::header::{HeaderName, CONNECTION, TE, TRAILER, TRANSFER_ENCODING, UPGRADE};
+use std::error::Error as StdError;
+use std::future::Future;
+use std::io::{Cursor, IoSlice};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+
+use bytes::Buf;
+use futures_core::ready;
+use h2::SendStream;
+use http::header::{HeaderName, CONNECTION, TE, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
-use std::error::Error as StdError;
-use std::io::{self, Cursor, IoSlice};
-use std::mem;
-use std::task::Context;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
-use tracing::{debug, trace, warn};
 
 use crate::body::Body;
-use crate::common::{task, Future, Pin, Poll};
-use crate::proto::h2::ping::Recorder;
 
 pub(crate) mod ping;
+pub(crate) mod upgrade;
 
 cfg_client! {
     pub(crate) mod client;
@@ -29,15 +29,13 @@ cfg_server! {
 /// Default initial stream window size defined in HTTP2 spec.
 pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
 
-// List of connection headers from:
-// https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Connection
+// List of connection headers from RFC 9110 Section 7.6.1
 //
 // TE headers are allowed in HTTP/2 requests as long as the value is "trailers", so they're
 // tested separately.
-const CONNECTION_HEADERS: [HeaderName; 5] = [
+static CONNECTION_HEADERS: [HeaderName; 4] = [
     HeaderName::from_static("keep-alive"),
     HeaderName::from_static("proxy-connection"),
-    TRAILER,
     TRANSFER_ENCODING,
     UPGRADE,
 ];
@@ -52,8 +50,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
     if is_request {
         if headers
             .get(TE)
-            .map(|te_header| te_header != "trailers")
-            .unwrap_or(false)
+            .map_or(false, |te_header| te_header != "trailers")
         {
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
             headers.remove(TE);
@@ -85,7 +82,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
 // body adapters used by both Client and Server
 
 pin_project! {
-    struct PipeToSendStream<S>
+    pub(crate) struct PipeToSendStream<S>
     where
         S: Body,
     {
@@ -116,7 +113,7 @@ where
 {
     type Output = crate::Result<()>;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
             // we don't have the next chunk of data yet, so just reserve 1 byte to make
@@ -129,9 +126,7 @@ where
                     match ready!(me.body_tx.poll_capacity(cx)) {
                         Some(Ok(0)) => {}
                         Some(Ok(_)) => break,
-                        Some(Err(e)) => {
-                            return Poll::Ready(Err(crate::Error::new_body_write(e)))
-                        }
+                        Some(Err(e)) => return Poll::Ready(Err(crate::Error::new_body_write(e))),
                         None => {
                             // None means the stream is no longer in a
                             // streaming state, we either finished it
@@ -148,9 +143,7 @@ where
                 .map_err(crate::Error::new_body_write)?
             {
                 debug!("stream received RST_STREAM: {:?}", reason);
-                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(
-                    reason,
-                ))));
+                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
             }
 
             match ready!(me.stream.as_mut().poll_frame(cx)) {
@@ -262,192 +255,5 @@ impl<B: Buf> Buf for SendBuf<B> {
             Self::Cursor(ref c) => c.chunks_vectored(dst),
             Self::None => 0,
         }
-    }
-}
-
-struct H2Upgraded<B>
-where
-    B: Buf,
-{
-    ping: Recorder,
-    send_stream: UpgradedSendStream<B>,
-    recv_stream: RecvStream,
-    buf: Bytes,
-}
-
-impl<B> AsyncRead for H2Upgraded<B>
-where
-    B: Buf,
-{
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        read_buf: &mut ReadBuf<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        if self.buf.is_empty() {
-            self.buf = loop {
-                match ready!(self.recv_stream.poll_data(cx)) {
-                    None => return Poll::Ready(Ok(())),
-                    Some(Ok(buf)) if buf.is_empty() && !self.recv_stream.is_end_stream() => {
-                        continue
-                    }
-                    Some(Ok(buf)) => {
-                        self.ping.record_data(buf.len());
-                        break buf;
-                    }
-                    Some(Err(e)) => {
-                        return Poll::Ready(match e.reason() {
-                            Some(Reason::NO_ERROR) | Some(Reason::CANCEL) => Ok(()),
-                            Some(Reason::STREAM_CLOSED) => {
-                                Err(io::Error::new(io::ErrorKind::BrokenPipe, e))
-                            }
-                            _ => Err(h2_to_io_error(e)),
-                        })
-                    }
-                }
-            };
-        }
-        let cnt = std::cmp::min(self.buf.len(), read_buf.remaining());
-        read_buf.put_slice(&self.buf[..cnt]);
-        self.buf.advance(cnt);
-        let _ = self.recv_stream.flow_control().release_capacity(cnt);
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl<B> AsyncWrite for H2Upgraded<B>
-where
-    B: Buf,
-{
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, io::Error>> {
-        if buf.is_empty() {
-            return Poll::Ready(Ok(0));
-        }
-        self.send_stream.reserve_capacity(buf.len());
-
-        // We ignore all errors returned by `poll_capacity` and `write`, as we
-        // will get the correct from `poll_reset` anyway.
-        let cnt = match ready!(self.send_stream.poll_capacity(cx)) {
-            None => Some(0),
-            Some(Ok(cnt)) => self
-                .send_stream
-                .write(&buf[..cnt], false)
-                .ok()
-                .map(|()| cnt),
-            Some(Err(_)) => None,
-        };
-
-        if let Some(cnt) = cnt {
-            return Poll::Ready(Ok(cnt));
-        }
-
-        Poll::Ready(Err(h2_to_io_error(
-            match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) | Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
-                    return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
-                }
-                Ok(reason) => reason.into(),
-                Err(e) => e,
-            },
-        )))
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), io::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), io::Error>> {
-        if self.send_stream.write(&[], true).is_ok() {
-            return Poll::Ready(Ok(()))
-        }
-
-        Poll::Ready(Err(h2_to_io_error(
-            match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) => {
-                    return Poll::Ready(Ok(()))
-                }
-                Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
-                    return Poll::Ready(Err(io::ErrorKind::BrokenPipe.into()))
-                }
-                Ok(reason) => reason.into(),
-                Err(e) => e,
-            },
-        )))
-    }
-}
-
-fn h2_to_io_error(e: h2::Error) -> io::Error {
-    if e.is_io() {
-        e.into_io().unwrap()
-    } else {
-        io::Error::new(io::ErrorKind::Other, e)
-    }
-}
-
-struct UpgradedSendStream<B>(SendStream<SendBuf<Neutered<B>>>);
-
-impl<B> UpgradedSendStream<B>
-where
-    B: Buf,
-{
-    unsafe fn new(inner: SendStream<SendBuf<B>>) -> Self {
-        assert_eq!(mem::size_of::<B>(), mem::size_of::<Neutered<B>>());
-        Self(mem::transmute(inner))
-    }
-
-    fn reserve_capacity(&mut self, cnt: usize) {
-        unsafe { self.as_inner_unchecked().reserve_capacity(cnt) }
-    }
-
-    fn poll_capacity(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<usize, h2::Error>>> {
-        unsafe { self.as_inner_unchecked().poll_capacity(cx) }
-    }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<h2::Reason, h2::Error>> {
-        unsafe { self.as_inner_unchecked().poll_reset(cx) }
-    }
-
-    fn write(&mut self, buf: &[u8], end_of_stream: bool) -> Result<(), io::Error> {
-        let send_buf = SendBuf::Cursor(Cursor::new(buf.into()));
-        unsafe {
-            self.as_inner_unchecked()
-                .send_data(send_buf, end_of_stream)
-                .map_err(h2_to_io_error)
-        }
-    }
-
-    unsafe fn as_inner_unchecked(&mut self) -> &mut SendStream<SendBuf<B>> {
-        &mut *(&mut self.0 as *mut _ as *mut _)
-    }
-}
-
-#[repr(transparent)]
-struct Neutered<B> {
-    _inner: B,
-    impossible: Impossible,
-}
-
-enum Impossible {}
-
-unsafe impl<B> Send for Neutered<B> {}
-
-impl<B> Buf for Neutered<B> {
-    fn remaining(&self) -> usize {
-        match self.impossible {}
-    }
-
-    fn chunk(&self) -> &[u8] {
-        match self.impossible {}
-    }
-
-    fn advance(&mut self, _cnt: usize) {
-        match self.impossible {}
     }
 }

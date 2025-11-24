@@ -1,6 +1,6 @@
 //! Asynchronous Services
 //!
-//! A [`Service`](Service) is a trait representing an asynchronous
+//! A [`Service`] is a trait representing an asynchronous
 //! function of a request to a response. It's similar to
 //! `async fn(Request) -> Result<Response, Error>`.
 //!
@@ -17,7 +17,7 @@
 //! to a single connection. It defines how to respond to **all** requests that
 //! connection will receive.
 //!
-//! The helper [`service_fn`](service_fn) should be sufficient for most cases, but
+//! The helper [`service_fn`] should be sufficient for most cases, but
 //! if you need to implement `Service` for a type manually, you can follow the example
 //! in `service_struct_impl.rs`.
 
@@ -25,12 +25,6 @@ mod http;
 mod service;
 mod util;
 
-#[cfg(all(any(feature = "http1", feature = "http2"), feature = "server"))]
 pub use self::http::HttpService;
-#[cfg(all(
-    any(feature = "http1", feature = "http2"),
-    any(feature = "server", feature = "client")
-))]
 pub use self::service::Service;
-
 pub use self::util::service_fn;

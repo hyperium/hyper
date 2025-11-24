@@ -1,23 +1,27 @@
 use std::fmt;
+#[cfg(feature = "server")]
+use std::future::Future;
 use std::io;
-use std::marker::PhantomData;
+use std::marker::{PhantomData, Unpin};
+use std::pin::Pin;
+use std::task::{Context, Poll};
 #[cfg(feature = "server")]
 use std::time::Duration;
 
+use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
-use http::header::{HeaderValue, CONNECTION};
+use futures_core::ready;
+use http::header::{HeaderValue, CONNECTION, TE};
 use http::{HeaderMap, Method, Version};
+use http_body::Frame;
 use httparse::ParserConfig;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{debug, error, trace};
 
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
 #[cfg(feature = "server")]
 use crate::common::time::Time;
-use crate::common::{task, Pin, Poll, Unpin};
-use crate::headers::connection_keep_alive;
+use crate::headers;
 use crate::proto::{BodyLength, MessageHead};
 #[cfg(feature = "server")]
 use crate::rt::Sleep;
@@ -25,7 +29,7 @@ use crate::rt::Sleep;
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
 
 /// This handles a connection, which will have been established over an
-/// `AsyncRead + AsyncWrite` (like a socket), and will likely include multiple
+/// `Read + Write` (like a socket), and will likely include multiple
 /// `Transaction`s over HTTP.
 ///
 /// The connection will determine when a message begins and ends as well as
@@ -39,7 +43,7 @@ pub(crate) struct Conn<I, B, T> {
 
 impl<I, B, T> Conn<I, B, T>
 where
-    I: AsyncRead + AsyncWrite + Unpin,
+    I: Read + Write + Unpin,
     B: Buf,
     T: Http1Transaction,
 {
@@ -53,6 +57,7 @@ where
                 keep_alive: KA::Busy,
                 method: None,
                 h1_parser_config: ParserConfig::default(),
+                h1_max_headers: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "server")]
@@ -60,13 +65,15 @@ where
                 #[cfg(feature = "server")]
                 h1_header_read_timeout_running: false,
                 #[cfg(feature = "server")]
+                date_header: true,
+                #[cfg(feature = "server")]
                 timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
                 title_case_headers: false,
                 h09_responses: false,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: None,
                 notify_read: false,
                 reading: Reading::Init,
@@ -75,6 +82,7 @@ where
                 // We assume a modern world where the remote speaks HTTP/1.1.
                 // If they tell us otherwise, we'll downgrade in `read_head`.
                 version: Version::HTTP_11,
+                allow_trailer_fields: false,
             },
             _marker: PhantomData,
         }
@@ -107,7 +115,6 @@ where
         self.io.set_write_strategy_flatten();
     }
 
-    #[cfg(feature = "client")]
     pub(crate) fn set_h1_parser_config(&mut self, parser_config: ParserConfig) {
         self.state.h1_parser_config = parser_config;
     }
@@ -130,6 +137,10 @@ where
         self.state.h09_responses = true;
     }
 
+    pub(crate) fn set_http1_max_headers(&mut self, val: usize) {
+        self.state.h1_max_headers = Some(val);
+    }
+
     #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
@@ -138,6 +149,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_allow_half_close(&mut self) {
         self.state.allow_half_close = true;
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn disable_date_header(&mut self) {
+        self.state.date_header = false;
     }
 
     pub(crate) fn into_inner(self) -> (I, Bytes) {
@@ -169,10 +185,17 @@ where
     }
 
     pub(crate) fn can_read_body(&self) -> bool {
-        match self.state.reading {
-            Reading::Body(..) | Reading::Continue(..) => true,
-            _ => false,
-        }
+        matches!(
+            self.state.reading,
+            Reading::Body(..) | Reading::Continue(..)
+        )
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn has_initial_read_write_state(&self) -> bool {
+        matches!(self.state.reading, Reading::Init)
+            && matches!(self.state.writing, Writing::Init)
+            && self.io.read_buf().is_empty()
     }
 
     fn should_error_on_eof(&self) -> bool {
@@ -187,36 +210,71 @@ where
 
     pub(super) fn poll_read_head(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<Option<crate::Result<(MessageHead<T::Incoming>, DecodedLength, Wants)>>> {
         debug_assert!(self.can_read_head());
         trace!("Conn::read_head");
 
-        let msg = match ready!(self.io.parse::<T>(
+        #[cfg(feature = "server")]
+        if !self.state.h1_header_read_timeout_running {
+            if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout {
+                let deadline = self.state.timer.now() + h1_header_read_timeout;
+                self.state.h1_header_read_timeout_running = true;
+                match self.state.h1_header_read_timeout_fut {
+                    Some(ref mut h1_header_read_timeout_fut) => {
+                        trace!("resetting h1 header read timeout timer");
+                        self.state.timer.reset(h1_header_read_timeout_fut, deadline);
+                    }
+                    None => {
+                        trace!("setting h1 header read timeout timer");
+                        self.state.h1_header_read_timeout_fut =
+                            Some(self.state.timer.sleep_until(deadline));
+                    }
+                }
+            }
+        }
+
+        let msg = match self.io.parse::<T>(
             cx,
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
-                #[cfg(feature = "server")]
-                h1_header_read_timeout: self.state.h1_header_read_timeout,
-                #[cfg(feature = "server")]
-                h1_header_read_timeout_fut: &mut self.state.h1_header_read_timeout_fut,
-                #[cfg(feature = "server")]
-                h1_header_read_timeout_running: &mut self.state.h1_header_read_timeout_running,
-                #[cfg(feature = "server")]
-                timer: self.state.timer.clone(),
+                h1_max_headers: self.state.h1_max_headers,
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
                 h09_responses: self.state.h09_responses,
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 on_informational: &mut self.state.on_informational,
+            },
+        ) {
+            Poll::Ready(Ok(msg)) => msg,
+            Poll::Ready(Err(e)) => return self.on_read_head_error(e),
+            Poll::Pending => {
+                #[cfg(feature = "server")]
+                if self.state.h1_header_read_timeout_running {
+                    if let Some(ref mut h1_header_read_timeout_fut) =
+                        self.state.h1_header_read_timeout_fut
+                    {
+                        if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
+                            self.state.h1_header_read_timeout_running = false;
+
+                            warn!("read header from client timeout");
+                            return Poll::Ready(Some(Err(crate::Error::new_header_timeout())));
+                        }
+                    }
+                }
+
+                return Poll::Pending;
             }
-        )) {
-            Ok(msg) => msg,
-            Err(e) => return self.on_read_head_error(e),
         };
+
+        #[cfg(feature = "server")]
+        {
+            self.state.h1_header_read_timeout_running = false;
+            self.state.h1_header_read_timeout_fut = None;
+        }
 
         // Note: don't deconstruct `msg` into local variables, it appears
         // the optimizer doesn't remove the extra copies.
@@ -227,7 +285,7 @@ where
         self.state.h09_responses = false;
 
         // Drop any OnInformational callbacks, we're done there!
-        #[cfg(feature = "ffi")]
+        #[cfg(feature = "client")]
         {
             self.state.on_informational = None;
         }
@@ -250,12 +308,28 @@ where
             if !T::should_read_first() {
                 self.try_keep_alive(cx);
             }
-        } else if msg.expect_continue {
-            self.state.reading = Reading::Continue(Decoder::new(msg.decode));
+        } else if msg.expect_continue && msg.head.version.gt(&Version::HTTP_10) {
+            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            self.state.reading = Reading::Continue(Decoder::new(
+                msg.decode,
+                self.state.h1_max_headers,
+                h1_max_header_size,
+            ));
             wants = wants.add(Wants::EXPECT);
         } else {
-            self.state.reading = Reading::Body(Decoder::new(msg.decode));
+            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            self.state.reading = Reading::Body(Decoder::new(
+                msg.decode,
+                self.state.h1_max_headers,
+                h1_max_header_size,
+            ));
         }
+
+        self.state.allow_trailer_fields = msg
+            .head
+            .headers
+            .get(TE)
+            .map_or(false, |te_header| te_header == "trailers");
 
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }
@@ -288,34 +362,42 @@ where
 
     pub(crate) fn poll_read_body(
         &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<Option<io::Result<Bytes>>> {
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<io::Result<Frame<Bytes>>>> {
         debug_assert!(self.can_read_body());
 
         let (reading, ret) = match self.state.reading {
             Reading::Body(ref mut decoder) => {
                 match ready!(decoder.decode(cx, &mut self.io)) {
-                    Ok(slice) => {
-                        let (reading, chunk) = if decoder.is_eof() {
-                            debug!("incoming body completed");
-                            (
-                                Reading::KeepAlive,
-                                if !slice.is_empty() {
-                                    Some(Ok(slice))
-                                } else {
-                                    None
-                                },
-                            )
-                        } else if slice.is_empty() {
-                            error!("incoming body unexpectedly ended");
-                            // This should be unreachable, since all 3 decoders
-                            // either set eof=true or return an Err when reading
-                            // an empty slice...
-                            (Reading::Closed, None)
+                    Ok(frame) => {
+                        if frame.is_data() {
+                            let slice = frame.data_ref().unwrap_or_else(|| unreachable!());
+                            let (reading, maybe_frame) = if decoder.is_eof() {
+                                debug!("incoming body completed");
+                                (
+                                    Reading::KeepAlive,
+                                    if !slice.is_empty() {
+                                        Some(Ok(frame))
+                                    } else {
+                                        None
+                                    },
+                                )
+                            } else if slice.is_empty() {
+                                error!("incoming body unexpectedly ended");
+                                // This should be unreachable, since all 3 decoders
+                                // either set eof=true or return an Err when reading
+                                // an empty slice...
+                                (Reading::Closed, None)
+                            } else {
+                                return Poll::Ready(Some(Ok(frame)));
+                            };
+                            (reading, Poll::Ready(maybe_frame))
+                        } else if frame.is_trailers() {
+                            (Reading::Closed, Poll::Ready(Some(Ok(frame))))
                         } else {
-                            return Poll::Ready(Some(Ok(slice)));
-                        };
-                        (reading, Poll::Ready(chunk))
+                            trace!("discarding unknown frame");
+                            (Reading::Closed, Poll::Ready(None))
+                        }
                     }
                     Err(e) => {
                         debug!("incoming body decode error: {}", e);
@@ -349,10 +431,7 @@ where
         ret
     }
 
-    pub(crate) fn poll_read_keep_alive(
-        &mut self,
-        cx: &mut task::Context<'_>,
-    ) -> Poll<crate::Result<()>> {
+    pub(crate) fn poll_read_keep_alive(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body());
 
         if self.is_read_closed() {
@@ -375,7 +454,7 @@ where
     //
     // This should only be called for Clients wanting to enter the idle
     // state.
-    fn require_empty_read(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn require_empty_read(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(!self.is_mid_message());
         debug_assert!(T::is_client());
@@ -408,7 +487,7 @@ where
         Poll::Ready(Err(crate::Error::new_unexpected_message()))
     }
 
-    fn mid_message_detect_eof(&mut self, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
+    fn mid_message_detect_eof(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(self.is_mid_message());
 
@@ -427,18 +506,18 @@ where
         }
     }
 
-    fn force_io_read(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<usize>> {
+    fn force_io_read(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         debug_assert!(!self.state.is_read_closed());
 
         let result = ready!(self.io.poll_read_from_io(cx));
         Poll::Ready(result.map_err(|e| {
-            trace!("force_io_read; io error = {:?}", e);
+            trace!(error = %e, "force_io_read; io error");
             self.state.close();
             e
         }))
     }
 
-    fn maybe_notify(&mut self, cx: &mut task::Context<'_>) {
+    fn maybe_notify(&mut self, cx: &mut Context<'_>) {
         // its possible that we returned NotReady from poll() without having
         // exhausted the underlying Io. We would have done this when we
         // determined we couldn't keep reading until we knew how writing
@@ -485,7 +564,7 @@ where
         }
     }
 
-    fn try_keep_alive(&mut self, cx: &mut task::Context<'_>) {
+    fn try_keep_alive(&mut self, cx: &mut Context<'_>) {
         self.state.try_keep_alive::<T>();
         self.maybe_notify(cx);
     }
@@ -546,6 +625,8 @@ where
                 keep_alive: self.state.wants_keep_alive(),
                 req_method: &mut self.state.method,
                 title_case_headers: self.state.title_case_headers,
+                #[cfg(feature = "server")]
+                date_header: self.state.date_header,
             },
             buf,
         ) {
@@ -554,10 +635,10 @@ where
                 debug_assert!(head.headers.is_empty());
                 self.state.cached_headers = Some(head.headers);
 
-                #[cfg(feature = "ffi")]
+                #[cfg(feature = "client")]
                 {
                     self.state.on_informational =
-                        head.extensions.remove::<crate::ffi::OnInformational>();
+                        head.extensions.remove::<crate::ext::OnInformational>();
                 }
 
                 Some(encoder)
@@ -575,8 +656,7 @@ where
         let outgoing_is_keep_alive = head
             .headers
             .get(CONNECTION)
-            .map(connection_keep_alive)
-            .unwrap_or(false);
+            .map_or(false, headers::connection_keep_alive);
 
         if !outgoing_is_keep_alive {
             match head.version {
@@ -599,12 +679,21 @@ where
     // If we know the remote speaks an older version, we try to fix up any messages
     // to work with our older peer.
     fn enforce_version(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        if let Version::HTTP_10 = self.state.version {
-            // Fixes response or connection when keep-alive header is not present
-            self.fix_keep_alive(head);
-            // If the remote only knows HTTP/1.0, we should force ourselves
-            // to do only speak HTTP/1.0 as well.
-            head.version = Version::HTTP_10;
+        match self.state.version {
+            Version::HTTP_10 => {
+                // Fixes response or connection when keep-alive header is not present
+                self.fix_keep_alive(head);
+                // If the remote only knows HTTP/1.0, we should force ourselves
+                // to do only speak HTTP/1.0 as well.
+                head.version = Version::HTTP_10;
+            }
+            Version::HTTP_11 => {
+                if let KA::Disabled = self.state.keep_alive.status() {
+                    head.headers
+                        .insert(CONNECTION, HeaderValue::from_static("close"));
+                }
+            }
+            _ => (),
         }
         // If the remote speaks HTTP/1.1, then it *should* be fine with
         // both HTTP/1.0 and HTTP/1.1 from us. So again, we just let
@@ -634,6 +723,31 @@ where
         };
 
         self.state.writing = state;
+    }
+
+    pub(crate) fn write_trailers(&mut self, trailers: HeaderMap) {
+        if T::is_server() && !self.state.allow_trailer_fields {
+            debug!("trailers not allowed to be sent");
+            return;
+        }
+        debug_assert!(self.can_write_body() && self.can_buffer_body());
+
+        match self.state.writing {
+            Writing::Body(ref encoder) => {
+                if let Some(enc_buf) =
+                    encoder.encode_trailers(trailers, self.state.title_case_headers)
+                {
+                    self.io.buffer(enc_buf);
+
+                    self.state.writing = if encoder.is_last() || encoder.is_close_delimited() {
+                        Writing::Closed
+                    } else {
+                        Writing::KeepAlive
+                    };
+                }
+            }
+            _ => unreachable!("write_trailers invalid state: {:?}", self.state.writing),
+        }
     }
 
     pub(crate) fn write_body_and_end(&mut self, chunk: B) {
@@ -710,14 +824,14 @@ where
         Err(err)
     }
 
-    pub(crate) fn poll_flush(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(Pin::new(&mut self.io).poll_flush(cx))?;
         self.try_keep_alive(cx);
         trace!("flushed({}): {:?}", T::LOG, self.state);
         Poll::Ready(Ok(()))
     }
 
-    pub(crate) fn poll_shutdown(&mut self, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
             Ok(()) => {
                 trace!("shut down IO complete");
@@ -731,7 +845,7 @@ where
     }
 
     /// If the read side can be cheaply drained, do so. Otherwise, close.
-    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut task::Context<'_>) {
+    pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut Context<'_>) {
         if let Reading::Continue(ref decoder) = self.state.reading {
             // skip sending the 100-continue
             // just move forward to a read, in case a tiny body was included
@@ -742,7 +856,9 @@ where
 
         // If still in Reading::Body, just give up
         match self.state.reading {
-            Reading::Init | Reading::KeepAlive => trace!("body drained"),
+            Reading::Init | Reading::KeepAlive => {
+                trace!("body drained")
+            }
             _ => self.close_read(),
         }
     }
@@ -807,12 +923,15 @@ struct State {
     /// a body or not.
     method: Option<Method>,
     h1_parser_config: ParserConfig,
+    h1_max_headers: Option<usize>,
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "server")]
     h1_header_read_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
     #[cfg(feature = "server")]
     h1_header_read_timeout_running: bool,
+    #[cfg(feature = "server")]
+    date_header: bool,
     #[cfg(feature = "server")]
     timer: Time,
     preserve_header_case: bool,
@@ -823,8 +942,8 @@ struct State {
     /// If set, called with each 1xx informational response received for
     /// the current request. MUST be unset after a non-1xx response is
     /// received.
-    #[cfg(feature = "ffi")]
-    on_informational: Option<crate::ffi::OnInformational>,
+    #[cfg(feature = "client")]
+    on_informational: Option<crate::ext::OnInformational>,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,
@@ -836,6 +955,8 @@ struct State {
     upgrade: Option<crate::upgrade::Pending>,
     /// Either HTTP/1.0 or 1.1 connection
     version: Version,
+    /// Flag to track if trailer fields are allowed to be sent
+    allow_trailer_fields: bool,
 }
 
 #[derive(Debug)]
@@ -897,17 +1018,12 @@ impl std::ops::BitAndAssign<bool> for KA {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 enum KA {
     Idle,
+    #[default]
     Busy,
     Disabled,
-}
-
-impl Default for KA {
-    fn default() -> KA {
-        KA::Busy
-    }
 }
 
 impl KA {
@@ -949,11 +1065,7 @@ impl State {
     }
 
     fn wants_keep_alive(&self) -> bool {
-        if let KA::Disabled = self.keep_alive.status() {
-            false
-        } else {
-            true
-        }
+        !matches!(self.keep_alive.status(), KA::Disabled)
     }
 
     fn try_keep_alive<T: Http1Transaction>(&mut self) {
@@ -1010,6 +1122,14 @@ impl State {
         if !T::should_read_first() {
             self.notify_read = true;
         }
+
+        #[cfg(feature = "server")]
+        if self.h1_header_read_timeout.is_some() {
+            // Next read will start and poll the header read timeout,
+            // so we can close the connection if another header isn't
+            // received in a timely manner.
+            self.notify_read = true;
+        }
     }
 
     fn is_idle(&self) -> bool {
@@ -1037,12 +1157,13 @@ mod tests {
     #[bench]
     fn bench_read_head_short(b: &mut ::test::Bencher) {
         use super::*;
+        use crate::common::io::Compat;
         let s = b"GET / HTTP/1.1\r\nHost: localhost:8080\r\n\r\n";
         let len = s.len();
         b.bytes = len as u64;
 
         // an empty IO, we'll be skipping and using the read buffer anyways
-        let io = tokio_test::io::Builder::new().build();
+        let io = Compat(tokio_test::io::Builder::new().build());
         let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ServerTransaction>::new(io);
         *conn.io.read_buf_mut() = ::bytes::BytesMut::from(&s[..]);
         conn.state.cached_headers = Some(HeaderMap::with_capacity(2));

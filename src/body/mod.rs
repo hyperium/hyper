@@ -7,12 +7,17 @@
 //!
 //! There are two pieces to this in hyper:
 //!
-//! - **The [`Body`](Body) trait** describes all possible bodies.
+//! - **The [`Body`] trait** describes all possible bodies.
 //!   hyper allows any body type that implements `Body`, allowing
 //!   applications to have fine-grained control over their streaming.
-//! - **The [`Incoming`](Incoming) concrete type**, which is an implementation of
-//!   `Body`, and returned by hyper as a "receive stream" (so, for server
+//! - **The [`Incoming`] concrete type**, which is an implementation
+//!   of `Body`, and returned by hyper as a "receive stream" (so, for server
 //!   requests and client responses).
+//!
+//! There are additional implementations available in [`http-body-util`][],
+//! such as a `Full` or `Empty` body.
+//!
+//! [`http-body-util`]: https://docs.rs/http-body-util
 
 pub use bytes::{Buf, Bytes};
 pub use http_body::Body;
@@ -21,11 +26,19 @@ pub use http_body::SizeHint;
 
 pub use self::incoming::Incoming;
 
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 pub(crate) use self::incoming::Sender;
+#[cfg(all(
+    any(feature = "http1", feature = "http2"),
+    any(feature = "client", feature = "server")
+))]
 pub(crate) use self::length::DecodedLength;
 
 mod incoming;
+#[cfg(all(
+    any(feature = "http1", feature = "http2"),
+    any(feature = "client", feature = "server")
+))]
 mod length;
 
 fn _assert_send_sync() {

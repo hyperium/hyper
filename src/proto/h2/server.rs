@@ -1,30 +1,31 @@
 use std::error::Error as StdError;
-use std::marker::Unpin;
-
+use std::future::Future;
+use std::pin::Pin;
+use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
+use futures_core::ready;
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
 use http::{Method, Request};
 use pin_project_lite::pin_project;
-use tokio::io::{AsyncRead, AsyncWrite};
-use tracing::{debug, trace, warn};
 
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
-use crate::rt::bounds::Http2ConnExec;
+use crate::common::date;
+use crate::common::io::Compat;
 use crate::common::time::Time;
-use crate::common::{date, task, Future, Pin, Poll};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
-use crate::proto::h2::{H2Upgraded, UpgradedSendStream};
 use crate::proto::Dispatched;
+use crate::rt::bounds::{Http2ServerConnExec, Http2UpgradedExec};
+use crate::rt::{Read, Write};
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
-use crate::{Response};
+use crate::Response;
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -36,8 +37,8 @@ const DEFAULT_CONN_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_STREAM_WINDOW: u32 = 1024 * 1024; // 1mb
 const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
-                                                     // 16 MB "sane default" taken from golang http2
-const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 16 << 20;
+const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 1024 * 16; // 16kb
+const DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS: usize = 1024;
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -47,10 +48,13 @@ pub(crate) struct Config {
     pub(crate) max_frame_size: u32,
     pub(crate) enable_connect_protocol: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
+    pub(crate) max_pending_accept_reset_streams: Option<usize>,
+    pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
     pub(crate) max_send_buffer_size: usize,
     pub(crate) max_header_list_size: u32,
+    pub(crate) date_header: bool,
 }
 
 impl Default for Config {
@@ -61,11 +65,14 @@ impl Default for Config {
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             enable_connect_protocol: false,
-            max_concurrent_streams: None,
+            max_concurrent_streams: Some(200),
+            max_pending_accept_reset_streams: None,
+            max_local_error_reset_streams: Some(DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS),
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_header_list_size: DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE,
+            date_header: true,
         }
     }
 }
@@ -80,6 +87,8 @@ pin_project! {
         timer: Time,
         service: S,
         state: State<T, B>,
+        date_header: bool,
+        close_pending: bool
     }
 }
 
@@ -89,10 +98,9 @@ where
 {
     Handshaking {
         ping_config: ping::Config,
-        hs: Handshake<T, SendBuf<B::Data>>,
+        hs: Handshake<Compat<T>, SendBuf<B::Data>>,
     },
     Serving(Serving<T, B>),
-    Closed,
 }
 
 struct Serving<T, B>
@@ -100,17 +108,18 @@ where
     B: Body,
 {
     ping: Option<(ping::Recorder, ping::Ponger)>,
-    conn: Connection<T, SendBuf<B::Data>>,
+    conn: Connection<Compat<T>, SendBuf<B::Data>>,
     closing: Option<crate::Error>,
+    date_header: bool,
 }
 
 impl<T, S, B, E> Server<T, S, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: Read + Write + Unpin,
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     pub(crate) fn new(
         io: T,
@@ -125,14 +134,18 @@ where
             .initial_connection_window_size(config.initial_conn_window_size)
             .max_frame_size(config.max_frame_size)
             .max_header_list_size(config.max_header_list_size)
+            .max_local_error_reset_streams(config.max_local_error_reset_streams)
             .max_send_buffer_size(config.max_send_buffer_size);
         if let Some(max) = config.max_concurrent_streams {
             builder.max_concurrent_streams(max);
         }
+        if let Some(max) = config.max_pending_accept_reset_streams {
+            builder.max_pending_accept_reset_streams(max);
+        }
         if config.enable_connect_protocol {
             builder.enable_connect_protocol();
         }
-        let handshake = builder.handshake(io);
+        let handshake = builder.handshake(Compat::new(io));
 
         let bdp = if config.adaptive_window {
             Some(config.initial_stream_window_size)
@@ -157,6 +170,8 @@ where
                 hs: handshake,
             },
             service,
+            date_header: config.date_header,
+            close_pending: false,
         }
     }
 
@@ -164,33 +179,28 @@ where
         trace!("graceful_shutdown");
         match self.state {
             State::Handshaking { .. } => {
-                // fall-through, to replace state with Closed
+                self.close_pending = true;
             }
             State::Serving(ref mut srv) => {
                 if srv.closing.is_none() {
                     srv.conn.graceful_shutdown();
                 }
-                return;
-            }
-            State::Closed => {
-                return;
             }
         }
-        self.state = State::Closed;
     }
 }
 
 impl<T, S, B, E> Future for Server<T, S, B, E>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: Read + Write + Unpin,
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     B: Body + 'static,
-    E: Http2ConnExec<S::Future, B>,
+    E: Http2ServerConnExec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let me = &mut *self;
         loop {
             let next = match me.state {
@@ -209,15 +219,15 @@ where
                         ping,
                         conn,
                         closing: None,
+                        date_header: me.date_header,
                     })
                 }
                 State::Serving(ref mut srv) => {
-                    ready!(srv.poll_server(cx, &mut me.service, &mut me.exec))?;
-                    return Poll::Ready(Ok(Dispatched::Shutdown));
-                }
-                State::Closed => {
                     // graceful_shutdown was called before handshaking finished,
-                    // nothing to do here...
+                    if me.close_pending && srv.closing.is_none() {
+                        srv.conn.graceful_shutdown();
+                    }
+                    ready!(srv.poll_server(cx, &mut me.service, &mut me.exec))?;
                     return Poll::Ready(Ok(Dispatched::Shutdown));
                 }
             };
@@ -228,19 +238,19 @@ where
 
 impl<T, B> Serving<T, B>
 where
-    T: AsyncRead + AsyncWrite + Unpin,
+    T: Read + Write + Unpin,
     B: Body + 'static,
 {
     fn poll_server<S, E>(
         &mut self,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         service: &mut S,
         exec: &mut E,
     ) -> Poll<crate::Result<()>>
     where
         S: HttpService<IncomingBody, ResBody = B>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        E: Http2ConnExec<S::Future, B>,
+        E: Http2ServerConnExec<S::Future, B>,
     {
         if self.closing.is_none() {
             loop {
@@ -292,7 +302,14 @@ where
                             req.extensions_mut().insert(Protocol::from_inner(protocol));
                         }
 
-                        let fut = H2Stream::new(service.call(req), connect_parts, respond);
+                        let fut = H2Stream::new(
+                            service.call(req),
+                            connect_parts,
+                            respond,
+                            self.date_header,
+                            exec.clone(),
+                        );
+
                         exec.execute_h2stream(fut);
                     }
                     Some(Err(e)) => {
@@ -321,7 +338,7 @@ where
         Poll::Ready(Err(self.closing.take().expect("polled after error")))
     }
 
-    fn poll_ping(&mut self, cx: &mut task::Context<'_>) {
+    fn poll_ping(&mut self, cx: &mut Context<'_>) {
         if let Some((_, ref mut estimator)) = self.ping {
             match estimator.poll(cx) {
                 Poll::Ready(ping::Ponged::SizeUpdate(wnd)) => {
@@ -340,13 +357,15 @@ where
 
 pin_project! {
     #[allow(missing_debug_implementations)]
-    pub struct H2Stream<F, B>
+    pub struct H2Stream<F, B, E>
     where
         B: Body,
     {
         reply: SendResponse<SendBuf<B::Data>>,
         #[pin]
         state: H2StreamState<F, B>,
+        date_header: bool,
+        exec: E,
     }
 }
 
@@ -374,7 +393,7 @@ struct ConnectParts {
     recv_stream: RecvStream,
 }
 
-impl<F, B> H2Stream<F, B>
+impl<F, B, E> H2Stream<F, B, E>
 where
     B: Body,
 {
@@ -382,10 +401,14 @@ where
         fut: F,
         connect_parts: Option<ConnectParts>,
         respond: SendResponse<SendBuf<B::Data>>,
-    ) -> H2Stream<F, B> {
+        date_header: bool,
+        exec: E,
+    ) -> H2Stream<F, B, E> {
         H2Stream {
             reply: respond,
             state: H2StreamState::Service { fut, connect_parts },
+            date_header,
+            exec,
         }
     }
 }
@@ -403,16 +426,17 @@ macro_rules! reply {
     }};
 }
 
-impl<F, B, E> H2Stream<F, B>
+impl<F, B, Ex, E> H2Stream<F, B, Ex>
 where
     F: Future<Output = Result<Response<B>, E>>,
     B: Body,
     B::Data: 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    Ex: Http2UpgradedExec<B::Data>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
-    fn poll2(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<crate::Result<()>> {
-        let mut me = self.project();
+    fn poll2(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
+        let mut me = self.as_mut().project();
         loop {
             let next = match me.state.as_mut().project() {
                 H2StreamStateProj::Service {
@@ -444,10 +468,12 @@ where
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(res.headers_mut(), false);
 
-                    // set Date header if it isn't already set...
-                    res.headers_mut()
-                        .entry(::http::header::DATE)
-                        .or_insert_with(date::update_and_header_value);
+                    // set Date header if it isn't already set if instructed
+                    if *me.date_header {
+                        res.headers_mut()
+                            .entry(::http::header::DATE)
+                            .or_insert_with(date::update_and_header_value);
+                    }
 
                     if let Some(connect_parts) = connect_parts.take() {
                         if res.status().is_success() {
@@ -458,16 +484,23 @@ where
                                 me.reply.send_reset(h2::Reason::INTERNAL_ERROR);
                                 return Poll::Ready(Err(crate::Error::new_user_header()));
                             }
+                            if res
+                                .headers_mut()
+                                .remove(::http::header::CONTENT_LENGTH)
+                                .is_some()
+                            {
+                                warn!("successful response to CONNECT request disallows content-length header");
+                            }
                             let send_stream = reply!(me, res, false);
-                            connect_parts.pending.fulfill(Upgraded::new(
-                                H2Upgraded {
-                                    ping: connect_parts.ping,
-                                    recv_stream: connect_parts.recv_stream,
-                                    send_stream: unsafe { UpgradedSendStream::new(send_stream) },
-                                    buf: Bytes::new(),
-                                },
-                                Bytes::new(),
-                            ));
+                            let (h2_up, up_task) = super::upgrade::pair(
+                                send_stream,
+                                connect_parts.recv_stream,
+                                connect_parts.ping,
+                            );
+                            connect_parts
+                                .pending
+                                .fulfill(Upgraded::new(h2_up, Bytes::new()));
+                            self.exec.execute_upgrade(up_task);
                             return Poll::Ready(Ok(()));
                         }
                     }
@@ -496,20 +529,21 @@ where
     }
 }
 
-impl<F, B, E> Future for H2Stream<F, B>
+impl<F, B, Ex, E> Future for H2Stream<F, B, Ex>
 where
     F: Future<Output = Result<Response<B>, E>>,
     B: Body,
     B::Data: 'static,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
+    Ex: Http2UpgradedExec<B::Data>,
     E: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = ();
 
-    fn poll(self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         self.poll2(cx).map(|res| {
-            if let Err(e) = res {
-                debug!("stream error: {}", e);
+            if let Err(_e) = res {
+                debug!("stream error: {}", _e);
             }
         })
     }

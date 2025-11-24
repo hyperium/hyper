@@ -1,2 +1,3 @@
 mod tokiort;
-pub use tokiort::{TokioExecutor, TokioTimer};
+#[allow(unused)]
+pub use tokiort::{TokioExecutor, TokioIo, TokioTimer};

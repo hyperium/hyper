@@ -1,23 +1,24 @@
-/// HTTP2 Ping usage
-///
-/// hyper uses HTTP2 pings for two purposes:
-///
-/// 1. Adaptive flow control using BDP
-/// 2. Connection keep-alive
-///
-/// Both cases are optional.
-///
-/// # BDP Algorithm
-///
-/// 1. When receiving a DATA frame, if a BDP ping isn't outstanding:
-///   1a. Record current time.
-///   1b. Send a BDP ping.
-/// 2. Increment the number of received bytes.
-/// 3. When the BDP ping ack is received:
-///   3a. Record duration from sent time.
-///   3b. Merge RTT with a running average.
-///   3c. Calculate bdp as bytes/rtt.
-///   3d. If bdp is over 2/3 max, set new max to bdp and update windows.
+//! HTTP2 Ping usage
+//!
+//! hyper uses HTTP2 pings for two purposes:
+//!
+//! 1. Adaptive flow control using BDP
+//! 2. Connection keep-alive
+//!
+//! Both cases are optional.
+//!
+//! # BDP Algorithm
+//!
+//! 1. When receiving a DATA frame, if a BDP ping isn't outstanding:
+//!    1a. Record current time.
+//!    1b. Send a BDP ping.
+//! 2. Increment the number of received bytes.
+//! 3. When the BDP ping ack is received:
+//!    3a. Record duration from sent time.
+//!    3b. Merge RTT with a running average.
+//!    3c. Calculate bdp as bytes/rtt.
+//!    3d. If bdp is over 2/3 max, set new max to bdp and update windows.
+
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -26,7 +27,6 @@ use std::task::{self, Poll};
 use std::time::{Duration, Instant};
 
 use h2::{Ping, PingPong};
-use tracing::{debug, trace};
 
 use crate::common::time::Time;
 use crate::rt::Sleep;
@@ -37,7 +37,7 @@ pub(super) fn disabled() -> Recorder {
     Recorder { shared: None }
 }
 
-pub(super) fn channel(ping_pong: PingPong, config: Config, __timer: Time) -> (Recorder, Ponger) {
+pub(super) fn channel(ping_pong: PingPong, config: Config, timer: Time) -> (Recorder, Ponger) {
     debug_assert!(
         config.is_enabled(),
         "ping channel requires bdp or keep-alive config",
@@ -51,8 +51,10 @@ pub(super) fn channel(ping_pong: PingPong, config: Config, __timer: Time) -> (Re
         stable_count: 0,
     });
 
+    let now = timer.now();
+
     let (bytes, next_bdp_at) = if bdp.is_some() {
-        (Some(0), Some(Instant::now()))
+        (Some(0), Some(now))
     } else {
         (None, None)
     };
@@ -61,12 +63,12 @@ pub(super) fn channel(ping_pong: PingPong, config: Config, __timer: Time) -> (Re
         interval,
         timeout: config.keep_alive_timeout,
         while_idle: config.keep_alive_while_idle,
-        sleep: __timer.sleep(interval),
+        sleep: timer.sleep(interval),
         state: KeepAliveState::Init,
-        timer: __timer,
+        timer: timer.clone(),
     });
 
-    let last_read_at = keep_alive.as_ref().map(|_| Instant::now());
+    let last_read_at = keep_alive.as_ref().map(|_| now);
 
     let shared = Arc::new(Mutex::new(Shared {
         bytes,
@@ -75,6 +77,7 @@ pub(super) fn channel(ping_pong: PingPong, config: Config, __timer: Time) -> (Re
         ping_pong,
         ping_sent_at: None,
         next_bdp_at,
+        timer,
     }));
 
     (
@@ -130,6 +133,7 @@ struct Shared {
     last_read_at: Option<Instant>,
 
     is_keep_alive_timed_out: bool,
+    timer: Time,
 }
 
 struct Bdp {
@@ -200,7 +204,7 @@ impl Recorder {
         // if not, we don't need to record bytes either
 
         if let Some(ref next_bdp_at) = locked.next_bdp_at {
-            if Instant::now() < *next_bdp_at {
+            if locked.timer.now() < *next_bdp_at {
                 return;
             } else {
                 locked.next_bdp_at = None;
@@ -259,13 +263,13 @@ impl Recorder {
 
 impl Ponger {
     pub(super) fn poll(&mut self, cx: &mut task::Context<'_>) -> Poll<Ponged> {
-        let now = Instant::now();
         let mut locked = self.shared.lock().unwrap();
+        let now = locked.timer.now(); // hoping this is fine to move within the lock
         let is_idle = self.is_idle();
 
         if let Some(ref mut ka) = self.keep_alive {
             ka.maybe_schedule(is_idle, &locked);
-            ka.maybe_ping(cx, &mut locked);
+            ka.maybe_ping(cx, is_idle, &mut locked);
         }
 
         if !locked.is_ping_sent() {
@@ -285,7 +289,7 @@ impl Ponger {
                 if let Some(ref mut ka) = self.keep_alive {
                     locked.update_last_read_at();
                     ka.maybe_schedule(is_idle, &locked);
-                    ka.maybe_ping(cx, &mut locked);
+                    ka.maybe_ping(cx, is_idle, &mut locked);
                 }
 
                 if let Some(ref mut bdp) = self.bdp {
@@ -300,8 +304,8 @@ impl Ponger {
                     }
                 }
             }
-            Poll::Ready(Err(e)) => {
-                debug!("pong error: {}", e);
+            Poll::Ready(Err(_e)) => {
+                debug!("pong error: {}", _e);
             }
             Poll::Pending => {
                 if let Some(ref mut ka) = self.keep_alive {
@@ -329,11 +333,11 @@ impl Shared {
     fn send_ping(&mut self) {
         match self.ping_pong.send_ping(Ping::opaque()) {
             Ok(()) => {
-                self.ping_sent_at = Some(Instant::now());
+                self.ping_sent_at = Some(self.timer.now());
                 trace!("sent ping");
             }
-            Err(err) => {
-                debug!("error sending ping: {}", err);
+            Err(_err) => {
+                debug!("error sending ping: {}", _err);
             }
         }
     }
@@ -344,7 +348,7 @@ impl Shared {
 
     fn update_last_read_at(&mut self) {
         if self.last_read_at.is_some() {
-            self.last_read_at = Some(Instant::now());
+            self.last_read_at = Some(self.timer.now());
         }
     }
 
@@ -449,7 +453,7 @@ impl KeepAlive {
         self.timer.reset(&mut self.sleep, interval);
     }
 
-    fn maybe_ping(&mut self, cx: &mut task::Context<'_>, shared: &mut Shared) {
+    fn maybe_ping(&mut self, cx: &mut task::Context<'_>, is_idle: bool, shared: &mut Shared) {
         match self.state {
             KeepAliveState::Scheduled(at) => {
                 if Pin::new(&mut self.sleep).poll(cx).is_pending() {
@@ -461,10 +465,14 @@ impl KeepAlive {
                     cx.waker().wake_by_ref(); // schedule us again
                     return;
                 }
+                if !self.while_idle && is_idle {
+                    trace!("keep-alive no need to ping when idle and while_idle=false");
+                    return;
+                }
                 trace!("keep-alive interval ({:?}) reached", self.interval);
                 shared.send_ping();
                 self.state = KeepAliveState::PingSent;
-                let timeout = Instant::now() + self.timeout;
+                let timeout = self.timer.now() + self.timeout;
                 self.timer.reset(&mut self.sleep, timeout);
             }
             KeepAliveState::Init | KeepAliveState::PingSent => (),

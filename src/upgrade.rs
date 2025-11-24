@@ -42,23 +42,23 @@
 use std::any::TypeId;
 use std::error::Error as StdError;
 use std::fmt;
+use std::future::Future;
 use std::io;
-use std::marker::Unpin;
+use std::pin::Pin;
+use std::sync::{Arc, Mutex};
+use std::task::{Context, Poll};
 
+use crate::rt::{Read, ReadBufCursor, Write};
 use bytes::Bytes;
-use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
 use tokio::sync::oneshot;
-#[cfg(any(feature = "http1", feature = "http2"))]
-use tracing::trace;
 
 use crate::common::io::Rewind;
-use crate::common::{task, Future, Pin, Poll};
 
 /// An upgraded HTTP connection.
 ///
 /// This type holds a trait object internally of the original IO that
 /// was used to speak HTTP before the upgrade. It can be used directly
-/// as a `Read` or `Write` for convenience.
+/// as a [`Read`] or [`Write`] for convenience.
 ///
 /// Alternatively, if the exact type is known, this can be deconstructed
 /// into its parts.
@@ -69,15 +69,17 @@ pub struct Upgraded {
 /// A future for a possible HTTP upgrade.
 ///
 /// If no upgrade was available, or it doesn't succeed, yields an `Error`.
+#[derive(Clone)]
 pub struct OnUpgrade {
-    rx: Option<oneshot::Receiver<crate::Result<Upgraded>>>,
+    rx: Option<Arc<Mutex<oneshot::Receiver<crate::Result<Upgraded>>>>>,
 }
 
-/// The deconstructed parts of an [`Upgraded`](Upgraded) type.
+/// The deconstructed parts of an [`Upgraded`] type.
 ///
 /// Includes the original IO type, and a read buffer of bytes that the
 /// HTTP state machine may have already read before completing an upgrade.
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct Parts<T> {
     /// The original IO object used before the upgrade.
     pub io: T,
@@ -90,7 +92,6 @@ pub struct Parts<T> {
     /// You will want to check for any existing bytes if you plan to continue
     /// communicating on the IO object.
     pub read_buf: Bytes,
-    _inner: (),
 }
 
 /// Gets a pending HTTP upgrade from this message.
@@ -105,24 +106,38 @@ pub fn on<T: sealed::CanUpgrade>(msg: T) -> OnUpgrade {
     msg.on_upgrade()
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 pub(super) struct Pending {
     tx: oneshot::Sender<crate::Result<Upgraded>>,
 }
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 pub(super) fn pending() -> (Pending, OnUpgrade) {
     let (tx, rx) = oneshot::channel();
-    (Pending { tx }, OnUpgrade { rx: Some(rx) })
+    (
+        Pending { tx },
+        OnUpgrade {
+            rx: Some(Arc::new(Mutex::new(rx))),
+        },
+    )
 }
 
 // ===== impl Upgraded =====
 
 impl Upgraded {
-    #[cfg(any(feature = "http1", feature = "http2", test))]
+    #[cfg(all(
+        any(feature = "client", feature = "server"),
+        any(feature = "http1", feature = "http2")
+    ))]
     pub(super) fn new<T>(io: T, read_buf: Bytes) -> Self
     where
-        T: AsyncRead + AsyncWrite + Unpin + Send + 'static,
+        T: Read + Write + Unpin + Send + 'static,
     {
         Upgraded {
             io: Rewind::new_buffered(Box::new(io), read_buf),
@@ -133,13 +148,12 @@ impl Upgraded {
     ///
     /// On success, returns the downcasted parts. On error, returns the
     /// `Upgraded` back.
-    pub fn downcast<T: AsyncRead + AsyncWrite + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
+    pub fn downcast<T: Read + Write + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
         match io.__hyper_downcast() {
             Ok(t) => Ok(Parts {
                 io: *t,
                 read_buf: buf,
-                _inner: (),
             }),
             Err(io) => Err(Upgraded {
                 io: Rewind::new_buffered(io, buf),
@@ -148,20 +162,20 @@ impl Upgraded {
     }
 }
 
-impl AsyncRead for Upgraded {
+impl Read for Upgraded {
     fn poll_read(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
-        buf: &mut ReadBuf<'_>,
+        cx: &mut Context<'_>,
+        buf: ReadBufCursor<'_>,
     ) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_read(cx, buf)
     }
 }
 
-impl AsyncWrite for Upgraded {
+impl Write for Upgraded {
     fn poll_write(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         buf: &[u8],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write(cx, buf)
@@ -169,17 +183,17 @@ impl AsyncWrite for Upgraded {
 
     fn poll_write_vectored(
         mut self: Pin<&mut Self>,
-        cx: &mut task::Context<'_>,
+        cx: &mut Context<'_>,
         bufs: &[io::IoSlice<'_>],
     ) -> Poll<io::Result<usize>> {
         Pin::new(&mut self.io).poll_write_vectored(cx, bufs)
     }
 
-    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
-    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+    fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         Pin::new(&mut self.io).poll_shutdown(cx)
     }
 
@@ -201,7 +215,7 @@ impl OnUpgrade {
         OnUpgrade { rx: None }
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(super) fn is_none(&self) -> bool {
         self.rx.is_none()
     }
@@ -210,13 +224,17 @@ impl OnUpgrade {
 impl Future for OnUpgrade {
     type Output = Result<Upgraded, crate::Error>;
 
-    fn poll(mut self: Pin<&mut Self>, cx: &mut task::Context<'_>) -> Poll<Self::Output> {
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.rx {
-            Some(ref mut rx) => Pin::new(rx).poll(cx).map(|res| match res {
-                Ok(Ok(upgraded)) => Ok(upgraded),
-                Ok(Err(err)) => Err(err),
-                Err(_oneshot_canceled) => Err(crate::Error::new_canceled().with(UpgradeExpected)),
-            }),
+            Some(ref rx) => Pin::new(&mut *rx.lock().unwrap())
+                .poll(cx)
+                .map(|res| match res {
+                    Ok(Ok(upgraded)) => Ok(upgraded),
+                    Ok(Err(err)) => Err(err),
+                    Err(_oneshot_canceled) => {
+                        Err(crate::Error::new_canceled().with(UpgradeExpected))
+                    }
+                }),
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
     }
@@ -230,7 +248,10 @@ impl fmt::Debug for OnUpgrade {
 
 // ===== impl Pending =====
 
-#[cfg(any(feature = "http1", feature = "http2"))]
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2")
+))]
 impl Pending {
     pub(super) fn fulfill(self, upgraded: Upgraded) {
         trace!("pending upgrade fulfill");
@@ -241,6 +262,7 @@ impl Pending {
     /// Don't fulfill the pending Upgrade, but instead signal that
     /// upgrades are handled manually.
     pub(super) fn manual(self) {
+        #[cfg(any(feature = "http1", feature = "http2"))]
         trace!("pending upgrade handled manually");
         let _ = self.tx.send(Err(crate::Error::new_user_manual_upgrade()));
     }
@@ -265,13 +287,13 @@ impl StdError for UpgradeExpected {}
 
 // ===== impl Io =====
 
-pub(super) trait Io: AsyncRead + AsyncWrite + Unpin + 'static {
+pub(super) trait Io: Read + Write + Unpin + 'static {
     fn __hyper_type_id(&self) -> TypeId {
         TypeId::of::<Self>()
     }
 }
 
-impl<T: AsyncRead + AsyncWrite + Unpin + 'static> Io for T {}
+impl<T: Read + Write + Unpin + 'static> Io for T {}
 
 impl dyn Io + Send {
     fn __hyper_is<T: Io>(&self) -> bool {
@@ -332,6 +354,10 @@ mod sealed {
     }
 }
 
+#[cfg(all(
+    any(feature = "client", feature = "server"),
+    any(feature = "http1", feature = "http2"),
+))]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -340,7 +366,9 @@ mod tests {
     fn upgraded_downcast() {
         let upgraded = Upgraded::new(Mock, Bytes::new());
 
-        let upgraded = upgraded.downcast::<std::io::Cursor<Vec<u8>>>().unwrap_err();
+        let upgraded = upgraded
+            .downcast::<crate::common::io::Compat<std::io::Cursor<Vec<u8>>>>()
+            .unwrap_err();
 
         upgraded.downcast::<Mock>().unwrap();
     }
@@ -348,34 +376,31 @@ mod tests {
     // TODO: replace with tokio_test::io when it can test write_buf
     struct Mock;
 
-    impl AsyncRead for Mock {
+    impl Read for Mock {
         fn poll_read(
             self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
-            _buf: &mut ReadBuf<'_>,
+            _cx: &mut Context<'_>,
+            _buf: ReadBufCursor<'_>,
         ) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_read")
         }
     }
 
-    impl AsyncWrite for Mock {
+    impl Write for Mock {
         fn poll_write(
             self: Pin<&mut Self>,
-            _: &mut task::Context<'_>,
+            _: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
             // panic!("poll_write shouldn't be called");
             Poll::Ready(Ok(buf.len()))
         }
 
-        fn poll_flush(self: Pin<&mut Self>, _cx: &mut task::Context<'_>) -> Poll<io::Result<()>> {
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_flush")
         }
 
-        fn poll_shutdown(
-            self: Pin<&mut Self>,
-            _cx: &mut task::Context<'_>,
-        ) -> Poll<io::Result<()>> {
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
             unreachable!("Mock::poll_shutdown")
         }
     }

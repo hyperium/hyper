@@ -4,13 +4,18 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
-use hyper::client::conn::http1::Builder;
-use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Method, Request, Response};
 
 use tokio::net::{TcpListener, TcpStream};
+
+#[path = "../benches/support/mod.rs"]
+mod support;
+use support::TokioIo;
+
+type ClientBuilder = hyper::client::conn::http1::Builder;
+type ServerBuilder = hyper::server::conn::http1::Builder;
 
 // To try this example:
 // 1. cargo run --example http_proxy
@@ -28,12 +33,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     loop {
         let (stream, _) = listener.accept().await?;
+        let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
+            if let Err(err) = ServerBuilder::new()
                 .preserve_header_case(true)
                 .title_case_headers(true)
-                .serve_connection(stream, service_fn(proxy))
+                .serve_connection(io, service_fn(proxy))
                 .with_upgrades()
                 .await
             {
@@ -85,14 +91,14 @@ async fn proxy(
     } else {
         let host = req.uri().host().expect("uri has no host");
         let port = req.uri().port_u16().unwrap_or(80);
-        let addr = format!("{}:{}", host, port);
 
-        let stream = TcpStream::connect(addr).await.unwrap();
+        let stream = TcpStream::connect((host, port)).await.unwrap();
+        let io = TokioIo::new(stream);
 
-        let (mut sender, conn) = Builder::new()
+        let (mut sender, conn) = ClientBuilder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
-            .handshake(stream)
+            .handshake(io)
             .await?;
         tokio::task::spawn(async move {
             if let Err(err) = conn.await {
@@ -106,7 +112,7 @@ async fn proxy(
 }
 
 fn host_addr(uri: &http::Uri) -> Option<String> {
-    uri.authority().and_then(|auth| Some(auth.to_string()))
+    uri.authority().map(|auth| auth.to_string())
 }
 
 fn empty() -> BoxBody<Bytes, hyper::Error> {
@@ -123,9 +129,10 @@ fn full<T: Into<Bytes>>(chunk: T) -> BoxBody<Bytes, hyper::Error> {
 
 // Create a TCP connection to host:port, build a tunnel between the connection and
 // the upgraded connection
-async fn tunnel(mut upgraded: Upgraded, addr: String) -> std::io::Result<()> {
+async fn tunnel(upgraded: Upgraded, addr: String) -> std::io::Result<()> {
     // Connect to remote server
     let mut server = TcpStream::connect(addr).await?;
+    let mut upgraded = TokioIo::new(upgraded);
 
     // Proxying data
     let (from_client, from_server) =

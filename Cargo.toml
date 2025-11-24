@@ -1,7 +1,7 @@
 [package]
 name = "hyper"
-version = "1.0.0-rc.3"
-description = "A fast and correct HTTP library."
+version = "1.8.1"
+description = "A protective and efficient HTTP library for all."
 readme = "README.md"
 homepage = "https://hyper.rs"
 documentation = "https://docs.rs/hyper"
@@ -10,8 +10,8 @@ license = "MIT"
 authors = ["Sean McArthur <sean@seanmonstar.com>"]
 keywords = ["http", "hyper", "hyperium"]
 categories = ["network-programming", "web-programming::http-client", "web-programming::http-server"]
-edition = "2018"
-rust-version = "1.56" # keep in sync with MSRV.md dev doc
+edition = "2021"
+rust-version = "1.63" # keep in sync with MSRV.md dev doc
 
 include = [
   "Cargo.toml",
@@ -20,31 +20,35 @@ include = [
 ]
 
 [dependencies]
-bytes = "1"
-futures-channel = "0.3"
-futures-util = { version = "0.3", default-features = false }
-http = "0.2"
-http-body = "=1.0.0-rc.2"
-http-body-util = { version = "=0.1.0-rc.2", optional = true }
-httpdate = "1.0"
-httparse = "1.8"
-h2 = { version = "0.3.9", optional = true }
-itoa = "1"
-tracing = { version = "0.1", default-features = false, features = ["std"] }
-pin-project-lite = "0.2.4"
+bytes = "1.2"
+http = "1"
+http-body = "1"
 tokio = { version = "1", features = ["sync"] }
-want = "0.3"
 
 # Optional
 
-libc = { version = "0.2", optional = true }
+atomic-waker = { version = "1.1.2", optional = true }
+futures-channel = { version = "0.3", optional = true }
+futures-core = { version = "0.3.31", optional = true }
+futures-util = { version = "0.3", default-features = false, features = ["alloc"], optional = true }
+h2 = { version = "0.4.2", optional = true }
+http-body-util = { version = "0.1", optional = true }
+httparse = { version = "1.9", optional = true }
+httpdate = { version = "1.0", optional = true }
+itoa = { version = "1", optional = true }
+pin-project-lite = { version = "0.2.4", optional = true }
+pin-utils = { version = "0.1", optional = true } # TODO: replace with std::pin::pin! once MSRV >= 1.68
+smallvec = { version = "1.12", features = ["const_generics", "const_new"], optional = true }
+tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
+want = { version = "0.3", optional = true }
 
 [dev-dependencies]
-futures-util = { version = "0.3", default-features = false, features = ["alloc"] }
-http-body-util = "=0.1.0-rc.2"
-matches = "0.1"
-num_cpus = "1.0"
+form_urlencoded = "1"
+futures-channel = { version = "0.3", features = ["sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["alloc", "sink"] }
+http-body-util = "0.1"
 pretty_env_logger = "0.5"
+pin-project-lite = "0.2.4"
 spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -61,8 +65,7 @@ tokio = { version = "1", features = [
     "test-util",
 ] }
 tokio-test = "0.4"
-tokio-util = { version = "0.7", features = ["codec"] }
-url = "2.2"
+tokio-util = "0.7.10"
 
 [features]
 # Nothing by default
@@ -77,25 +80,43 @@ full = [
 ]
 
 # HTTP versions
-http1 = []
-http2 = ["h2"]
+http1 = ["dep:atomic-waker", "dep:futures-channel", "dep:futures-core", "dep:httparse", "dep:itoa", "dep:pin-utils"]
+http2 = ["dep:futures-channel", "dep:futures-core", "dep:h2"]
 
 # Client/Server
-client = []
-server = []
+client = ["dep:want", "dep:pin-project-lite", "dep:smallvec"]
+server = ["dep:httpdate", "dep:pin-project-lite", "dep:smallvec"]
 
 # C-API support (currently unstable (no semver))
-ffi = ["libc", "http-body-util"]
+ffi = ["dep:http-body-util", "dep:futures-util"]
+capi = []
+
+# Utilize tracing (currently unstable)
+tracing = ["dep:tracing"]
 
 # internal features used in CI
 nightly = []
 
+[lints.rust.unexpected_cfgs]
+level = "warn"
+check-cfg = [
+    'cfg(hyper_unstable_tracing)',
+    'cfg(hyper_unstable_ffi)'
+]
+
 [package.metadata.docs.rs]
-features = ["ffi", "full"]
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "hyper_unstable_ffi"]
+features = ["ffi", "full", "tracing"]
+rustdoc-args = ["--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
 
 [package.metadata.playground]
 features = ["full"]
+
+[package.metadata.capi.header]
+generation = false
+subdirectory = false
+
+[package.metadata.capi.install.include]
+asset = [{ from="capi/include/hyper.h" }]
 
 [profile.release]
 codegen-units = 1
@@ -123,6 +144,11 @@ required-features = ["full"]
 [[example]]
 name = "gateway"
 path = "examples/gateway.rs"
+required-features = ["full"]
+
+[[example]]
+name = "graceful_shutdown"
+path = "examples/graceful_shutdown.rs"
 required-features = ["full"]
 
 [[example]]

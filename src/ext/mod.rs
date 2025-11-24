@@ -1,11 +1,49 @@
-//! HTTP extensions.
+//! Extensions for HTTP messages in Hyper.
+//!
+//! This module provides types and utilities that extend the capabilities of HTTP requests and responses
+//! in Hyper. Extensions are additional pieces of information or features that can be attached to HTTP
+//! messages via the [`http::Extensions`] map, which is
+//! accessible through methods like [`http::Request::extensions`] and [`http::Response::extensions`].
+//!
+//! # What are extensions?
+//!
+//! Extensions allow Hyper to associate extra metadata or behaviors with HTTP messages, beyond the standard
+//! headers and body. These can be used by advanced users and library authors to access protocol-specific
+//! features, track original header casing, handle informational responses, and more.
+//!
+//! # How to access extensions
+//!
+//! Extensions are stored in the `Extensions` map of a request or response. You can access them using:
+//!
+//! ```rust
+//! # let response = http::Response::new(());
+//! if let Some(ext) = response.extensions().get::<hyper::ext::ReasonPhrase>() {
+//!     // use the extension
+//! }
+//! ```
+//!
+//! # Extension Groups
+//!
+//! The extensions in this module can be grouped as follows:
+//!
+//! - **HTTP/1 Reason Phrase**: [`ReasonPhrase`] — Access non-canonical reason phrases in HTTP/1 responses.
+//! - **Informational Responses**: [`on_informational`] — Register callbacks for 1xx HTTP/1 responses on the client.
+//! - **Header Case Tracking**: Internal types for tracking the original casing and order of headers as received.
+//! - **HTTP/2 Protocol Extensions**: [`Protocol`] — Access the `:protocol` pseudo-header for Extended CONNECT in HTTP/2.
+//!
+//! Some extensions are only available for specific protocols (HTTP/1 or HTTP/2) or use cases (client, server, FFI).
+//!
+//! See the documentation on each item for details about its usage and requirements.
 
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 use bytes::Bytes;
-#[cfg(any(feature = "http1", feature = "ffi"))]
+#[cfg(any(
+    all(any(feature = "client", feature = "server"), feature = "http1"),
+    feature = "ffi"
+))]
 use http::header::HeaderName;
-#[cfg(feature = "http1")]
-use http::header::{IntoHeaderName, ValueIter};
-use http::HeaderMap;
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+use http::header::{HeaderMap, IntoHeaderName, ValueIter};
 #[cfg(feature = "ffi")]
 use std::collections::HashMap;
 #[cfg(feature = "http2")]
@@ -16,11 +54,34 @@ mod h1_reason_phrase;
 #[cfg(any(feature = "http1", feature = "ffi"))]
 pub use h1_reason_phrase::ReasonPhrase;
 
+#[cfg(all(feature = "http1", feature = "client"))]
+mod informational;
+#[cfg(all(feature = "http1", feature = "client"))]
+pub use informational::on_informational;
+#[cfg(all(feature = "http1", feature = "client"))]
+pub(crate) use informational::OnInformational;
+#[cfg(all(feature = "http1", feature = "client", feature = "ffi"))]
+pub(crate) use informational::{on_informational_raw, OnInformationalCallback};
+
 #[cfg(feature = "http2")]
-/// Represents the `:protocol` pseudo-header used by
-/// the [Extended CONNECT Protocol].
+/// Extension type representing the `:protocol` pseudo-header in HTTP/2.
 ///
-/// [Extended CONNECT Protocol]: https://datatracker.ietf.org/doc/html/rfc8441#section-4
+/// The `Protocol` extension allows access to the value of the `:protocol` pseudo-header
+/// used by the [Extended CONNECT Protocol](https://datatracker.ietf.org/doc/html/rfc8441#section-4).
+/// This extension is only sent on HTTP/2 CONNECT requests, most commonly with the value `websocket`.
+///
+/// # Example
+///
+/// ```rust
+/// use hyper::ext::Protocol;
+/// use http::{Request, Method, Version};
+///
+/// let mut req = Request::new(());
+/// *req.method_mut() = Method::CONNECT;
+/// *req.version_mut() = Version::HTTP_2;
+/// req.extensions_mut().insert(Protocol::from_static("websocket"));
+/// // Now the request will include the `:protocol` pseudo-header with value "websocket"
+/// ```
 #[derive(Clone, Eq, PartialEq)]
 pub struct Protocol {
     inner: h2::ext::Protocol,
@@ -45,6 +106,7 @@ impl Protocol {
         Self { inner }
     }
 
+    #[cfg(all(feature = "client", feature = "http2"))]
     pub(crate) fn into_inner(self) -> h2::ext::Protocol {
         self.inner
     }
@@ -94,26 +156,30 @@ impl fmt::Debug for Protocol {
 /// ```
 ///
 /// [`preserve_header_case`]: /client/struct.Client.html#method.preserve_header_case
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 #[derive(Clone, Debug)]
 pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
 
-#[cfg(feature = "http1")]
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
+    #[cfg(feature = "client")]
     pub(crate) fn get_all<'a>(
         &'a self,
         name: &HeaderName,
     ) -> impl Iterator<Item = impl AsRef<[u8]> + 'a> + 'a {
-        self.get_all_internal(name).into_iter()
+        self.get_all_internal(name)
     }
 
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
-    pub(crate) fn get_all_internal<'a>(&'a self, name: &HeaderName) -> ValueIter<'_, Bytes> {
+    #[cfg(any(feature = "client", feature = "server"))]
+    pub(crate) fn get_all_internal(&self, name: &HeaderName) -> ValueIter<'_, Bytes> {
         self.0.get_all(name).into_iter()
     }
 
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn default() -> Self {
         Self(Default::default())
     }
@@ -123,6 +189,7 @@ impl HeaderCaseMap {
         self.0.insert(name, orig);
     }
 
+    #[cfg(any(feature = "client", feature = "server"))]
     pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
     where
         N: IntoHeaderName,
@@ -183,7 +250,7 @@ impl OriginalHeaderOrder {
     }
 
     // No doc test is run here because `RUSTFLAGS='--cfg hyper_unstable_ffi'`
-    // is needed to compile. Once ffi is stablized `no_run` should be removed
+    // is needed to compile. Once ffi is stabilized `no_run` should be removed
     // here.
     /// This returns an iterator that provides header names and indexes
     /// in the original order received.

@@ -1,6 +1,6 @@
+use std::ffi::{c_int, c_void};
+
 use bytes::Bytes;
-use libc::{c_int, size_t};
-use std::ffi::c_void;
 
 use super::body::hyper_body;
 use super::error::hyper_code;
@@ -8,25 +8,69 @@ use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::body::Incoming as IncomingBody;
 use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
+use crate::ffi::size_t;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{HeaderMap, Method, Request, Response, Uri};
 
 /// An HTTP request.
+///
+/// Once you've finished constructing a request, you can send it with
+/// `hyper_clientconn_send`.
+///
+/// Methods:
+///
+/// - hyper_request_new:              Construct a new HTTP request.
+/// - hyper_request_headers:          Gets a mutable reference to the HTTP headers of this request
+/// - hyper_request_set_body:         Set the body of the request.
+/// - hyper_request_set_method:       Set the HTTP Method of the request.
+/// - hyper_request_set_uri:          Set the URI of the request.
+/// - hyper_request_set_uri_parts:    Set the URI of the request with separate scheme, authority, and path/query strings.
+/// - hyper_request_set_version:      Set the preferred HTTP version of the request.
+/// - hyper_request_on_informational: Set an informational (1xx) response callback.
+/// - hyper_request_free:             Free an HTTP request.
 pub struct hyper_request(pub(super) Request<IncomingBody>);
 
 /// An HTTP response.
+///
+/// Obtain one of these by making a request with `hyper_clientconn_send`, then
+/// polling the executor unntil you get a `hyper_task` of type
+/// `HYPER_TASK_RESPONSE`. To figure out which request this response
+/// corresponds to, check the userdata of the task, which you should
+/// previously have set to an application-specific identifier for the
+/// request.
+///
+/// Methods:
+///
+/// - hyper_response_status:            Get the HTTP-Status code of this response.
+/// - hyper_response_version:           Get the HTTP version used by this response.
+/// - hyper_response_reason_phrase:     Get a pointer to the reason-phrase of this response.
+/// - hyper_response_reason_phrase_len: Get the length of the reason-phrase of this response.
+/// - hyper_response_headers:           Gets a reference to the HTTP headers of this response.
+/// - hyper_response_body:              Take ownership of the body of this response.
+/// - hyper_response_free:              Free an HTTP response.
 pub struct hyper_response(pub(super) Response<IncomingBody>);
 
 /// An HTTP header map.
 ///
 /// These can be part of a request or response.
+///
+/// Obtain a pointer to read or modify these from `hyper_request_headers`
+/// or `hyper_response_headers`.
+///
+/// Methods:
+///
+/// - hyper_headers_add:     Adds the provided value to the list of the provided name.
+/// - hyper_headers_foreach: Iterates the headers passing each name and value pair to the callback.
+/// - hyper_headers_set:     Sets the header with the provided name to the provided value.
+#[derive(Clone)]
 pub struct hyper_headers {
     pub(super) headers: HeaderMap,
     orig_casing: HeaderCaseMap,
     orig_order: OriginalHeaderOrder,
 }
 
-pub(crate) struct OnInformational {
+#[derive(Clone)]
+struct OnInformational {
     func: hyper_request_on_informational_callback,
     data: UserDataPointer,
 }
@@ -37,13 +81,22 @@ type hyper_request_on_informational_callback = extern "C" fn(*mut c_void, *mut h
 
 ffi_fn! {
     /// Construct a new HTTP request.
+    ///
+    /// The default request has an empty body. To send a body, call `hyper_request_set_body`.
+    ///
+    ///
+    /// To avoid a memory leak, the request must eventually be consumed by
+    /// `hyper_request_free` or `hyper_clientconn_send`.
     fn hyper_request_new() -> *mut hyper_request {
         Box::into_raw(Box::new(hyper_request(Request::new(IncomingBody::empty()))))
     } ?= std::ptr::null_mut()
 }
 
 ffi_fn! {
-    /// Free an HTTP request if not going to send it on a client.
+    /// Free an HTTP request.
+    ///
+    /// This should only be used if the request isn't consumed by
+    /// `hyper_clientconn_send`.
     fn hyper_request_free(req: *mut hyper_request) {
         drop(non_null!(Box::from_raw(req) ?= ()));
     }
@@ -174,7 +227,7 @@ ffi_fn! {
 }
 
 ffi_fn! {
-    /// Gets a reference to the HTTP headers of this request
+    /// Gets a mutable reference to the HTTP headers of this request
     ///
     /// This is not an owned reference, so it should not be accessed after the
     /// `hyper_request` has been consumed.
@@ -186,7 +239,7 @@ ffi_fn! {
 ffi_fn! {
     /// Set the body of the request.
     ///
-    /// The default is an empty body.
+    /// You can get a `hyper_body` by calling `hyper_body_new`.
     ///
     /// This takes ownership of the `hyper_body *`, you must not use it or
     /// free it after setting it on the request.
@@ -215,13 +268,21 @@ ffi_fn! {
     /// be valid after the callback finishes. You must copy any data you wish
     /// to persist.
     fn hyper_request_on_informational(req: *mut hyper_request, callback: hyper_request_on_informational_callback, data: *mut c_void) -> hyper_code {
+        #[cfg(feature = "client")]
+        {
         let ext = OnInformational {
             func: callback,
             data: UserDataPointer(data),
         };
         let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
-        req.0.extensions_mut().insert(ext);
+        crate::ext::on_informational_raw(&mut req.0, ext);
         hyper_code::HYPERE_OK
+        }
+        #[cfg(not(feature = "client"))]
+        {
+        drop((req, callback, data));
+        hyper_code::HYPERE_FEATURE_NOT_ENABLED
+        }
     }
 }
 
@@ -238,7 +299,9 @@ impl hyper_request {
 // ===== impl hyper_response =====
 
 ffi_fn! {
-    /// Free an HTTP response after using it.
+    /// Free an HTTP response.
+    ///
+    /// This should be used for any response once it is no longer needed.
     fn hyper_response_free(resp: *mut hyper_response) {
         drop(non_null!(Box::from_raw(resp) ?= ()));
     }
@@ -312,6 +375,9 @@ ffi_fn! {
     /// Take ownership of the body of this response.
     ///
     /// It is safe to free the response even after taking ownership of its body.
+    ///
+    /// To avoid a memory leak, the body must eventually be consumed by
+    /// `hyper_body_free`, `hyper_body_foreach`, or `hyper_request_set_body`.
     fn hyper_response_body(resp: *mut hyper_response) -> *mut hyper_body {
         let body = std::mem::replace(non_null!(&mut *resp ?= std::ptr::null_mut()).0.body_mut(), IncomingBody::empty());
         Box::into_raw(Box::new(hyper_body(body)))
@@ -509,10 +575,12 @@ unsafe fn raw_name_value(
 
 // ===== impl OnInformational =====
 
-impl OnInformational {
-    pub(crate) fn call(&mut self, resp: Response<IncomingBody>) {
-        let mut resp = hyper_response::wrap(resp);
-        (self.func)(self.data.0, &mut resp);
+#[cfg(feature = "client")]
+impl crate::ext::OnInformationalCallback for OnInformational {
+    fn on_informational(&self, res: http::Response<()>) {
+        let res = res.map(|()| IncomingBody::empty());
+        let mut res = hyper_response::wrap(res);
+        (self.func)(self.data.0, &mut res);
     }
 }
 

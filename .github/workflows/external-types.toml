@@ -1,0 +1,15 @@
+allowed_external_types = [
+    "bytes::buf::buf_impl::Buf",
+    "bytes::bytes::Bytes",
+    "http::header",
+    "http::header::map::HeaderMap",
+    "http::method::Method",
+    "http::request::Request",
+    "http::response::Response",
+    "http::status::StatusCode",
+    "http::uri::Uri",
+    "http::version::Version",
+    "http_body::Body",
+    "http_body::frame::Frame",
+    "http_body::size_hint::SizeHint",
+]

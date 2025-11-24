@@ -5,6 +5,5 @@
 //!
 //! How exactly you choose to listen for connections is not something hyper
 //! concerns itself with. After you have a connection, you can handle HTTP over
-//! it with the types in the [`conn`](conn) module.
+//! it with the types in the [`conn`] module.
 pub mod conn;
-

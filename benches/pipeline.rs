@@ -3,6 +3,8 @@
 
 extern crate test;
 
+mod support;
+
 use std::convert::Infallible;
 use std::io::{Read, Write};
 use std::net::{SocketAddr, TcpStream};
@@ -40,11 +42,12 @@ fn hello_world_16(b: &mut test::Bencher) {
             rt.spawn(async move {
                 loop {
                     let (stream, _addr) = listener.accept().await.expect("accept");
+                    let io = support::TokioIo::new(stream);
 
                     http1::Builder::new()
                         .pipeline_flush(true)
                         .serve_connection(
-                            stream,
+                            io,
                             service_fn(|_| async {
                                 Ok::<_, Infallible>(Response::new(Full::new(Bytes::from(
                                     "Hello, World!",
@@ -73,7 +76,7 @@ fn hello_world_16(b: &mut test::Bencher) {
         tcp.write_all(b"GET / HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
             .unwrap();
         let mut buf = Vec::new();
-        tcp.read_to_end(&mut buf).unwrap()
+        tcp.read_to_end(&mut buf).unwrap() - "connection: close\r\n".len()
     } * PIPELINED_REQUESTS;
 
     let mut tcp = TcpStream::connect(addr).unwrap();
