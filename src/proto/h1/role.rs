@@ -92,7 +92,7 @@ where
 /// Used when there was a partial read, to skip full parsing on a
 /// a slow connection.
 fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
-    let start = if prev_len < 3 { 0 } else { prev_len - 3 };
+    let start = prev_len.saturating_sub(3);
     let bytes = &bytes[start..];
 
     for (i, b) in bytes.iter().copied().enumerate() {
