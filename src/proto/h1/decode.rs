@@ -185,13 +185,15 @@ impl Decoder {
                     *state = ready!(state.step(
                         cx,
                         body,
-                        chunk_len,
-                        extensions_cnt,
-                        &mut buf,
-                        trailers_buf,
-                        trailers_cnt,
-                        h1_max_headers,
-                        h1_max_header_size
+                        StepArgs {
+                            chunk_size: chunk_len,
+                            extensions_cnt,
+                            chunk_buf: &mut buf,
+                            trailers_buf,
+                            trailers_cnt,
+                            max_headers_cnt: h1_max_headers,
+                            max_headers_bytes: h1_max_header_size,
+                        }
                     ))?;
                     if *state == ChunkedState::End {
                         trace!("end of chunked");
@@ -291,6 +293,16 @@ macro_rules! put_u8 {
     };
 }
 
+struct StepArgs<'a> {
+    chunk_size: &'a mut u64,
+    chunk_buf: &'a mut Option<Bytes>,
+    extensions_cnt: &'a mut u64,
+    trailers_buf: &'a mut Option<BytesMut>,
+    trailers_cnt: &'a mut usize,
+    max_headers_cnt: usize,
+    max_headers_bytes: usize,
+}
+
 impl ChunkedState {
     fn new() -> ChunkedState {
         ChunkedState::Start
@@ -299,35 +311,37 @@ impl ChunkedState {
         &self,
         cx: &mut Context<'_>,
         body: &mut R,
-        size: &mut u64,
-        extensions_cnt: &mut u64,
-        buf: &mut Option<Bytes>,
-        trailers_buf: &mut Option<BytesMut>,
-        trailers_cnt: &mut usize,
-        h1_max_headers: usize,
-        h1_max_header_size: usize,
+        StepArgs {
+            chunk_size,
+            chunk_buf,
+            extensions_cnt,
+            trailers_buf,
+            trailers_cnt,
+            max_headers_cnt,
+            max_headers_bytes,
+        }: StepArgs<'_>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
         use self::ChunkedState::*;
         match *self {
-            Start => ChunkedState::read_start(cx, body, size),
-            Size => ChunkedState::read_size(cx, body, size),
+            Start => ChunkedState::read_start(cx, body, chunk_size),
+            Size => ChunkedState::read_size(cx, body, chunk_size),
             SizeLws => ChunkedState::read_size_lws(cx, body),
             Extension => ChunkedState::read_extension(cx, body, extensions_cnt),
-            SizeLf => ChunkedState::read_size_lf(cx, body, *size),
-            Body => ChunkedState::read_body(cx, body, size, buf),
+            SizeLf => ChunkedState::read_size_lf(cx, body, *chunk_size),
+            Body => ChunkedState::read_body(cx, body, chunk_size, chunk_buf),
             BodyCr => ChunkedState::read_body_cr(cx, body),
             BodyLf => ChunkedState::read_body_lf(cx, body),
-            Trailer => ChunkedState::read_trailer(cx, body, trailers_buf, h1_max_header_size),
+            Trailer => ChunkedState::read_trailer(cx, body, trailers_buf, max_headers_bytes),
             TrailerLf => ChunkedState::read_trailer_lf(
                 cx,
                 body,
                 trailers_buf,
                 trailers_cnt,
-                h1_max_headers,
-                h1_max_header_size,
+                max_headers_cnt,
+                max_headers_bytes,
             ),
-            EndCr => ChunkedState::read_end_cr(cx, body, trailers_buf, h1_max_header_size),
-            EndLf => ChunkedState::read_end_lf(cx, body, trailers_buf, h1_max_header_size),
+            EndCr => ChunkedState::read_end_cr(cx, body, trailers_buf, max_headers_bytes),
+            EndLf => ChunkedState::read_end_lf(cx, body, trailers_buf, max_headers_bytes),
             End => Poll::Ready(Ok(ChunkedState::End)),
         }
     }
@@ -750,13 +764,15 @@ mod tests {
                     state.step(
                         cx,
                         rdr,
-                        &mut size,
-                        &mut ext_cnt,
-                        &mut None,
-                        &mut None,
-                        &mut trailers_cnt,
-                        DEFAULT_MAX_HEADERS,
-                        TRAILER_LIMIT,
+                        StepArgs {
+                            chunk_size: &mut size,
+                            extensions_cnt: &mut ext_cnt,
+                            chunk_buf: &mut None,
+                            trailers_buf: &mut None,
+                            trailers_cnt: &mut trailers_cnt,
+                            max_headers_cnt: DEFAULT_MAX_HEADERS,
+                            max_headers_bytes: TRAILER_LIMIT,
+                        },
                     )
                 })
                 .await;
@@ -780,13 +796,15 @@ mod tests {
                     state.step(
                         cx,
                         rdr,
-                        &mut size,
-                        &mut ext_cnt,
-                        &mut None,
-                        &mut None,
-                        &mut trailers_cnt,
-                        DEFAULT_MAX_HEADERS,
-                        TRAILER_LIMIT,
+                        StepArgs {
+                            chunk_size: &mut size,
+                            extensions_cnt: &mut ext_cnt,
+                            chunk_buf: &mut None,
+                            trailers_buf: &mut None,
+                            trailers_cnt: &mut trailers_cnt,
+                            max_headers_cnt: DEFAULT_MAX_HEADERS,
+                            max_headers_bytes: TRAILER_LIMIT,
+                        },
                     )
                 })
                 .await;
