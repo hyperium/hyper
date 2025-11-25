@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764011530964,
+  "lastUpdate": 1764107442362,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10559,6 +10559,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46847,
             "range": "± 8340.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4bfe65af8f3a197da78264b6ccfb0d2773534f9f",
+          "message": "refactor(http1): use saturating_sub instead of manual impl (#3983)",
+          "timestamp": "2025-11-25T16:49:55-05:00",
+          "tree_id": "b91259430b5154920aea1aee93cbbbb06b2979c0",
+          "url": "https://github.com/hyperium/hyper/commit/4bfe65af8f3a197da78264b6ccfb0d2773534f9f"
+        },
+        "date": 1764107439063,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 50100,
+            "range": "± 6904.80",
             "unit": "ns/iter"
           }
         ]
