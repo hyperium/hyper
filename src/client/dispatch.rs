@@ -325,22 +325,23 @@ impl<T> TrySendError<T> {
 
 #[cfg(feature = "http2")]
 pin_project! {
-    pub struct SendWhen<B>
+    pub struct SendWhen<B, E>
     where
         B: Body,
         B: 'static,
     {
         #[pin]
-        pub(crate) when: ResponseFutMap<B>,
+        pub(crate) when: ResponseFutMap<B, E>,
         #[pin]
         pub(crate) call_back: Option<Callback<Request<B>, Response<Incoming>>>,
     }
 }
 
 #[cfg(feature = "http2")]
-impl<B> Future for SendWhen<B>
+impl<B, E> Future for SendWhen<B, E>
 where
     B: Body + 'static,
+    E: crate::rt::bounds::Http2UpgradedExec<B::Data>,
 {
     type Output = ();
 

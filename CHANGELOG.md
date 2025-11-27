@@ -1,3 +1,45 @@
+### v1.8.1 (2025-11-13)
+
+
+#### Bug Fixes
+
+* **http1:** fix consuming extra CPU from previous change (#3977) ([4492f31e](https://github.com/hyperium/hyper/commit/4492f31e9429c34166da5a069c00b65be20e4a02))
+
+
+## v1.8.0 (2025-11-11)
+
+
+#### Bug Fixes
+
+* **http1:** fix rare missed write wakeup on connections (#3952) ([2377b893](https://github.com/hyperium/hyper/commit/2377b893f6e64ca9878e4f25d1472b96baa7e3ea))
+* **http2:** fix internals of HTTP/2 CONNECT upgrades (#3967) ([58e0e7dc](https://github.com/hyperium/hyper/commit/58e0e7dc70612117ccdc40da395922f791cb273a), closes [#3966](https://github.com/hyperium/hyper/issues/3966))
+
+
+#### Features
+
+* **rt:** add `Timer::now()` method to allow overriding the instant returned (#3965) ([5509ebe6](https://github.com/hyperium/hyper/commit/5509ebe6156e32d4f8986fafa25c2918a30005be))
+
+
+#### Breaking Changes
+
+* The HTTP/2 client connection no longer allows an executor
+  that can not spawn itself.
+
+  This was an oversight originally. The client connection will now include spawning
+  a future that keeps a copy of the executor to spawn other futures. Thus, if it is
+  `!Send`, it needs to spawn `!Send` futures. The likelihood of executors that match
+  the previously allowed behavior should be very remote.
+
+  There is also technically a semver break in here, which is that the
+  `Http2ClientConnExec` trait no longer dyn-compatible, because it now expects to
+  be `Clone`. This should not break usage of the `conn` builder, because it already
+  separately had `E: Clone` bounds. If someone were using `dyn Http2ClientConnExec`,
+  that will break. However, there is no purpose for doing so, and it is not usable
+  otherwise, since the trait only exists to propagate bounds into hyper. Thus, the
+  breakage should not affect anyone.
+ ([58e0e7dc](https://github.com/hyperium/hyper/commit/58e0e7dc70612117ccdc40da395922f791cb273a))
+
+
 ## v1.7.0 (2025-08-18)
 
 

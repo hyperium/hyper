@@ -74,6 +74,13 @@ pub trait Timer {
     /// Return a future that resolves at `deadline`.
     fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>>;
 
+    /// Return an `Instant` representing the current time.
+    ///
+    /// The default implementation returns [`Instant::now()`].
+    fn now(&self) -> Instant {
+        Instant::now()
+    }
+
     /// Reset a future to resolve at `new_deadline` instead.
     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
         *sleep = self.sleep_until(new_deadline);
