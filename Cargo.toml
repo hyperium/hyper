@@ -70,13 +70,14 @@ tokio-util = "0.7.10"
 
 [features]
 # Nothing by default
-default = ["http3", "server"]
+default = ["http3", "http2", "server"]
 
 # Easily turn it all on
 full = [
     "client",
     "http1",
     "http2",
+    "http3",
     "server",
 ]
 

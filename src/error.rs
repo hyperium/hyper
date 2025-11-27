@@ -83,6 +83,10 @@ pub(super) enum Kind {
     /// A general error from h2.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
     Http2,
+
+    /// A general error from h3.
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http3"))]
+    Http3,
 }
 
 #[derive(Debug)]
@@ -452,6 +456,16 @@ impl Error {
         }
     }
 
+    // Apparently the ::h3::Error isn't avaible in the version I'm working with
+    // #[cfg(all(any(feature = "client", feature = "server"), feature = "http3"))]
+    // pub(super) fn new_h3(cause: ::h3::Error) -> Error {
+    //     if cause.is_io() {
+    //         Error::new_io(cause.into_io().expect("h3::Error::is_io"))
+    //     } else {
+    //         Error::new(Kind::Http3).with(cause)
+    //     }
+    // }
+
     fn description(&self) -> &str {
         match self.inner.kind {
             Kind::Parse(Parse::Method) => "invalid HTTP method parsed",
@@ -476,7 +490,7 @@ impl Error {
             Kind::Parse(Parse::Header(Header::TransferEncodingUnexpected)) => {
                 "unexpected transfer-encoding parsed"
             }
-            #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(any(feature = "http1", feature = "http2", feature = "http3"))]
             Kind::Parse(Parse::TooLarge) => "message head is too large",
             Kind::Parse(Parse::Status) => "invalid HTTP status-code parsed",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
@@ -487,6 +501,7 @@ impl Error {
             Kind::IncompleteMessage => "connection closed before message completed",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
             Kind::UnexpectedMessage => "received unexpected message from connection",
+            // TODO: check if this cfg needs to be changed
             #[cfg(any(
                 all(feature = "http1", any(feature = "client", feature = "server")),
                 all(feature = "http2", feature = "client")
@@ -497,12 +512,12 @@ impl Error {
             Kind::HeaderTimeout => "read header from client timeout",
             #[cfg(all(
                 any(feature = "client", feature = "server"),
-                any(feature = "http1", feature = "http2")
+                any(feature = "http1", feature = "http2", feature = "http3")
             ))]
             Kind::Body => "error reading a body from connection",
             #[cfg(all(
                 any(feature = "client", feature = "server"),
-                any(feature = "http1", feature = "http2")
+                any(feature = "http1", feature = "http2", feature = "http3")
             ))]
             Kind::BodyWrite => "error writing a body to connection",
             #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
@@ -511,13 +526,12 @@ impl Error {
             Kind::Http2 => "http2 error",
             #[cfg(all(
                 any(feature = "client", feature = "server"),
-                any(feature = "http1", feature = "http2")
+                any(feature = "http1", feature = "http2", feature = "http3")
             ))]
             Kind::Io => "connection error",
-
             #[cfg(all(
                 any(feature = "client", feature = "server"),
-                any(feature = "http1", feature = "http2")
+                any(feature = "http1", feature = "http2", feature = "http3")
             ))]
             Kind::User(User::Body) => "error from user's Body stream",
             #[cfg(any(
@@ -531,10 +545,10 @@ impl Error {
             }
             #[cfg(any(
                 all(any(feature = "client", feature = "server"), feature = "http1"),
-                all(feature = "server", feature = "http2")
+                all(feature = "server", feature = "http2", feature = "http3")
             ))]
             Kind::User(User::Service) => "error from user's Service",
-            #[cfg(any(feature = "http1", feature = "http2"))]
+            #[cfg(any(feature = "http1", feature = "http2", feature = "http3"))]
             #[cfg(feature = "server")]
             Kind::User(User::UnexpectedHeader) => "user sent unexpected header",
             #[cfg(feature = "http1")]
@@ -549,6 +563,8 @@ impl Error {
             Kind::User(User::DispatchGone) => "dispatch task is gone",
             #[cfg(feature = "ffi")]
             Kind::User(User::AbortedByCallback) => "operation aborted by an application callback",
+            #[cfg(all(any(feature = "client", feature = "server"), feature = "http3"))]
+            Kind::Http3 => "http3 error",
         }
     }
 }
