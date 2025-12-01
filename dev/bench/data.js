@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1764107517453,
+  "lastUpdate": 1764600516837,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10619,6 +10619,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 52317,
             "range": "± 9189.17",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "coryan@google.com",
+            "name": "Carlos O'Ryan",
+            "username": "coryan"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "1c70fab64e90f90025eab364beda927044e356fc",
+          "message": "docs(rt): fix comment in `put_slice()` (#3986)\n\nNitpicky, I know, but renders poorly in the docs.",
+          "timestamp": "2025-12-01T09:47:45-05:00",
+          "tree_id": "4e11357f878ea271731a10b58ed0dd65016b86d4",
+          "url": "https://github.com/hyperium/hyper/commit/1c70fab64e90f90025eab364beda927044e356fc"
+        },
+        "date": 1764600513541,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 37874,
+            "range": "± 9461.57",
             "unit": "ns/iter"
           }
         ]
