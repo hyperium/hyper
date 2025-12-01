@@ -7,7 +7,7 @@ use super::error::hyper_code;
 use super::task::{hyper_task_return_type, AsTaskType};
 use super::{UserDataPointer, HYPER_ITER_CONTINUE};
 use crate::body::Incoming as IncomingBody;
-use crate::ext::{HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
+use crate::ext::{CasedHeaderName, HeaderCaseMap, OriginalHeaderOrder, ReasonPhrase};
 use crate::ffi::size_t;
 use crate::header::{HeaderName, HeaderValue};
 use crate::{HeaderMap, Method, Request, Response, Uri};
@@ -513,7 +513,7 @@ ffi_fn! {
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.insert(&name, value);
-                headers.orig_casing.insert(name.clone(), orig_name.clone());
+                headers.orig_casing.insert(CasedHeaderName::new(name.clone(), orig_name).unwrap()).unwrap();
                 headers.orig_order.insert(name);
                 hyper_code::HYPERE_OK
             }
@@ -533,7 +533,7 @@ ffi_fn! {
         match unsafe { raw_name_value(name, name_len, value, value_len) } {
             Ok((name, value, orig_name)) => {
                 headers.headers.append(&name, value);
-                headers.orig_casing.append(&name, orig_name.clone());
+                headers.orig_casing.append(CasedHeaderName::new(name.clone(), orig_name).unwrap()).unwrap();
                 headers.orig_order.append(name);
                 hyper_code::HYPERE_OK
             }
