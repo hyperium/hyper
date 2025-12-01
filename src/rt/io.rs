@@ -253,7 +253,7 @@ impl ReadBufCursor<'_> {
         self.buf.remaining()
     }
 
-    /// Transfer bytes into `self`` from `src` and advance the cursor
+    /// Transfer bytes into `self` from `src` and advance the cursor
     /// by the number of bytes written.
     ///
     /// # Panics
