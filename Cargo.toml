@@ -51,6 +51,8 @@ pin-project-lite = "0.2.4"
 spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 tokio = { version = "1", features = [
     "fs",
     "macros",
@@ -236,6 +238,16 @@ required-features = ["full"]
 [[test]]
 name = "integration"
 path = "tests/integration.rs"
+required-features = ["full"]
+
+[[test]]
+name = "ready_on_poll_stream"
+path = "tests/ready_on_poll_stream.rs"
+required-features = ["full"]
+
+[[test]]
+name = "unbuffered_stream"
+path = "tests/unbuffered_stream.rs"
 required-features = ["full"]
 
 [[test]]
