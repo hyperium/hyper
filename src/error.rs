@@ -291,7 +291,8 @@ impl Error {
         &self.inner.kind
     }
 
-    pub(crate) fn find_source<E: StdError + 'static>(&self) -> Option<&E> {
+    /// If downcast matches, returns a reference to the error
+    pub fn find_source<E: StdError + 'static>(&self) -> Option<&E> {
         let mut cause = self.source();
         while let Some(err) = cause {
             if let Some(typed) = err.downcast_ref() {
