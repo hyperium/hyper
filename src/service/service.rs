@@ -9,14 +9,26 @@ use std::future::Future;
 /// # Functional
 ///
 /// A `Service` is a function of a `Request`. It immediately returns a
-/// `Future` representing the eventual completion of processing the
+/// [`Future`] representing the eventual completion of processing the
 /// request. The actual request processing may happen at any time in the
 /// future, on any thread or executor. The processing may depend on calling
 /// other services. At some point in the future, the processing will complete,
-/// and the `Future` will resolve to a response or error.
+/// and the [`Future`] will resolve to a response or an error.
 ///
 /// At a high level, the `Service::call` function represents an RPC request. The
 /// `Service` value can be a server or a client.
+///
+/// # Utilities
+///
+/// The [`hyper-util`][util] crate provides facilities to bridge this trait to
+/// other libraries, such as [`tower`][tower], which might provide their
+/// own `Service` variants.
+///
+/// See [`hyper_util::service`][util-service] for more information.
+///
+/// [tower]: https://docs.rs/tower
+/// [util]: https://docs.rs/hyper-util
+/// [util-service]: https://docs.rs/hyper-util/latest/hyper_util/service/index.html
 pub trait Service<Request> {
     /// Responses given by the service.
     type Response;
@@ -37,7 +49,7 @@ pub trait Service<Request> {
     /// - It prepares the way for async fn,
     ///   since then the future only borrows `&self`, and thus a Service can concurrently handle
     ///   multiple outstanding requests at once.
-    /// - It's clearer that Services can likely be cloned
+    /// - It's clearer that Services can likely be cloned.
     /// - To share state across clones, you generally need `Arc<Mutex<_>>`
     ///   That means you're not really using the `&mut self` and could do with a `&self`.
     ///   The discussion on this is here: <https://github.com/hyperium/hyper/issues/3040>

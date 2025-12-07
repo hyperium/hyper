@@ -37,7 +37,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -79,7 +79,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust (${{ matrix.rust }})
         uses: dtolnay/rust-toolchain@master
@@ -103,7 +103,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - uses: dtolnay/rust-toolchain@stable
 
@@ -133,7 +133,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
@@ -152,7 +152,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -178,7 +178,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -203,7 +203,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -234,7 +234,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
@@ -259,7 +259,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
@@ -275,17 +275,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: nightly-2024-05-01 # Compatible version for cargo-check-external-types
+          toolchain: nightly-2025-08-06 # Compatible version for cargo-check-external-types
 
       - name: Install cargo-check-external-types
         uses: taiki-e/cache-cargo-install-action@v2
         with:
-          tool: cargo-check-external-types@0.1.12
+          tool: cargo-check-external-types@0.3.0
 
       - uses: Swatinem/rust-cache@v2
 
@@ -297,7 +297,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
@@ -317,7 +317,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [style]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@nightly
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@cargo-hack
@@ -330,7 +330,7 @@ jobs:
     name: semver
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Check semver
         uses: obi1kenobi/cargo-semver-checks-action@v2
         with:

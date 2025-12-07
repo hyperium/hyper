@@ -40,13 +40,20 @@ impl Time {
         }
     }
 
-    #[cfg(feature = "http1")]
+    #[cfg(all(feature = "server", feature = "http1"))]
     pub(crate) fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
         match *self {
             Time::Empty => {
                 panic!("You must supply a timer.")
             }
             Time::Timer(ref t) => t.sleep_until(deadline),
+        }
+    }
+
+    pub(crate) fn now(&self) -> Instant {
+        match *self {
+            Time::Empty => Instant::now(),
+            Time::Timer(ref t) => t.now(),
         }
     }
 

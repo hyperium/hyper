@@ -4,8 +4,6 @@ use std::net::SocketAddr;
 
 use bytes::Bytes;
 use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full};
-use hyper::client::conn::http1::Builder;
-use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::upgrade::Upgraded;
 use hyper::{Method, Request, Response};
@@ -15,6 +13,9 @@ use tokio::net::{TcpListener, TcpStream};
 #[path = "../benches/support/mod.rs"]
 mod support;
 use support::TokioIo;
+
+type ClientBuilder = hyper::client::conn::http1::Builder;
+type ServerBuilder = hyper::server::conn::http1::Builder;
 
 // To try this example:
 // 1. cargo run --example http_proxy
@@ -35,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let io = TokioIo::new(stream);
 
         tokio::task::spawn(async move {
-            if let Err(err) = http1::Builder::new()
+            if let Err(err) = ServerBuilder::new()
                 .preserve_header_case(true)
                 .title_case_headers(true)
                 .serve_connection(io, service_fn(proxy))
@@ -94,7 +95,7 @@ async fn proxy(
         let stream = TcpStream::connect((host, port)).await.unwrap();
         let io = TokioIo::new(stream);
 
-        let (mut sender, conn) = Builder::new()
+        let (mut sender, conn) = ClientBuilder::new()
             .preserve_header_case(true)
             .title_case_headers(true)
             .handshake(io)

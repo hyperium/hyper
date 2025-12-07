@@ -11,9 +11,9 @@ use futures_channel::{mpsc, oneshot};
     any(feature = "http1", feature = "http2"),
     any(feature = "client", feature = "server")
 ))]
-use futures_util::ready;
+use futures_core::ready;
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-use futures_util::{stream::FusedStream, Stream}; // for mpsc::Receiver
+use futures_core::{stream::FusedStream, Stream}; // for mpsc::Receiver
 #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
 use http::HeaderMap;
 use http_body::{Body, Frame, SizeHint};
@@ -103,6 +103,7 @@ impl Incoming {
     /// Create a `Body` stream with an associated sender half.
     ///
     /// Useful when wanting to stream chunks from another thread.
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[inline]
     #[cfg(test)]
     pub(crate) fn channel() -> (Sender, Incoming) {
@@ -460,9 +461,12 @@ mod tests {
     use std::mem;
     use std::task::Poll;
 
-    use super::{Body, DecodedLength, Incoming, Sender, SizeHint};
+    use super::{Body, Incoming, SizeHint};
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
+    use super::{DecodedLength, Sender};
     use http_body_util::BodyExt;
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[test]
     fn test_size_of() {
         // These are mostly to help catch *accidentally* increasing
@@ -492,6 +496,7 @@ mod tests {
         );
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[test]
     fn size_hint() {
         fn eq(body: Incoming, b: SizeHint, note: &str) {
@@ -511,6 +516,7 @@ mod tests {
         );
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_abort() {
@@ -522,6 +528,7 @@ mod tests {
         assert!(err.is_body_write_aborted(), "{:?}", err);
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[cfg(all(not(miri), feature = "http1"))]
     #[tokio::test]
     async fn channel_abort_when_buffer_is_full() {
@@ -556,6 +563,7 @@ mod tests {
         assert_eq!(chunk2, "chunk 2");
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[cfg(not(miri))]
     #[tokio::test]
     async fn channel_empty() {
@@ -564,6 +572,7 @@ mod tests {
         assert!(rx.frame().await.is_none());
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[test]
     fn channel_ready() {
         let (mut tx, _rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ false);
@@ -573,6 +582,7 @@ mod tests {
         assert!(tx_ready.poll().is_ready(), "tx is ready immediately");
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[test]
     fn channel_wanter() {
         let (mut tx, mut rx) =
@@ -595,6 +605,7 @@ mod tests {
         );
     }
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[test]
     fn channel_notices_closure() {
         let (mut tx, rx) = Incoming::new_channel(DecodedLength::CHUNKED, /*wanter = */ true);

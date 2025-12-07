@@ -35,6 +35,10 @@ impl Timer for TokioTimer {
         Box::pin(tokio::time::sleep_until(deadline.into()))
     }
 
+    fn now(&self) -> Instant {
+        tokio::time::Instant::now().into()
+    }
+
     fn reset(&self, sleep: &mut Pin<Box<dyn Sleep>>, new_deadline: Instant) {
         if let Some(sleep) = sleep.as_mut().downcast_mut_pin::<tokio::time::Sleep>() {
             sleep.reset(new_deadline.into())

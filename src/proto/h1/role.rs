@@ -92,7 +92,7 @@ where
 /// Used when there was a partial read, to skip full parsing on a
 /// a slow connection.
 fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
-    let start = if prev_len < 3 { 0 } else { prev_len - 3 };
+    let start = prev_len.saturating_sub(3);
     let bytes = &bytes[start..];
 
     for (i, b) in bytes.iter().copied().enumerate() {
@@ -188,20 +188,18 @@ impl Http1Transaction for Server {
                     headers_len = req.headers.len();
                 }
                 Ok(httparse::Status::Partial) => return Ok(None),
-                Err(err) => {
-                    return Err(match err {
-                        // if invalid Token, try to determine if for method or path
-                        httparse::Error::Token => {
-                            if req.method.is_none() {
-                                Parse::Method
-                            } else {
-                                debug_assert!(req.path.is_none());
-                                Parse::Uri
-                            }
+                // if invalid Token, try to determine if for method or path
+                Err(httparse::Error::Token) => {
+                    return Err({
+                        if req.method.is_none() {
+                            Parse::Method
+                        } else {
+                            debug_assert!(req.path.is_none());
+                            Parse::Uri
                         }
-                        other => other.into(),
-                    });
+                    })
                 }
+                Err(err) => return Err(err.into()),
             }
         };
 

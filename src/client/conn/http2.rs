@@ -10,7 +10,7 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
-use futures_util::ready;
+use futures_core::ready;
 use http::{Request, Response};
 
 use super::super::dispatch::{self, TrySendError};
@@ -99,7 +99,7 @@ impl<B> SendRequest<B> {
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
-        futures_util::future::poll_fn(|cx| self.poll_ready(cx)).await
+        crate::common::future::poll_fn(|cx| self.poll_ready(cx)).await
     }
 
     /// Checks if the connection is currently ready to send a request.
@@ -635,44 +635,6 @@ mod tests {
             .unwrap();
 
             tokio::task::spawn(async move {
-                conn.await.unwrap();
-            });
-        }
-    }
-
-    #[tokio::test]
-    #[ignore] // only compilation is checked
-    async fn not_send_not_sync_executor_of_send_futures() {
-        #[derive(Clone)]
-        struct TokioExecutor {
-            // !Send, !Sync
-            _x: std::marker::PhantomData<std::rc::Rc<()>>,
-        }
-
-        impl<F> crate::rt::Executor<F> for TokioExecutor
-        where
-            F: std::future::Future + 'static + Send,
-            F::Output: Send + 'static,
-        {
-            fn execute(&self, fut: F) {
-                tokio::task::spawn(fut);
-            }
-        }
-
-        #[allow(unused)]
-        async fn run(io: impl crate::rt::Read + crate::rt::Write + Send + Unpin + 'static) {
-            let (_sender, conn) =
-                crate::client::conn::http2::handshake::<_, _, http_body_util::Empty<bytes::Bytes>>(
-                    TokioExecutor {
-                        _x: Default::default(),
-                    },
-                    io,
-                )
-                .await
-                .unwrap();
-
-            tokio::task::spawn_local(async move {
-                // can't use spawn here because when executor is !Send
                 conn.await.unwrap();
             });
         }

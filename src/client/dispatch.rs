@@ -199,8 +199,7 @@ impl<T, U> Receiver<T, U> {
 
     #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        use futures_util::FutureExt;
-        match self.inner.recv().now_or_never() {
+        match crate::common::task::now_or_never(self.inner.recv()) {
             Some(Some(mut env)) => env.0.take(),
             _ => None,
         }
@@ -304,30 +303,45 @@ impl<T> TrySendError<T> {
         self.message.take()
     }
 
+    /// Returns a reference to the recovered message.
+    ///
+    /// The message will not always have been recovered. If an error occurs
+    /// after the message has been serialized onto the connection, it will not
+    /// be available here.
+    pub fn message(&self) -> Option<&T> {
+        self.message.as_ref()
+    }
+
     /// Consumes this to return the inner error.
     pub fn into_error(self) -> crate::Error {
         self.error
+    }
+
+    /// Returns a reference to the inner error.
+    pub fn error(&self) -> &crate::Error {
+        &self.error
     }
 }
 
 #[cfg(feature = "http2")]
 pin_project! {
-    pub struct SendWhen<B>
+    pub struct SendWhen<B, E>
     where
         B: Body,
         B: 'static,
     {
         #[pin]
-        pub(crate) when: ResponseFutMap<B>,
+        pub(crate) when: ResponseFutMap<B, E>,
         #[pin]
         pub(crate) call_back: Option<Callback<Request<B>, Response<Incoming>>>,
     }
 }
 
 #[cfg(feature = "http2")]
-impl<B> Future for SendWhen<B>
+impl<B, E> Future for SendWhen<B, E>
 where
     B: Body + 'static,
+    E: crate::rt::bounds::Http2UpgradedExec<B::Data>,
 {
     type Output = ();
 

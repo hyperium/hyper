@@ -557,7 +557,8 @@ impl<IO, Serv, Exec> std::future::Future for AutoConnection<IO, Serv, Exec>
 where
     IO: crate::rt::Read + crate::rt::Write + Unpin + 'static,
     Serv: crate::service::HttpService<IncomingBody, ResBody = IncomingBody>,
-    Exec: crate::rt::Executor<crate::proto::h2::server::H2Stream<Serv::Future, IncomingBody>>
+    Exec: crate::rt::Executor<crate::proto::h2::server::H2Stream<Serv::Future, IncomingBody, Exec>>
+        + crate::rt::Executor<crate::proto::h2::upgrade::UpgradedSendStreamTask<bytes::Bytes>>
         + Unpin
         + Clone,
     http1::Connection<IO, Serv>: std::future::Future<Output = Result<(), crate::Error>> + Unpin,

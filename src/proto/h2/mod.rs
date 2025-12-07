@@ -1,22 +1,20 @@
 use std::error::Error as StdError;
 use std::future::Future;
 use std::io::{Cursor, IoSlice};
-use std::mem;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use bytes::{Buf, Bytes};
-use futures_util::ready;
-use h2::{Reason, RecvStream, SendStream};
+use bytes::Buf;
+use futures_core::ready;
+use h2::SendStream;
 use http::header::{HeaderName, CONNECTION, TE, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
 
 use crate::body::Body;
-use crate::proto::h2::ping::Recorder;
-use crate::rt::{Read, ReadBufCursor, Write};
 
 pub(crate) mod ping;
+pub(crate) mod upgrade;
 
 cfg_client! {
     pub(crate) mod client;
@@ -257,190 +255,5 @@ impl<B: Buf> Buf for SendBuf<B> {
             Self::Cursor(ref c) => c.chunks_vectored(dst),
             Self::None => 0,
         }
-    }
-}
-
-struct H2Upgraded<B>
-where
-    B: Buf,
-{
-    ping: Recorder,
-    send_stream: UpgradedSendStream<B>,
-    recv_stream: RecvStream,
-    buf: Bytes,
-}
-
-impl<B> Read for H2Upgraded<B>
-where
-    B: Buf,
-{
-    fn poll_read(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        mut read_buf: ReadBufCursor<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        if self.buf.is_empty() {
-            self.buf = loop {
-                match ready!(self.recv_stream.poll_data(cx)) {
-                    None => return Poll::Ready(Ok(())),
-                    Some(Ok(buf)) if buf.is_empty() && !self.recv_stream.is_end_stream() => {
-                        continue
-                    }
-                    Some(Ok(buf)) => {
-                        self.ping.record_data(buf.len());
-                        break buf;
-                    }
-                    Some(Err(e)) => {
-                        return Poll::Ready(match e.reason() {
-                            Some(Reason::NO_ERROR) | Some(Reason::CANCEL) => Ok(()),
-                            Some(Reason::STREAM_CLOSED) => {
-                                Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, e))
-                            }
-                            _ => Err(h2_to_io_error(e)),
-                        })
-                    }
-                }
-            };
-        }
-        let cnt = std::cmp::min(self.buf.len(), read_buf.remaining());
-        read_buf.put_slice(&self.buf[..cnt]);
-        self.buf.advance(cnt);
-        let _ = self.recv_stream.flow_control().release_capacity(cnt);
-        Poll::Ready(Ok(()))
-    }
-}
-
-impl<B> Write for H2Upgraded<B>
-where
-    B: Buf,
-{
-    fn poll_write(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-        buf: &[u8],
-    ) -> Poll<Result<usize, std::io::Error>> {
-        if buf.is_empty() {
-            return Poll::Ready(Ok(0));
-        }
-        self.send_stream.reserve_capacity(buf.len());
-
-        // We ignore all errors returned by `poll_capacity` and `write`, as we
-        // will get the correct from `poll_reset` anyway.
-        let cnt = match ready!(self.send_stream.poll_capacity(cx)) {
-            None => Some(0),
-            Some(Ok(cnt)) => self
-                .send_stream
-                .write(&buf[..cnt], false)
-                .ok()
-                .map(|()| cnt),
-            Some(Err(_)) => None,
-        };
-
-        if let Some(cnt) = cnt {
-            return Poll::Ready(Ok(cnt));
-        }
-
-        Poll::Ready(Err(h2_to_io_error(
-            match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) | Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
-                    return Poll::Ready(Err(std::io::ErrorKind::BrokenPipe.into()))
-                }
-                Ok(reason) => reason.into(),
-                Err(e) => e,
-            },
-        )))
-    }
-
-    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Result<(), std::io::Error>> {
-        Poll::Ready(Ok(()))
-    }
-
-    fn poll_shutdown(
-        mut self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<Result<(), std::io::Error>> {
-        if self.send_stream.write(&[], true).is_ok() {
-            return Poll::Ready(Ok(()));
-        }
-
-        Poll::Ready(Err(h2_to_io_error(
-            match ready!(self.send_stream.poll_reset(cx)) {
-                Ok(Reason::NO_ERROR) => return Poll::Ready(Ok(())),
-                Ok(Reason::CANCEL) | Ok(Reason::STREAM_CLOSED) => {
-                    return Poll::Ready(Err(std::io::ErrorKind::BrokenPipe.into()))
-                }
-                Ok(reason) => reason.into(),
-                Err(e) => e,
-            },
-        )))
-    }
-}
-
-fn h2_to_io_error(e: h2::Error) -> std::io::Error {
-    if e.is_io() {
-        e.into_io().unwrap()
-    } else {
-        std::io::Error::new(std::io::ErrorKind::Other, e)
-    }
-}
-
-struct UpgradedSendStream<B>(SendStream<SendBuf<Neutered<B>>>);
-
-impl<B> UpgradedSendStream<B>
-where
-    B: Buf,
-{
-    unsafe fn new(inner: SendStream<SendBuf<B>>) -> Self {
-        assert_eq!(mem::size_of::<B>(), mem::size_of::<Neutered<B>>());
-        Self(mem::transmute(inner))
-    }
-
-    fn reserve_capacity(&mut self, cnt: usize) {
-        unsafe { self.as_inner_unchecked().reserve_capacity(cnt) }
-    }
-
-    fn poll_capacity(&mut self, cx: &mut Context<'_>) -> Poll<Option<Result<usize, h2::Error>>> {
-        unsafe { self.as_inner_unchecked().poll_capacity(cx) }
-    }
-
-    fn poll_reset(&mut self, cx: &mut Context<'_>) -> Poll<Result<h2::Reason, h2::Error>> {
-        unsafe { self.as_inner_unchecked().poll_reset(cx) }
-    }
-
-    fn write(&mut self, buf: &[u8], end_of_stream: bool) -> Result<(), std::io::Error> {
-        let send_buf = SendBuf::Cursor(Cursor::new(buf.into()));
-        unsafe {
-            self.as_inner_unchecked()
-                .send_data(send_buf, end_of_stream)
-                .map_err(h2_to_io_error)
-        }
-    }
-
-    unsafe fn as_inner_unchecked(&mut self) -> &mut SendStream<SendBuf<B>> {
-        &mut *(&mut self.0 as *mut _ as *mut _)
-    }
-}
-
-#[repr(transparent)]
-struct Neutered<B> {
-    _inner: B,
-    impossible: Impossible,
-}
-
-enum Impossible {}
-
-unsafe impl<B> Send for Neutered<B> {}
-
-impl<B> Buf for Neutered<B> {
-    fn remaining(&self) -> usize {
-        match self.impossible {}
-    }
-
-    fn chunk(&self) -> &[u8] {
-        match self.impossible {}
-    }
-
-    fn advance(&mut self, _cnt: usize) {
-        match self.impossible {}
     }
 }
