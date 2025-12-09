@@ -65,6 +65,10 @@ tokio = { version = "1", features = [
 ] }
 tokio-test = "0.4"
 tokio-util = "0.7.10"
+# Additional dependencies for HTTP/2 Early Hints example
+rcgen = "0.12"
+tokio-rustls = "0.25"
+rustls-pemfile = "2.0"
 
 [features]
 # Nothing by default
@@ -84,7 +88,7 @@ http2 = ["dep:futures-channel", "dep:futures-core", "dep:h2"]
 
 # Client/Server
 client = ["dep:want", "dep:pin-project-lite", "dep:smallvec"]
-server = ["dep:httpdate", "dep:pin-project-lite", "dep:smallvec"]
+server = ["dep:httpdate", "dep:pin-project-lite", "dep:smallvec", "dep:futures-util"]
 
 # C-API support (currently unstable (no semver))
 ffi = ["dep:http-body-util", "dep:futures-util"]
@@ -199,6 +203,11 @@ required-features = ["full"]
 [[example]]
 name = "web_api"
 path = "examples/web_api.rs"
+required-features = ["full"]
+
+[[example]]
+name = "http2_early_hints"
+path = "examples/http2_early_hints.rs"
 required-features = ["full"]
 
 
