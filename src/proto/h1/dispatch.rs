@@ -10,9 +10,9 @@ use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 #[cfg(feature = "server")]
 use futures_channel::mpsc::{self, Receiver};
-use futures_util::ready;
+use futures_core::ready;
 #[cfg(feature = "server")]
-use futures_util::StreamExt;
+use futures_util::stream::StreamExt;
 use http::Request;
 #[cfg(feature = "server")]
 use http::Response;
