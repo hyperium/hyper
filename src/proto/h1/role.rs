@@ -2572,7 +2572,7 @@ mod tests {
         )
         .unwrap();
 
-        assert!(encoder.is_last());
+        assert!(encoder.expect("encoder should exist").is_last());
     }
 
     #[cfg(feature = "server")]
