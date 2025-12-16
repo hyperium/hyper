@@ -389,7 +389,10 @@ impl HttpBody for Body {
                     ping.record_non_data();
                     Poll::Ready(Ok(t))
                 }
-                Err(e) => Poll::Ready(Err(crate::Error::new_h2(e))),
+                Err(e) => match e.reason() {
+                    Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => Poll::Ready(Ok(None)),
+                    reason => Poll::Ready(Err(crate::Error::new_h2(e))),
+                },
             },
             Kind::Chan {
                 ref mut trailers_rx,
