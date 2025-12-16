@@ -458,12 +458,16 @@ impl fmt::Debug for Sender {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     use std::mem;
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     use std::task::Poll;
 
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     use super::{Body, Incoming, SizeHint};
     #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     use super::{DecodedLength, Sender};
+    #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     use http_body_util::BodyExt;
 
     #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
