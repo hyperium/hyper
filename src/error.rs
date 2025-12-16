@@ -192,6 +192,13 @@ impl Error {
         matches!(self.inner.kind, Kind::Parse(Parse::Status))
     }
 
+    /// Returns true if this was an HTTP parse error caused by HTTP2 preface sent over an HTTP1
+    /// connection.
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+    pub fn is_parse_version_h2(&self) -> bool {
+        matches!(self.inner.kind, Kind::Parse(Parse::VersionH2))
+    }
+
     /// Returns true if this error was caused by user code.
     pub fn is_user(&self) -> bool {
         matches!(self.inner.kind, Kind::User(_))
