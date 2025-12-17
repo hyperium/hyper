@@ -25,9 +25,6 @@ use std::task::{Context, Poll};
 /// Reads bytes from a source.
 ///
 /// This trait is similar to `std::io::Read`, but supports asynchronous reads.
-/// Unlike tokio's `AsyncRead`, this trait uses [`ReadBufCursor`] directly
-/// instead of `ReadBuf`, which simplifies implementations and prepares for
-/// future io-uring support.
 ///
 /// # Implementing `Read`
 ///
