@@ -270,7 +270,16 @@ impl Body for Incoming {
                         ping.record_non_data();
                         Poll::Ready(Ok(t.map(Frame::trailers)).transpose())
                     }
-                    Err(e) => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
+                    Err(e) => {
+                        match e.reason() {
+                            // These reasons should cause reading the trailers to stop, but not fail it.
+                            // The same logic as for `Read for H2Upgraded` is applied here.
+                            Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => {
+                                Poll::Ready(None)
+                            }
+                            _ => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
+                        }
+                    }
                 }
             }
 
