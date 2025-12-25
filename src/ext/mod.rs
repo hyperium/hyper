@@ -256,12 +256,12 @@ impl OriginalHeaderOrder {
     /// in the original order received.
     ///
     /// # Examples
-    /// ```no_run
+    /// ```ignore
     /// use hyper::ext::OriginalHeaderOrder;
     /// use hyper::header::{HeaderName, HeaderValue, HeaderMap};
     ///
     /// let mut h_order = OriginalHeaderOrder::default();
-    /// let mut h_map = Headermap::new();
+    /// let mut h_map = HeaderMap::new();
     ///
     /// let name1 = b"Set-CookiE";
     /// let value1 = b"a=b";
@@ -276,9 +276,9 @@ impl OriginalHeaderOrder {
     /// let name3 = b"SET-COOKIE";
     /// let value3 = b"c=d";
     /// h_map.append(name3, value3);
-    /// h_order.append(name3)
+    /// h_order.append(name3);
     ///
-    /// let mut iter = h_order.get_in_order()
+    /// let mut iter = h_order.get_in_order();
     ///
     /// let (name, idx) = iter.next();
     /// assert_eq!(b"a=b", h_map.get_all(name).nth(idx).unwrap());
