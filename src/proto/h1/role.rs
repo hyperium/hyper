@@ -313,7 +313,10 @@ impl Http1Transaction for Server {
             }
 
             if let Some(ref mut header_case_map) = header_case_map {
-                header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                header_case_map.append(
+                    &name,
+                    String::from_utf8(slice.slice(header.name.0..header.name.1).to_vec()).unwrap(),
+                );
             }
 
             #[cfg(feature = "ffi")]
@@ -567,7 +570,7 @@ impl Server {
     ) -> crate::Result<Encoder> {
         struct OrigCaseWriter<'map> {
             map: &'map HeaderCaseMap,
-            current: Option<(HeaderName, ValueIter<'map, Bytes>)>,
+            current: Option<(HeaderName, ValueIter<'map, String>)>,
             title_case_headers: bool,
         }
 
@@ -608,7 +611,7 @@ impl Server {
                     current.get_or_insert_with(|| (name.clone(), map.get_all_internal(name)));
 
                 if let Some(orig_name) = values.next() {
-                    extend(dst, orig_name);
+                    extend(dst, orig_name.as_bytes());
                 } else if title_case_headers {
                     title_case(dst, name.as_str().as_bytes());
                 } else {
@@ -1104,7 +1107,11 @@ impl Http1Transaction for Client {
                 }
 
                 if let Some(ref mut header_case_map) = header_case_map {
-                    header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
+                    header_case_map.append(
+                        &name,
+                        String::from_utf8(slice.slice(header.name.0..header.name.1).to_vec())
+                            .unwrap(),
+                    );
                 }
 
                 #[cfg(feature = "ffi")]
@@ -2895,7 +2902,7 @@ mod tests {
         let name = http::header::HeaderName::from_static("x-empty");
         headers.insert(&name, "".parse().expect("parse empty"));
         let mut orig_cases = HeaderCaseMap::default();
-        orig_cases.insert(name, Bytes::from_static(b"X-EmptY"));
+        orig_cases.insert(name, String::from("X-EmptY"));
 
         let mut dst = Vec::new();
         super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
@@ -2914,8 +2921,8 @@ mod tests {
         headers.append(&name, "b".parse().unwrap());
 
         let mut orig_cases = HeaderCaseMap::default();
-        orig_cases.insert(name.clone(), Bytes::from_static(b"X-Empty"));
-        orig_cases.append(name, Bytes::from_static(b"X-EMPTY"));
+        orig_cases.insert(name.clone(), String::from("X-Empty"));
+        orig_cases.append(name, String::from("X-EMPTY"));
 
         let mut dst = Vec::new();
         super::write_headers_original_case(&headers, &orig_cases, &mut dst, false);
