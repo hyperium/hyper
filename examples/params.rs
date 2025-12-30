@@ -52,7 +52,7 @@ async fn param_example(
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(full(MISSING))
-                    .unwrap());
+                    .expect("missing should be valid"));
             };
             let number = if let Some(n) = params.get("number") {
                 if let Ok(v) = n.parse::<f64>() {
@@ -61,13 +61,13 @@ async fn param_example(
                     return Ok(Response::builder()
                         .status(StatusCode::UNPROCESSABLE_ENTITY)
                         .body(full(NOTNUMERIC))
-                        .unwrap());
+                        .expect("notnumeric should be valid"));
                 }
             } else {
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(full(MISSING))
-                    .unwrap());
+                    .expect("missing should be valid"));
             };
 
             // Render the response. This will often involve
@@ -86,7 +86,7 @@ async fn param_example(
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(full(MISSING))
-                    .unwrap());
+                    .expect("missing should be valid"));
             };
             let params = form_urlencoded::parse(query.as_bytes())
                 .into_owned()
@@ -97,7 +97,7 @@ async fn param_example(
                 return Ok(Response::builder()
                     .status(StatusCode::UNPROCESSABLE_ENTITY)
                     .body(full(MISSING))
-                    .unwrap());
+                    .expect("missing should be valid"));
             };
             let body = format!("You requested {}", page);
             Ok(Response::new(full(body)))
@@ -105,7 +105,7 @@ async fn param_example(
         _ => Ok(Response::builder()
             .status(StatusCode::NOT_FOUND)
             .body(empty())
-            .unwrap()),
+            .expect("not found should be valid")),
     }
 }
 
