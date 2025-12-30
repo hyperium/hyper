@@ -29,7 +29,7 @@ async fn client_request_response() -> Result<Response<BoxBody>> {
         .uri(URL)
         .header(header::CONTENT_TYPE, "application/json")
         .body(Full::new(Bytes::from(POST_DATA)))
-        .unwrap();
+        .expect("post data should be valid");
 
     let host = req.uri().host().expect("uri has no host");
     let port = req.uri().port_u16().expect("uri has no port");
@@ -73,11 +73,11 @@ async fn api_get_response() -> Result<Response<BoxBody>> {
         Ok(json) => Response::builder()
             .header(header::CONTENT_TYPE, "application/json")
             .body(full(json))
-            .unwrap(),
+            .expect("json response should be valid"),
         Err(_) => Response::builder()
             .status(StatusCode::INTERNAL_SERVER_ERROR)
             .body(full(INTERNAL_SERVER_ERROR))
-            .unwrap(),
+            .expect("internal server error response should be valid"),
     };
     Ok(res)
 }
@@ -93,7 +93,7 @@ async fn response_examples(req: Request<IncomingBody>) -> Result<Response<BoxBod
             Ok(Response::builder()
                 .status(StatusCode::NOT_FOUND)
                 .body(full(NOTFOUND))
-                .unwrap())
+                .expect("not found response should be valid"))
         }
     }
 }
