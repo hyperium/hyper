@@ -20,6 +20,8 @@ use crate::error::Parse;
 use crate::ext::HeaderCaseMap;
 #[cfg(feature = "ffi")]
 use crate::ext::OriginalHeaderOrder;
+#[cfg(feature = "client")]
+use crate::ext::RawResponseHeaders;
 use crate::headers;
 use crate::proto::h1::{
     Encode, Encoder, Http1Transaction, ParseContext, ParseResult, ParsedMessage,
@@ -1054,19 +1056,32 @@ impl Http1Transaction for Client {
             };
 
             let mut slice = buf.split_to(len);
+            let raw_headers;
 
-            if ctx
+            let slice = if ctx
                 .h1_parser_config
                 .obsolete_multiline_headers_in_responses_are_allowed()
             {
+                raw_headers = if ctx.record_raw_headers {
+                    Some(RawResponseHeaders::from(slice.clone().freeze()))
+                } else {
+                    None
+                };
                 for header in &mut headers_indices[..headers_len] {
                     // SAFETY: array is valid up to `headers_len`
                     let header = unsafe { header.assume_init_mut() };
                     Client::obs_fold_line(&mut slice, header);
                 }
-            }
-
-            let slice = slice.freeze();
+                slice.freeze()
+            } else {
+                let slice = slice.freeze();
+                raw_headers = if ctx.record_raw_headers {
+                    Some(RawResponseHeaders::from(slice.clone()))
+                } else {
+                    None
+                };
+                slice
+            };
 
             let mut headers = ctx.cached_headers.take().unwrap_or_default();
 
@@ -1116,6 +1131,14 @@ impl Http1Transaction for Client {
             }
 
             let mut extensions = http::Extensions::default();
+
+            if let Some(raw_request_headers) = ctx.raw_request_headers {
+                extensions.insert(raw_request_headers.clone());
+            }
+
+            if let Some(raw_headers) = raw_headers {
+                extensions.insert(raw_headers);
+            }
 
             if let Some(header_case_map) = header_case_map {
                 extensions.insert(header_case_map);
@@ -1654,6 +1677,8 @@ mod tests {
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
+                raw_request_headers: None,
+                record_raw_headers: false,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -1682,6 +1707,8 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1706,6 +1733,8 @@ mod tests {
             req_method: &mut None,
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1727,6 +1756,8 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1750,6 +1781,8 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1777,6 +1810,8 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1801,6 +1836,8 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1821,6 +1858,8 @@ mod tests {
             req_method: &mut None,
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            raw_request_headers: None,
+            record_raw_headers: false,
             preserve_header_case: true,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1860,6 +1899,8 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -1881,6 +1922,8 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2111,6 +2154,8 @@ mod tests {
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2132,6 +2177,8 @@ mod tests {
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2153,6 +2200,8 @@ mod tests {
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2723,6 +2772,8 @@ mod tests {
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
+                raw_request_headers: None,
+                record_raw_headers: false,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -2767,6 +2818,8 @@ mod tests {
                         req_method: &mut None,
                         h1_parser_config: Default::default(),
                         h1_max_headers: max_headers,
+                        raw_request_headers: None,
+                        record_raw_headers: false,
                         preserve_header_case: false,
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
@@ -2791,6 +2844,8 @@ mod tests {
                         req_method: &mut None,
                         h1_parser_config: Default::default(),
                         h1_max_headers: max_headers,
+                        raw_request_headers: None,
+                        record_raw_headers: false,
                         preserve_header_case: false,
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
@@ -2960,6 +3015,8 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -3005,6 +3062,8 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    raw_request_headers: None,
+                    record_raw_headers: false,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
