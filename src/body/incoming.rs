@@ -248,14 +248,14 @@ impl Body for Incoming {
                             return Poll::Ready(Some(Ok(Frame::data(bytes))));
                         }
                         Some(Err(e)) => {
-                            return match e.reason() {
-                                // These reasons should cause the body reading to stop, but not fail it.
-                                // The same logic as for `Read for H2Upgraded` is applied here.
-                                Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => {
-                                    Poll::Ready(None)
-                                }
-                                _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
-                            };
+                            if let Some(h2::Reason::NO_ERROR) = e.reason() {
+                                // As mentioned in RFC 7540 Section 8.1, a RST_STREAM with NO_ERROR
+                                // indicates an early response, and should cause the body reading
+                                // to stop, but not fail it:
+                                return Poll::Ready(None);
+                            } else {
+                                return Poll::Ready(Some(Err(crate::Error::new_body(e))));
+                            }
                         }
                         None => {
                             *data_done = true;
@@ -271,13 +271,13 @@ impl Body for Incoming {
                         Poll::Ready(Ok(t.map(Frame::trailers)).transpose())
                     }
                     Err(e) => {
-                        match e.reason() {
-                            // These reasons should cause reading the trailers to stop, but not fail it.
-                            // The same logic as for `Read for H2Upgraded` is applied here.
-                            Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => {
-                                Poll::Ready(None)
-                            }
-                            _ => Poll::Ready(Some(Err(crate::Error::new_h2(e)))),
+                        if let Some(h2::Reason::NO_ERROR) = e.reason() {
+                            // Same as above, a RST_STREAM with NO_ERROR indicates an early
+                            // response, and should cause reading the trailers to stop, but
+                            // not fail it:
+                            Poll::Ready(None)
+                        } else {
+                            Poll::Ready(Some(Err(crate::Error::new_h2(e))))
                         }
                     }
                 }
