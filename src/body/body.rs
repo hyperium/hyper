@@ -325,12 +325,16 @@ impl Body {
                     ping.record_data(bytes.len());
                     Poll::Ready(Some(Ok(bytes)))
                 }
-                Some(Err(e)) => match e.reason() {
-                    // These reasons should cause stop of body reading, but nor fail it.
-                    // The same logic as for `AsyncRead for H2Upgraded` is applied here.
-                    Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => Poll::Ready(None),
-                    _ => Poll::Ready(Some(Err(crate::Error::new_body(e)))),
-                },
+                Some(Err(e)) => {
+                    if let Some(h2::Reason::NO_ERROR) = e.reason() {
+                        // As mentioned in RFC 7540 Section 8.1, a RST_STREAM with NO_ERROR
+                        // indicates an early response, and should cause the body reading
+                        // to stop, but not fail it:
+                        Poll::Ready(None)
+                    } else {
+                        Poll::Ready(Some(Err(crate::Error::new_body(e))))
+                    }
+                }
                 None => Poll::Ready(None),
             },
 
@@ -389,10 +393,16 @@ impl HttpBody for Body {
                     ping.record_non_data();
                     Poll::Ready(Ok(t))
                 }
-                Err(e) => match e.reason() {
-                    Some(h2::Reason::NO_ERROR) | Some(h2::Reason::CANCEL) => Poll::Ready(Ok(None)),
-                    reason => Poll::Ready(Err(crate::Error::new_h2(e))),
-                },
+                Err(e) => {
+                    if let Some(h2::Reason::NO_ERROR) = e.reason() {
+                        // Same as above, a RST_STREAM with NO_ERROR indicates an early
+                        // response, and should cause reading the trailers to stop, but
+                        // not fail it:
+                        Poll::Ready(Ok(None))
+                    } else {
+                        Poll::Ready(Err(crate::Error::new_h2(e)))
+                    }
+                }
             },
             Kind::Chan {
                 ref mut trailers_rx,
