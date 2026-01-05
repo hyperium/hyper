@@ -164,7 +164,11 @@ impl Http1Transaction for Server {
             trace!(bytes = buf.len(), "Request.parse");
             let mut req = httparse::Request::new(&mut []);
             let bytes = buf.as_ref();
-            match req.parse_with_uninit_headers(bytes, &mut headers) {
+            match ctx.h1_parser_config.parse_request_with_uninit_headers(
+                &mut req,
+                bytes,
+                &mut headers,
+            ) {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
@@ -1809,6 +1813,61 @@ mod tests {
             on_informational: &mut None,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
+    }
+
+    const REQUEST_WITH_MULTIPLE_SPACES_IN_REQUEST_LINE: &str =
+        "GET  /echo  HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_parse_allow_request_with_multiple_spaces_in_request_line() {
+        use httparse::ParserConfig;
+
+        let _ = pretty_env_logger::try_init();
+        let mut raw = BytesMut::from(REQUEST_WITH_MULTIPLE_SPACES_IN_REQUEST_LINE);
+        let mut h1_parser_config = ParserConfig::default();
+        h1_parser_config.allow_multiple_spaces_in_request_line_delimiters(true);
+        let mut method = None;
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut method,
+            h1_parser_config,
+            h1_max_headers: None,
+            preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
+            h09_responses: false,
+            #[cfg(feature = "client")]
+            on_informational: &mut None,
+        };
+        let msg = Server::parse(&mut raw, ctx).unwrap().unwrap();
+        assert_eq!(raw.len(), 0);
+        assert_eq!(msg.head.subject.0, crate::Method::GET);
+        assert_eq!(msg.head.subject.1, "/echo");
+        assert_eq!(msg.head.version, crate::Version::HTTP_11);
+        assert_eq!(msg.head.headers.len(), 1);
+        assert_eq!(msg.head.headers["Host"], "hyper.rs");
+        assert_eq!(method, Some(crate::Method::GET));
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_parse_reject_request_with_multiple_spaces_in_request_line() {
+        let _ = pretty_env_logger::try_init();
+        let mut raw = BytesMut::from(REQUEST_WITH_MULTIPLE_SPACES_IN_REQUEST_LINE);
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut None,
+            h1_parser_config: Default::default(),
+            h1_max_headers: None,
+            preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
+            h09_responses: false,
+            #[cfg(feature = "client")]
+            on_informational: &mut None,
+        };
+        Server::parse(&mut raw, ctx).unwrap_err();
     }
 
     #[cfg(feature = "server")]
