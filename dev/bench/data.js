@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767622426294,
+  "lastUpdate": 1767622489241,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -55399,6 +55399,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5094733,
             "range": "± 4515286.95",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "poe.liu@pm.me",
+            "name": "Dongpo Liu",
+            "username": "0xPoe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "bcb8ec576619650d3388604e6c246829e7be133a",
+          "message": "fix(http1): use httparse config for Servers (#4002)\n\nPreviously, you could config the httparse config on the server `Builder`, just like you can for clients, but unlike clients, hyper forgot to _use_ that config when parsing requests.\n\nThis fixes the mistake.\n\nCloses #3923",
+          "timestamp": "2026-01-05T09:12:59-05:00",
+          "tree_id": "c212d6aa89cb6c0b51c423195db7eae6dcde9316",
+          "url": "https://github.com/hyperium/hyper/commit/bcb8ec576619650d3388604e6c246829e7be133a"
+        },
+        "date": 1767622485203,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67869,
+            "range": "± 1081.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4453689,
+            "range": "± 275452.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21007,
+            "range": "± 482.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23108,
+            "range": "± 450.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30139,
+            "range": "± 516.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 94359,
+            "range": "± 1121.08",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 33754,
+            "range": "± 589.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 86580,
+            "range": "± 1283.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 23910782,
+            "range": "± 32380009.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23859127,
+            "range": "± 16440208.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7372722,
+            "range": "± 111283.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 48883440,
+            "range": "± 644912.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 57302621,
+            "range": "± 8840786.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5135276,
+            "range": "± 4662469.48",
             "unit": "ns/iter"
           }
         ]
