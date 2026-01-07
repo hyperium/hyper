@@ -61,7 +61,7 @@ fn not_found() -> Response<BoxBody<Bytes, std::io::Error>> {
     Response::builder()
         .status(StatusCode::NOT_FOUND)
         .body(Full::new(NOTFOUND.into()).map_err(|e| match e {}).boxed())
-        .expect("not found should be valid")
+        .expect("constant status won't error")
 }
 
 async fn simple_file_send(filename: &str) -> Result<Response<BoxBody<Bytes, std::io::Error>>> {
@@ -85,7 +85,7 @@ async fn simple_file_send(filename: &str) -> Result<Response<BoxBody<Bytes, std:
     let response = Response::builder()
         .status(StatusCode::OK)
         .body(boxed_body)
-        .expect("response should be valid");
+        .expect("constant status won't error");
 
     Ok(response)
 }

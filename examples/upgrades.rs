@@ -100,7 +100,7 @@ async fn client_upgrade_request(addr: SocketAddr) -> Result<()> {
         .uri(format!("http://{}/", addr))
         .header(UPGRADE, "foobar")
         .body(Empty::<Bytes>::new())
-        .expect("request should be valid");
+        .expect("uri/header parse won't error");
 
     let stream = TcpStream::connect(addr).await?;
     let io = TokioIo::new(stream);
