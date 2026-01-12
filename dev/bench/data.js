@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1767622489241,
+  "lastUpdate": 1768229675383,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10739,6 +10739,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47712,
             "range": "± 8837.29",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "18913ffd8e0410b8ebc7d9f37c782578cf90f706",
+          "message": "test(server): fix flaky disable_keep_alive_mid_request (#4009)\n\nThis test would make use of the OS TCP stack, and sometimes on Mac of Windows, it would fail.\n\nThe change switches to an in-memory transport, since the purpose is to test the timing on hyper's side, not the TCP stack.\n\nCloses #3949",
+          "timestamp": "2026-01-12T09:53:46-05:00",
+          "tree_id": "dc2ffe97049b3076d820443634fa7798a2a54529",
+          "url": "https://github.com/hyperium/hyper/commit/18913ffd8e0410b8ebc7d9f37c782578cf90f706"
+        },
+        "date": 1768229672555,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47475,
+            "range": "± 7986.10",
             "unit": "ns/iter"
           }
         ]
