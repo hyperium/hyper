@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768249768378,
+  "lastUpdate": 1768249927394,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -56089,6 +56089,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5139464,
             "range": "± 4672813.43",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "techregister@pm.me",
+            "name": "Dongpo Liu",
+            "username": "0xPoe"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0f0b6ed3ac55ac1682afd2104cb8d0385149249a",
+          "message": "docs(examples): replace unwraps with expects explaining why (#4001)\n\nJust avoid unwrap as much as possible. Use expect to assert that it will always succeed.\n\nCloses #3984",
+          "timestamp": "2026-01-12T15:28:42-05:00",
+          "tree_id": "43f60cf56f427ca11003e0ac2bb8d8269fd82b01",
+          "url": "https://github.com/hyperium/hyper/commit/0f0b6ed3ac55ac1682afd2104cb8d0385149249a"
+        },
+        "date": 1768249924685,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 36078,
+            "range": "± 688.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4540210,
+            "range": "± 374901.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 11239,
+            "range": "± 249.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 12744,
+            "range": "± 366.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 17634,
+            "range": "± 318.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 50886,
+            "range": "± 1117.04",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000823,
+            "range": "± 31216.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 65802,
+            "range": "± 852.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 4364079,
+            "range": "± 58173.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 4415897,
+            "range": "± 125809.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4267224,
+            "range": "± 92432.30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 40195359,
+            "range": "± 3623312.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 47618589,
+            "range": "± 10923645.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3793969,
+            "range": "± 4310958.62",
             "unit": "ns/iter"
           }
         ]
