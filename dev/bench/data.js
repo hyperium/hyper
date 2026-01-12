@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768229811616,
+  "lastUpdate": 1768229858238,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -55597,6 +55597,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5135276,
             "range": "± 4662469.48",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "18913ffd8e0410b8ebc7d9f37c782578cf90f706",
+          "message": "test(server): fix flaky disable_keep_alive_mid_request (#4009)\n\nThis test would make use of the OS TCP stack, and sometimes on Mac of Windows, it would fail.\n\nThe change switches to an in-memory transport, since the purpose is to test the timing on hyper's side, not the TCP stack.\n\nCloses #3949",
+          "timestamp": "2026-01-12T09:53:46-05:00",
+          "tree_id": "dc2ffe97049b3076d820443634fa7798a2a54529",
+          "url": "https://github.com/hyperium/hyper/commit/18913ffd8e0410b8ebc7d9f37c782578cf90f706"
+        },
+        "date": 1768229854827,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 36094,
+            "range": "± 700.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 5775365,
+            "range": "± 579625.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 11131,
+            "range": "± 171.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 12762,
+            "range": "± 347.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 17646,
+            "range": "± 430.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 51455,
+            "range": "± 2104.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999916,
+            "range": "± 14011.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 65643,
+            "range": "± 1660.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 4442666,
+            "range": "± 143240.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 29414851,
+            "range": "± 16337118.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4259483,
+            "range": "± 64977.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 45441468,
+            "range": "± 4219923.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 62463893,
+            "range": "± 15511935.20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5510775,
+            "range": "± 4476908.09",
             "unit": "ns/iter"
           }
         ]
