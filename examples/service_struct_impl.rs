@@ -51,7 +51,7 @@ impl Service<Request<IncomingBody>> for Svc {
 
     fn call(&self, req: Request<IncomingBody>) -> Self::Future {
         fn mk_response(s: String) -> Result<Response<Full<Bytes>>, hyper::Error> {
-            Ok(Response::builder().body(Full::new(Bytes::from(s))).unwrap())
+            Ok(Response::new(Full::new(Bytes::from(s))))
         }
 
         if req.uri().path() != "/favicon.ico" {
