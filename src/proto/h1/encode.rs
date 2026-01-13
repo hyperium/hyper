@@ -179,7 +179,7 @@ impl Encoder {
                     }
                     let name = cur_name.as_ref().expect("current header name");
 
-                    if allowed_trailer_field_map.contains_key(name.as_str()) {
+                    if allowed_trailer_field_map.contains_key(name) {
                         if is_valid_trailer_field(name) {
                             allowed_trailers.insert(name, value);
                         } else {
@@ -279,15 +279,18 @@ fn is_valid_trailer_field(name: &HeaderName) -> bool {
     )
 }
 
-fn allowed_trailer_field_map(allowed_trailer_fields: &Vec<HeaderValue>) -> HashMap<String, ()> {
+fn allowed_trailer_field_map(allowed_trailer_fields: &Vec<HeaderValue>) -> HashMap<HeaderName, ()> {
     let mut trailer_map = HashMap::new();
 
     for header_value in allowed_trailer_fields {
         if let Ok(header_str) = header_value.to_str() {
             let items: Vec<&str> = header_str.split(',').map(|item| item.trim()).collect();
 
-            for item in items {
-                trailer_map.entry(item.to_string()).or_insert(());
+            for item in items
+                .into_iter()
+                .filter_map(|v| HeaderName::from_bytes(v.as_bytes()).ok())
+            {
+                trailer_map.entry(item).or_insert(());
             }
         }
     }
