@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::HashSet;
 use std::fmt;
 use std::io::IoSlice;
 
@@ -9,7 +9,7 @@ use http::{
         AUTHORIZATION, CACHE_CONTROL, CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_RANGE,
         CONTENT_TYPE, HOST, MAX_FORWARDS, SET_COOKIE, TE, TRAILER, TRANSFER_ENCODING,
     },
-    HeaderMap, HeaderName, HeaderValue,
+    HeaderMap, HeaderName,
 };
 
 use super::io::WriteBuf;
@@ -35,7 +35,7 @@ pub(crate) struct NotEof(u64);
 #[derive(Debug, PartialEq, Clone)]
 enum Kind {
     /// An Encoder for when Transfer-Encoding includes `chunked`.
-    Chunked(Option<Vec<HeaderValue>>),
+    Chunked(Option<Vec<HeaderName>>),
     /// An Encoder for when Content-Length is set.
     ///
     /// Enforces that the body is not longer than the Content-Length header.
@@ -77,7 +77,7 @@ impl Encoder {
         Encoder::new(Kind::CloseDelimited)
     }
 
-    pub(crate) fn into_chunked_with_trailing_fields(self, trailers: Vec<HeaderValue>) -> Encoder {
+    pub(crate) fn into_chunked_with_trailing_fields(self, trailers: Vec<HeaderName>) -> Encoder {
         match self.kind {
             Kind::Chunked(_) => Encoder {
                 kind: Kind::Chunked(Some(trailers)),
@@ -168,7 +168,7 @@ impl Encoder {
         trace!("encoding trailers");
         match &self.kind {
             Kind::Chunked(Some(allowed_trailer_fields)) => {
-                let allowed_trailer_field_map = allowed_trailer_field_map(allowed_trailer_fields);
+                let allowed_set: HashSet<&HeaderName> = allowed_trailer_fields.iter().collect();
 
                 let mut cur_name = None;
                 let mut allowed_trailers = HeaderMap::new();
@@ -179,7 +179,7 @@ impl Encoder {
                     }
                     let name = cur_name.as_ref().expect("current header name");
 
-                    if allowed_trailer_field_map.contains_key(name.as_str()) {
+                    if allowed_set.contains(name) {
                         if is_valid_trailer_field(name) {
                             allowed_trailers.insert(name, value);
                         } else {
@@ -279,21 +279,6 @@ fn is_valid_trailer_field(name: &HeaderName) -> bool {
     )
 }
 
-fn allowed_trailer_field_map(allowed_trailer_fields: &Vec<HeaderValue>) -> HashMap<String, ()> {
-    let mut trailer_map = HashMap::new();
-
-    for header_value in allowed_trailer_fields {
-        if let Ok(header_str) = header_value.to_str() {
-            let items: Vec<&str> = header_str.split(',').map(|item| item.trim()).collect();
-
-            for item in items {
-                trailer_map.entry(item.to_string()).or_insert(());
-            }
-        }
-    }
-
-    trailer_map
-}
 
 impl<B> Buf for EncodedBuf<B>
 where
@@ -532,7 +517,7 @@ mod tests {
     #[test]
     fn chunked_with_valid_trailers() {
         let encoder = Encoder::chunked();
-        let trailers = vec![HeaderValue::from_static("chunky-trailer")];
+        let trailers = vec![HeaderName::from_static("chunky-trailer")];
         let encoder = encoder.into_chunked_with_trailing_fields(trailers);
 
         let headers = HeaderMap::from_iter(vec![
@@ -557,8 +542,8 @@ mod tests {
     fn chunked_with_multiple_trailer_headers() {
         let encoder = Encoder::chunked();
         let trailers = vec![
-            HeaderValue::from_static("chunky-trailer"),
-            HeaderValue::from_static("chunky-trailer-2"),
+            HeaderName::from_static("chunky-trailer"),
+            HeaderName::from_static("chunky-trailer-2"),
         ];
         let encoder = encoder.into_chunked_with_trailing_fields(trailers);
 
@@ -606,8 +591,7 @@ mod tests {
     fn chunked_with_invalid_trailers() {
         let encoder = Encoder::chunked();
 
-        let trailers = format!(
-            "{},{},{},{},{},{},{},{},{},{},{},{}",
+        let trailers = vec![
             AUTHORIZATION,
             CACHE_CONTROL,
             CONTENT_ENCODING,
@@ -620,8 +604,7 @@ mod tests {
             TRAILER,
             TRANSFER_ENCODING,
             TE,
-        );
-        let trailers = vec![HeaderValue::from_str(&trailers).unwrap()];
+        ];
         let encoder = encoder.into_chunked_with_trailing_fields(trailers);
 
         let mut headers = HeaderMap::new();
@@ -644,7 +627,7 @@ mod tests {
     #[test]
     fn chunked_with_title_case_headers() {
         let encoder = Encoder::chunked();
-        let trailers = vec![HeaderValue::from_static("chunky-trailer")];
+        let trailers = vec![HeaderName::from_static("chunky-trailer")];
         let encoder = encoder.into_chunked_with_trailing_fields(trailers);
 
         let headers = HeaderMap::from_iter(vec![(
@@ -656,5 +639,35 @@ mod tests {
         let mut dst = Vec::new();
         dst.put(buf1);
         assert_eq!(dst, b"0\r\nChunky-Trailer: header data\r\n\r\n");
+    }
+
+    #[test]
+    fn chunked_trailers_case_insensitive_matching() {
+        // Regression test for issue #4010: HTTP/1.1 trailers are case-sensitive
+        //
+        // Previously, the Trailer header values were stored as HeaderValue (preserving case)
+        // and compared against HeaderName (which is always lowercase). This caused trailers
+        // declared as "Chunky-Trailer" to not match actual trailers sent as "chunky-trailer".
+        //
+        // The fix converts Trailer header values to HeaderName during parsing, which
+        // normalizes the case and enables proper case-insensitive matching.
+        //
+        // Note: HeaderName::from_static() requires lowercase input. In real usage,
+        // HeaderName::from_bytes() is used to parse the Trailer header value, which
+        // normalizes mixed-case input like "Chunky-Trailer" to "chunky-trailer".
+        let encoder = Encoder::chunked();
+        let trailers = vec![HeaderName::from_static("chunky-trailer")];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        // The actual trailer being sent
+        let headers = HeaderMap::from_iter(vec![(
+            HeaderName::from_static("chunky-trailer"),
+            HeaderValue::from_static("trailer value"),
+        )]);
+
+        let buf = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
+        let mut dst = Vec::new();
+        dst.put(buf);
+        assert_eq!(dst, b"0\r\nchunky-trailer: trailer value\r\n\r\n");
     }
 }
