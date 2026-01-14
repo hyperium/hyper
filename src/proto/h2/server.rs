@@ -11,11 +11,20 @@ use h2::{Reason, RecvStream};
 use http::{Method, Request};
 use pin_project_lite::pin_project;
 
+#[cfg(feature = "server")]
+use futures_channel::mpsc::{self, Receiver};
+#[cfg(feature = "server")]
+use futures_util::stream::StreamExt;
+#[cfg(feature = "server")]
+use http::Response;
+
 use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::date;
 use crate::common::io::Compat;
 use crate::common::time::Time;
+#[cfg(feature = "server")]
+use crate::ext::InformationalSender;
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
@@ -25,7 +34,6 @@ use crate::rt::{Read, Write};
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
-use crate::Response;
 
 // Our defaults are chosen for the "majority" case, which usually are not
 // resource constrained, and so the spec default of 64kb can be too limiting
@@ -302,12 +310,24 @@ where
                             req.extensions_mut().insert(Protocol::from_inner(protocol));
                         }
 
+                        #[cfg(feature = "server")]
+                        let (informational_tx, informational_rx) = mpsc::channel(10);
+                        #[cfg(feature = "server")]
+                        {
+                            req.extensions_mut()
+                                .insert(InformationalSender(informational_tx));
+                        }
+
                         let fut = H2Stream::new(
                             service.call(req),
                             connect_parts,
                             respond,
                             self.date_header,
                             exec.clone(),
+                            #[cfg(feature = "server")]
+                            Some(informational_rx),
+                            #[cfg(not(feature = "server"))]
+                            None,
                         );
 
                         exec.execute_h2stream(fut);
@@ -366,6 +386,7 @@ pin_project! {
         state: H2StreamState<F, B>,
         date_header: bool,
         exec: E,
+        informational_rx: Option<Receiver<Response<()>>>,
     }
 }
 
@@ -403,12 +424,14 @@ where
         respond: SendResponse<SendBuf<B::Data>>,
         date_header: bool,
         exec: E,
+        informational_rx: Option<Receiver<Response<()>>>,
     ) -> H2Stream<F, B, E> {
         H2Stream {
             reply: respond,
             state: H2StreamState::Service { fut, connect_parts },
             date_header,
             exec,
+            informational_rx,
         }
     }
 }
@@ -438,6 +461,35 @@ where
     fn poll2(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         let mut me = self.as_mut().project();
         loop {
+            // Check for informational responses first
+            #[cfg(feature = "server")]
+            if let Some(informational_rx) = me.informational_rx.as_mut() {
+                // Send informational responses using the new h2 API
+                while let Poll::Ready(informational) = informational_rx.poll_next_unpin(cx) {
+                    match informational {
+                        Some(informational) => {
+                            trace!(
+                                "Received informational response: {:?}",
+                                informational.status()
+                            );
+                            // Send the informational response using the new h2 API
+                            if let Err(e) = me.reply.send_informational(informational) {
+                                debug!("Failed to send informational response: {}", e);
+                                return Poll::Ready(Err(crate::Error::new_h2(e)));
+                            } else {
+                                trace!("Successfully sent informational response");
+                            }
+                        }
+                        None => {
+                            trace!("Informational channel closed");
+                            // Channel closed, remove it
+                            *me.informational_rx = None;
+                            break;
+                        }
+                    }
+                }
+            }
+
             let next = match me.state.as_mut().project() {
                 H2StreamStateProj::Service {
                     fut: h,
