@@ -279,7 +279,6 @@ fn is_valid_trailer_field(name: &HeaderName) -> bool {
     )
 }
 
-
 impl<B> Buf for EncodedBuf<B>
 where
     B: Buf,
