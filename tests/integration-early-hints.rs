@@ -9,7 +9,6 @@
 //! - Real browser behavior and security requirements
 
 use bytes::Bytes;
-use futures_util::SinkExt;
 use http_body_util::Full;
 use hyper::client::conn::http2::Builder;
 use hyper::client::conn::informational::InformationalConfig;
@@ -129,7 +128,7 @@ impl EarlyHintsBuilder {
 
     async fn send_via(
         self,
-        informational_sender: &mut hyper::ext::InformationalSender,
+        pusher: &mut hyper::ext::EarlyHintsPusher,
     ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
         let mut response_builder = Response::builder().status(StatusCode::EARLY_HINTS);
 
@@ -143,7 +142,7 @@ impl EarlyHintsBuilder {
 
         let early_hints_response = response_builder.body(())?;
 
-        if let Err(e) = informational_sender.0.send(early_hints_response).await {
+        if let Err(e) = pusher.send_hints(early_hints_response).await {
             eprintln!("Server: Failed to send 103 Early Hints response: {}", e);
             return Err(Box::new(e));
         } else {
@@ -182,14 +181,11 @@ impl EarlyHintsTestServer {
                 let final_response_fn = final_response_fn.clone();
 
                 async move {
-                    // Send Early Hints if informational sender is available
-                    if let Some(mut informational_sender) =
-                        req.extensions_mut()
-                            .remove::<hyper::ext::InformationalSender>()
-                    {
+                    // Send Early Hints using the early_hints_pusher API
+                    if let Ok(mut pusher) = hyper::ext::early_hints_pusher(&mut req) {
                         let hints = early_hints_fn();
                         for hint in hints {
-                            if let Err(e) = hint.send_via(&mut informational_sender).await {
+                            if let Err(e) = hint.send_via(&mut pusher).await {
                                 eprintln!("Failed to send early hint: {}", e);
                             }
                         }
@@ -200,6 +196,7 @@ impl EarlyHintsTestServer {
             });
 
             ServerBuilder::new(TokioExecutor)
+                .enable_informational() // Enable 103 Early Hints support
                 .serve_connection(io, service)
                 .await
                 .unwrap();
@@ -750,11 +747,8 @@ async fn test_103_mixed_link_headers() {
 
         let service = service_fn(move |mut req| {
             async move {
-                // Send 103 Early Hints with mixed Link header types
-                if let Some(mut informational_sender) = req
-                    .extensions_mut()
-                    .remove::<hyper::ext::InformationalSender>()
-                {
+                // Send 103 Early Hints with mixed Link header types using the early_hints_pusher API
+                if let Ok(mut pusher) = hyper::ext::early_hints_pusher(&mut req) {
                     println!("Server: Sending 103 Early Hints with mixed Link headers");
                     let early_hints_response = Response::builder()
                         .status(StatusCode::EARLY_HINTS) // 103 Early Hints
@@ -765,7 +759,7 @@ async fn test_103_mixed_link_headers() {
                         .body(())
                         .unwrap();
 
-                    if let Err(e) = informational_sender.0.send(early_hints_response).await {
+                    if let Err(e) = pusher.send_hints(early_hints_response).await {
                         eprintln!("Server: Failed to send 103 Early Hints response: {}", e);
                     } else {
                         println!("Server: Successfully sent 103 Early Hints with mixed links");
@@ -785,6 +779,7 @@ async fn test_103_mixed_link_headers() {
         });
 
         ServerBuilder::new(TokioExecutor)
+            .enable_informational() // Enable 103 Early Hints support
             .serve_connection(io, service)
             .await
             .unwrap();

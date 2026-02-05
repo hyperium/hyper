@@ -16,7 +16,7 @@ use bytes::Bytes;
 use http::{Request, Response, StatusCode};
 use http_body_util::Full;
 use hyper::body::Incoming as IncomingBody;
-use hyper::ext::InformationalSender;
+use hyper::ext::early_hints_pusher;
 use hyper::server::conn::http2;
 use hyper::service::service_fn;
 use tokio::net::TcpListener;
@@ -340,10 +340,8 @@ EarlyHintsDemo.init();
 
         // Root path - serve HTML page with all the hinted resources
         "/" => {
-            // Send 103 Early Hints first
-            if let Some(mut informational_sender) =
-                req.extensions_mut().remove::<InformationalSender>()
-            {
+            // Send 103 Early Hints using the early_hints_pusher API
+            if let Ok(mut pusher) = early_hints_pusher(&mut req) {
                 println!("Sending 103 Early Hints (all critical resources)");
 
                 let start_time = Instant::now();
@@ -367,23 +365,18 @@ EarlyHintsDemo.init();
                     )
                     // Hero image (medium priority - above fold)
                     .header("link", "</images/hero.webp>; rel=preload; as=image")
-                    // API data (lower priority - dynamic content)
-                    .header(
-                        "link",
-                        "</api/initial-data.json>; rel=preload; as=fetch; crossorigin",
-                    )
                     // Metadata for tracking
-                    .header("x-resource-count", "8")
-                    .header("x-priority-order", "css,js,fonts,images,api")
+                    .header("x-resource-count", "7")
+                    .header("x-priority-order", "css,js,fonts,images")
                     .body(())
                     .unwrap();
 
-                if let Err(e) = informational_sender.0.try_send(hints) {
+                if let Err(e) = pusher.send_hints(hints).await {
                     eprintln!("Failed to send hints: {}", e);
                 } else {
                     let send_duration = start_time.elapsed();
                     println!("103 Early Hints sent in: {:?}", send_duration);
-                    println!("   8 resources hinted in single response");
+                    println!("   7 resources hinted in single response");
                     println!("   Browser processes once, starts all preloads immediately");
                 }
 
@@ -427,13 +420,12 @@ EarlyHintsDemo.init();
     <main class="content">
         <div class="container">
             <h2>Resource Loading Analysis</h2>
-            <p>This page demonstrates 103 Early Hints by preloading 8 critical resources:</p>
+            <p>This page demonstrates 103 Early Hints by preloading 7 critical resources:</p>
             <ul>
                 <li><strong>CSS:</strong> critical.css, layout.css</li>
                 <li><strong>JavaScript:</strong> app.js, vendor.js</li>
                 <li><strong>Fonts:</strong> main.woff2, icons.woff2</li>
                 <li><strong>Images:</strong> hero.webp</li>
-                <li><strong>API Data:</strong> initial-data.json</li>
             </ul>
             
             <h3>Performance Benefits</h3>
@@ -474,7 +466,7 @@ EarlyHintsDemo.init();
                 .status(StatusCode::OK)
                 .header("content-type", "text/html; charset=utf-8")
                 .header("x-server", "hyper-103")
-                .header("x-total-resources-hinted", "8")
+                .header("x-total-resources-hinted", "7")
                 .body(Full::new(Bytes::from(html_content)))
                 .unwrap());
         }
@@ -562,10 +554,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
                 }
             };
 
-            // Serve HTTP/2 connection
+            // Serve HTTP/2 connection with Early Hints support enabled
             let service = service_fn(handle_request);
 
             if let Err(e) = http2::Builder::new(TokioExecutor)
+                .enable_informational() // Enable 103 Early Hints support
                 .serve_connection(TokioIo::new(tls_stream), service)
                 .await
             {
