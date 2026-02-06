@@ -2851,6 +2851,51 @@ fn http1_trailer_send_fields() {
 }
 
 #[test]
+fn http1_trailer_send_fields_titlecase() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+    // Invalid trailer field that should not be sent
+    headers.insert("Host", "www.example.com".parse().unwrap());
+    // Not specified in Trailer header, so should not be sent
+    headers.insert("foo", "bar".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "Chunky-Trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let expected_head =
+        "HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\ntrailer: Chunky-Trailer\r\n";
+    assert_eq!(&sres[..expected_head.len()], expected_head);
+
+    // skip the date header
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
 fn http1_trailer_fields_not_allowed() {
     let body = futures_util::stream::once(async move { Ok("hello".into()) });
     let mut headers = HeaderMap::new();
