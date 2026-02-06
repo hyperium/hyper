@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770399781938,
+  "lastUpdate": 1770399886370,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -56227,6 +56227,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3793969,
             "range": "± 4310958.62",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "197298026+HueCodes@users.noreply.github.com",
+            "name": "HueCodes",
+            "username": "HueCodes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b344cac9f96a9365409086dde51d06aa797ffc3",
+          "message": "fix(http1): use case-insensitive matching for trailer fields (#4011)\n\nTrailer header values were stored as HeaderValue and compared against\nHeaderName, causing case mismatch. Convert to HeaderName during parsing\nto normalize case per RFC 9110.\n\nCloses #4010\n\nCo-authored-by: Hugh <HueCodes@users.noreply.github.com>\nCo-authored-by: Pavel Borzenkov <pavel@borzenkov.net>",
+          "timestamp": "2026-02-06T12:42:00-05:00",
+          "tree_id": "5c2cc64c43171d5dc1090eafccde717e2badd620",
+          "url": "https://github.com/hyperium/hyper/commit/3b344cac9f96a9365409086dde51d06aa797ffc3"
+        },
+        "date": 1770399883864,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 62260,
+            "range": "± 967.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4545898,
+            "range": "± 101841.48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 23082,
+            "range": "± 312.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 24323,
+            "range": "± 390.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 29038,
+            "range": "± 9153.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 89902,
+            "range": "± 1422.76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999935,
+            "range": "± 3016.95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 83088,
+            "range": "± 1698.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 7856385,
+            "range": "± 145614.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7917367,
+            "range": "± 61972.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7675188,
+            "range": "± 154276.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 52335906,
+            "range": "± 946319.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 60996094,
+            "range": "± 9048482.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5547803,
+            "range": "± 4507048.90",
             "unit": "ns/iter"
           }
         ]
