@@ -293,3 +293,22 @@ impl OriginalHeaderOrder {
         self.entry_order.iter()
     }
 }
+
+/// Request extension type for sending one or more 1xx informational responses
+/// prior to the final response.
+///
+/// This extension is meant to be attached to inbound `Request`s, allowing a
+/// server to send informational responses immediately (i.e. without delaying
+/// them until it has constructed a final, non-informational response).
+///
+/// **Note:** This type should not be constructed directly by users.
+/// Use the `early_hints_pusher()` function to obtain a pusher
+/// that will lazily create this extension when needed.
+#[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
+#[derive(Clone, Debug)]
+pub struct InformationalSender(pub(crate) futures_channel::mpsc::Sender<http::Response<()>>);
+
+#[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
+mod informational_sender;
+#[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
+pub use informational_sender::{early_hints_pusher, EarlyHintsError, EarlyHintsPusher};
