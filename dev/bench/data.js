@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1768249927394,
+  "lastUpdate": 1770399781938,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10889,6 +10889,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 37006,
             "range": "± 8643.30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "197298026+HueCodes@users.noreply.github.com",
+            "name": "HueCodes",
+            "username": "HueCodes"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3b344cac9f96a9365409086dde51d06aa797ffc3",
+          "message": "fix(http1): use case-insensitive matching for trailer fields (#4011)\n\nTrailer header values were stored as HeaderValue and compared against\nHeaderName, causing case mismatch. Convert to HeaderName during parsing\nto normalize case per RFC 9110.\n\nCloses #4010\n\nCo-authored-by: Hugh <HueCodes@users.noreply.github.com>\nCo-authored-by: Pavel Borzenkov <pavel@borzenkov.net>",
+          "timestamp": "2026-02-06T12:42:00-05:00",
+          "tree_id": "5c2cc64c43171d5dc1090eafccde717e2badd620",
+          "url": "https://github.com/hyperium/hyper/commit/3b344cac9f96a9365409086dde51d06aa797ffc3"
+        },
+        "date": 1770399778567,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 47413,
+            "range": "± 7399.76",
             "unit": "ns/iter"
           }
         ]
