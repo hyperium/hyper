@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1770399886370,
+  "lastUpdate": 1770406812242,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10919,6 +10919,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47413,
             "range": "± 7399.76",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "32046070+njg7194@users.noreply.github.com",
+            "name": "No jae gun",
+            "username": "njg7194"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ccd3a5a4cc0762c59047eef64b77329ec7d27938",
+          "message": "chore: convert bug report template to GitHub form (#4015)\n\nConverts the bug report issue template from markdown to GitHub's YAML\nform format. This provides a more structured experience for users\nfiling bug reports with:\n\n- Required version and platform fields\n- Separate sections for code, expected behavior, and actual behavior\n- Better input validation\n- Improved readability for maintainers\n\nCloses #3213",
+          "timestamp": "2026-02-06T14:39:23-05:00",
+          "tree_id": "1be11e77f879a92beca5711c60387f926f61d228",
+          "url": "https://github.com/hyperium/hyper/commit/ccd3a5a4cc0762c59047eef64b77329ec7d27938"
+        },
+        "date": 1770406809669,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 49622,
+            "range": "± 9854.26",
             "unit": "ns/iter"
           }
         ]
