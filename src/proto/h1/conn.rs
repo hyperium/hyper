@@ -832,7 +832,7 @@ where
     }
 
     pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
+        match ready!(self.io.poll_shutdown(cx)) {
             Ok(()) => {
                 trace!("shut down IO complete");
                 Poll::Ready(Ok(()))
