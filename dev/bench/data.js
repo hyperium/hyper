@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771252491427,
+  "lastUpdate": 1771272019776,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11009,6 +11009,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 52870,
             "range": "± 12298.33",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ffuugoo@users.noreply.github.com",
+            "name": "Roman Titov",
+            "username": "ffuugoo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "577874591cae246dfb2d72d7140d794ac2fa605a",
+          "message": "feat(client): add HTTP/2 `max_local_error_reset_streams` option (#4021)",
+          "timestamp": "2026-02-16T14:59:34-05:00",
+          "tree_id": "16dfdb5c4bc1fba86f9377adc83a370bde3e9e2c",
+          "url": "https://github.com/hyperium/hyper/commit/577874591cae246dfb2d72d7140d794ac2fa605a"
+        },
+        "date": 1771272017500,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51034,
+            "range": "± 10631.47",
             "unit": "ns/iter"
           }
         ]
