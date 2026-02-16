@@ -287,6 +287,42 @@ impl<E> Builder<E> {
         self
     }
 
+    /// Enable support for HTTP/2 informational responses (1xx status codes).
+    ///
+    /// When enabled, the server can send informational responses like 103 Early Hints
+    /// before the final response using the `early_hints_pusher()` function.
+    ///
+    /// This creates a small amount of overhead for each request to support the feature.
+    /// When disabled (default), `early_hints_pusher()` will return an error.
+    ///
+    /// Default is false (disabled).
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use hyper::server::conn::http2;
+    ///
+    /// #[derive(Clone)]
+    /// struct TokioExecutor;
+    ///
+    /// impl<F> hyper::rt::Executor<F> for TokioExecutor
+    /// where
+    ///     F: std::future::Future + Send + 'static,
+    ///     F::Output: Send + 'static,
+    /// {
+    ///     fn execute(&self, fut: F) {
+    ///         tokio::spawn(fut);
+    ///     }
+    /// }
+    ///
+    /// let builder = http2::Builder::new(TokioExecutor)
+    ///     .enable_informational();
+    /// ```
+    pub fn enable_informational(&mut self) -> &mut Self {
+        self.h2_builder.enable_informational = true;
+        self
+    }
+
     /// Bind a connection together with a [`Service`](crate::service::Service).
     ///
     /// This returns a Future that must be polled in order for HTTP to be
@@ -308,5 +344,66 @@ impl<E> Builder<E> {
             self.timer.clone(),
         );
         Connection { conn: proto }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Mock executor for testing
+    #[derive(Clone)]
+    struct MockExec;
+
+    #[test]
+    fn test_builder_default_informational_disabled() {
+        let builder = Builder::new(MockExec);
+        assert!(!builder.h2_builder.enable_informational);
+    }
+
+    #[test]
+    fn test_enable_informational_sets_flag() {
+        let mut builder = Builder::new(MockExec);
+        builder.enable_informational();
+        assert!(builder.h2_builder.enable_informational);
+    }
+
+    #[test]
+    fn test_enable_informational_returns_self() {
+        let mut builder = Builder::new(MockExec);
+        let returned = builder.enable_informational();
+        // Verify method chaining works
+        assert!(returned.h2_builder.enable_informational);
+    }
+
+    #[test]
+    fn test_enable_informational_can_be_chained() {
+        let builder = Builder::new(MockExec).enable_informational().clone();
+        assert!(builder.h2_builder.enable_informational);
+    }
+
+    #[test]
+    fn test_builder_preserves_other_settings_when_enabling_informational() {
+        let mut builder = Builder::new(MockExec);
+        builder.max_concurrent_streams(Some(100));
+        builder.enable_informational();
+
+        assert!(builder.h2_builder.enable_informational);
+        assert_eq!(builder.h2_builder.max_concurrent_streams, Some(100));
+    }
+
+    #[test]
+    fn test_config_values_propagate_to_builder() {
+        let mut builder = Builder::new(MockExec);
+        builder
+            .enable_informational()
+            .max_concurrent_streams(Some(50))
+            .initial_stream_window_size(Some(65535))
+            .max_frame_size(Some(32768));
+
+        assert!(builder.h2_builder.enable_informational);
+        assert_eq!(builder.h2_builder.max_concurrent_streams, Some(50));
+        assert_eq!(builder.h2_builder.initial_stream_window_size, 65535);
+        assert_eq!(builder.h2_builder.max_frame_size, 32768);
     }
 }

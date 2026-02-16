@@ -14,6 +14,7 @@ use futures_core::ready;
 use http::{Request, Response};
 
 use super::super::dispatch::{self, TrySendError};
+use super::informational::InformationalConfig;
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::time::Time;
 use crate::proto;
@@ -61,6 +62,7 @@ pub struct Builder<Ex> {
     pub(super) exec: Ex,
     pub(super) timer: Time,
     h2_builder: proto::h2::client::Config,
+    informational_config: InformationalConfig,
 }
 
 /// Returns a handshake future over some IO.
@@ -263,6 +265,7 @@ where
             exec,
             timer: Time::Empty,
             h2_builder: Default::default(),
+            informational_config: InformationalConfig::new(),
         }
     }
 
@@ -465,6 +468,50 @@ where
         self
     }
 
+    /// Configures handling of informational responses (1xx status codes).
+    ///
+    /// By default, informational responses are ignored. This method allows you to
+    /// provide a callback that will be invoked whenever an informational response
+    /// is received, such as 103 Early Hints.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use hyper::client::conn::http2::Builder;
+    /// use hyper::client::conn::informational::InformationalConfig;
+    /// use http::StatusCode;
+    ///
+    /// #[derive(Clone)]
+    /// struct TokioExecutor;
+    ///
+    /// impl<F> hyper::rt::Executor<F> for TokioExecutor
+    /// where
+    ///     F: std::future::Future + Send + 'static,
+    ///     F::Output: Send + 'static,
+    /// {
+    ///     fn execute(&self, fut: F) {
+    ///         tokio::task::spawn(fut);
+    ///     }
+    /// }
+    ///
+    /// let mut builder = Builder::new(TokioExecutor);
+    /// builder.informational_responses(
+    ///     InformationalConfig::new().with_callback(|response| {
+    ///         if response.status() == StatusCode::EARLY_HINTS {
+    ///             println!("Received 103 Early Hints");
+    ///             // Process Link headers for resource preloading
+    ///             for link in response.headers().get_all("link") {
+    ///                 println!("Preload: {:?}", link);
+    ///             }
+    ///         }
+    ///     })
+    /// );
+    /// ```
+    pub fn informational_responses(&mut self, config: InformationalConfig) -> &mut Self {
+        self.informational_config = config;
+        self
+    }
+
     /// Constructs a connection with the configured options and IO.
     /// See [`client::conn`](crate::client::conn) for more.
     ///
@@ -487,8 +534,15 @@ where
             trace!("client handshake HTTP/2");
 
             let (tx, rx) = dispatch::channel();
-            let h2 = proto::h2::client::handshake(io, rx, &opts.h2_builder, opts.exec, opts.timer)
-                .await?;
+            let h2 = proto::h2::client::handshake(
+                io,
+                rx,
+                &opts.h2_builder,
+                opts.exec,
+                opts.timer,
+                Some(opts.informational_config.clone()),
+            )
+            .await?;
             Ok((
                 SendRequest {
                     dispatch: tx.unbound(),
