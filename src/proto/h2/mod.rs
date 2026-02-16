@@ -64,17 +64,17 @@ fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
             "Connection header illegal in HTTP/2: {}",
             CONNECTION.as_str()
         );
-        let header_contents = header.to_str().unwrap();
-
         // A `Connection` header may have a comma-separated list of names of other headers that
         // are meant for only this specific connection.
         //
         // Iterate these names and remove them as headers. Connection-specific headers are
         // forbidden in HTTP2, as that information has been moved into frame types of the h2
         // protocol.
-        for name in header_contents.split(',') {
-            let name = name.trim();
-            headers.remove(name);
+        if let Ok(header_contents) = header.to_str() {
+            for name in header_contents.split(',') {
+                let name = name.trim();
+                headers.remove(name);
+            }
         }
     }
 }
