@@ -465,6 +465,15 @@ where
         self
     }
 
+    /// Configures the maximum number of local resets due to protocol errors made by the remote end.
+    ///
+    /// This will default to the default value set by the [`h2` crate](https://crates.io/crates/h2).
+    /// As of v0.4.13, it is 1024.
+    pub fn max_local_error_reset_streams(&mut self, max: Option<usize>) -> &mut Self {
+        self.h2_builder.max_local_error_reset_streams = Some(max);
+        self
+    }
+
     /// Constructs a connection with the configured options and IO.
     /// See [`client::conn`](crate::client::conn) for more.
     ///
