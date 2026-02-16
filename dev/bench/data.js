@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771252039478,
+  "lastUpdate": 1771252381226,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -10979,6 +10979,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 54010,
             "range": "± 13839.63",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "cuiweixie@gmail.com",
+            "name": "cui",
+            "username": "cuiweixie"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c36ca8a5c50e4a05a78aa3e158f13456ee674fb1",
+          "message": "fix(http2): non-utf8 char in Connection header may cause panic when calling to_str (#4019)",
+          "timestamp": "2026-02-16T09:32:09-05:00",
+          "tree_id": "1df999b3c31251b263918199237526a865d6b7ed",
+          "url": "https://github.com/hyperium/hyper/commit/c36ca8a5c50e4a05a78aa3e158f13456ee674fb1"
+        },
+        "date": 1771252378208,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 52870,
+            "range": "± 12298.33",
             "unit": "ns/iter"
           }
         ]
