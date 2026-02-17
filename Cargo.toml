@@ -242,3 +242,8 @@ required-features = ["full"]
 name = "server"
 path = "tests/server.rs"
 required-features = ["full"]
+
+[[test]]
+name = "h1_shutdown_while_buffered"
+path = "tests/h1_shutdown_while_buffered.rs"
+required-features = ["full"]
