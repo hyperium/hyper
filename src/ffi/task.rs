@@ -11,7 +11,7 @@ use std::task::{Context, Poll};
 use futures_util::stream::{FuturesUnordered, Stream};
 
 use super::error::hyper_code;
-use super::UserDataPointer;
+use super::userdata::{hyper_userdata_drop, Userdata};
 
 type BoxFuture<T> = Pin<Box<dyn Future<Output = T> + Send>>;
 type BoxAny = Box<dyn AsTaskType + Send + Sync>;
@@ -68,10 +68,14 @@ pub struct hyper_executor {
     /// This is used to track when a future calls `wake` while we are within
     /// `hyper_executor::poll_next`.
     is_woken: Arc<ExecWaker>,
+
+    /// The heap of programmed timers, these will be progressed at the start of
+    /// `hyper_executor_poll`
+    timers: Arc<Mutex<crate::ffi::time::TimerHeap>>,
 }
 
 #[derive(Clone)]
-pub(crate) struct WeakExec(Weak<hyper_executor>);
+pub(super) struct WeakExec(Weak<hyper_executor>);
 
 struct ExecWaker(AtomicBool);
 
@@ -113,7 +117,7 @@ struct ExecWaker(AtomicBool);
 pub struct hyper_task {
     future: BoxFuture<BoxAny>,
     output: Option<BoxAny>,
-    userdata: UserDataPointer,
+    userdata: Userdata,
 }
 
 struct TaskFuture {
@@ -168,13 +172,15 @@ pub enum hyper_task_return_type {
     HYPER_TASK_RESPONSE,
     /// The value of this task is `hyper_buf *`.
     HYPER_TASK_BUF,
+    /// The value of this task is null (the task was a server-side connection task)
+    HYPER_TASK_SERVERCONN,
 }
 
-pub(crate) unsafe trait AsTaskType {
+pub(super) unsafe trait AsTaskType {
     fn as_task_type(&self) -> hyper_task_return_type;
 }
 
-pub(crate) trait IntoDynTaskType {
+pub(super) trait IntoDynTaskType {
     fn into_dyn_task_type(self) -> BoxAny;
 }
 
@@ -186,11 +192,16 @@ impl hyper_executor {
             driver: Mutex::new(FuturesUnordered::new()),
             spawn_queue: Mutex::new(Vec::new()),
             is_woken: Arc::new(ExecWaker(AtomicBool::new(false))),
+            timers: Arc::new(Mutex::new(crate::ffi::time::TimerHeap::new())),
         })
     }
 
-    pub(crate) fn downgrade(exec: &Arc<hyper_executor>) -> WeakExec {
+    pub(super) fn downgrade(exec: &Arc<hyper_executor>) -> WeakExec {
         WeakExec(Arc::downgrade(exec))
+    }
+
+    pub(super) fn timer_heap(&self) -> &Arc<Mutex<crate::ffi::time::TimerHeap>> {
+        &self.timers
     }
 
     fn spawn(&self, task: Box<hyper_task>) {
@@ -201,37 +212,39 @@ impl hyper_executor {
     }
 
     fn poll_next(&self) -> Option<Box<hyper_task>> {
-        // Drain the queue first.
+        // Move any new tasks to the runnable queue
         self.drain_queue();
+
+        // Wake all popped timers
+        self.pop_timers();
 
         let waker = futures_util::task::waker_ref(&self.is_woken);
         let mut cx = Context::from_waker(&waker);
 
         loop {
-            {
-                // Scope the lock on the driver to ensure it is dropped before
-                // calling drain_queue below.
-                let mut driver = self.driver.lock().unwrap();
-                match Pin::new(&mut *driver).poll_next(&mut cx) {
-                    Poll::Ready(val) => return val,
-                    Poll::Pending => {}
-                };
-            }
+            let poll = Pin::new(&mut *self.driver.lock().unwrap()).poll_next(&mut cx);
+            match poll {
+                Poll::Ready(val) => return val,
+                Poll::Pending => {
+                    // Time has progressed while polling above, so fire any wakers for timers that
+                    // have popped in that window.
+                    self.pop_timers();
 
-            // poll_next returned Pending.
-            // Check if any of the pending tasks tried to spawn
-            // some new tasks. If so, drain into the driver and loop.
-            if self.drain_queue() {
-                continue;
-            }
+                    // Check if any of the pending tasks tried to spawn some new tasks. If so,
+                    // drain into the driver and loop.
+                    if self.drain_queue() {
+                        continue;
+                    }
 
-            // If the driver called `wake` while we were polling,
-            // we should poll again immediately!
-            if self.is_woken.0.swap(false, Ordering::SeqCst) {
-                continue;
-            }
+                    // If the driver called `wake` while we were polling or any timers have popped,
+                    // we should poll again immediately!
+                    if self.is_woken.0.swap(false, Ordering::SeqCst) {
+                        continue;
+                    }
 
-            return None;
+                    return None;
+                }
+            }
         }
     }
 
@@ -251,6 +264,12 @@ impl hyper_executor {
 
         true
     }
+
+    // Walk the timer heap waking active timers and discarding cancelled ones.
+    fn pop_timers(&self) {
+        let mut heap = self.timers.lock().unwrap();
+        heap.process_timers();
+    }
 }
 
 impl futures_util::task::ArcWake for ExecWaker {
@@ -262,7 +281,7 @@ impl futures_util::task::ArcWake for ExecWaker {
 // ===== impl WeakExec =====
 
 impl WeakExec {
-    pub(crate) fn new() -> Self {
+    pub(super) fn new() -> Self {
         WeakExec(Weak::new())
     }
 }
@@ -337,10 +356,29 @@ ffi_fn! {
     } ?= ptr::null_mut()
 }
 
+ffi_fn! {
+    /// Returns the time until the executor will be able to make progress on tasks due to internal
+    /// timers popping.  The executor should be polled soon after this time (if not earlier due to
+    /// IO operations becoming available).
+    ///
+    /// Returns the time in milliseconds - a return value of -1 means there's no configured timers
+    /// and the executor doesn't need polling until there's IO work available.
+    fn hyper_executor_next_timer_pop(exec: *const hyper_executor) -> std::ffi::c_int {
+        let exec = non_null!(&*exec ?= -1);
+        match exec.timers.lock().unwrap().next_timer_pop() {
+            Some(duration) => {
+                let micros = duration.as_micros();
+                ((micros + 999) / 1000) as _
+            }
+            None => -1
+        }
+    }
+}
+
 // ===== impl hyper_task =====
 
 impl hyper_task {
-    pub(crate) fn boxed<F>(fut: F) -> Box<hyper_task>
+    pub(super) fn boxed<F>(fut: F) -> Box<hyper_task>
     where
         F: Future + Send + 'static,
         F::Output: IntoDynTaskType + Send + Sync + 'static,
@@ -348,7 +386,7 @@ impl hyper_task {
         Box::new(hyper_task {
             future: Box::pin(async move { fut.await.into_dyn_task_type() }),
             output: None,
-            userdata: UserDataPointer(ptr::null_mut()),
+            userdata: Userdata::default(),
         })
     }
 
@@ -432,19 +470,16 @@ ffi_fn! {
     ///
     /// This is useful for telling apart tasks for different requests that are
     /// running on the same executor.
-    fn hyper_task_set_userdata(task: *mut hyper_task, userdata: *mut c_void) {
-        if task.is_null() {
-            return;
-        }
-
-        unsafe { (*task).userdata = UserDataPointer(userdata) };
+    fn hyper_task_set_userdata(task: *mut hyper_task, userdata: *mut c_void, drop: hyper_userdata_drop) {
+        let task = non_null!(&mut*task ?= ());
+        task.userdata = Userdata::new(userdata, drop);
     }
 }
 
 ffi_fn! {
     /// Retrieve the userdata that has been set via `hyper_task_set_userdata`.
     fn hyper_task_userdata(task: *mut hyper_task) -> *mut c_void {
-        non_null!(&*task ?= ptr::null_mut()).userdata.0
+        non_null!(&*task ?= ptr::null_mut()).userdata.as_ptr()
     } ?= ptr::null_mut()
 }
 
@@ -498,7 +533,7 @@ where
 // ===== impl hyper_context =====
 
 impl hyper_context<'_> {
-    pub(crate) fn wrap<'a, 'b>(cx: &'a mut Context<'b>) -> &'a mut hyper_context<'b> {
+    pub(super) fn wrap<'a, 'b>(cx: &'a mut Context<'b>) -> &'a mut hyper_context<'b> {
         // A struct with only one field has the same layout as that field.
         unsafe { std::mem::transmute::<&mut Context<'_>, &mut hyper_context<'_>>(cx) }
     }

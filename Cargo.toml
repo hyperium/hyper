@@ -44,7 +44,7 @@ want = { version = "0.3", optional = true }
 [dev-dependencies]
 form_urlencoded = "1"
 futures-channel = { version = "0.3", features = ["sink"] }
-futures-util = { version = "0.3", default-features = false, features = ["alloc", "sink"] }
+futures-util = { version = "0.3", default-features = false, features = ["sink"] }
 http-body-util = "0.1"
 pretty_env_logger = "0.5"
 pin-project-lite = "0.2.4"
@@ -71,12 +71,7 @@ tokio-util = "0.7.10"
 default = []
 
 # Easily turn it all on
-full = [
-    "client",
-    "http1",
-    "http2",
-    "server",
-]
+full = ["client", "http1", "http2", "server", "futures-util?/alloc"]
 
 # HTTP versions
 http1 = ["dep:atomic-waker", "dep:futures-channel", "dep:futures-core", "dep:httparse", "dep:itoa"]
@@ -87,7 +82,7 @@ client = ["dep:want", "dep:pin-project-lite", "dep:smallvec"]
 server = ["dep:httpdate", "dep:pin-project-lite", "dep:smallvec"]
 
 # C-API support (currently unstable (no semver))
-ffi = ["dep:http-body-util", "dep:futures-util"]
+ffi = ["full", "dep:http-body-util", "dep:futures-util"]
 capi = []
 
 # Utilize tracing (currently unstable)
@@ -195,12 +190,10 @@ name = "upgrades"
 path = "examples/upgrades.rs"
 required-features = ["full"]
 
-
 [[example]]
 name = "web_api"
 path = "examples/web_api.rs"
 required-features = ["full"]
-
 
 [[bench]]
 name = "body"

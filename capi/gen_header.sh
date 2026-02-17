@@ -37,7 +37,7 @@ if [[ "--verify" == "$verify_flag" ]]; then
 fi
 
 # Expand just the ffi module
-if ! RUSTFLAGS='--cfg hyper_unstable_ffi' cargo expand --features client,http1,http2,ffi ::ffi 2> $WORK_DIR/expand_stderr.err > $WORK_DIR/expanded.rs; then
+if ! RUSTFLAGS='--cfg hyper_unstable_ffi' cargo expand --features ffi,server,client,http1,http2 ::ffi 2> $WORK_DIR/expand_stderr.err > $WORK_DIR/expanded.rs; then
     cat $WORK_DIR/expand_stderr.err
 fi
 

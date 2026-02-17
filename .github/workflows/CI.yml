@@ -188,15 +188,15 @@ jobs:
       - name: Build FFI
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        run: cargo rustc --features client,http1,http2,ffi --crate-type cdylib
+        run: cargo rustc --features ffi --crate-type cdylib --release
 
       - name: Make Examples
-        run: cd capi/examples && make client
+        run: cd capi/examples && make
 
       - name: Run FFI unit tests
         env:
           RUSTFLAGS: --cfg hyper_unstable_ffi
-        run: cargo test --features client,http1,http2,ffi --lib
+        run: cargo test --features ffi --lib
 
   ffi-header:
     name: Verify hyper.h is up to date

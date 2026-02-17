@@ -5,8 +5,7 @@
  * Full docs at: https://docs.rs/hyper/latest/hyper/ffi/index.html
  */
 
-#ifndef _HYPER_H
-#define _HYPER_H
+#pragma once
 
 #include <stdint.h>
 #include <stddef.h>
@@ -99,6 +98,10 @@ typedef enum hyper_code {
    The peer sent an HTTP message that could not be parsed.
    */
   HYPERE_INVALID_PEER_MESSAGE,
+  /*
+   A provided buffer is too small to hold the value that would be written to it.
+   */
+  HYPERE_INSUFFICIENT_SPACE,
 } hyper_code;
 
 /*
@@ -125,6 +128,10 @@ typedef enum hyper_task_return_type {
    The value of this task is `hyper_buf *`.
    */
   HYPER_TASK_BUF,
+  /*
+   The value of this task is null (the task was a server-side connection task)
+   */
+  HYPER_TASK_SERVERCONN,
 } hyper_task_return_type;
 
 /*
@@ -168,6 +175,16 @@ typedef struct hyper_executor hyper_executor;
 typedef struct hyper_headers hyper_headers;
 
 /*
+ Configuration options for HTTP/1 server connections.
+ */
+typedef struct hyper_http1_serverconn_options hyper_http1_serverconn_options;
+
+/*
+ Configuration options for HTTP/2 server connections.
+ */
+typedef struct hyper_http2_serverconn_options hyper_http2_serverconn_options;
+
+/*
  A read/write handle for a specific connection.
  */
 typedef struct hyper_io hyper_io;
@@ -183,6 +200,16 @@ typedef struct hyper_request hyper_request;
 typedef struct hyper_response hyper_response;
 
 /*
+ A channel on which to send back a response to complete a transaction for a service.
+ */
+typedef struct hyper_response_channel hyper_response_channel;
+
+/*
+ A service that can serve a single server connection.
+ */
+typedef struct hyper_service hyper_service;
+
+/*
  An async task.
  */
 typedef struct hyper_task hyper_task;
@@ -194,6 +221,11 @@ typedef struct hyper_waker hyper_waker;
 
 typedef int (*hyper_body_foreach_callback)(void*, const struct hyper_buf*);
 
+/*
+ Many hyper entities can be given userdata to allow user callbacks to correlate work together.
+ */
+typedef void (*hyper_userdata_drop)(void*);
+
 typedef int (*hyper_body_data_callback)(void*, struct hyper_context*, struct hyper_buf**);
 
 typedef void (*hyper_request_on_informational_callback)(void*, struct hyper_response*);
@@ -203,6 +235,11 @@ typedef int (*hyper_headers_foreach_callback)(void*, const uint8_t*, size_t, con
 typedef size_t (*hyper_io_read_callback)(void*, struct hyper_context*, uint8_t*, size_t);
 
 typedef size_t (*hyper_io_write_callback)(void*, struct hyper_context*, const uint8_t*, size_t);
+
+/*
+ The main definition of a service.  This callback will be invoked for each transaction on the
+ */
+typedef void (*hyper_service_callback)(void*, struct hyper_request*, struct hyper_response_channel*);
 
 #ifdef __cplusplus
 extern "C" {
@@ -233,12 +270,13 @@ struct hyper_task *hyper_body_data(struct hyper_body *body);
  */
 struct hyper_task *hyper_body_foreach(struct hyper_body *body,
                                       hyper_body_foreach_callback func,
-                                      void *userdata);
+                                      void *userdata,
+                                      hyper_userdata_drop drop);
 
 /*
  Set userdata on this body, which will be passed to callback functions.
  */
-void hyper_body_set_userdata(struct hyper_body *body, void *userdata);
+void hyper_body_set_userdata(struct hyper_body *body, void *userdata, hyper_userdata_drop drop);
 
 /*
  Set the outgoing data callback for this body.
@@ -353,6 +391,13 @@ enum hyper_code hyper_request_set_method(struct hyper_request *req,
                                          size_t method_len);
 
 /*
+ Get the HTTP Method of the request.
+ */
+enum hyper_code hyper_request_method(const struct hyper_request *req,
+                                     uint8_t *method,
+                                     size_t *method_len);
+
+/*
  Set the URI of the request.
  */
 enum hyper_code hyper_request_set_uri(struct hyper_request *req,
@@ -371,9 +416,25 @@ enum hyper_code hyper_request_set_uri_parts(struct hyper_request *req,
                                             size_t path_and_query_len);
 
 /*
+ Get the URI of the request split into scheme, authority and path/query strings.
+ */
+enum hyper_code hyper_request_uri_parts(const struct hyper_request *req,
+                                        uint8_t *scheme,
+                                        size_t *scheme_len,
+                                        uint8_t *authority,
+                                        size_t *authority_len,
+                                        uint8_t *path_and_query,
+                                        size_t *path_and_query_len);
+
+/*
  Set the preferred HTTP version of the request.
  */
 enum hyper_code hyper_request_set_version(struct hyper_request *req, int version);
+
+/*
+ Get the HTTP version used by this request.
+ */
+int hyper_request_version(const struct hyper_request *resp);
 
 /*
  Gets a mutable reference to the HTTP headers of this request
@@ -386,11 +447,22 @@ struct hyper_headers *hyper_request_headers(struct hyper_request *req);
 enum hyper_code hyper_request_set_body(struct hyper_request *req, struct hyper_body *body);
 
 /*
+ Take ownership of the body of this request.
+ */
+struct hyper_body *hyper_request_body(struct hyper_request *req);
+
+/*
  Set an informational (1xx) response callback.
  */
 enum hyper_code hyper_request_on_informational(struct hyper_request *req,
                                                hyper_request_on_informational_callback callback,
-                                               void *data);
+                                               void *data,
+                                               hyper_userdata_drop drop);
+
+/*
+ Construct a new HTTP 200 Ok response
+ */
+struct hyper_response *hyper_response_new(void);
 
 /*
  Free an HTTP response.
@@ -403,6 +475,11 @@ void hyper_response_free(struct hyper_response *resp);
 uint16_t hyper_response_status(const struct hyper_response *resp);
 
 /*
+ Set the HTTP Status-Code of this response.
+ */
+void hyper_response_set_status(struct hyper_response *resp, uint16_t status);
+
+/*
  Get a pointer to the reason-phrase of this response.
  */
 const uint8_t *hyper_response_reason_phrase(const struct hyper_response *resp);
@@ -413,6 +490,11 @@ const uint8_t *hyper_response_reason_phrase(const struct hyper_response *resp);
 size_t hyper_response_reason_phrase_len(const struct hyper_response *resp);
 
 /*
+ Set the preferred HTTP version of the response.
+ */
+enum hyper_code hyper_response_set_version(struct hyper_response *req, int version);
+
+/*
  Get the HTTP version used by this response.
  */
 int hyper_response_version(const struct hyper_response *resp);
@@ -421,6 +503,11 @@ int hyper_response_version(const struct hyper_response *resp);
  Gets a reference to the HTTP headers of this response.
  */
 struct hyper_headers *hyper_response_headers(struct hyper_response *resp);
+
+/*
+ Set the body of the response.
+ */
+enum hyper_code hyper_response_set_body(struct hyper_response *rsp, struct hyper_body *body);
 
 /*
  Take ownership of the body of this response.
@@ -465,7 +552,12 @@ void hyper_io_free(struct hyper_io *io);
 /*
  Set the user data pointer for this IO to some value.
  */
-void hyper_io_set_userdata(struct hyper_io *io, void *data);
+void hyper_io_set_userdata(struct hyper_io *io, void *data, hyper_userdata_drop drop_func);
+
+/*
+ Get the user data pointer for this IO value.
+ */
+void *hyper_io_get_userdata(struct hyper_io *io);
 
 /*
  Set the read function for this IO transport.
@@ -476,6 +568,178 @@ void hyper_io_set_read(struct hyper_io *io, hyper_io_read_callback func);
  Set the write function for this IO transport.
  */
 void hyper_io_set_write(struct hyper_io *io, hyper_io_write_callback func);
+
+/*
+ Create a new HTTP/1 serverconn options object.
+ */
+struct hyper_http1_serverconn_options *hyper_http1_serverconn_options_new(const struct hyper_executor *exec);
+
+/*
+ Free a `hyper_http1_serverconn_options*`.
+ */
+void hyper_http1_serverconn_options_free(struct hyper_http1_serverconn_options *opts);
+
+/*
+ Set whether HTTP/1 connections should support half-closures.
+ */
+enum hyper_code hyper_http1_serverconn_options_half_close(struct hyper_http1_serverconn_options *opts,
+                                                          bool enabled);
+
+/*
+ Enables or disables HTTP/1 keep-alive.
+ */
+enum hyper_code hyper_http1_serverconn_options_keep_alive(struct hyper_http1_serverconn_options *opts,
+                                                          bool enabled);
+
+/*
+ Set whether HTTP/1 connections will write header names as title case at the socket level.
+ */
+enum hyper_code hyper_http1_serverconn_options_title_case_headers(struct hyper_http1_serverconn_options *opts,
+                                                                  bool enabled);
+
+/*
+ Set whether to support preserving original header cases.
+ */
+enum hyper_code hyper_http1_serverconn_options_preserve_header_case(struct hyper_http1_serverconn_options *opts,
+                                                                    bool enabled);
+
+/*
+ Set a timeout for reading client request headers. If a client does not
+ */
+enum hyper_code hyper_http1_serverconn_options_header_read_timeout(struct hyper_http1_serverconn_options *opts,
+                                                                   uint64_t millis);
+
+/*
+ Set whether HTTP/1 connections should try to use vectored writes, or always flatten into a
+ */
+enum hyper_code hyper_http1_serverconn_options_writev(struct hyper_http1_serverconn_options *opts,
+                                                      bool enabled);
+
+/*
+ Set the maximum buffer size for the HTTP/1 connection.  Must be no lower `8192`.
+ */
+enum hyper_code hyper_http1_serverconn_options_max_buf_size(struct hyper_http1_serverconn_options *opts,
+                                                            uintptr_t max_buf_size);
+
+/*
+ Aggregates flushes to better support pipelined responses.
+ */
+enum hyper_code hyper_http1_serverconn_options_pipeline_flush(struct hyper_http1_serverconn_options *opts,
+                                                              bool enabled);
+
+/*
+ Create a new HTTP/2 serverconn options object bound to the provided executor.
+ */
+struct hyper_http2_serverconn_options *hyper_http2_serverconn_options_new(const struct hyper_executor *exec);
+
+/*
+ Free a `hyper_http2_serverconn_options*`.
+ */
+void hyper_http2_serverconn_options_free(struct hyper_http2_serverconn_options *opts);
+
+/*
+ Sets the `SETTINGS_INITIAL_WINDOW_SIZE` option for HTTP/2 stream-level flow control.
+ */
+enum hyper_code hyper_http2_serverconn_options_initial_stream_window_size(struct hyper_http2_serverconn_options *opts,
+                                                                          unsigned int window_size);
+
+/*
+ Sets the max connection-level flow control for HTTP/2.
+ */
+enum hyper_code hyper_http2_serverconn_options_initial_connection_window_size(struct hyper_http2_serverconn_options *opts,
+                                                                              unsigned int window_size);
+
+/*
+ Sets whether to use an adaptive flow control.
+ */
+enum hyper_code hyper_http2_serverconn_options_adaptive_window(struct hyper_http2_serverconn_options *opts,
+                                                               bool enabled);
+
+/*
+ Sets the maximum frame size to use for HTTP/2.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_frame_size(struct hyper_http2_serverconn_options *opts,
+                                                              unsigned int frame_size);
+
+/*
+ Sets the `SETTINGS_MAX_CONCURRENT_STREAMS` option for HTTP2 connections.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_concurrent_streams(struct hyper_http2_serverconn_options *opts,
+                                                                      unsigned int max_streams);
+
+/*
+ Sets an interval for HTTP/2 Ping frames should be sent to keep a connection alive.
+ */
+enum hyper_code hyper_http2_serverconn_options_keep_alive_interval(struct hyper_http2_serverconn_options *opts,
+                                                                   uint64_t interval_seconds);
+
+/*
+ Sets a timeout for receiving an acknowledgement of the keep-alive ping.
+ */
+enum hyper_code hyper_http2_serverconn_options_keep_alive_timeout(struct hyper_http2_serverconn_options *opts,
+                                                                  uint64_t timeout_seconds);
+
+/*
+ Set the maximum write buffer size for each HTTP/2 stream.  Must be no larger than
+ */
+enum hyper_code hyper_http2_serverconn_options_max_send_buf_size(struct hyper_http2_serverconn_options *opts,
+                                                                 uintptr_t max_buf_size);
+
+/*
+ Enables the extended `CONNECT` protocol.
+ */
+enum hyper_code hyper_http2_serverconn_options_enable_connect_protocol(struct hyper_http2_serverconn_options *opts);
+
+/*
+ Sets the max size of received header frames.
+ */
+enum hyper_code hyper_http2_serverconn_options_max_header_list_size(struct hyper_http2_serverconn_options *opts,
+                                                                    uint32_t max);
+
+/*
+ Create a service from a wrapped callback function.
+ */
+struct hyper_service *hyper_service_new(hyper_service_callback service_fn);
+
+/*
+ Register opaque userdata with the `hyper_service`.  This userdata must be `Send` in a rust
+ */
+void hyper_service_set_userdata(struct hyper_service *service,
+                                void *userdata,
+                                hyper_userdata_drop drop);
+
+/*
+ Frees a hyper_service object if no longer needed
+ */
+void hyper_service_free(struct hyper_service *service);
+
+/*
+ Serve the provided `hyper_service *` as an HTTP/1 endpoint over the provided `hyper_io *`
+ */
+struct hyper_task *hyper_serve_http1_connection(struct hyper_http1_serverconn_options *serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
+
+/*
+ Serve the provided `hyper_service *` as an HTTP/2 endpoint over the provided `hyper_io *`
+ */
+struct hyper_task *hyper_serve_http2_connection(struct hyper_http2_serverconn_options *serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
+
+/*
+ Serve the provided `hyper_service *` as either an HTTP/1 or HTTP/2 (depending on what the
+ */
+struct hyper_task *hyper_serve_httpX_connection(struct hyper_http1_serverconn_options *http1_serverconn_options,
+                                                struct hyper_http2_serverconn_options *http2_serverconn_options,
+                                                struct hyper_io *io,
+                                                struct hyper_service *service);
+
+/*
+ Sends a `hyper_response*` back to the client.  This function consumes the response and the
+ */
+void hyper_response_channel_send(struct hyper_response_channel *channel,
+                                 struct hyper_response *response);
 
 /*
  Creates a new task executor.
@@ -498,6 +762,11 @@ enum hyper_code hyper_executor_push(const struct hyper_executor *exec, struct hy
 struct hyper_task *hyper_executor_poll(const struct hyper_executor *exec);
 
 /*
+ Returns the time until the executor will be able to make progress on tasks due to internal
+ */
+int hyper_executor_next_timer_pop(const struct hyper_executor *exec);
+
+/*
  Free a task.
  */
 void hyper_task_free(struct hyper_task *task);
@@ -515,7 +784,7 @@ enum hyper_task_return_type hyper_task_type(struct hyper_task *task);
 /*
  Set a user data pointer to be associated with this task.
  */
-void hyper_task_set_userdata(struct hyper_task *task, void *userdata);
+void hyper_task_set_userdata(struct hyper_task *task, void *userdata, hyper_userdata_drop drop);
 
 /*
  Retrieve the userdata that has been set via `hyper_task_set_userdata`.
@@ -540,5 +809,3 @@ void hyper_waker_wake(struct hyper_waker *waker);
 #ifdef __cplusplus
 }  // extern "C"
 #endif  // __cplusplus
-
-#endif  /* _HYPER_H */
