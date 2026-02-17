@@ -323,6 +323,15 @@ impl<T> TrySendError<T> {
     }
 }
 
+impl<T> From<crate::Error> for TrySendError<T> {
+    fn from(error: crate::Error) -> Self {
+        Self {
+            error,
+            message: None,
+        }
+    }
+}
+
 #[cfg(feature = "http2")]
 pin_project! {
     pub struct SendWhen<B, E>
