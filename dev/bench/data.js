@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771272136258,
+  "lastUpdate": 1771331042919,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11039,6 +11039,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51034,
             "range": "± 10631.47",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tottotodev@gmail.com",
+            "name": "tottoto",
+            "username": "tottoto"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8ba900853b0f619b165e8530fc8c310bc13e056b",
+          "message": "chore(dependencies): drop pin-utils dependency (#4023)",
+          "timestamp": "2026-02-17T07:23:16-05:00",
+          "tree_id": "44abdb8193595cdc05bd1035f0ee8d75b4bbf07f",
+          "url": "https://github.com/hyperium/hyper/commit/8ba900853b0f619b165e8530fc8c310bc13e056b"
+        },
+        "date": 1771331040607,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51920,
+            "range": "± 13733.09",
             "unit": "ns/iter"
           }
         ]
