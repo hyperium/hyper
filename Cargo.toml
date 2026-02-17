@@ -37,7 +37,6 @@ httparse = { version = "1.9", optional = true }
 httpdate = { version = "1.0", optional = true }
 itoa = { version = "1", optional = true }
 pin-project-lite = { version = "0.2.4", optional = true }
-pin-utils = { version = "0.1", optional = true } # TODO: replace with std::pin::pin! once MSRV >= 1.68
 smallvec = { version = "1.12", features = ["const_generics", "const_new"], optional = true }
 tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
 want = { version = "0.3", optional = true }
@@ -80,7 +79,7 @@ full = [
 ]
 
 # HTTP versions
-http1 = ["dep:atomic-waker", "dep:futures-channel", "dep:futures-core", "dep:httparse", "dep:itoa", "dep:pin-utils"]
+http1 = ["dep:atomic-waker", "dep:futures-channel", "dep:futures-core", "dep:httparse", "dep:itoa"]
 http2 = ["dep:futures-channel", "dep:futures-core", "dep:h2"]
 
 # Client/Server
