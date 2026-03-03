@@ -5,18 +5,21 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 
 pub(crate) struct BufList<T> {
     bufs: VecDeque<T>,
+    remaining: usize,
 }
 
 impl<T: Buf> BufList<T> {
     pub(crate) fn new() -> BufList<T> {
         BufList {
             bufs: VecDeque::new(),
+            remaining: 0,
         }
     }
 
     #[inline]
     pub(crate) fn push(&mut self, buf: T) {
         debug_assert!(buf.has_remaining());
+        self.remaining += buf.remaining();
         self.bufs.push_back(buf);
     }
 
@@ -29,7 +32,7 @@ impl<T: Buf> BufList<T> {
 impl<T: Buf> Buf for BufList<T> {
     #[inline]
     fn remaining(&self) -> usize {
-        self.bufs.iter().map(|buf| buf.remaining()).sum()
+        self.remaining
     }
 
     #[inline]
@@ -39,6 +42,7 @@ impl<T: Buf> Buf for BufList<T> {
 
     #[inline]
     fn advance(&mut self, mut cnt: usize) {
+        self.remaining -= cnt;
         while cnt > 0 {
             {
                 let front = &mut self.bufs[0];
@@ -78,12 +82,18 @@ impl<T: Buf> Buf for BufList<T> {
             Some(front) if front.remaining() == len => {
                 let b = front.copy_to_bytes(len);
                 self.bufs.pop_front();
+                self.remaining -= len;
                 b
             }
-            Some(front) if front.remaining() > len => front.copy_to_bytes(len),
+            Some(front) if front.remaining() > len => {
+                self.remaining -= len;
+                front.copy_to_bytes(len)
+            }
             _ => {
-                assert!(len <= self.remaining(), "`len` greater than remaining");
+                assert!(len <= self.remaining, "`len` greater than remaining");
                 let mut bm = BytesMut::with_capacity(len);
+                // Note: `self.take(len)` calls `self.advance()` internally,
+                // which already decrements `self.remaining`.
                 bm.put(self.take(len));
                 bm.freeze()
             }
@@ -100,6 +110,7 @@ mod tests {
     fn hello_world_buf() -> BufList<Bytes> {
         BufList {
             bufs: vec![Bytes::from("Hello"), Bytes::from(" "), Bytes::from("World")].into(),
+            remaining: 11,
         }
     }
 
