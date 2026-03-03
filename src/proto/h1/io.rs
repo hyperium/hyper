@@ -68,7 +68,7 @@ where
             io,
             partial_len: None,
             read_blocked: false,
-            read_buf: BytesMut::with_capacity(0),
+            read_buf: BytesMut::with_capacity(INIT_BUFFER_SIZE),
             read_buf_strategy: ReadStrategy::default(),
             write_buf,
         }
@@ -182,7 +182,7 @@ where
                 ParseContext {
                     cached_headers: parse_ctx.cached_headers,
                     req_method: parse_ctx.req_method,
-                    h1_parser_config: parse_ctx.h1_parser_config.clone(),
+                    h1_parser_config: parse_ctx.h1_parser_config,
                     h1_max_headers: parse_ctx.h1_max_headers,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
@@ -704,7 +704,7 @@ mod tests {
             let parse_ctx = ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut None,
-                h1_parser_config: Default::default(),
+                h1_parser_config: &Default::default(),
                 h1_max_headers: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
