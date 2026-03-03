@@ -42,6 +42,7 @@ impl<T: Buf> Buf for BufList<T> {
 
     #[inline]
     fn advance(&mut self, mut cnt: usize) {
+        assert!(cnt <= self.remaining, "`cnt` greater than remaining");
         self.remaining -= cnt;
         while cnt > 0 {
             {
@@ -92,7 +93,7 @@ impl<T: Buf> Buf for BufList<T> {
             _ => {
                 assert!(len <= self.remaining, "`len` greater than remaining");
                 let mut bm = BytesMut::with_capacity(len);
-                // Note: `self.take(len)` calls `self.advance()` internally,
+                // Note: `bm.put(self.take(len))` calls `self.advance()` internally,
                 // which already decrements `self.remaining`.
                 bm.put(self.take(len));
                 bm.freeze()
