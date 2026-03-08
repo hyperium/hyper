@@ -197,6 +197,11 @@ required-features = ["full"]
 
 
 [[example]]
+name = "server_sent_events"
+path = "examples/server_sent_events.rs"
+required-features = ["full"]
+
+[[example]]
 name = "web_api"
 path = "examples/web_api.rs"
 required-features = ["full"]
