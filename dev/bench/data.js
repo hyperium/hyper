@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1773421168290,
+  "lastUpdate": 1773669868570,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11099,6 +11099,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47123,
             "range": "± 8037.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "70537056+DhruvaD1@users.noreply.github.com",
+            "name": "Dhruva D",
+            "username": "DhruvaD1"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "28e73ccd230cff8d7e5b5880ce2ab5fb8ced36be",
+          "message": "fix(ffi): validate null pointers before dereferencing in request/response functions (#4038)",
+          "timestamp": "2026-03-16T10:03:36-04:00",
+          "tree_id": "b7b42be8c763da5ce68afc0f9d0025f136798d6e",
+          "url": "https://github.com/hyperium/hyper/commit/28e73ccd230cff8d7e5b5880ce2ab5fb8ced36be"
+        },
+        "date": 1773669865522,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 50049,
+            "range": "± 9927.56",
             "unit": "ns/iter"
           }
         ]
