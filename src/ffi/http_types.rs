@@ -189,9 +189,10 @@ ffi_fn! {
             };
             builder = builder.path_and_query(path_and_query_bytes);
         }
+        let req = non_null!(&mut *req ?= hyper_code::HYPERE_INVALID_ARG);
         match builder.build() {
             Ok(u) => {
-                *unsafe { &mut *req }.0.uri_mut() = u;
+                *req.0.uri_mut() = u;
                 hyper_code::HYPERE_OK
             },
             Err(_) => {
@@ -232,7 +233,8 @@ ffi_fn! {
     /// This is not an owned reference, so it should not be accessed after the
     /// `hyper_request` has been consumed.
     fn hyper_request_headers(req: *mut hyper_request) -> *mut hyper_headers {
-        hyper_headers::get_or_default(unsafe { &mut *req }.0.extensions_mut())
+        let req = non_null!(&mut *req ?= std::ptr::null_mut());
+        hyper_headers::get_or_default(req.0.extensions_mut())
     } ?= std::ptr::null_mut()
 }
 
@@ -367,7 +369,8 @@ ffi_fn! {
     /// This is not an owned reference, so it should not be accessed after the
     /// `hyper_response` has been freed.
     fn hyper_response_headers(resp: *mut hyper_response) -> *mut hyper_headers {
-        hyper_headers::get_or_default(unsafe { &mut *resp }.0.extensions_mut())
+        let resp = non_null!(&mut *resp ?= std::ptr::null_mut());
+        hyper_headers::get_or_default(resp.0.extensions_mut())
     } ?= std::ptr::null_mut()
 }
 
