@@ -2970,10 +2970,7 @@ fn http1_trailer_recv_fields() {
 #[test]
 fn http1_trailer_recv_keep_alive() {
     let server = serve();
-    server
-        .reply()
-        .header("content-length", "2")
-        .body(b"ok");
+    server.reply().header("content-length", "2").body(b"ok");
     let mut req = connect(server.addr());
 
     // First request: chunked POST with trailers
