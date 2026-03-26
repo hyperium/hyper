@@ -2967,6 +2967,61 @@ fn http1_trailer_recv_fields() {
     );
 }
 
+#[test]
+fn http1_trailer_recv_keep_alive() {
+    let server = serve();
+    server
+        .reply()
+        .header("content-length", "2")
+        .body(b"ok");
+    let mut req = connect(server.addr());
+
+    // First request: chunked POST with trailers
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        trailer: chunky-trailer\r\n\
+        host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        5\r\n\
+        hello\r\n\
+        0\r\n\
+        chunky-trailer: header data\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing 1");
+
+    assert_eq!(server.body(), b"hello");
+
+    let trailers = server.trailers();
+    assert_eq!(
+        trailers.get("chunky-trailer"),
+        Some(&"header data".parse().unwrap())
+    );
+
+    read_until(&mut req, |buf| buf.ends_with(b"ok")).expect("reading 1");
+
+    // Second request: reuse the same connection to verify keep-alive
+    let quux = b"zar quux";
+    server
+        .reply()
+        .header("content-length", quux.len().to_string())
+        .body(quux);
+    req.write_all(
+        b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing 2");
+
+    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
+}
+
 // -------------------------------------------------
 // the Server that is used to run all the tests with
 // -------------------------------------------------
