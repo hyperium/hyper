@@ -26,11 +26,11 @@ pin_project! {
     /// To drive HTTP on this connection this future **must be polled**, typically with
     /// `.await`. If it isn't polled, no progress will be made on this connection.
     #[must_use = "futures do nothing unless polled"]
-    pub struct Connection<T, S, E>
+    pub struct Connection<'body, T, S, E>
     where
         S: HttpService<IncomingBody>,
     {
-        conn: proto::h2::Server<T, S, S::ResBody, E>,
+        conn: proto::h2::Server<'body, T, S, S::ResBody, E>,
     }
 }
 
@@ -47,7 +47,7 @@ pub struct Builder<E> {
 
 // ===== impl Connection =====
 
-impl<I, S, E> fmt::Debug for Connection<I, S, E>
+impl<'body, I, S, E> fmt::Debug for Connection<'body, I, S, E>
 where
     S: HttpService<IncomingBody>,
 {
@@ -56,12 +56,12 @@ where
     }
 }
 
-impl<I, B, S, E> Connection<I, S, E>
+impl<'body, I, B, S, E> Connection<'body, I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body + 'body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ServerConnExec<S::Future, B>,
 {
@@ -80,12 +80,12 @@ where
     }
 }
 
-impl<I, B, S, E> Future for Connection<I, S, E>
+impl<'body, I, B, S, E> Future for Connection<'body, I, S, E>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body + 'body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
     E: Http2ServerConnExec<S::Future, B>,
 {
@@ -291,11 +291,11 @@ impl<E> Builder<E> {
     ///
     /// This returns a Future that must be polled in order for HTTP to be
     /// driven on the connection.
-    pub fn serve_connection<S, I, Bd>(&self, io: I, service: S) -> Connection<I, S, E>
+    pub fn serve_connection<'body, S, I, Bd>(&self, io: I, service: S) -> Connection<'body, I, S, E>
     where
         S: HttpService<IncomingBody, ResBody = Bd>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        Bd: Body + 'static,
+        Bd: Body + 'body,
         Bd::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: Read + Write + Unpin,
         E: Http2ServerConnExec<S::Future, Bd>,

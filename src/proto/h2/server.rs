@@ -78,7 +78,7 @@ impl Default for Config {
 }
 
 pin_project! {
-    pub(crate) struct Server<T, S, B, E>
+    pub(crate) struct Server<'body, T, S, B, E>
     where
         S: HttpService<IncomingBody>,
         B: Body,
@@ -88,7 +88,8 @@ pin_project! {
         service: S,
         state: State<T, B>,
         date_header: bool,
-        close_pending: bool
+        close_pending: bool,
+        _v: std::marker::PhantomData<&'body ()>
     }
 }
 
@@ -113,12 +114,12 @@ where
     date_header: bool,
 }
 
-impl<T, S, B, E> Server<T, S, B, E>
+impl<'body, T, S, B, E> Server<'body, T, S, B, E>
 where
     T: Read + Write + Unpin,
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: Body + 'static,
+    B: Body + 'body,
     E: Http2ServerConnExec<S::Future, B>,
 {
     pub(crate) fn new(
@@ -127,7 +128,7 @@ where
         config: &Config,
         exec: E,
         timer: Time,
-    ) -> Server<T, S, B, E> {
+    ) -> Server<'body, T, S, B, E> {
         let mut builder = h2::server::Builder::default();
         builder
             .initial_window_size(config.initial_stream_window_size)
@@ -172,6 +173,7 @@ where
             service,
             date_header: config.date_header,
             close_pending: false,
+            _v: Default::default()
         }
     }
 
@@ -190,12 +192,12 @@ where
     }
 }
 
-impl<T, S, B, E> Future for Server<T, S, B, E>
+impl<'body, T, S, B, E> Future for Server<'body, T, S, B, E>
 where
     T: Read + Write + Unpin,
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    B: Body + 'static,
+    B: Body + 'body,
     E: Http2ServerConnExec<S::Future, B>,
 {
     type Output = crate::Result<Dispatched>;
@@ -239,7 +241,7 @@ where
 impl<T, B> Serving<T, B>
 where
     T: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body,
 {
     fn poll_server<S, E>(
         &mut self,
