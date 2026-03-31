@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774628010998,
+  "lastUpdate": 1774964459593,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11189,6 +11189,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43506,
             "range": "± 6123.68",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mmishra@x.ai",
+            "name": "Manish Mishra",
+            "username": "mmishra100"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5b17a69ebcf969471c1a19b25ed2cb81299d1be6",
+          "message": "fix(http2): cancel sending client request body on response future drop (#4042)\n\nWhen the client drops the response future (e.g. due to a timeout),\nsend_task detects the cancellation but does not notify pipe_task.\nThe pipe_task continues to hold the h2 SendStream, preventing a\nRST_STREAM from being sent and keeping flow-control window capacity\nlocked.\n\nAdd a oneshot channel between send_task and pipe_task. When send_task\ndetects cancellation via poll_canceled, it signals pipe_task through\nthe channel. pipe_task then calls send_reset(CANCEL) on the h2\nSendStream, which sends RST_STREAM to the server and frees\nflow-control capacity.\n\nCloses #4040",
+          "timestamp": "2026-03-31T09:40:11-04:00",
+          "tree_id": "e51db4f03c35bae6141a1dbbaa62c8a0e3df136f",
+          "url": "https://github.com/hyperium/hyper/commit/5b17a69ebcf969471c1a19b25ed2cb81299d1be6"
+        },
+        "date": 1774964456165,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 65763,
+            "range": "± 13052.37",
             "unit": "ns/iter"
           }
         ]
