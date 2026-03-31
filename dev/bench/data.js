@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774964595590,
+  "lastUpdate": 1774970883389,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11219,6 +11219,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 65763,
             "range": "± 13052.37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pavel@borzenkov.net",
+            "name": "Pavel Borzenkov",
+            "username": "pborzenkov"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "e21205cfe4066edbcddc56150d963dabbc7d3ec4",
+          "message": "feat(http1): add UpgradeableConnection::into_parts\n\nThis allows the connection to be deconstructed into I/O object and\nsome additional information, provided it hasn't yet been upgraded.",
+          "timestamp": "2026-03-31T11:27:16-04:00",
+          "tree_id": "7a5dad0ebd69a013765905a5a190b538dd368299",
+          "url": "https://github.com/hyperium/hyper/commit/e21205cfe4066edbcddc56150d963dabbc7d3ec4"
+        },
+        "date": 1774970880508,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 36607,
+            "range": "± 10972.38",
             "unit": "ns/iter"
           }
         ]
