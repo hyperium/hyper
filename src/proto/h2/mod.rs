@@ -105,6 +105,7 @@ where
         }
     }
 
+    #[cfg(feature = "client")]
     fn send_reset(self: Pin<&mut Self>, reason: h2::Reason) {
         self.project().body_tx.send_reset(reason);
     }
