@@ -1,3 +1,27 @@
+## v1.9.0 (2026-03-31)
+
+
+#### Bug Fixes
+
+* **ffi:** validate null pointers before dereferencing in request/response functions (#4038 ([28e73ccd](https://github.com/hyperium/hyper/commit/28e73ccd230cff8d7e5b5880ce2ab5fb8ced36be))
+* **http1:**
+  * allow keep-alive for chunked requests with trailers (#4043) ([7211ec25](https://github.com/hyperium/hyper/commit/7211ec25eff2ea6ee783817fee2a221d4eb2ed03), closes [#4044](https://github.com/hyperium/hyper/issues/4044))
+  * use case-insensitive matching for trailer fields (#4011) ([3b344cac](https://github.com/hyperium/hyper/commit/3b344cac9f96a9365409086dde51d06aa797ffc3), closes [#4010](https://github.com/hyperium/hyper/issues/4010))
+  * use httparse config for Servers (#4002) ([bcb8ec57](https://github.com/hyperium/hyper/commit/bcb8ec576619650d3388604e6c246829e7be133a), closes [#3923](https://github.com/hyperium/hyper/issues/3923))
+* **http2:**
+  * cancel sending client request body on response future drop (#4042) ([5b17a69e](https://github.com/hyperium/hyper/commit/5b17a69ebcf969471c1a19b25ed2cb81299d1be6), closes [#4040](https://github.com/hyperium/hyper/issues/4040))
+  * non-utf8 char in Connection header may cause panic when calling to_str (#4019) ([c36ca8a5](https://github.com/hyperium/hyper/commit/c36ca8a5c50e4a05a78aa3e158f13456ee674fb1))
+
+
+#### Features
+
+* **client:**
+  * expose HTTP/2 current max stream count (#4026) ([d51cb715](https://github.com/hyperium/hyper/commit/d51cb71569bbca7927b3828ef11e3bec4fa97eb4))
+  * add HTTP/2 `max_local_error_reset_streams` option (#4021) ([57787459](https://github.com/hyperium/hyper/commit/577874591cae246dfb2d72d7140d794ac2fa605a))
+* **error:** add 'Error::is_parse_version_h2' method ([393c77c7](https://github.com/hyperium/hyper/commit/393c77c71138ff6e33d7089deac770a3f3f1436b))
+* **http1:** add UpgradeableConnection::into_parts ([e21205cf](https://github.com/hyperium/hyper/commit/e21205cfe4066edbcddc56150d963dabbc7d3ec4))
+
+
 ### v1.8.1 (2025-11-13)
 
 
