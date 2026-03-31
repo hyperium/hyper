@@ -366,6 +366,9 @@ where
                     }
                 };
                 trace!("send_when canceled");
+                // Tell pipe_task to reset the h2 stream so that
+                // RST_STREAM is sent and flow-control capacity freed.
+                this.when.as_mut().cancel();
                 Poll::Ready(())
             }
             Poll::Ready(Err((error, message))) => {
