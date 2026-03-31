@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774970883389,
+  "lastUpdate": 1774971009047,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -57745,6 +57745,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5280281,
             "range": "± 57928.94",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "pavel@borzenkov.net",
+            "name": "Pavel Borzenkov",
+            "username": "pborzenkov"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "e21205cfe4066edbcddc56150d963dabbc7d3ec4",
+          "message": "feat(http1): add UpgradeableConnection::into_parts\n\nThis allows the connection to be deconstructed into I/O object and\nsome additional information, provided it hasn't yet been upgraded.",
+          "timestamp": "2026-03-31T11:27:16-04:00",
+          "tree_id": "7a5dad0ebd69a013765905a5a190b538dd368299",
+          "url": "https://github.com/hyperium/hyper/commit/e21205cfe4066edbcddc56150d963dabbc7d3ec4"
+        },
+        "date": 1774971006305,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 62753,
+            "range": "± 1222.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4289561,
+            "range": "± 418335.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22514,
+            "range": "± 208.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23777,
+            "range": "± 352.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 28290,
+            "range": "± 4572.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 91986,
+            "range": "± 3388.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000333,
+            "range": "± 7056.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 78544,
+            "range": "± 2104.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24348830,
+            "range": "± 8532654.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 32722936,
+            "range": "± 8117090.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7966922,
+            "range": "± 103442.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 96997553,
+            "range": "± 3235391.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 55520417,
+            "range": "± 581159.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5908665,
+            "range": "± 652229.07",
             "unit": "ns/iter"
           }
         ]
