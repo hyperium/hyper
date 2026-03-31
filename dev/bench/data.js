@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774964459593,
+  "lastUpdate": 1774964595590,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -57607,6 +57607,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5170796,
             "range": "± 58650.78",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mmishra@x.ai",
+            "name": "Manish Mishra",
+            "username": "mmishra100"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5b17a69ebcf969471c1a19b25ed2cb81299d1be6",
+          "message": "fix(http2): cancel sending client request body on response future drop (#4042)\n\nWhen the client drops the response future (e.g. due to a timeout),\nsend_task detects the cancellation but does not notify pipe_task.\nThe pipe_task continues to hold the h2 SendStream, preventing a\nRST_STREAM from being sent and keeping flow-control window capacity\nlocked.\n\nAdd a oneshot channel between send_task and pipe_task. When send_task\ndetects cancellation via poll_canceled, it signals pipe_task through\nthe channel. pipe_task then calls send_reset(CANCEL) on the h2\nSendStream, which sends RST_STREAM to the server and frees\nflow-control capacity.\n\nCloses #4040",
+          "timestamp": "2026-03-31T09:40:11-04:00",
+          "tree_id": "e51db4f03c35bae6141a1dbbaa62c8a0e3df136f",
+          "url": "https://github.com/hyperium/hyper/commit/5b17a69ebcf969471c1a19b25ed2cb81299d1be6"
+        },
+        "date": 1774964593241,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67470,
+            "range": "± 1084.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4126776,
+            "range": "± 270632.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20382,
+            "range": "± 4001.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22672,
+            "range": "± 618.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30410,
+            "range": "± 1523.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 98699,
+            "range": "± 1974.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000357,
+            "range": "± 42723.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 83421,
+            "range": "± 1346.48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 15967791,
+            "range": "± 16569795.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7786129,
+            "range": "± 160963.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7621994,
+            "range": "± 1639378.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 94002694,
+            "range": "± 510065.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51128661,
+            "range": "± 527616.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5280281,
+            "range": "± 57928.94",
             "unit": "ns/iter"
           }
         ]
