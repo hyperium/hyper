@@ -88,6 +88,11 @@ pin_project! {
     {
         body_tx: SendStream<SendBuf<S::Data>>,
         data_done: bool,
+        // A data chunk that has been polled from the body but is still waiting
+        // for stream-level capacity before it can be shipped. Stored here so
+        // it survives across `Poll::Pending` returns from `poll_capacity`; if
+        // we left the chunk in a local, it would be dropped on every repoll.
+        buffered_data: Option<(S::Data, bool)>,
         #[pin]
         stream: S,
     }
@@ -101,6 +106,7 @@ where
         PipeToSendStream {
             body_tx: tx,
             data_done: false,
+            buffered_data: None,
             stream,
         }
     }
@@ -121,13 +127,23 @@ where
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut me = self.project();
         loop {
-            // we don't have the next chunk of data yet, so just reserve 1 byte to make
-            // sure there's some capacity available. h2 will handle the capacity management
-            // for the actual body chunk.
-            me.body_tx.reserve_capacity(1);
+            // Register for RST_STREAM notification while we wait for the next
+            // body chunk or for send capacity, so the task wakes up if the
+            // peer resets the stream.
+            if let Poll::Ready(reason) = me
+                .body_tx
+                .poll_reset(cx)
+                .map_err(crate::Error::new_body_write)?
+            {
+                debug!("stream received RST_STREAM: {:?}", reason);
+                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
+            }
 
-            if me.body_tx.capacity() == 0 {
-                loop {
+            // If a previously-polled chunk is still waiting for stream-level
+            // send capacity, drive that to completion before touching the
+            // body again.
+            if me.buffered_data.is_some() {
+                while me.body_tx.capacity() == 0 {
                     match ready!(me.body_tx.poll_capacity(cx)) {
                         Some(Ok(0)) => {}
                         Some(Ok(_)) => break,
@@ -142,34 +158,56 @@ where
                         }
                     }
                 }
-            } else if let Poll::Ready(reason) = me
-                .body_tx
-                .poll_reset(cx)
-                .map_err(crate::Error::new_body_write)?
-            {
-                debug!("stream received RST_STREAM: {:?}", reason);
-                return Poll::Ready(Err(crate::Error::new_body_write(::h2::Error::from(reason))));
+
+                let (chunk, is_eos) = me.buffered_data.take().expect("checked is_some above");
+                let buf = SendBuf::Buf(chunk);
+                me.body_tx
+                    .send_data(buf, is_eos)
+                    .map_err(crate::Error::new_body_write)?;
+
+                if is_eos {
+                    return Poll::Ready(Ok(()));
+                }
+                continue;
             }
 
+            // Poll for the next body frame *before* reserving any connection
+            // flow-control capacity. Reserving capacity speculatively (even a
+            // single byte) pins that capacity on the connection-level window,
+            // which can deadlock a second stream when talking to peers that
+            // only emit WINDOW_UPDATE once their receive window is fully
+            // exhausted. See #4003.
             match ready!(me.stream.as_mut().poll_frame(cx)) {
                 Some(Ok(frame)) => {
                     if frame.is_data() {
                         let chunk = frame.into_data().unwrap_or_else(|_| unreachable!());
                         let is_eos = me.stream.is_end_stream();
-                        trace!(
-                            "send body chunk: {} bytes, eos={}",
-                            chunk.remaining(),
-                            is_eos,
-                        );
+                        let len = chunk.remaining();
+                        trace!("send body chunk: {} bytes, eos={}", len, is_eos);
 
-                        let buf = SendBuf::Buf(chunk);
-                        me.body_tx
-                            .send_data(buf, is_eos)
-                            .map_err(crate::Error::new_body_write)?;
+                        if len == 0 {
+                            // Zero-length data frames need no capacity; send
+                            // them straight through so trailing empty frames
+                            // (e.g. an explicit end-of-stream marker) are
+                            // delivered.
+                            let buf = SendBuf::Buf(chunk);
+                            me.body_tx
+                                .send_data(buf, is_eos)
+                                .map_err(crate::Error::new_body_write)?;
 
-                        if is_eos {
-                            return Poll::Ready(Ok(()));
+                            if is_eos {
+                                return Poll::Ready(Ok(()));
+                            }
+                            continue;
                         }
+
+                        // Reserve exactly the chunk size so we never pin more
+                        // connection-level flow-control window than we are
+                        // about to consume. Stash the chunk in `self` so it
+                        // survives the upcoming `poll_capacity` wait even if
+                        // it returns `Poll::Pending`.
+                        me.body_tx.reserve_capacity(len);
+                        *me.buffered_data = Some((chunk, is_eos));
                     } else if frame.is_trailers() {
                         // no more DATA, so give any capacity back
                         me.body_tx.reserve_capacity(0);
