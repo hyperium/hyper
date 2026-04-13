@@ -78,12 +78,12 @@ where
             // for the actual body chunk.
             me.h2_tx.reserve_capacity(1);
 
-            if me.h2_tx.capacity() == 0 {
+            let h2_has_capacity = if me.h2_tx.capacity() == 0 {
                 // poll_capacity oddly needs a loop
                 loop {
                     match me.h2_tx.poll_capacity(cx) {
                         Poll::Ready(Some(Ok(0))) => {}
-                        Poll::Ready(Some(Ok(_))) => break,
+                        Poll::Ready(Some(Ok(_))) => break true,
                         Poll::Ready(Some(Err(e))) => {
                             return Poll::Ready(Err(crate::Error::new_body_write(e)))
                         }
@@ -95,10 +95,12 @@ where
                                 "send stream capacity unexpectedly closed",
                             )));
                         }
-                        Poll::Pending => return Poll::Pending,
+                        Poll::Pending => break false,
                     }
                 }
-            }
+            } else {
+                true
+            };
 
             match me.h2_tx.poll_reset(cx) {
                 Poll::Ready(Ok(reason)) => {
@@ -111,6 +113,10 @@ where
                     return Poll::Ready(Err(crate::Error::new_body_write(err)))
                 }
                 Poll::Pending => (),
+            }
+
+            if !h2_has_capacity {
+                return Poll::Pending;
             }
 
             match me.rx.as_mut().poll_next(cx) {
