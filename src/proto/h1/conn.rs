@@ -393,7 +393,8 @@ where
                             };
                             (reading, Poll::Ready(maybe_frame))
                         } else if frame.is_trailers() {
-                            (Reading::Closed, Poll::Ready(Some(Ok(frame))))
+                            debug!("incoming body completed with trailers");
+                            (Reading::KeepAlive, Poll::Ready(Some(Ok(frame))))
                         } else {
                             trace!("discarding unknown frame");
                             (Reading::Closed, Poll::Ready(None))
