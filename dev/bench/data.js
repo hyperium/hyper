@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776894106075,
+  "lastUpdate": 1776894254942,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -58021,6 +58021,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5206252,
             "range": "± 111226.26",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@ulyssa.dev",
+            "name": "Ulyssa",
+            "username": "ulyssa"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e5ad96b1c511b568f086100538586231628b1eab",
+          "message": "fix(http2): reading trailers shouldn't propagate `NO_ERROR` from early response (#3998)\n\nThis is the trailers variant of the fix for reading the body in #3275, so that it is possible to both attempt to read the body and the trailers when the server has sent a `RST_STREAM` with `NO_ERROR` after its response to indicate that the client should stop attempting to send it the body.\n\nI have added a trailers-only variant of `http2_responds_before_consuming_request_body` that fails without the fix, and also updated `http2_responds_before_consuming_request_body` to verify that it can check whether there are any trailers.",
+          "timestamp": "2026-04-22T14:40:55-07:00",
+          "tree_id": "4df8ad0de6f73e78efcdc8a1704c454df3753365",
+          "url": "https://github.com/hyperium/hyper/commit/e5ad96b1c511b568f086100538586231628b1eab"
+        },
+        "date": 1776894252118,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 36017,
+            "range": "± 409.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3789835,
+            "range": "± 1646341.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 11383,
+            "range": "± 297.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 12970,
+            "range": "± 299.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 17739,
+            "range": "± 430.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 52081,
+            "range": "± 2004.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999858,
+            "range": "± 18042.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 64421,
+            "range": "± 656.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 4431586,
+            "range": "± 81868.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 37398578,
+            "range": "± 8434473.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4364678,
+            "range": "± 75668.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 74644118,
+            "range": "± 1424282.57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 32999560,
+            "range": "± 399057.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3342464,
+            "range": "± 32908.03",
             "unit": "ns/iter"
           }
         ]
