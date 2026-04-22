@@ -36,8 +36,8 @@ fn noop_waker() -> Waker {
 pub(crate) fn now_or_never<F: std::future::Future>(fut: F) -> Option<F::Output> {
     let waker = noop_waker();
     let mut cx = Context::from_waker(&waker);
-    // TODO: replace with std::pin::pin! and drop pin-utils once MSRV >= 1.68
-    pin_utils::pin_mut!(fut);
+    // TODO: replace with std::pin::pin! once MSRV >= 1.68
+    tokio::pin!(fut);
     match fut.poll(&mut cx) {
         Poll::Ready(res) => Some(res),
         Poll::Pending => None,

@@ -23,7 +23,7 @@ use http_body_util::{combinators::BoxBody, BodyExt, Empty, Full, StreamBody};
 use hyper::rt::Timer;
 use hyper::rt::{Read as AsyncRead, Write as AsyncWrite};
 use support::{TokioExecutor, TokioIo, TokioTimer};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncReadExt, AsyncWriteExt, DuplexStream};
 use tokio::net::{TcpListener as TkTcpListener, TcpListener, TcpStream as TkTcpStream};
 
 use hyper::body::{Body, Incoming as IncomingBody};
@@ -1004,6 +1004,21 @@ fn setup_tcp_listener() -> (TcpListener, SocketAddr) {
     (listener, addr)
 }
 
+fn setup_duplex_test_server() -> (DuplexStream, DuplexStream, SocketAddr) {
+    use std::net::{IpAddr, Ipv6Addr};
+    let _ = pretty_env_logger::try_init();
+
+    const BUF_SIZE: usize = 1024;
+    let (ioa, iob) = tokio::io::duplex(BUF_SIZE);
+
+    /// A test address inside the 'documentation' address range.
+    /// See: <https://www.iana.org/assignments/iana-ipv6-special-registry/iana-ipv6-special-registry.xhtml>
+    const TEST_ADDR: IpAddr = IpAddr::V6(Ipv6Addr::new(0x3fff, 0, 0, 0, 0, 0, 0, 1));
+    const TEST_SOCKET: SocketAddr = SocketAddr::new(TEST_ADDR, 8080);
+
+    (ioa, iob, TEST_SOCKET)
+}
+
 #[tokio::test]
 async fn expect_continue_waits_for_body_poll() {
     let (listener, addr) = setup_tcp_listener();
@@ -1189,19 +1204,26 @@ fn http_11_uri_too_long() {
 
 #[tokio::test]
 async fn disable_keep_alive_mid_request() {
-    let (listener, addr) = setup_tcp_listener();
+    let (client_io, server_io, _) = setup_duplex_test_server();
     let (tx1, rx1) = oneshot::channel();
-    let (tx2, rx2) = mpsc::channel();
+    let (tx2, rx2) = oneshot::channel();
 
-    let child = thread::spawn(move || {
-        let mut req = connect(&addr);
-        req.write_all(b"GET / HTTP/1.1\r\n").unwrap();
-        thread::sleep(Duration::from_millis(10));
+    let client_task = tokio::spawn(async move {
+        let mut client_io = client_io;
+        // Send partial request
+        client_io.write_all(b"GET / HTTP/1.1\r\n").await.unwrap();
+        // Signal server that partial request sent
         tx1.send(()).unwrap();
-        rx2.recv().unwrap();
-        req.write_all(b"Host: localhost\r\n\r\n").unwrap();
+        // Wait for server to be ready for rest of request
+        rx2.await.unwrap();
+        // Send rest of request
+        client_io
+            .write_all(b"Host: localhost\r\n\r\n")
+            .await
+            .unwrap();
+        // Read response
         let mut buf = vec![];
-        req.read_to_end(&mut buf).unwrap();
+        client_io.read_to_end(&mut buf).await.unwrap();
         assert!(
             buf.starts_with(b"HTTP/1.1 200 OK\r\n"),
             "should receive OK response, but buf: {:?}",
@@ -1215,9 +1237,8 @@ async fn disable_keep_alive_mid_request() {
         );
     });
 
-    let (socket, _) = listener.accept().await.unwrap();
-    let socket = TokioIo::new(socket);
-    let srv = http1::Builder::new().serve_connection(socket, HelloWorld);
+    let server_io = TokioIo::new(server_io);
+    let srv = http1::Builder::new().serve_connection(server_io, HelloWorld);
     future::try_select(srv, rx1)
         .then(|r| match r {
             Ok(Either::Left(_)) => panic!("expected rx first"),
@@ -1232,7 +1253,7 @@ async fn disable_keep_alive_mid_request() {
         .await
         .unwrap();
 
-    child.join().unwrap();
+    client_task.await.unwrap();
 }
 
 #[tokio::test]
@@ -2830,6 +2851,51 @@ fn http1_trailer_send_fields() {
 }
 
 #[test]
+fn http1_trailer_send_fields_titlecase() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+    // Invalid trailer field that should not be sent
+    headers.insert("Host", "www.example.com".parse().unwrap());
+    // Not specified in Trailer header, so should not be sent
+    headers.insert("foo", "bar".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "Chunky-Trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let expected_head =
+        "HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\ntrailer: Chunky-Trailer\r\n";
+    assert_eq!(&sres[..expected_head.len()], expected_head);
+
+    // skip the date header
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
 fn http1_trailer_fields_not_allowed() {
     let body = futures_util::stream::once(async move { Ok("hello".into()) });
     let mut headers = HeaderMap::new();
@@ -2899,6 +2965,58 @@ fn http1_trailer_recv_fields() {
         trailers.get("chunky-trailer"),
         Some(&"header data".parse().unwrap())
     );
+}
+
+#[test]
+fn http1_trailer_recv_keep_alive() {
+    let server = serve();
+    server.reply().header("content-length", "2").body(b"ok");
+    let mut req = connect(server.addr());
+
+    // First request: chunked POST with trailers
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        trailer: chunky-trailer\r\n\
+        host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        5\r\n\
+        hello\r\n\
+        0\r\n\
+        chunky-trailer: header data\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing 1");
+
+    assert_eq!(server.body(), b"hello");
+
+    let trailers = server.trailers();
+    assert_eq!(
+        trailers.get("chunky-trailer"),
+        Some(&"header data".parse().unwrap())
+    );
+
+    read_until(&mut req, |buf| buf.ends_with(b"ok")).expect("reading 1");
+
+    // Second request: reuse the same connection to verify keep-alive
+    let quux = b"zar quux";
+    server
+        .reply()
+        .header("content-length", quux.len().to_string())
+        .body(quux);
+    req.write_all(
+        b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing 2");
+
+    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
 }
 
 // -------------------------------------------------

@@ -216,6 +216,26 @@ where
     pub fn is_extended_connect_protocol_enabled(&self) -> bool {
         self.inner.1.is_extended_connect_protocol_enabled()
     }
+
+    /// Returns the current maximum send stream count.
+    ///
+    /// This setting is configured in a [`SETTINGS_MAX_CONCURRENT_STREAMS` parameter][1] in a `SETTINGS` frame,
+    /// and may change throughout the connection lifetime.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1.2
+    pub fn current_max_send_streams(&self) -> usize {
+        self.inner.1.current_max_send_streams()
+    }
+
+    /// Returns the current maximum receive stream count.
+    ///
+    /// This setting is configured in a [`SETTINGS_MAX_CONCURRENT_STREAMS` parameter][1] in a `SETTINGS` frame,
+    /// and may change throughout the connection lifetime.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1.2
+    pub fn current_max_recv_streams(&self) -> usize {
+        self.inner.1.current_max_recv_streams()
+    }
 }
 
 impl<T, B, E> fmt::Debug for Connection<T, B, E>
@@ -387,7 +407,7 @@ where
     ///
     /// See [Section 5.1.2] in the HTTP/2 spec for more details.
     ///
-    /// [Section 5.1.2]: https://http2.github.io/http2-spec/#rfc.section.5.1.2
+    /// [Section 5.1.2]: https://httpwg.org/specs/rfc7540.html#rfc.section.5.1.2
     pub fn max_concurrent_streams(&mut self, max: impl Into<Option<u32>>) -> &mut Self {
         self.h2_builder.max_concurrent_streams = max.into();
         self
@@ -462,6 +482,17 @@ where
     /// See <https://github.com/hyperium/hyper/issues/2877> for more information.
     pub fn max_pending_accept_reset_streams(&mut self, max: impl Into<Option<usize>>) -> &mut Self {
         self.h2_builder.max_pending_accept_reset_streams = max.into();
+        self
+    }
+
+    /// Configures the maximum number of local resets due to protocol errors made by the remote end.
+    ///
+    /// See the documentation of [`h2::client::Builder::max_local_error_reset_streams`] for more
+    /// details.
+    ///
+    /// The default value is 1024.
+    pub fn max_local_error_reset_streams(&mut self, max: impl Into<Option<usize>>) -> &mut Self {
+        self.h2_builder.max_local_error_reset_streams = max.into();
         self
     }
 

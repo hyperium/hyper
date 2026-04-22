@@ -170,8 +170,14 @@ where
         // benchmarks often use. Perhaps it should be a config option instead.
         for _ in 0..16 {
             let _ = self.poll_read(cx)?;
-            let _ = self.poll_write(cx)?;
-            let _ = self.poll_flush(cx)?;
+            let write_ready = self.poll_write(cx)?.is_ready();
+            let flush_ready = self.poll_flush(cx)?.is_ready();
+
+            // If we can write more body and the connection is ready, we should
+            // write again. If we return `Ready(Ok(())` here, we will yield
+            // without a guaranteed wake-up from the write side of the connection.
+            // This would lead to a deadlock if we also don't expect reads.
+            let wants_write_again = self.can_write_again() && (write_ready || flush_ready);
 
             // This could happen if reading paused before blocking on IO,
             // such as getting to the end of a framed message, but then
@@ -181,14 +187,31 @@ where
             //
             // Using this instead of task::current() and notify() inside
             // the Conn is noticeably faster in pipelined benchmarks.
-            if !self.conn.wants_read_again() {
-                //break;
+            let wants_read_again = self.conn.wants_read_again();
+
+            // If we cannot write or read again, we yield and rely on the
+            // wake-up from the connection futures.
+            if !(wants_write_again || wants_read_again) {
                 return Poll::Ready(Ok(()));
             }
+
+            // If we are continuing only because "wants_write_again", check if write is ready.
+            if !wants_read_again && wants_write_again {
+                // If write was ready, just proceed with the loop
+                if write_ready {
+                    continue;
+                }
+                // Write was previously pending, but may have become ready since polling flush, so
+                // we need to check it again. If we simply proceeded, the case of an unbuffered
+                // writer where flush is always ready would cause us to hot loop.
+                if self.poll_write(cx)?.is_pending() {
+                    // write is pending, so it is safe to yield and rely on wake-up from connection
+                    // futures.
+                    return Poll::Ready(Ok(()));
+                }
+            }
         }
-
         trace!("poll_loop yielding (self = {:p})", self);
-
         task::yield_now(cx).map(|never| match never {})
     }
 
@@ -431,6 +454,11 @@ where
         self.is_closing = true;
         self.conn.close_read();
         self.conn.close_write();
+    }
+
+    /// If there is pending data in body_rx, we can make progress writing if the connection is ready.
+    fn can_write_again(&mut self) -> bool {
+        self.body_rx.is_some()
     }
 
     fn is_done(&self) -> bool {
