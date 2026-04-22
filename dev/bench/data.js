@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776872477531,
+  "lastUpdate": 1776872607265,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -57883,6 +57883,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5908665,
             "range": "± 652229.07",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "thiery.louis@gmail.com",
+            "name": "Louis Thiery",
+            "username": "lthiery"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "743a3ba0706fde95e2095ad42ffefe219d807117",
+          "message": "fix(http1): fix rare missed write wakeup on connections v2",
+          "timestamp": "2026-04-22T08:40:29-07:00",
+          "tree_id": "6dd748533d3c9e97215da9c824bdd6cd4f68ae93",
+          "url": "https://github.com/hyperium/hyper/commit/743a3ba0706fde95e2095ad42ffefe219d807117"
+        },
+        "date": 1776872603575,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67311,
+            "range": "± 968.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 7377448,
+            "range": "± 483462.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20301,
+            "range": "± 602.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22566,
+            "range": "± 272.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 29450,
+            "range": "± 835.31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 97734,
+            "range": "± 1483.27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000124,
+            "range": "± 4755.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 82444,
+            "range": "± 1660.04",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 7663725,
+            "range": "± 395933.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 32398610,
+            "range": "± 8580118.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7519943,
+            "range": "± 109463.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51475878,
+            "range": "± 1020502.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50648987,
+            "range": "± 406269.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5206252,
+            "range": "± 111226.26",
             "unit": "ns/iter"
           }
         ]
