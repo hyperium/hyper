@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1774971009047,
+  "lastUpdate": 1776872477531,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11249,6 +11249,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 36607,
             "range": "± 10972.38",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "thiery.louis@gmail.com",
+            "name": "Louis Thiery",
+            "username": "lthiery"
+          },
+          "committer": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "distinct": true,
+          "id": "743a3ba0706fde95e2095ad42ffefe219d807117",
+          "message": "fix(http1): fix rare missed write wakeup on connections v2",
+          "timestamp": "2026-04-22T08:40:29-07:00",
+          "tree_id": "6dd748533d3c9e97215da9c824bdd6cd4f68ae93",
+          "url": "https://github.com/hyperium/hyper/commit/743a3ba0706fde95e2095ad42ffefe219d807117"
+        },
+        "date": 1776872475270,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51376,
+            "range": "± 6367.55",
             "unit": "ns/iter"
           }
         ]
