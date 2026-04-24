@@ -92,10 +92,15 @@ pin_project! {
         // for stream-level capacity before it can be shipped. Stored here so
         // it survives across `Poll::Pending` returns from `poll_capacity`; if
         // we left the chunk in a local, it would be dropped on every repoll.
-        buffered_data: Option<(S::Data, bool)>,
+        buffered_data: Option<Peeked<S::Data>>,
         #[pin]
         stream: S,
     }
+}
+
+struct Peeked<D> {
+    data: D,
+    is_eos: bool,
 }
 
 impl<S> PipeToSendStream<S>
@@ -159,13 +164,13 @@ where
                     }
                 }
 
-                let (chunk, is_eos) = me.buffered_data.take().expect("checked is_some above");
-                let buf = SendBuf::Buf(chunk);
+                let peeked = me.buffered_data.take().expect("checked is_some above");
+                let buf = SendBuf::Buf(peeked.data);
                 me.body_tx
-                    .send_data(buf, is_eos)
+                    .send_data(buf, peeked.is_eos)
                     .map_err(crate::Error::new_body_write)?;
 
-                if is_eos {
+                if peeked.is_eos {
                     return Poll::Ready(Ok(()));
                 }
                 continue;
@@ -207,7 +212,10 @@ where
                         // survives the upcoming `poll_capacity` wait even if
                         // it returns `Poll::Pending`.
                         me.body_tx.reserve_capacity(len);
-                        *me.buffered_data = Some((chunk, is_eos));
+                        *me.buffered_data = Some(Peeked {
+                            data: chunk,
+                            is_eos,
+                        });
                     } else if frame.is_trailers() {
                         // no more DATA, so give any capacity back
                         me.body_tx.reserve_capacity(0);
