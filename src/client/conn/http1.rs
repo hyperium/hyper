@@ -17,7 +17,7 @@ use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
 
 type Dispatcher<T, B> =
-    proto::dispatch::Dispatcher<proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
+    proto::dispatch::Dispatcher<'static, proto::dispatch::Client<B>, B, T, proto::h1::ClientTransaction>;
 
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
