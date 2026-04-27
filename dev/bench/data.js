@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1776894254942,
+  "lastUpdate": 1777293170661,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11309,6 +11309,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51747,
             "range": "± 11220.17",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b12f6525432e7fbe80b749fec26f8ed7723006fc",
+          "message": "fix(http1): fix reading large bodies on 32-bit systems (#4056)\n\nOn 32-bit systems, the cast of the length to read from a u64 to a usize could\ntruncate, and cause less to be read. If the length was larger than usize::MAX,\nthe end could not be read.\n\nTo fix this, we use a saturating cast pattern instead.\n\nCloses #4055",
+          "timestamp": "2026-04-27T08:31:58-04:00",
+          "tree_id": "9676be6da75583e70050c98f72641254f753dc0c",
+          "url": "https://github.com/hyperium/hyper/commit/b12f6525432e7fbe80b749fec26f8ed7723006fc"
+        },
+        "date": 1777293167942,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57148,
+            "range": "± 12768.37",
             "unit": "ns/iter"
           }
         ]
