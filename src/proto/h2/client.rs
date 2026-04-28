@@ -148,6 +148,7 @@ pub(crate) async fn handshake<T, B, E>(
     config: &Config,
     mut exec: E,
     timer: Time,
+    informational_config: Option<crate::client::conn::informational::InformationalConfig>,
 ) -> crate::Result<ClientTask<B, E, T>>
 where
     T: Read + Write + Unpin,
@@ -196,6 +197,7 @@ where
         h2_tx,
         req_rx,
         fut_ctx: None,
+        informational_callback: informational_config.and_then(|config| config.callback),
         marker: PhantomData,
     })
 }
@@ -413,6 +415,7 @@ where
     body_tx: SendStream<SendBuf<B::Data>>,
     body: B,
     cb: Callback<Request<B>, Response<IncomingBody>>,
+    informational_callback: Option<crate::client::conn::informational::InformationalCallback>,
 }
 
 impl<B: Body> Unpin for FutCtx<B> {}
@@ -429,6 +432,7 @@ where
     h2_tx: SendRequest<SendBuf<B::Data>>,
     req_rx: ClientRx<B>,
     fut_ctx: Option<FutCtx<B>>,
+    informational_callback: Option<crate::client::conn::informational::InformationalCallback>,
     marker: PhantomData<T>,
 }
 
@@ -566,6 +570,7 @@ where
                     send_stream: Some(send_stream),
                     exec: self.executor.clone(),
                     cancel_tx: Some(cancel_tx),
+                    informational_callback: f.informational_callback,
                 },
                 call_back: Some(f.cb),
             },
@@ -586,6 +591,7 @@ pin_project! {
         send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
         exec: E,
         cancel_tx: Option<oneshot::Sender<()>>,
+        informational_callback: Option<crate::client::conn::informational::InformationalCallback>,
     }
 }
 
@@ -607,6 +613,39 @@ where
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         let mut this = self.as_mut().project();
+
+        // First, check for any informational responses and invoke the callback if present
+        if let Some(callback) = &this.informational_callback {
+            let mut processed_informational = false;
+            loop {
+                match this.fut.poll_informational(cx) {
+                    Poll::Ready(Some(Ok(informational_response))) => {
+                        // Invoke the callback with the informational response
+                        callback(informational_response);
+                        processed_informational = true;
+                        // Continue polling for more informational responses
+                        continue;
+                    }
+                    Poll::Ready(Some(Err(_err))) => {
+                        // Error in informational response, log it but don't fail the main response
+                        debug!("informational response error: {}", _err);
+                        break;
+                    }
+                    Poll::Ready(None) => {
+                        // No more informational responses expected
+                        break;
+                    }
+                    Poll::Pending => {
+                        // If we processed any informational responses, return Pending to allow
+                        // the H2 layer to process them before polling the main response
+                        if processed_informational {
+                            return Poll::Pending;
+                        }
+                        break;
+                    }
+                }
+            }
+        }
 
         let result = ready!(this.fut.poll(cx));
 
@@ -700,6 +739,10 @@ where
                         continue;
                     }
                     let (head, body) = req.into_parts();
+
+                    // Use the connection-level informational callback
+                    let informational_callback = self.informational_callback.clone();
+
                     let mut req = ::http::Request::from_parts(head, ());
                     super::strip_connection_headers(req.headers_mut(), true);
                     if let Some(len) = body.size_hint().exact() {
@@ -746,6 +789,7 @@ where
                         body_tx,
                         body,
                         cb,
+                        informational_callback,
                     };
 
                     // Check poll_ready() again.
