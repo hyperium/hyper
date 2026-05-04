@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777293329683,
+  "lastUpdate": 1777927816873,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11339,6 +11339,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 57148,
             "range": "± 12768.37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "99f243450268cfc8125ff232e0b7de016a1dce5b",
+          "message": "fix(http2): do not reserve capacity before body data is available (#4061)\n\nPipeToSendStream used to call `reserve_capacity(1)` at the top of every\npoll iteration as a probe, before asking the body for the next chunk.\nThe reservation is immediately assigned from the connection-level\nflow-control window, and while the stream is parked waiting for more\nbody data the reservation keeps the last byte of the connection window\npinned to the stream.\n\nAgainst peers that only emit a WINDOW_UPDATE once their receive window\nis fully exhausted (for example Bun's built-in HTTP/2 server, as well\nas other implementations with a similar strategy), this one-byte\nreservation is enough to deadlock a second concurrent stream: the\nconnection window never drops to zero on the peer, so no WINDOW_UPDATE\nis ever sent, and the second stream can never get any capacity.\n\nRestructure the loop so it polls the body for the next frame first and\nonly reserves capacity equal to the chunk's exact size. The polled\nchunk is stashed in a new `buffered_data` field so it survives the\n`poll_capacity` wait across `Poll::Pending` returns without being\ndropped. Zero-length data frames are forwarded immediately without\ntouching the reservation. `poll_reset` is now registered at the top of\nevery iteration so RST_STREAM still wakes the task while it waits for\neither more body data or more capacity.\n\nAdd a regression test that pairs a streaming request filling the\nconnection window with a second one-byte request, talking to a raw\nh2::server that never releases recv capacity, and asserts the second\nrequest reaches the server.\n\nCloses #4003\n\nCo-authored-by: barry3406 <duan3406@gmail.com>",
+          "timestamp": "2026-05-04T16:49:23-04:00",
+          "tree_id": "dc398c8d17f8ac485615a11aac8193336bc5358a",
+          "url": "https://github.com/hyperium/hyper/commit/99f243450268cfc8125ff232e0b7de016a1dce5b"
+        },
+        "date": 1777927813786,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 68822,
+            "range": "± 13229.30",
             "unit": "ns/iter"
           }
         ]
