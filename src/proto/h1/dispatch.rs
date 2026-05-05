@@ -19,12 +19,13 @@ use crate::common::task;
 use crate::proto::{BodyLength, Conn, Dispatched, MessageHead, RequestHead};
 use crate::upgrade::OnUpgrade;
 
-pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
+pub(crate) struct Dispatcher<'body, D, Bs: Body + 'body, I, T> {
     conn: Conn<I, Bs::Data, T>,
     dispatch: D,
     body_tx: Option<crate::body::Sender>,
     body_rx: Pin<Box<Option<Bs>>>,
     is_closing: bool,
+    _a: std::marker::PhantomData<&'body ()>
 }
 
 pub(crate) trait Dispatch {
@@ -64,7 +65,7 @@ cfg_client! {
     type ClientRx<B> = crate::client::dispatch::Receiver<Request<B>, http::Response<IncomingBody>>;
 }
 
-impl<D, Bs, I, T> Dispatcher<D, Bs, I, T>
+impl<'body, D, Bs, I, T> Dispatcher<'body, D, Bs, I, T>
 where
     D: Dispatch<
             PollItem = MessageHead<T::Outgoing>,
@@ -74,7 +75,7 @@ where
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: Body + 'static,
+    Bs: Body + 'body,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     pub(crate) fn new(dispatch: D, conn: Conn<I, Bs::Data, T>) -> Self {
@@ -84,6 +85,7 @@ where
             body_tx: None,
             body_rx: Box::pin(None),
             is_closing: false,
+            _a: Default::default()
         }
     }
 
@@ -479,7 +481,7 @@ where
     }
 }
 
-impl<D, Bs, I, T> Future for Dispatcher<D, Bs, I, T>
+impl<'body, D, Bs, I, T> Future for Dispatcher<'body, D, Bs, I, T>
 where
     D: Dispatch<
             PollItem = MessageHead<T::Outgoing>,
@@ -489,7 +491,7 @@ where
     D::PollError: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
     T: Http1Transaction + Unpin,
-    Bs: Body + 'static,
+    Bs: Body + 'body,
     Bs::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<Dispatched>;
