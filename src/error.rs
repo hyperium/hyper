@@ -273,6 +273,30 @@ impl Error {
         false
     }
 
+    /// If this error was caused by an h2 GOAWAY frame, returns the
+    /// associated reason as a `u32`.
+    ///
+    /// An HTTP/2 GOAWAY frame indicates the remote peer will no longer
+    /// accept new streams on this connection. Requests rejected by a
+    /// GOAWAY (with stream IDs above the peer's last accepted stream)
+    /// were never processed by the server and are safe to retry on a
+    /// new connection, per [RFC 9113 §6.8].
+    ///
+    /// Common reason codes:
+    /// - `0`: `NO_ERROR` — graceful shutdown, retry immediately
+    /// - `11`: `ENHANCE_YOUR_CALM` — server is overloaded, retry with backoff
+    ///
+    /// Returns `None` if the error was not caused by a GOAWAY frame.
+    ///
+    /// [RFC 9113 §6.8]: https://httpwg.org/specs/rfc9113.html#GOAWAY
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    pub fn h2_go_away_reason(&self) -> Option<u32> {
+        self.find_source::<h2::Error>()
+            .filter(|e| e.is_go_away())
+            .and_then(|e| e.reason())
+            .map(Into::into)
+    }
+
     /// Returns true if the error was caused by a timeout.
     pub fn is_timeout(&self) -> bool {
         #[cfg(all(feature = "http1", feature = "server"))]
@@ -698,5 +722,23 @@ mod tests {
         // Suppose a user were proxying the received error
         let svc_err = Error::new_user_service(recvd);
         assert_eq!(svc_err.h2_reason(), h2::Reason::HTTP_1_1_REQUIRED);
+    }
+
+    #[cfg(feature = "http2")]
+    #[test]
+    fn h2_go_away_reason_non_goaway() {
+        // h2::Error::from(Reason) creates a Reason-kind error, not a GoAway.
+        // h2's GoAway constructors are pub(crate), so we can only test the
+        // negative case here; the positive case needs an integration test
+        // with a real h2 connection.
+        let err = Error::new_h2(h2::Error::from(h2::Reason::INTERNAL_ERROR));
+        assert_eq!(err.h2_go_away_reason(), None);
+    }
+
+    #[cfg(feature = "http2")]
+    #[test]
+    fn h2_go_away_reason_not_h2() {
+        let err = Error::new_closed();
+        assert_eq!(err.h2_go_away_reason(), None);
     }
 }
