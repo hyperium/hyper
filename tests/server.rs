@@ -2805,6 +2805,36 @@ async fn http2_keep_alive_count_server_pings() {
         .expect("timed out waiting for pings");
 }
 
+#[tokio::test]
+async fn http2_header_table_size() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
+
+        http2::Builder::new(TokioExecutor)
+            .header_table_size(8192)
+            .serve_connection(socket, HelloWorld)
+            .await
+            .expect("serve_connection");
+    });
+
+    let tcp = TokioIo::new(connect_async(addr).await);
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
+        .handshake(tcp)
+        .await
+        .expect("http handshake");
+
+    tokio::spawn(async move {
+        conn.await.expect("client conn");
+    });
+
+    let req = http::Request::new(Empty::<Bytes>::new());
+    let res = client.send_request(req).await.expect("client.send_request");
+    assert_eq!(res.status(), StatusCode::OK);
+}
+
 #[test]
 fn http1_trailer_send_fields() {
     let body = futures_util::stream::once(async move { Ok("hello".into()) });
