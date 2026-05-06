@@ -323,6 +323,11 @@ where
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        ready!(self.poll_flush(cx))?;
+        Pin::new(&mut self.io).poll_shutdown(cx)
+    }
+
     #[cfg(test)]
     fn flush(&mut self) -> impl std::future::Future<Output = io::Result<()>> + '_ {
         futures_util::future::poll_fn(move |cx| self.poll_flush(cx))
