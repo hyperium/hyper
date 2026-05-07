@@ -95,7 +95,7 @@ fn http1_parallel_x10_res_10mb(b: &mut test::Bencher) {
 
 // HTTP2
 
-const HTTP2_MAX_WINDOW: u32 = std::u32::MAX >> 1;
+const HTTP2_MAX_WINDOW: u32 = u32::MAX >> 1;
 
 #[bench]
 fn http2_consecutive_x1_empty(b: &mut test::Bencher) {
