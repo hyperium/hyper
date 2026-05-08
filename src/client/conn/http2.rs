@@ -39,6 +39,13 @@ impl<B> Clone for SendRequest<B> {
 /// can process incoming and outgoing messages, notice hangups, and the like.
 ///
 /// Instances of this type are typically created via the [`handshake`] function
+///
+/// # Drop behavior
+///
+/// Dropping the `Connection` will close the underlying IO resource.
+/// Any in-flight requests that have not received a response will be
+/// interrupted. If graceful shutdown is desired, poll the connection
+/// until it completes instead of dropping.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
