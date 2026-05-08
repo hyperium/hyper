@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1777927954070,
+  "lastUpdate": 1778265293377,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11369,6 +11369,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 68822,
             "range": "± 13229.30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte+git@posteo.de",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cdecfeeb5d6d09db8ee43b51660cdeaf48cdcee6",
+          "message": "style(lib): fix some clippy lints\n\n* Stop using soft-deprecated integer constants\n\n* Remove pointless `let _`s",
+          "timestamp": "2026-05-08T14:33:56-04:00",
+          "tree_id": "fa7027dd5dd81188d69d6951768da6d6ba6550b2",
+          "url": "https://github.com/hyperium/hyper/commit/cdecfeeb5d6d09db8ee43b51660cdeaf48cdcee6"
+        },
+        "date": 1778265290251,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56424,
+            "range": "± 14588.08",
             "unit": "ns/iter"
           }
         ]
