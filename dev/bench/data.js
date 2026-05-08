@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778265293377,
+  "lastUpdate": 1778265408120,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -58435,6 +58435,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5595667,
             "range": "± 76543.45",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jplatte+git@posteo.de",
+            "name": "Jonas Platte",
+            "username": "jplatte"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cdecfeeb5d6d09db8ee43b51660cdeaf48cdcee6",
+          "message": "style(lib): fix some clippy lints\n\n* Stop using soft-deprecated integer constants\n\n* Remove pointless `let _`s",
+          "timestamp": "2026-05-08T14:33:56-04:00",
+          "tree_id": "fa7027dd5dd81188d69d6951768da6d6ba6550b2",
+          "url": "https://github.com/hyperium/hyper/commit/cdecfeeb5d6d09db8ee43b51660cdeaf48cdcee6"
+        },
+        "date": 1778265405763,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69261,
+            "range": "± 5360.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4308632,
+            "range": "± 101059.48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20910,
+            "range": "± 560.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22921,
+            "range": "± 521.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30988,
+            "range": "± 1114.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100490,
+            "range": "± 3226.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000553,
+            "range": "± 42521.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 84474,
+            "range": "± 2451.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16205699,
+            "range": "± 16381974.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 16203144,
+            "range": "± 8412044.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7807612,
+            "range": "± 90496.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50901856,
+            "range": "± 671518.27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51812706,
+            "range": "± 594832.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5507929,
+            "range": "± 111781.42",
             "unit": "ns/iter"
           }
         ]
