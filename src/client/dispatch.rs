@@ -447,7 +447,7 @@ mod tests {
         let (mut tx, mut rx) = channel::<Custom, ()>();
 
         // one is allowed to buffer, second is rejected
-        let _ = tx.try_send(Custom(1)).expect("1 buffered");
+        tx.try_send(Custom(1)).expect("1 buffered");
         tx.try_send(Custom(2)).expect_err("2 not ready");
 
         assert!(PollOnce(&mut rx).await.is_some(), "rx once");
@@ -458,7 +458,7 @@ mod tests {
 
         assert!(PollOnce(&mut rx).await.is_none(), "rx empty");
 
-        let _ = tx.try_send(Custom(2)).expect("2 ready");
+        tx.try_send(Custom(2)).expect("2 ready");
     }
 
     #[cfg(feature = "http2")]
@@ -467,13 +467,13 @@ mod tests {
         let (tx, rx) = channel::<Custom, ()>();
         let mut tx = tx.unbound();
 
-        let _ = tx.try_send(Custom(1)).unwrap();
-        let _ = tx.try_send(Custom(2)).unwrap();
-        let _ = tx.try_send(Custom(3)).unwrap();
+        tx.try_send(Custom(1)).unwrap();
+        tx.try_send(Custom(2)).unwrap();
+        tx.try_send(Custom(3)).unwrap();
 
         drop(rx);
 
-        let _ = tx.try_send(Custom(4)).unwrap_err();
+        tx.try_send(Custom(4)).unwrap_err();
     }
 
     #[cfg(feature = "nightly")]
@@ -487,7 +487,7 @@ mod tests {
         let (mut tx, mut rx) = channel::<Request<Incoming>, Response<Incoming>>();
 
         b.iter(move || {
-            let _ = tx.send(Request::new(Incoming::empty())).unwrap();
+            tx.send(Request::new(Incoming::empty())).unwrap();
             rt.block_on(async {
                 loop {
                     let poll_once = PollOnce(&mut rx);
