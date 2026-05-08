@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778265408120,
+  "lastUpdate": 1778265449658,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11399,6 +11399,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56424,
             "range": "± 14588.08",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lihan3238@163.com",
+            "name": "Li Duoyang",
+            "username": "lihan3238"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e9be344f16c8a996ccf3a9f69a66408437885f31",
+          "message": "docs(client): document Drop behavior for Connection types (#4064)\n\nExplain what happens when Connection is dropped: the underlying IO\nresource is closed and in-flight requests are interrupted. Suggest\npolling to completion for graceful shutdown.\n\nCloses #3192\n\nCo-authored-by: lihan3238 <lihan3238@users.noreply.github.com>",
+          "timestamp": "2026-05-08T14:36:35-04:00",
+          "tree_id": "b259f71adc591548fc897362adae56f7cea56b68",
+          "url": "https://github.com/hyperium/hyper/commit/e9be344f16c8a996ccf3a9f69a66408437885f31"
+        },
+        "date": 1778265447336,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51659,
+            "range": "± 10975.72",
             "unit": "ns/iter"
           }
         ]
