@@ -18,6 +18,7 @@ mod h2_common {
 
     pub trait Http2UpgradedExec<B> {
         #[doc(hidden)]
+        #[track_caller]
         fn execute_upgrade(&self, fut: UpgradedSendStreamTask<B>);
     }
 
@@ -26,6 +27,7 @@ mod h2_common {
     where
         E: Executor<UpgradedSendStreamTask<B>>,
     {
+        #[track_caller]
         fn execute_upgrade(&self, fut: UpgradedSendStreamTask<B>) {
             self.execute(fut)
         }
@@ -56,6 +58,7 @@ mod h2_client {
         T: Read + Write + Unpin,
     {
         #[doc(hidden)]
+        #[track_caller]
         fn execute_h2_future(&mut self, future: H2ClientFuture<B, T, Self>);
     }
 
@@ -69,6 +72,7 @@ mod h2_client {
         H2ClientFuture<B, T, E>: Future<Output = ()>,
         T: Read + Write + Unpin,
     {
+        #[track_caller]
         fn execute_h2_future(&mut self, future: H2ClientFuture<B, T, E>) {
             self.execute(future)
         }
@@ -110,6 +114,7 @@ mod h2_server {
         super::Http2UpgradedExec<B::Data> + sealed::Sealed<(F, B)> + Clone
     {
         #[doc(hidden)]
+        #[track_caller]
         fn execute_h2stream(&mut self, fut: H2Stream<F, B, Self>);
     }
 
@@ -122,6 +127,7 @@ mod h2_server {
         H2Stream<F, B, E>: Future<Output = ()>,
         B: Body,
     {
+        #[track_caller]
         fn execute_h2stream(&mut self, fut: H2Stream<F, B, E>) {
             self.execute(fut)
         }

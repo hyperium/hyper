@@ -44,5 +44,6 @@ pub use self::timer::{Sleep, Timer};
 /// ```
 pub trait Executor<Fut> {
     /// Place the future into the executor to be run.
+    #[track_caller]
     fn execute(&self, fut: Fut);
 }
