@@ -260,6 +260,18 @@ impl<E> Builder<E> {
         self
     }
 
+    /// Sets the header table size.
+    ///
+    /// This setting informs the peer of the maximum size of the header compression
+    /// table used to encode header blocks, in octets. The encoder may select any value
+    /// equal to or less than the header table size specified by the sender.
+    ///
+    /// The default value of crate `h2` is 4,096.
+    pub fn header_table_size(&mut self, size: impl Into<Option<u32>>) -> &mut Self {
+        self.h2_builder.header_table_size = size.into();
+        self
+    }
+
     /// Sets the max size of received header frames.
     ///
     /// Default is currently 16KB, but can change.
