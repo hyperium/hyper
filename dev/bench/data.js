@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778265593137,
+  "lastUpdate": 1778509927116,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11429,6 +11429,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51659,
             "range": "± 10975.72",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "adg@adg.is",
+            "name": "Árni Dagur",
+            "username": "ArniDagur"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6c9182c4e566e716d23e7b54ce2c75e064a9213a",
+          "message": "feat(http2): Add 'header_table_size()' method to server builder (#4062)",
+          "timestamp": "2026-05-11T10:31:08-04:00",
+          "tree_id": "99991846526ac1e8410d19d80b6c1aafb1bd3af9",
+          "url": "https://github.com/hyperium/hyper/commit/6c9182c4e566e716d23e7b54ce2c75e064a9213a"
+        },
+        "date": 1778509923071,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 41044,
+            "range": "± 10713.47",
             "unit": "ns/iter"
           }
         ]
