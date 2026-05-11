@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778509927116,
+  "lastUpdate": 1778510058376,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -58711,6 +58711,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5068428,
             "range": "± 129936.97",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "adg@adg.is",
+            "name": "Árni Dagur",
+            "username": "ArniDagur"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6c9182c4e566e716d23e7b54ce2c75e064a9213a",
+          "message": "feat(http2): Add 'header_table_size()' method to server builder (#4062)",
+          "timestamp": "2026-05-11T10:31:08-04:00",
+          "tree_id": "99991846526ac1e8410d19d80b6c1aafb1bd3af9",
+          "url": "https://github.com/hyperium/hyper/commit/6c9182c4e566e716d23e7b54ce2c75e064a9213a"
+        },
+        "date": 1778510055855,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 65343,
+            "range": "± 3077.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4371005,
+            "range": "± 851971.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 19696,
+            "range": "± 318.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 21713,
+            "range": "± 530.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 29530,
+            "range": "± 915.54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 102397,
+            "range": "± 5291.30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999763,
+            "range": "± 6825.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 83459,
+            "range": "± 1165.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 15982826,
+            "range": "± 16554804.48",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7809076,
+            "range": "± 141798.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7534265,
+            "range": "± 169926.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 52618859,
+            "range": "± 2883859.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 53429474,
+            "range": "± 1372815.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5235136,
+            "range": "± 80399.33",
             "unit": "ns/iter"
           }
         ]
