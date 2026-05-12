@@ -503,6 +503,36 @@ where
         self
     }
 
+    /// Sets the duration to remember locally reset streams.
+    ///
+    /// When a stream is explicitly reset by either the client or the server,
+    /// the HTTP/2 specification requires that any further frames received for
+    /// that stream must be ignored for "some time".
+    ///
+    /// In order to satisfy the specification, internal state must be maintained
+    /// to implement the behavior. This state grows linearly with the number of
+    /// streams that are locally reset.
+    ///
+    /// The `reset_stream_duration` setting configures the max amount of time
+    /// this state will be maintained in memory. Once the duration elapses, the
+    /// stream state is purged from memory.
+    ///
+    /// Once the stream has been fully purged from memory, any additional frames
+    /// received for that stream will result in a connection level protocol
+    /// error, forcing the connection to terminate.
+    ///
+    /// The default value is determined by the `h2` crate, and is currently
+    /// 1 second.
+    ///
+    /// See the documentation of [`h2::client::Builder::reset_stream_duration`] for more
+    /// details.
+    ///
+    /// [`h2::client::Builder::reset_stream_duration`]: https://docs.rs/h2/client/struct.Builder.html#method.reset_stream_duration
+    pub fn reset_stream_duration(&mut self, dur: Duration) -> &mut Self {
+        self.h2_builder.reset_stream_duration = Some(dur);
+        self
+    }
+
     /// Constructs a connection with the configured options and IO.
     /// See [`client::conn`](crate::client::conn) for more.
     ///
