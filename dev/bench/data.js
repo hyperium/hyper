@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778612239100,
+  "lastUpdate": 1778612377567,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -58987,6 +58987,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5134678,
             "range": "± 101802.05",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b7a679bad5e17d106b4b54835153af4e72027f82",
+          "message": "fix(http1): send error when dispatcher is dropped mid-body (#4069)\n\nWrap body_tx in a SenderDropGuard that sends an IncompleteMessage\nerror if the Dispatcher future is dropped while still owning a body\nSender, preventing silent data truncation.\n\nCloses #3995\nCloses #4016\n\nCo-authored-by: Pierre Barre <pierre@barre.sh>",
+          "timestamp": "2026-05-12T14:56:30-04:00",
+          "tree_id": "14f8065d92aff63f0d8ff50eaefa3a1d81daf7ff",
+          "url": "https://github.com/hyperium/hyper/commit/b7a679bad5e17d106b4b54835153af4e72027f82"
+        },
+        "date": 1778612375056,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 62760,
+            "range": "± 1509.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4462809,
+            "range": "± 344396.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22553,
+            "range": "± 229.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23921,
+            "range": "± 365.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 28555,
+            "range": "± 450.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 95589,
+            "range": "± 14432.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000057,
+            "range": "± 34066.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 79140,
+            "range": "± 2006.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16440916,
+            "range": "± 16546007.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8123584,
+            "range": "± 147374.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7882313,
+            "range": "± 171378.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 55494693,
+            "range": "± 1190141.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 55663237,
+            "range": "± 1569042.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5955172,
+            "range": "± 118476.75",
             "unit": "ns/iter"
           }
         ]
