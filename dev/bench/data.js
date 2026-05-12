@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778510058376,
+  "lastUpdate": 1778606696360,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11459,6 +11459,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 41044,
             "range": "± 10713.47",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kimjune01@gmail.com",
+            "name": "June",
+            "username": "kimjune01"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "156a6f6aaacdc782861a4cab23ab3940a029d6ac",
+          "message": "feat(http2): add  `reset_stream_duration()` client option (#4068)\n\nExpose the h2 client builder's reset_stream_duration setting, which\ncontrols how long reset stream state is kept in memory. This is useful\nfor tuning memory usage in connections that reset many streams.\n\nCloses #2599",
+          "timestamp": "2026-05-12T13:24:00-04:00",
+          "tree_id": "410a355eb1ce761b5cec3689693a69d5cb42ed08",
+          "url": "https://github.com/hyperium/hyper/commit/156a6f6aaacdc782861a4cab23ab3940a029d6ac"
+        },
+        "date": 1778606693920,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43534,
+            "range": "± 6150.65",
             "unit": "ns/iter"
           }
         ]
