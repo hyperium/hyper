@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778606696360,
+  "lastUpdate": 1778606830776,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -58849,6 +58849,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5235136,
             "range": "± 80399.33",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "kimjune01@gmail.com",
+            "name": "June",
+            "username": "kimjune01"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "156a6f6aaacdc782861a4cab23ab3940a029d6ac",
+          "message": "feat(http2): add  `reset_stream_duration()` client option (#4068)\n\nExpose the h2 client builder's reset_stream_duration setting, which\ncontrols how long reset stream state is kept in memory. This is useful\nfor tuning memory usage in connections that reset many streams.\n\nCloses #2599",
+          "timestamp": "2026-05-12T13:24:00-04:00",
+          "tree_id": "410a355eb1ce761b5cec3689693a69d5cb42ed08",
+          "url": "https://github.com/hyperium/hyper/commit/156a6f6aaacdc782861a4cab23ab3940a029d6ac"
+        },
+        "date": 1778606826906,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68577,
+            "range": "± 2021.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4355642,
+            "range": "± 304958.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20731,
+            "range": "± 362.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23039,
+            "range": "± 581.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31001,
+            "range": "± 1576.08",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99715,
+            "range": "± 1737.54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000210,
+            "range": "± 5039.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 84409,
+            "range": "± 2790.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 7922463,
+            "range": "± 324899.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7756121,
+            "range": "± 112055.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7674609,
+            "range": "± 152575.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51014545,
+            "range": "± 1374607.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50944408,
+            "range": "± 1158884.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5134678,
+            "range": "± 101802.05",
             "unit": "ns/iter"
           }
         ]
