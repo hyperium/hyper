@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778606830776,
+  "lastUpdate": 1778612239100,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11489,6 +11489,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43534,
             "range": "± 6150.65",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b7a679bad5e17d106b4b54835153af4e72027f82",
+          "message": "fix(http1): send error when dispatcher is dropped mid-body (#4069)\n\nWrap body_tx in a SenderDropGuard that sends an IncompleteMessage\nerror if the Dispatcher future is dropped while still owning a body\nSender, preventing silent data truncation.\n\nCloses #3995\nCloses #4016\n\nCo-authored-by: Pierre Barre <pierre@barre.sh>",
+          "timestamp": "2026-05-12T14:56:30-04:00",
+          "tree_id": "14f8065d92aff63f0d8ff50eaefa3a1d81daf7ff",
+          "url": "https://github.com/hyperium/hyper/commit/b7a679bad5e17d106b4b54835153af4e72027f82"
+        },
+        "date": 1778612235467,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57904,
+            "range": "± 13711.51",
             "unit": "ns/iter"
           }
         ]
