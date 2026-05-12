@@ -77,6 +77,7 @@ pub(crate) struct Config {
     pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) header_table_size: Option<u32>,
     pub(crate) max_concurrent_streams: Option<u32>,
+    pub(crate) reset_stream_duration: Option<Duration>,
 }
 
 impl Default for Config {
@@ -97,6 +98,7 @@ impl Default for Config {
             max_local_error_reset_streams: Some(1024),
             header_table_size: None,
             max_concurrent_streams: None,
+            reset_stream_duration: None,
         }
     }
 }
@@ -125,6 +127,9 @@ fn new_builder(config: &Config) -> Builder {
     }
     if let Some(max) = config.max_concurrent_streams {
         builder.max_concurrent_streams(max);
+    }
+    if let Some(dur) = config.reset_stream_duration {
+        builder.reset_stream_duration(dur);
     }
     builder
 }
