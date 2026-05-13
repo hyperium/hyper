@@ -30,6 +30,14 @@
 //! If looking for just a convenient HTTP client, consider the
 //! [reqwest](https://crates.io/crates/reqwest) crate.
 //!
+//! # Cancel safety
+//!
+//! Futures returned by hyper are cancel safe: dropping a future before it
+//! completes is the supported way to cancel the operation. See the
+//! documentation on individual futures — for example `SendRequest::send_request`
+//! in `client::conn::http1` and `client::conn::http2` — for the protocol-
+//! specific behavior on cancellation.
+//!
 //! # Optional Features
 //!
 //! hyper uses a set of [feature flags] to reduce the amount of compiled code.

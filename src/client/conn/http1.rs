@@ -195,6 +195,15 @@ where
     ///
     /// This is however not enforced or validated and it is up to the user
     /// of this method to ensure the `Uri` is correct for their intended purpose.
+    ///
+    /// # Cancel safety
+    ///
+    /// Dropping the returned future is the supported way to cancel an
+    /// in-flight HTTP/1 request. Because HTTP/1 has no in-protocol way to
+    /// abort a single request without affecting the shared connection,
+    /// hyper closes the underlying connection when a request future is
+    /// dropped before completion. Any subsequent calls on the same
+    /// [`SendRequest`] will return a `canceled` error.
     pub fn send_request(
         &mut self,
         req: Request<B>,
