@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778612377567,
+  "lastUpdate": 1778700391409,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11519,6 +11519,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 57904,
             "range": "± 13711.51",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lihan3238@163.com",
+            "name": "Li Duoyang",
+            "username": "lihan3238"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0bcc126076583a2f5e4b0635b4a148e5ee33b9c3",
+          "message": "docs(client): document cancel safety for client send_request futures (#4070)\n\nPer discussion in #4054: hyper futures are cancel safe via drop.\nDocument the protocol-specific behavior on cancellation:\n\n- HTTP/1: dropping closes the underlying connection (no in-protocol\n  per-request abort)\n- HTTP/2: dropping resets the stream with RST_STREAM (CANCEL); shared\n  connection stays usable for other in-flight and future requests\n\nAlso adds a brief crate-level Cancel safety section pointing readers\nat the per-future docs, per seanmonstar suggestion in the issue.\n\nRefs #4054\n\nCo-authored-by: lihan3238 <lihan3238@users.noreply.github.com>",
+          "timestamp": "2026-05-13T15:25:35-04:00",
+          "tree_id": "a8cef294af24135df158d22003835bcdf3e7161c",
+          "url": "https://github.com/hyperium/hyper/commit/0bcc126076583a2f5e4b0635b4a148e5ee33b9c3"
+        },
+        "date": 1778700388921,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43474,
+            "range": "± 6574.28",
             "unit": "ns/iter"
           }
         ]
