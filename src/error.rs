@@ -173,11 +173,22 @@ pub(super) struct TimedOut;
 
 impl Error {
     /// Returns true if this was an HTTP parse error.
+    ///
+    /// This can be caused by a malformed HTTP message, an invalid header,
+    /// an invalid URI, an invalid HTTP version, or a message head that is
+    /// too large. Use the more specific `is_parse_*` methods to determine
+    /// the exact cause.
     pub fn is_parse(&self) -> bool {
         matches!(self.inner.kind, Kind::Parse(_))
     }
 
     /// Returns true if this was an HTTP parse error caused by a message that was too large.
+    ///
+    /// This is triggered when the message head (request line plus headers for
+    /// HTTP/1, or header frame for HTTP/2) exceeds the configured
+    /// [`max_buf_size`](crate::server::conn::http1::Builder::max_buf_size).
+    /// It also covers the case where the URI alone exceeds the internal
+    /// maximum URI length.
     #[cfg(all(feature = "http1", feature = "server"))]
     pub fn is_parse_too_large(&self) -> bool {
         matches!(
@@ -194,22 +205,38 @@ impl Error {
 
     /// Returns true if this was an HTTP parse error caused by HTTP2 preface sent over an HTTP1
     /// connection.
+    ///
+    /// This can happen when a client sends an HTTP/2 connection preface to a
+    /// server that is only expecting HTTP/1.x requests.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub fn is_parse_version_h2(&self) -> bool {
         matches!(self.inner.kind, Kind::Parse(Parse::VersionH2))
     }
 
     /// Returns true if this error was caused by user code.
+    ///
+    /// For example, this can be returned when the user's `Service` returns
+    /// an error, the user's `Body` stream yields an error, or the user
+    /// sends an unexpected header combination (such as both
+    /// `content-length` and `transfer-encoding`).
     pub fn is_user(&self) -> bool {
         matches!(self.inner.kind, Kind::User(_))
     }
 
     /// Returns true if this was about a `Request` that was canceled.
+    ///
+    /// This typically happens when a pending request is dropped before
+    /// it can be dispatched to the connection, for example because the
+    /// connection was not ready.
     pub fn is_canceled(&self) -> bool {
         matches!(self.inner.kind, Kind::Canceled)
     }
 
     /// Returns true if a sender's channel is closed.
+    ///
+    /// This can occur when the other side of a client or body channel
+    /// has been dropped, indicating that the receiver is no longer
+    /// interested in the data.
     pub fn is_closed(&self) -> bool {
         #[cfg(not(any(
             all(feature = "http1", any(feature = "client", feature = "server")),
@@ -250,6 +277,10 @@ impl Error {
     }
 
     /// Returns true if the body write was aborted.
+    ///
+    /// This occurs when the user's code explicitly aborts writing of the
+    /// outgoing body before it completes, for example by dropping the
+    /// body sender.
     pub fn is_body_write_aborted(&self) -> bool {
         #[cfg(not(any(
             all(feature = "http1", any(feature = "client", feature = "server")),
@@ -265,6 +296,9 @@ impl Error {
     }
 
     /// Returns true if the error was caused while calling `AsyncWrite::shutdown()`.
+    ///
+    /// This can happen when the connection is being gracefully shut down
+    /// and the underlying IO reports an error during the shutdown sequence.
     pub fn is_shutdown(&self) -> bool {
         #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
         if matches!(self.inner.kind, Kind::Shutdown) {
@@ -274,6 +308,10 @@ impl Error {
     }
 
     /// Returns true if the error was caused by a timeout.
+    ///
+    /// For HTTP/1 servers, this includes the header read timeout (see
+    /// [`header_read_timeout`](crate::server::conn::http1::Builder::header_read_timeout)).
+    /// It also covers any timeout set via a user-provided timer.
     pub fn is_timeout(&self) -> bool {
         #[cfg(all(feature = "http1", feature = "server"))]
         if matches!(self.inner.kind, Kind::HeaderTimeout) {
