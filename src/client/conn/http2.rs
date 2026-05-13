@@ -138,6 +138,15 @@ where
     ///
     /// Absolute-form `Uri`s are not required. If received, they will be serialized
     /// as-is.
+    ///
+    /// # Cancel safety
+    ///
+    /// Dropping the returned future is the supported way to cancel an
+    /// in-flight HTTP/2 request. The stream is reset with `RST_STREAM`
+    /// (`CANCEL` error code); the shared connection remains usable for
+    /// other in-flight and future requests. The peer is notified
+    /// immediately rather than continuing to send a response body that
+    /// would be discarded.
     pub fn send_request(
         &mut self,
         req: Request<B>,
