@@ -1,18 +1,17 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
-#include <sys/select.h>
 #include <assert.h>
-
-#include <sys/types.h>
-#include <sys/socket.h>
+#include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <sys/select.h>
+#include <sys/socket.h>
 
 #include "hyper.h"
-
 
 struct conn_data {
     int fd;
@@ -114,14 +113,12 @@ static int connect_to(const char *host, const char *port) {
 
 struct upload_body {
     int fd;
-    char *buf;
+    unsigned char *buf;
     size_t len;
 };
 
-static int poll_req_upload(void *userdata,
-                           hyper_context *ctx,
-                           hyper_buf **chunk) {
-    struct upload_body* upload = userdata;
+static int poll_req_upload(void *userdata, hyper_context *ctx, hyper_buf **chunk) {
+    struct upload_body *upload = userdata;
 
     ssize_t res = read(upload->fd, upload->buf, upload->len);
     if (res > 0) {
@@ -140,12 +137,10 @@ static int poll_req_upload(void *userdata,
     return HYPER_POLL_ERROR;
 }
 
-static int print_each_header(void *userdata,
-                                         const uint8_t *name,
-                                         size_t name_len,
-                                         const uint8_t *value,
-                                         size_t value_len) {
-    printf("%.*s: %.*s\n", (int) name_len, name, (int) value_len, value);
+static int print_each_header(
+    void *userdata, const uint8_t *name, size_t name_len, const uint8_t *value, size_t value_len
+) {
+    printf("%.*s: %.*s\n", (int)name_len, name, (int)value_len, value);
     return HYPER_ITER_CONTINUE;
 }
 
@@ -160,7 +155,12 @@ typedef enum {
     EXAMPLE_HANDSHAKE,
     EXAMPLE_SEND,
     EXAMPLE_RESP_BODY
-} example_id;
+} example_state;
+
+typedef union example_id {
+    void *ptr;
+    example_state state;
+} example_userdata;
 
 #define STR_ARG(XX) (uint8_t *)XX, strlen(XX)
 
@@ -208,10 +208,9 @@ int main(int argc, char *argv[]) {
     conn->read_waker = NULL;
     conn->write_waker = NULL;
 
-
     // Hookup the IO
     hyper_io *io = hyper_io_new();
-    hyper_io_set_userdata(io, (void *)conn);
+    hyper_io_set_userdata(io, (void *)conn, NULL);
     hyper_io_set_read(io, read_cb);
     hyper_io_set_write(io, write_cb);
 
@@ -225,7 +224,7 @@ int main(int argc, char *argv[]) {
     hyper_clientconn_options_exec(opts, exec);
 
     hyper_task *handshake = hyper_clientconn_handshake(io, opts);
-    hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE);
+    hyper_task_set_userdata(handshake, (void *)EXAMPLE_HANDSHAKE, NULL);
 
     // Let's wait for the handshake to finish...
     hyper_executor_push(exec, handshake);
@@ -243,9 +242,8 @@ int main(int argc, char *argv[]) {
             }
             hyper_task_return_type task_type = hyper_task_type(task);
 
-            switch ((example_id) hyper_task_userdata(task)) {
+            switch (((example_userdata)hyper_task_userdata(task)).state) {
             case EXAMPLE_HANDSHAKE:
-                ;
                 if (task_type == HYPER_TASK_ERROR) {
                     printf("handshake error!\n");
                     return 1;
@@ -276,17 +274,17 @@ int main(int argc, char *argv[]) {
                 // the body is sent immediately. This will just print if any
                 // informational headers are received.
                 printf("    with expect-continue ...\n");
-                hyper_request_on_informational(req, print_informational, NULL);
+                hyper_request_on_informational(req, print_informational, NULL, NULL);
 
                 // Prepare the req body
                 hyper_body *body = hyper_body_new();
-                hyper_body_set_userdata(body, &upload);
+                hyper_body_set_userdata(body, &upload, NULL);
                 hyper_body_set_data_func(body, poll_req_upload);
                 hyper_request_set_body(req, body);
 
                 // Send it!
                 hyper_task *send = hyper_clientconn_send(client, req);
-                hyper_task_set_userdata(send, (void *)EXAMPLE_SEND);
+                hyper_task_set_userdata(send, (void *)EXAMPLE_SEND, NULL);
                 printf("sending ...\n");
                 hyper_executor_push(exec, send);
 
@@ -295,7 +293,6 @@ int main(int argc, char *argv[]) {
 
                 break;
             case EXAMPLE_SEND:
-                ;
                 if (task_type == HYPER_TASK_ERROR) {
                     printf("send error!\n");
                     return 1;
@@ -318,7 +315,7 @@ int main(int argc, char *argv[]) {
 
                 // Set us up to peel data from the body a chunk at a time
                 hyper_task *body_data = hyper_body_data(resp_body);
-                hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY);
+                hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY, NULL);
                 hyper_executor_push(exec, body_data);
 
                 // No longer need the response
@@ -326,7 +323,6 @@ int main(int argc, char *argv[]) {
 
                 break;
             case EXAMPLE_RESP_BODY:
-                ;
                 if (task_type == HYPER_TASK_ERROR) {
                     printf("body error!\n");
                     return 1;
@@ -339,7 +335,7 @@ int main(int argc, char *argv[]) {
                     hyper_task_free(task);
 
                     hyper_task *body_data = hyper_body_data(resp_body);
-                    hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY);
+                    hyper_task_set_userdata(body_data, (void *)EXAMPLE_RESP_BODY, NULL);
                     hyper_executor_push(exec, body_data);
 
                     break;
@@ -394,7 +390,6 @@ int main(int argc, char *argv[]) {
             conn->write_waker = NULL;
         }
     }
-
 
     return 0;
 }

@@ -7,7 +7,7 @@ header = """/*
  *
  * Full docs at: https://docs.rs/hyper/latest/hyper/ffi/index.html
  */"""
-include_guard = "_HYPER_H"
+pragma_once = true
 no_includes = true
 sys_includes = ["stdint.h", "stddef.h", "stdbool.h"]
 cpp_compat = true
