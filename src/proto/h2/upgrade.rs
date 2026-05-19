@@ -273,7 +273,8 @@ fn io_error(e: crate::Error) -> std::io::Error {
 
 fn h2_to_io_error(e: h2::Error) -> std::io::Error {
     if e.is_io() {
-        e.into_io().unwrap()
+        e.into_io()
+            .expect("h2 error reported io cause without an underlying io error")
     } else {
         std::io::Error::new(std::io::ErrorKind::Other, e)
     }
