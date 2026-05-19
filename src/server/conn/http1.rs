@@ -180,8 +180,15 @@ where
     pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> {
         let mut zelf = Some(self);
         crate::common::future::poll_fn(move |cx| {
-            ready!(zelf.as_mut().unwrap().conn.poll_without_shutdown(cx))?;
-            Poll::Ready(Ok(zelf.take().unwrap().into_parts()))
+            ready!(zelf
+                .as_mut()
+                .expect("server connection polled after completion")
+                .conn
+                .poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(zelf
+                .take()
+                .expect("server connection missing before completion")
+                .into_parts()))
         })
     }
 
@@ -545,7 +552,12 @@ where
             match ready!(Pin::new(&mut conn.conn).poll(cx)) {
                 Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
                 Ok(proto::Dispatched::Upgrade(pending)) => {
-                    let (io, buf, _) = self.inner.take().unwrap().conn.into_inner();
+                    let (io, buf, _) = self
+                        .inner
+                        .take()
+                        .expect("upgradeable server connection missing after upgrade")
+                        .conn
+                        .into_inner();
                     pending.fulfill(Upgraded::new(io, buf));
                     Poll::Ready(Ok(()))
                 }

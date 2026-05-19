@@ -366,9 +366,20 @@ impl Future for TaskFuture {
     type Output = Box<hyper_task>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match Pin::new(&mut self.task.as_mut().unwrap().future).poll(cx) {
+        match Pin::new(
+            &mut self
+                .task
+                .as_mut()
+                .expect("ffi task future polled after completion")
+                .future,
+        )
+        .poll(cx)
+        {
             Poll::Ready(val) => {
-                let mut task = self.task.take().unwrap();
+                let mut task = self
+                    .task
+                    .take()
+                    .expect("ffi task future missing task after completion");
                 task.output = Some(val);
                 Poll::Ready(task)
             }
