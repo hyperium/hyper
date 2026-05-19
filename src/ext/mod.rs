@@ -238,14 +238,17 @@ impl OriginalHeaderOrder {
         N: IntoHeaderName + Into<HeaderName> + Clone,
     {
         let name: HeaderName = name.into();
-        let idx;
-        if self.num_entries.contains_key(&name) {
-            idx = self.num_entries[&name];
-            *self.num_entries.get_mut(&name).unwrap() += 1;
-        } else {
-            idx = 0;
-            self.num_entries.insert(name.clone(), 1);
-        }
+        let idx = match self.num_entries.entry(name.clone()) {
+            std::collections::hash_map::Entry::Occupied(mut entry) => {
+                let idx = *entry.get();
+                *entry.get_mut() += 1;
+                idx
+            }
+            std::collections::hash_map::Entry::Vacant(entry) => {
+                entry.insert(1);
+                0
+            }
+        };
         self.entry_order.push((name, idx));
     }
 

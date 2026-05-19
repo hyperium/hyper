@@ -437,7 +437,8 @@ impl hyper_headers {
             ext.insert(hyper_headers::default());
         }
 
-        ext.get_mut::<hyper_headers>().unwrap()
+        ext.get_mut::<hyper_headers>()
+            .expect("hyper headers inserted into extensions")
     }
 }
 

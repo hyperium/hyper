@@ -100,8 +100,14 @@ where
     pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
         let mut conn = Some(self);
         crate::common::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
-            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
-            Poll::Ready(Ok(conn.take().unwrap().into_parts()))
+            ready!(conn
+                .as_mut()
+                .expect("client connection polled after completion")
+                .poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(conn
+                .take()
+                .expect("client connection missing before completion")
+                .into_parts()))
         })
         .await
     }
@@ -613,10 +619,22 @@ mod upgrades {
         type Output = crate::Result<()>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            match ready!(Pin::new(&mut self.inner.as_mut().unwrap().inner).poll(cx)) {
+            match ready!(Pin::new(
+                &mut self
+                    .inner
+                    .as_mut()
+                    .expect("upgradeable client connection polled after upgrade")
+                    .inner,
+            )
+            .poll(cx))
+            {
                 Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
                 Ok(proto::Dispatched::Upgrade(pending)) => {
-                    let Parts { io, read_buf } = self.inner.take().unwrap().into_parts();
+                    let Parts { io, read_buf } = self
+                        .inner
+                        .take()
+                        .expect("upgradeable client connection missing after upgrade")
+                        .into_parts();
                     pending.fulfill(Upgraded::new(io, read_buf));
                     Poll::Ready(Ok(()))
                 }

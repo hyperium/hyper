@@ -284,10 +284,16 @@ impl<T, U> Callback<T, U> {
     pub(crate) fn send(mut self, val: Result<U, TrySendError<T>>) {
         match self {
             Callback::Retry(ref mut tx) => {
-                let _ = tx.take().unwrap().send(val);
+                let _ = tx
+                    .take()
+                    .expect("callback sender not dropped before send")
+                    .send(val);
             }
             Callback::NoRetry(ref mut tx) => {
-                let _ = tx.take().unwrap().send(val.map_err(|e| e.error));
+                let _ = tx
+                    .take()
+                    .expect("callback sender not dropped before send")
+                    .send(val.map_err(|e| e.error));
             }
         }
     }
