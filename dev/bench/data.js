@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779228468523,
+  "lastUpdate": 1779228591325,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11609,6 +11609,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 54134,
             "range": "± 9582.44",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "08ef3658bf33b184af240a48b2181a3937a2b26c",
+          "message": "refactor(lib): replace unwraps with expects (#4073)",
+          "timestamp": "2026-05-19T18:09:02-04:00",
+          "tree_id": "06afcffc1fa14f524bb68e13184167cec253cf88",
+          "url": "https://github.com/hyperium/hyper/commit/08ef3658bf33b184af240a48b2181a3937a2b26c"
+        },
+        "date": 1779228588441,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56945,
+            "range": "± 11421.39",
             "unit": "ns/iter"
           }
         ]
