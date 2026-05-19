@@ -10,6 +10,8 @@ use std::task::{Context, Poll};
 
 use futures_util::stream::{FuturesUnordered, Stream};
 
+use crate::common::lock::LockResultExt;
+
 use super::error::hyper_code;
 use super::UserDataPointer;
 
@@ -196,7 +198,7 @@ impl hyper_executor {
     fn spawn(&self, task: Box<hyper_task>) {
         self.spawn_queue
             .lock()
-            .unwrap()
+            .panic_if_poisoned()
             .push(TaskFuture { task: Some(task) });
     }
 
@@ -211,7 +213,7 @@ impl hyper_executor {
             {
                 // Scope the lock on the driver to ensure it is dropped before
                 // calling drain_queue below.
-                let mut driver = self.driver.lock().unwrap();
+                let mut driver = self.driver.lock().panic_if_poisoned();
                 match Pin::new(&mut *driver).poll_next(&mut cx) {
                     Poll::Ready(val) => return val,
                     Poll::Pending => {}
@@ -238,12 +240,12 @@ impl hyper_executor {
     /// drain_queue locks both self.spawn_queue and self.driver, so it requires
     /// that neither of them be locked already.
     fn drain_queue(&self) -> bool {
-        let mut queue = self.spawn_queue.lock().unwrap();
+        let mut queue = self.spawn_queue.lock().panic_if_poisoned();
         if queue.is_empty() {
             return false;
         }
 
-        let driver = self.driver.lock().unwrap();
+        let driver = self.driver.lock().panic_if_poisoned();
 
         for task in queue.drain(..) {
             driver.push(task);
