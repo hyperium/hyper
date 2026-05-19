@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1778700631607,
+  "lastUpdate": 1779228468523,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11579,6 +11579,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 39179,
             "range": "± 7523.04",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3d1dcc038c7c48189b518f81f4ef4cb347d72024",
+          "message": "refactor(lib): use a panic_if_poisoned() helper for mutexes (#4072)",
+          "timestamp": "2026-05-19T18:06:59-04:00",
+          "tree_id": "51c98fa9db7354f66428a85348cb4646c98d9e9d",
+          "url": "https://github.com/hyperium/hyper/commit/3d1dcc038c7c48189b518f81f4ef4cb347d72024"
+        },
+        "date": 1779228465933,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54134,
+            "range": "± 9582.44",
             "unit": "ns/iter"
           }
         ]
