@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 
 use h2::{Ping, PingPong};
 
+use crate::common::lock::LockResultExt;
 use crate::common::time::Time;
 use crate::rt::Sleep;
 
@@ -196,7 +197,7 @@ impl Recorder {
             return;
         };
 
-        let mut locked = shared.lock().unwrap();
+        let mut locked = shared.lock().panic_if_poisoned();
 
         locked.update_last_read_at();
 
@@ -230,7 +231,7 @@ impl Recorder {
             return;
         };
 
-        let mut locked = shared.lock().unwrap();
+        let mut locked = shared.lock().panic_if_poisoned();
 
         locked.update_last_read_at();
     }
@@ -248,7 +249,7 @@ impl Recorder {
 
     pub(super) fn ensure_not_timed_out(&self) -> crate::Result<()> {
         if let Some(ref shared) = self.shared {
-            let locked = shared.lock().unwrap();
+            let locked = shared.lock().panic_if_poisoned();
             if locked.is_keep_alive_timed_out {
                 return Err(KeepAliveTimedOut.crate_error());
             }
@@ -263,7 +264,7 @@ impl Recorder {
 
 impl Ponger {
     pub(super) fn poll(&mut self, cx: &mut task::Context<'_>) -> Poll<Ponged> {
-        let mut locked = self.shared.lock().unwrap();
+        let mut locked = self.shared.lock().panic_if_poisoned();
         let now = locked.timer.now(); // hoping this is fine to move within the lock
         let is_idle = self.is_idle();
 
