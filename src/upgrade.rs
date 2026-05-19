@@ -53,6 +53,7 @@ use bytes::Bytes;
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
+use crate::common::lock::LockResultExt;
 
 /// An upgraded HTTP connection.
 ///
@@ -226,7 +227,7 @@ impl Future for OnUpgrade {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.rx {
-            Some(ref rx) => Pin::new(&mut *rx.lock().unwrap())
+            Some(ref rx) => Pin::new(&mut *rx.lock().panic_if_poisoned())
                 .poll(cx)
                 .map(|res| match res {
                     Ok(Ok(upgraded)) => Ok(upgraded),
