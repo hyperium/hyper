@@ -132,7 +132,6 @@ ignored_unit_patterns = "allow"
 indexing_slicing = "allow"
 integer_division = "allow"
 integer_division_remainder_used = "allow"
-large_enum_variant = "allow"
 let_unit_value = "allow"
 manual_assert_eq = "allow" # TODO: easy fix
 map_err_ignore = "allow"
