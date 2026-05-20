@@ -595,7 +595,7 @@ pin_project! {
 }
 
 impl<B: Body + 'static, E> ResponseFutMap<B, E> {
-    /// Signal the pipe_task to reset the stream (e.g. on client cancellation).
+    /// Signal the `pipe_task` to reset the stream (e.g. on client cancellation).
     pub(crate) fn cancel(self: Pin<&mut Self>) {
         if let Some(cancel_tx) = self.project().cancel_tx.take() {
             let _ = cancel_tx.send(());

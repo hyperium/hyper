@@ -1,6 +1,6 @@
-//! Trait aliases
+//! Trait aliases.
 //!
-//! Traits in this module ease setting bounds and usually automatically
+//! Traits in this module ease setting bounds and are usually automatically
 //! implemented by implementing another trait.
 
 #[cfg(all(feature = "client", feature = "http2"))]

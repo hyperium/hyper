@@ -911,7 +911,7 @@ impl<I: Unpin, B, T> Unpin for Conn<I, B, T> {}
 
 struct State {
     allow_half_close: bool,
-    /// Re-usable HeaderMap to reduce allocating new ones.
+    /// Re-usable `HeaderMap` to reduce allocating new ones.
     cached_headers: Option<HeaderMap>,
     /// If an error occurs when there wasn't a direct way to return it
     /// back to the user, this is set.
@@ -948,15 +948,15 @@ struct State {
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,
-    /// State of allowed reads
+    /// State of allowed reads.
     reading: Reading,
-    /// State of allowed writes
+    /// State of allowed writes.
     writing: Writing,
     /// An expected pending HTTP upgrade.
     upgrade: Option<crate::upgrade::Pending>,
-    /// Either HTTP/1.0 or 1.1 connection
+    /// Either HTTP/1.0 or 1.1 connection.
     version: Version,
-    /// Flag to track if trailer fields are allowed to be sent
+    /// Flag to track if trailer fields are allowed to be sent.
     allow_trailer_fields: bool,
 }
 

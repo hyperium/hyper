@@ -56,7 +56,7 @@ pub(crate) trait Http1Transaction {
     fn update_date() {}
 }
 
-/// Result newtype for Http1Transaction::parse.
+/// Result newtype for `Http1Transaction::parse`.
 pub(crate) type ParseResult<T> = Result<Option<ParsedMessage<T>>, crate::error::Parse>;
 
 #[derive(Debug)]
@@ -81,7 +81,7 @@ pub(crate) struct ParseContext<'a> {
     on_informational: &'a mut Option<crate::ext::OnInformational>,
 }
 
-/// Passed to Http1Transaction::encode
+/// Passed to `Http1Transaction::encode`.
 pub(crate) struct Encode<'a, T> {
     head: &'a mut MessageHead<T>,
     body: Option<BodyLength>,

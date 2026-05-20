@@ -1,4 +1,4 @@
-//! HTTP/2 Server Connections
+//! HTTP/2 Server Connections.
 
 use std::error::Error as StdError;
 use std::fmt;

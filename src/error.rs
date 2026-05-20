@@ -61,7 +61,7 @@ pub(super) enum Kind {
         any(feature = "http1", feature = "http2")
     ))]
     Io,
-    /// User took too long to send headers
+    /// User took too long to send headers.
     #[cfg(all(feature = "http1", feature = "server"))]
     HeaderTimeout,
     /// Error while reading a body from connection.
@@ -76,7 +76,7 @@ pub(super) enum Kind {
         any(feature = "http1", feature = "http2")
     ))]
     BodyWrite,
-    /// Error calling AsyncWrite::shutdown()
+    /// Error calling `AsyncWrite::shutdown()`.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     Shutdown,
 
@@ -119,7 +119,7 @@ pub(super) enum Header {
 
 #[derive(Debug)]
 pub(super) enum User {
-    /// Error calling user's Body::poll_data().
+    /// Error calling the user's `Body::poll_data()`.
     #[cfg(all(
         any(feature = "client", feature = "server"),
         any(feature = "http1", feature = "http2")
@@ -131,7 +131,7 @@ pub(super) enum User {
         feature = "ffi"
     ))]
     BodyWriteAborted,
-    /// User tried to send a connect request with a nonzero body
+    /// User tried to send a connect request with a nonzero body.
     #[cfg(all(feature = "client", feature = "http2"))]
     InvalidConnectWithBody,
     /// Error from future of user's Service.
