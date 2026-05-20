@@ -1,4 +1,4 @@
-//! Runtime components
+//! Runtime components.
 //!
 //! This module provides traits and types that allow hyper to be runtime-agnostic.
 //! By abstracting over async runtimes, hyper can work with different executors, timers, and IO transports.

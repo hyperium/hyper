@@ -1241,9 +1241,9 @@ impl Http1Transaction for Client {
 
 #[cfg(feature = "client")]
 impl Client {
-    /// Returns Some(length, wants_upgrade) if successful.
+    /// Returns `Some(length, wants_upgrade)` if successful.
     ///
-    /// Returns None if this message head should be skipped (like a 100 status).
+    /// Returns `None` if this message head should be skipped (like a 100 status).
     fn decoder(
         inc: &MessageHead<StatusCode>,
         method: &mut Option<Method>,

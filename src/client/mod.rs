@@ -1,4 +1,4 @@
-//! HTTP Client
+//! HTTP Client.
 //!
 //! hyper provides HTTP over a single connection. See the [`conn`] module.
 //!

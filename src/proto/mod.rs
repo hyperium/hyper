@@ -45,9 +45,9 @@ pub(crate) type ResponseHead = MessageHead<http::StatusCode>;
 #[derive(Debug)]
 #[cfg(feature = "http1")]
 pub(crate) enum BodyLength {
-    /// Content-Length
+    /// `Content-Length`.
     Known(u64),
-    /// Transfer-Encoding: chunked (if h1)
+    /// `Transfer-Encoding: chunked` (if h1).
     Unknown,
 }
 

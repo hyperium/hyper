@@ -1,4 +1,4 @@
-//! HTTP/2 client connections
+//! HTTP/2 client connections.
 
 use std::error::Error;
 use std::fmt;
@@ -38,7 +38,7 @@ impl<B> Clone for SendRequest<B> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 ///
-/// Instances of this type are typically created via the [`handshake`] function
+/// Instances of this type are typically created via the [`handshake`] function.
 ///
 /// # Drop behavior
 ///
@@ -102,7 +102,7 @@ impl<B> SendRequest<B> {
         }
     }
 
-    /// Waits until the dispatcher is ready
+    /// Waits until the dispatcher is ready.
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
@@ -327,7 +327,7 @@ where
         self
     }
 
-    /// Sets the max connection-level flow control for HTTP2
+    /// Sets the max connection-level flow control for HTTP2.
     ///
     /// Passing `None` will do nothing.
     ///

@@ -66,7 +66,7 @@ pub(crate) struct Sender<T, U> {
 /// has been dropped. However, this version can be cloned.
 #[cfg(feature = "http2")]
 pub(crate) struct UnboundedSender<T, U> {
-    /// Only used for `is_closed`, since mpsc::UnboundedSender cannot be checked.
+    /// Only used for `is_closed`, since `mpsc::UnboundedSender` cannot be checked.
     giver: want::SharedGiver,
     inner: mpsc::UnboundedSender<Envelope<T, U>>,
 }

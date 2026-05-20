@@ -31,7 +31,7 @@ impl DecodedLength {
     /// Takes the length as a content-length without other checks.
     ///
     /// Should only be called if previously confirmed this isn't
-    /// CLOSE_DELIMITED or CHUNKED.
+    /// `CLOSE_DELIMITED` or `CHUNKED`.
     #[inline]
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(crate) fn danger_len(self) -> u64 {

@@ -346,7 +346,7 @@ impl ReadBufCursor<'_> {
     /// Returns the number of bytes that can be written from the current
     /// position until the end of the buffer is reached.
     ///
-    /// This value is equal to the length of the slice returned by `as_mut()``.
+    /// This value is equal to the length of the slice returned by `as_mut()`.
     #[inline]
     pub fn remaining(&self) -> usize {
         self.buf.remaining()
@@ -495,8 +495,8 @@ where
     }
 }
 
-/// Polyfill for Pin::as_deref_mut()
-/// TODO: use Pin::as_deref_mut() instead once stabilized
+/// Polyfill for `Pin::as_deref_mut()`.
+/// TODO: use `Pin::as_deref_mut()` instead once stabilized.
 fn pin_as_deref_mut<P: DerefMut>(pin: Pin<&mut Pin<P>>) -> Pin<&mut P::Target> {
     // SAFETY: we go directly from Pin<&mut Pin<P>> to Pin<&mut P::Target>, without moving or
     // giving out the &mut Pin<P> in the process. See Pin::as_deref_mut() for more detail.
