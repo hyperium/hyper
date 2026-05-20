@@ -1,4 +1,4 @@
-//! HTTP Server
+//! HTTP Server.
 //!
 //! A "server" is usually created by listening on a port for new connections,
 //! parse HTTP requests, and hand them off to a `Service`.

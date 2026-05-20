@@ -1,4 +1,4 @@
-//! Asynchronous Services
+//! Asynchronous Services.
 //!
 //! A [`Service`] is a trait representing an asynchronous
 //! function of a request to a response. It's similar to
@@ -11,7 +11,7 @@
 //! - `HttpService`: This is blanketly implemented for all types that
 //!   implement `Service<http::Request<B1>, Response = http::Response<B2>>`.
 //!
-//! # HttpService
+//! # `HttpService`
 //!
 //! In hyper, especially in the server setting, a `Service` is usually bound
 //! to a single connection. It defines how to respond to **all** requests that

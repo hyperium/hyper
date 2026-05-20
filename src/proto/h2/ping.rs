@@ -1,4 +1,4 @@
-//! HTTP2 Ping usage
+//! HTTP2 Ping usage.
 //!
 //! hyper uses HTTP2 pings for two purposes:
 //!
@@ -138,11 +138,11 @@ struct Shared {
 }
 
 struct Bdp {
-    /// Current BDP in bytes
+    /// Current BDP in bytes.
     bdp: u32,
     /// Largest bandwidth we've seen so far.
     max_bandwidth: f64,
-    /// Round trip time in seconds
+    /// Round trip time in seconds.
     rtt: f64,
     /// Delay the next ping by this amount.
     ///

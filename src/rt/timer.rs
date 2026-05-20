@@ -1,4 +1,4 @@
-//! Provides a timer trait with timer-like functions
+//! Provides a timer trait with timer-like functions.
 //!
 //! Example using tokio timer:
 //! ```rust
@@ -90,7 +90,7 @@ pub trait Timer {
 /// A future returned by a `Timer`.
 pub trait Sleep: Send + Sync + Future<Output = ()> {
     #[doc(hidden)]
-    /// This method is private and can not be implemented by downstream crate
+    /// This method is private and can not be implemented by downstream crates.
     fn __type_id(&self, _: private::Sealed) -> TypeId
     where
         Self: 'static,
@@ -100,9 +100,9 @@ pub trait Sleep: Send + Sync + Future<Output = ()> {
 }
 
 impl dyn Sleep {
-    //! This is a re-implementation of downcast methods from std::any::Any
+    // This is a re-implementation of downcast methods from `std::any::Any`.
 
-    /// Check whether the type is the same as `T`
+    /// Check whether the type is the same as `T`.
     pub fn is<T>(&self) -> bool
     where
         T: Sleep + 'static,
@@ -110,7 +110,7 @@ impl dyn Sleep {
         self.__type_id(private::Sealed {}) == TypeId::of::<T>()
     }
 
-    /// Downcast a pinned &mut Sleep object to its original type
+    /// Downcast a pinned `&mut Sleep` object to its original type.
     pub fn downcast_mut_pin<T>(self: Pin<&mut Self>) -> Option<Pin<&mut T>>
     where
         T: Sleep + 'static,

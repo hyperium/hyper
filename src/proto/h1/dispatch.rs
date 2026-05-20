@@ -457,7 +457,8 @@ where
         self.conn.close_write();
     }
 
-    /// If there is pending data in body_rx, we can make progress writing if the connection is ready.
+    /// If there is pending data in `body_rx`, we can make progress writing if the connection is
+    /// ready.
     fn can_write_again(&mut self) -> bool {
         self.body_rx.is_some()
     }

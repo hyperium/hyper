@@ -1,4 +1,4 @@
-//! HTTP/1 client connections
+//! HTTP/1 client connections.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -49,7 +49,7 @@ pub struct Parts<T> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 ///
-/// Instances of this type are typically created via the [`handshake`] function
+/// Instances of this type are typically created via the [`handshake`] function.
 ///
 /// # Drop behavior
 ///
@@ -157,7 +157,7 @@ impl<B> SendRequest<B> {
         self.dispatch.poll_ready(cx)
     }
 
-    /// Waits until the dispatcher is ready
+    /// Waits until the dispatcher is ready.
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
@@ -431,11 +431,11 @@ impl Builder {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Setting this to true will force hyper to use queued strategy
-    /// which may eliminate unnecessary cloning on some TLS backends
+    /// Setting this to true will force hyper to use queued strategy,
+    /// which may eliminate unnecessary cloning on some TLS backends.
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
-    /// mode to use
+    /// mode to use.
     pub fn writev(&mut self, enabled: bool) -> &mut Builder {
         self.h1_writev = Some(enabled);
         self

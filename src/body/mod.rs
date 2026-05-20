@@ -1,4 +1,4 @@
-//! Streaming bodies for Requests and Responses
+//! Streaming bodies for Requests and Responses.
 //!
 //! For both [Clients](crate::client) and [Servers](crate::server), requests and
 //! responses use streaming bodies, instead of complete buffering. This

@@ -1,4 +1,4 @@
-//! HTTP/1 Server Connections
+//! HTTP/1 Server Connections.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -360,11 +360,11 @@ impl Builder {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Setting this to true will force hyper to use queued strategy
-    /// which may eliminate unnecessary cloning on some TLS backends
+    /// Setting this to true will force hyper to use queued strategy,
+    /// which may eliminate unnecessary cloning on some TLS backends.
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
-    /// mode to use
+    /// mode to use.
     pub fn writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = Some(val);
         self

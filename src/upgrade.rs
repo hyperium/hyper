@@ -1,4 +1,4 @@
-//! HTTP Upgrades
+//! HTTP Upgrades.
 //!
 //! This module deals with managing [HTTP Upgrades][mdn] in hyper. Since
 //! several concepts in HTTP allow for first talking HTTP, and then converting
