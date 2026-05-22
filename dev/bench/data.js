@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779304482473,
+  "lastUpdate": 1779465825804,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11669,6 +11669,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43567,
             "range": "± 5942.57",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "7bb1d03a4ef8fbff6cb4d78336ee66ee2b3de5f3",
+          "message": "chore(ci): fix security-audit job (#4076)",
+          "timestamp": "2026-05-22T12:02:57-04:00",
+          "tree_id": "fa979097552ee8d3e143ff8421081ddfb34b5b80",
+          "url": "https://github.com/hyperium/hyper/commit/7bb1d03a4ef8fbff6cb4d78336ee66ee2b3de5f3"
+        },
+        "date": 1779465823289,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43284,
+            "range": "± 5295.30",
             "unit": "ns/iter"
           }
         ]
