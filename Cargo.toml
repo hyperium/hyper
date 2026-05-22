@@ -105,6 +105,124 @@ check-cfg = [
     'cfg(hyper_unstable_ffi)'
 ]
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+restriction = { level = "warn", priority = -2 }
+
+# keep an allow list of lints
+
+# lints to decide on
+
+arithmetic_side_effects = "allow" # TODO: consider
+as_conversions = "allow" # TODO: tricky
+borrow_as_ptr = "allow"
+cast_lossless = "allow" # TODO: easy fix
+cast_possible_truncation = "allow" # TODO: consider
+cast_precision_loss = "allow" # TODO: consider
+checked_conversions = "allow"
+collapsible_match = "allow"
+decimal_literal_representation = "allow" # TODO: consider
+default_trait_access = "allow"
+else_if_without_else = "allow"
+empty_structs_with_brackets = "allow" # TODO: easy fix
+enum_glob_use = "allow"
+explicit_iter_loop = "allow" # TODO: easy fix
+float_arithmetic = "allow"
+ignored_unit_patterns = "allow"
+indexing_slicing = "allow"
+integer_division = "allow"
+integer_division_remainder_used = "allow"
+large_enum_variant = "allow"
+let_unit_value = "allow"
+manual_assert = "allow" # TODO: easy fix
+manual_assert_eq = "allow" # TODO: easy fix
+map_err_ignore = "allow"
+map_unwrap_or = "allow"
+match_wild_err_arm = "allow"
+missing_fields_in_debug = "allow" # TODO: use finish_non_exhaustive
+missing_errors_doc = "allow" # TODO: good to fix
+missing_panics_doc = "allow" # TODO: might be false
+multiple_inherent_impl = "allow"
+multiple_unsafe_ops_per_block = "allow"
+needless_continue = "allow"
+needless_pass_by_value = "allow"
+panic = "allow"
+pattern_type_mismatch = "allow"
+ptr_as_ptr = "allow"
+question_mark = "allow" # TODO: probably easy fix
+redundant_closure_for_method_calls = "allow"
+redundant_else = "allow"
+ref_option = "allow"
+ref_patterns = "allow" # TODO: perhaps deny?
+semicolon_if_nothing_returned = "allow" # TODO: easy fix
+single_char_lifetime_names = "allow"
+single_match_else = "allow" # TODO: easy fix
+struct_excessive_bools = "allow" # TODO: bogus lint?
+trivially_copy_pass_by_ref = "allow"
+undocumented_unsafe_blocks = "allow" # TODO: fix me
+uninlined_format_args = "allow" # TODO: easy fix
+unnecessary_semicolon = "allow" # TODO: easy fix
+unnecessary_trailing_comma = "allow"
+unnested_or_patterns = "allow"
+unused_async = "allow" # TODO: is it for API?
+unused_trait_names = "allow" # TODO: kinda annoying, but might be good to deny
+unwrap_in_result = "allow"
+useless_borrows_in_formatting = "allow"
+wildcard_enum_match_arm = "allow"
+wildcard_imports = "allow" # TODO: never, except for tests
+
+# explicitly allowed
+absolute_paths = "allow" # sometimes its cleaner
+arbitrary_source_item_ordering = "allow" # order: std, deps, crate
+blanket_clippy_restriction_lints = "allow" # allowlist is better
+clone_on_ref_ptr = "allow" # Arc::clone(blah) is needlessly noisy
+cognitive_complexity = "allow" # is this ever useful?
+default_numeric_fallback = "allow" # too many false positives
+expect_used = "allow" # expect is self-documenting
+error_impl_error = "allow" # mod::Error is a fine name
+field_scoped_visibility_modifiers = "allow" # possibly good idea, noisy for now
+if_not_else = "allow" # order depends on which is more common, not truthiness
+if_then_some_else_none = "allow" # control flow as if better than closures
+items_after_statements = "allow" # these can be useful
+implicit_return = "allow" # standard rust
+impl_trait_in_params = "allow" # turbofish ignored on purpose
+inline_modules = "allow" # common for sealed types
+inline_trait_bounds = "allow" # more concise if shorter bounds
+let_underscore_must_use = "allow" # the entire point was to ignore must_use
+let_underscore_untyped = "allow"
+mod_module_files = "allow" # easier to find than self-named modules
+module_inception = "allow" # sometimes that happens
+min_ident_chars = "allow" # not to be abused, nor forced
+missing_assert_message = "allow" # not much value
+missing_docs_in_private_items = "allow" # these docs aren't rendered
+missing_inline_in_public_items = "allow" # bad lint
+missing_trait_methods = "allow"
+must_use_candidate = "allow" # bad lint
+module_name_repetitions = "allow" # sometimes it happens, not bad at all
+new_without_default = "allow" # not everything needs a Default impl
+panic_in_result_fn = "allow" # panics are for invariants
+pub_use = "allow"
+pub_with_shorthand = "allow"
+question_mark_used = "allow" # question mark is excellent
+unreachable = "allow" # self-documenting invariants
+renamed_function_params = "allow" # we can pick clearer names
+same_name_method = "allow"
+shadow_reuse = "allow" # shadowing is useful
+shadow_same = "allow" # shadowing is useful
+shadow_unrelated = "allow" # shadowing is useful
+single_call_fn = "allow" # abstracting to a function is the point
+self_named_module_files = "deny" # already denied but, rly, dont do it
+semicolon_inside_block ="allow" # depends on context
+semicolon_outside_block ="allow" # depends on context
+std_instead_of_alloc = "allow" # std is more idiomatic
+std_instead_of_core = "allow" # std is more idiomatic
+struct_field_names = "allow" # not really helpful
+too_many_lines = "allow" # reconsider someday?
+type_complexity = "allow" # not helpful
+used_underscore_items = "allow"
+unnecessary_safety_comment = "allow" # more safety comments are a good thing
+unseparated_literal_suffix = "allow" # i don't like 0_u8 (do i?)
+
 [package.metadata.docs.rs]
 features = ["ffi", "full", "tracing"]
 rustdoc-args = ["--cfg", "hyper_unstable_ffi", "--cfg", "hyper_unstable_tracing"]
