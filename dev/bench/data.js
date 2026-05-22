@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779465959052,
+  "lastUpdate": 1779473269030,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11699,6 +11699,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43284,
             "range": "± 5295.30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cad38b7ba8e485e1200685e472fb4ffe54517840",
+          "message": "chore(lib): start a strict clippy config (#4075)\n\nThis starts a change to embrace a strict allowlist with Clippy.\n\n## Why?\n\nClippy can detect a lot of mistakes. The defaults are very good. But it has the\npower to detect many more _probable_ mistakes, and enforce coding patterns\nbeyond formatting. With the increase in LLM generated code, a stricter Clippy\ncan protect us from the LLM generating poorer code.\n\nThe pedantic and restriction groups are not enabled by default. There is even a\nwarning to not enable the restriction group blindly. But, even they have good\nlints. The usual recommendation is to just turn on the lints you care about.\n\nInstead, this embraces restricting everything by default, and keep an explicit\nallowlist. The benefits for this are that we explicitly consider every possible\n\"bad code\" lint. We decide if it's something to ignore. And we also don't\naccidentally not notice a new lint. Every time Clippy upgrades, we may see some\nnew lints that could improve our code. That is excellent! When that happens, we\ncan decide whether to adjust the code, or allow the lint.\n\n[More reading](https://billylevin.dev/posts/clippy-config/)\n\n## How?\n\nRestricting all these lints in one go would be a large amount of changes. Some\nof them can be done automatically (`cargo clippy --fix`), some of them an LLM\ncan very easily do, and some require manual inspection in each place.\n\nThis starts by enabling all the groups, listing out every lint that was\ntriggered, and then allows them explicitly for now. I've split that list into\ntwo separate smaller lists (described here in reverse order):\n\n- Lints that are expliticly allowed.\n\n- Lints that should be decided on, either by fixing the code, or removing the\n  TODO and putting them in the explicitly allowed list (ideally explaining why).\n\nFollow up commits can address those lints, and when doing so, update the list.\nThis will prevent rot from occurring by keeping the PR open for a long time, or\nconflicts.",
+          "timestamp": "2026-05-22T14:06:57-04:00",
+          "tree_id": "a946c3713f229269a401ce091af06210ad98b48c",
+          "url": "https://github.com/hyperium/hyper/commit/cad38b7ba8e485e1200685e472fb4ffe54517840"
+        },
+        "date": 1779473265375,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44201,
+            "range": "± 5271.95",
             "unit": "ns/iter"
           }
         ]
