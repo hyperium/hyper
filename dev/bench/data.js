@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779473394490,
+  "lastUpdate": 1779801625277,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11729,6 +11729,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44201,
             "range": "± 5271.95",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3cc115854e660496d28c1367ad10c066391c16bb",
+          "message": "test(client): fix misuse of path_and_query in CONNECT test (#4078)",
+          "timestamp": "2026-05-26T09:19:22-04:00",
+          "tree_id": "4d4bda8d085603bc3d14254e8377407217d3e439",
+          "url": "https://github.com/hyperium/hyper/commit/3cc115854e660496d28c1367ad10c066391c16bb"
+        },
+        "date": 1779801622706,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 51468,
+            "range": "± 9846.01",
             "unit": "ns/iter"
           }
         ]
