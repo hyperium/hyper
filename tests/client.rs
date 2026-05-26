@@ -346,7 +346,7 @@ macro_rules! test {
 
             let mut builder = Uri::builder();
             if req.method() == Method::CONNECT {
-                builder = builder.path_and_query(format!("{}:{}", req.uri().host().unwrap(), req.uri().port_u16().unwrap()));
+                builder = builder.authority(format!("{}:{}", req.uri().host().unwrap(), req.uri().port_u16().unwrap()));
             } else {
                 builder = builder.path_and_query(req.uri().path_and_query().cloned().unwrap_or(PathAndQuery::from_static("/")));
             }
