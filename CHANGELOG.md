@@ -1,3 +1,24 @@
+## v1.10.0 (2026-05-27)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * send error when dispatcher is dropped mid-body (#4069) ([b7a679ba](https://github.com/hyperium/hyper/commit/b7a679bad5e17d106b4b54835153af4e72027f82), closes [#3995](https://github.com/hyperium/hyper/issues/3995), [#4016](https://github.com/hyperium/hyper/issues/4016))
+  * fix reading large bodies on 32-bit systems (#4056) ([b12f6525](https://github.com/hyperium/hyper/commit/b12f6525432e7fbe80b749fec26f8ed7723006fc), closes [#4055](https://github.com/hyperium/hyper/issues/4055))
+  * fix rare missed write wakeup on connections v2 ([743a3ba0](https://github.com/hyperium/hyper/commit/743a3ba0706fde95e2095ad42ffefe219d807117))
+* **http2:**
+  * do not reserve capacity before body data is available (#4061) ([99f24345](https://github.com/hyperium/hyper/commit/99f243450268cfc8125ff232e0b7de016a1dce5b), closes [#4003](https://github.com/hyperium/hyper/issues/4003))
+  * reading trailers shouldn't propagate `NO_ERROR` from early response (#3998) ([e5ad96b1](https://github.com/hyperium/hyper/commit/e5ad96b1c511b568f086100538586231628b1eab))
+
+
+#### Features
+
+* **http2:**
+  * add  `reset_stream_duration()` client option (#4068) ([156a6f6a](https://github.com/hyperium/hyper/commit/156a6f6aaacdc782861a4cab23ab3940a029d6ac), closes [#2599](https://github.com/hyperium/hyper/issues/2599))
+  * Add 'header_table_size()' method to server builder (#4062) ([6c9182c4](https://github.com/hyperium/hyper/commit/6c9182c4e566e716d23e7b54ce2c75e064a9213a))
+
+
 ## v1.9.0 (2026-03-31)
 
 
