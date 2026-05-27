@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779801738703,
+  "lastUpdate": 1779886600010,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11759,6 +11759,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51468,
             "range": "± 9846.01",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lorishu2412045439@gmail.com",
+            "name": "Lori-Shu",
+            "username": "Lori-Shu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cca6bf171b3ebaef3f7df552fcda0bbd137b87a7",
+          "message": "style(client): removing wildcard_imports lint allowance (#4080)\n\nThe wildcard_imports used in http1.rs is replaced with explict type imports.",
+          "timestamp": "2026-05-27T08:53:24-04:00",
+          "tree_id": "dff6076c833aed2915e22d93f1865379cf1005ef",
+          "url": "https://github.com/hyperium/hyper/commit/cca6bf171b3ebaef3f7df552fcda0bbd137b87a7"
+        },
+        "date": 1779886499785,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43904,
+            "range": "± 5319.86",
             "unit": "ns/iter"
           }
         ]
