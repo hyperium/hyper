@@ -42,9 +42,10 @@ impl ReasonPhrase {
     /// Converts a static byte slice to a reason phrase.
     pub const fn from_static(reason: &'static [u8]) -> Self {
         // TODO: this can be made const once MSRV is >= 1.57.0
-        if find_invalid_byte(reason).is_some() {
-            panic!("invalid byte in static reason phrase");
-        }
+        assert!(
+            find_invalid_byte(reason).is_none(),
+            "invalid byte in static reason phrase"
+        );
         Self(Bytes::from_static(reason))
     }
 
