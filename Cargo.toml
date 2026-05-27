@@ -169,7 +169,6 @@ unused_trait_names = "allow" # TODO: kinda annoying, but might be good to deny
 unwrap_in_result = "allow"
 useless_borrows_in_formatting = "allow"
 wildcard_enum_match_arm = "allow"
-wildcard_imports = "allow" # TODO: never, except for tests
 
 # explicitly allowed
 absolute_paths = "allow" # sometimes its cleaner
