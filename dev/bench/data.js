@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779886600010,
+  "lastUpdate": 1779888323749,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11789,6 +11789,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43904,
             "range": "± 5319.86",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "danielmckenna93@gmail.com",
+            "name": "xd009642",
+            "username": "xd009642"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "79dbab620bf14b96cd5d53a60ca35d7fe2ddbaf1",
+          "message": "style(ext): fix manual_assert lint (#4079)\n\nAs per #4071 fix instances where the manual_assert lint triggered on the\ncode. This was able to be done with a `clippy --fix` with further\ncleanup to change `!<expr>.is_some()` in the assert to `<expr>.is_none()`.",
+          "timestamp": "2026-05-27T09:24:27-04:00",
+          "tree_id": "bb54603ca428605d1d90f239a680e1a802a31d6f",
+          "url": "https://github.com/hyperium/hyper/commit/79dbab620bf14b96cd5d53a60ca35d7fe2ddbaf1"
+        },
+        "date": 1779888320425,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 38664,
+            "range": "± 8700.32",
             "unit": "ns/iter"
           }
         ]
