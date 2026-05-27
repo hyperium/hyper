@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779888323749,
+  "lastUpdate": 1779888453809,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -60259,6 +60259,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5771553,
             "range": "± 480552.97",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "danielmckenna93@gmail.com",
+            "name": "xd009642",
+            "username": "xd009642"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "79dbab620bf14b96cd5d53a60ca35d7fe2ddbaf1",
+          "message": "style(ext): fix manual_assert lint (#4079)\n\nAs per #4071 fix instances where the manual_assert lint triggered on the\ncode. This was able to be done with a `clippy --fix` with further\ncleanup to change `!<expr>.is_some()` in the assert to `<expr>.is_none()`.",
+          "timestamp": "2026-05-27T09:24:27-04:00",
+          "tree_id": "bb54603ca428605d1d90f239a680e1a802a31d6f",
+          "url": "https://github.com/hyperium/hyper/commit/79dbab620bf14b96cd5d53a60ca35d7fe2ddbaf1"
+        },
+        "date": 1779888451147,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68928,
+            "range": "± 1212.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3993940,
+            "range": "± 218668.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 19967,
+            "range": "± 380.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22103,
+            "range": "± 520.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30686,
+            "range": "± 536.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 97649,
+            "range": "± 2200.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000507,
+            "range": "± 51716.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 84262,
+            "range": "± 2289.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 7790749,
+            "range": "± 137189.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 28198517,
+            "range": "± 8402359.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7608393,
+            "range": "± 194727.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 92401289,
+            "range": "± 1113046.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51955766,
+            "range": "± 697171.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5187070,
+            "range": "± 75995.88",
             "unit": "ns/iter"
           }
         ]
