@@ -591,10 +591,11 @@ impl Builder {
 }
 
 mod upgrades {
+    use super::{Connection, Context, Future, Parts, Pin, Poll, Read, StdError, Write};
+    use crate::body::Body;
+    use crate::proto::Dispatched;
     use crate::upgrade::Upgraded;
-
-    use super::*;
-
+    use futures_core::ready;
     // A future binding a connection with a Service with Upgrade support.
     //
     // This type is unnameable outside the crate.
@@ -628,8 +629,8 @@ mod upgrades {
             )
             .poll(cx))
             {
-                Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
-                Ok(proto::Dispatched::Upgrade(pending)) => {
+                Ok(Dispatched::Shutdown) => Poll::Ready(Ok(())),
+                Ok(Dispatched::Upgrade(pending)) => {
                     let Parts { io, read_buf } = self
                         .inner
                         .take()
