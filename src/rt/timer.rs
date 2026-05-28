@@ -116,6 +116,8 @@ impl dyn Sleep {
         T: Sleep + 'static,
     {
         if self.is::<T>() {
+            // SAFETY:
+            // this is unsafe because of the call of `Pin::into_inner_unchecked` and `Pin::new_unchecked`.
             unsafe {
                 let inner = Pin::into_inner_unchecked(self);
                 Some(Pin::new_unchecked(

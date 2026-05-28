@@ -43,10 +43,12 @@ macro_rules! header_name {
         }
     }};
 }
-
+/// construct `HeaderValue` from a maybe shared expression.
 macro_rules! header_value {
     ($bytes:expr) => {{
         {
+            // SAFETY:
+            // this is unsafe because of the call of `HeaderValue::from_maybe_shared_unchecked`.
             unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};

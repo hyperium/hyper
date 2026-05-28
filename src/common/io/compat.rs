@@ -23,6 +23,7 @@ impl<T> tokio::io::AsyncRead for Compat<T>
 where
     T: crate::rt::Read,
 {
+    /// `poll_read` fn implementation for `Compat<T>`.
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -30,6 +31,9 @@ where
     ) -> Poll<Result<(), std::io::Error>> {
         let init = tbuf.initialized().len();
         let filled = tbuf.filled().len();
+        // SAFETY:
+        // this is an unsafe block which calls unsafe functions:
+        // `ReadBuf::inner_mut`, `ReadBuf::set_init`, `ReadBuf::set_filled`.
         let (new_init, new_filled) = unsafe {
             let mut buf = crate::rt::ReadBuf::uninit(tbuf.inner_mut());
             buf.set_init(init);
@@ -42,6 +46,9 @@ where
         };
 
         let n_init = new_init - init;
+        // SAFETY:
+        // this is an unsafe block which calls unsafe functions:
+        // `ReadBuf::assume_init`, `ReadBuf::set_filled`.
         unsafe {
             tbuf.assume_init(n_init);
             tbuf.set_filled(new_filled);

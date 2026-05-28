@@ -301,10 +301,13 @@ impl dyn Io + Send {
         let t = TypeId::of::<T>();
         self.__hyper_type_id() == t
     }
-
+    /// downcast a Box wrapped Type to a Box<T>
+    /// implemented by raw pointer cast.
     fn __hyper_downcast<T: Io>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
         if self.__hyper_is::<T>() {
             // Taken from `std::error::Error::downcast()`.
+            // SAFETY:
+            // this is unsafe because of the call of `Box::from_raw`.
             unsafe {
                 let raw: *mut dyn Io = Box::into_raw(self);
                 Ok(Box::from_raw(raw as *mut T))
