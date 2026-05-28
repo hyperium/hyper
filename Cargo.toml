@@ -115,7 +115,6 @@ restriction = { level = "warn", priority = -2 }
 
 arithmetic_side_effects = "allow" # TODO: consider
 as_conversions = "allow" # TODO: tricky
-borrow_as_ptr = "allow"
 cast_possible_truncation = "allow" # TODO: consider
 cast_precision_loss = "allow" # TODO: consider
 checked_conversions = "allow"
