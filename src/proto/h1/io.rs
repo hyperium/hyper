@@ -222,7 +222,14 @@ where
 
     pub(crate) fn poll_read_from_io(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
-        let next = self.read_buf_strategy.next();
+        // Get the next amount to allocate, but make sure we don't go over
+        // the max read buf size configured.
+        let next = cmp::min(
+            self.read_buf_strategy.next(),
+            self.read_buf_strategy
+                .max()
+                .saturating_sub(self.read_buf.len()),
+        );
         if self.read_buf_remaining_mut() < next {
             self.read_buf.reserve(next);
         }
