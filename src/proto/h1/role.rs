@@ -47,8 +47,12 @@ macro_rules! header_name {
 macro_rules! header_value {
     ($bytes:expr) => {{
         {
+            // unsafe used because of the call of `HeaderValue::from_maybe_shared_unchecked`.
             // SAFETY:
-            // this is unsafe because of the call of `HeaderValue::from_maybe_shared_unchecked`.
+            // 1. The input `$bytes` must be a valid header value as per RFC 7230.
+            // 2. Specifically, it must not contain any prohibited characters (like `\r`, `\n`, or non-visible ASCII characters outside of allowed ranges).
+            // 3. This is safe because the caller is responsible for ensuring the byte content 
+            //    has been validated or is known to be a constant/static valid header value.
             unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};
