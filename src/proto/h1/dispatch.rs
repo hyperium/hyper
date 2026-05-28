@@ -196,18 +196,15 @@ where
                 return Poll::Ready(Ok(()));
             }
 
-            // If we are continuing only because "wants_write_again", check if write is ready.
+            // If we are continuing only because "wants_write_again", re-check whether a second
+            // write poll can make progress. `poll_flush` can be ready even when there is no
+            // buffered data and the request body is still pending, so relying on the previous
+            // readiness can hot-loop.
             if !wants_read_again && wants_write_again {
-                // If write was ready, just proceed with the loop
-                if write_ready {
-                    continue;
-                }
                 // Write was previously pending, but may have become ready since polling flush, so
-                // we need to check it again. If we simply proceeded, the case of an unbuffered
-                // writer where flush is always ready would cause us to hot loop.
+                // we need to check it again. If it is still pending, it is safe to yield and rely
+                // on wake-up from the connection futures.
                 if self.poll_write(cx)?.is_pending() {
-                    // write is pending, so it is safe to yield and rely on wake-up from connection
-                    // futures.
                     return Poll::Ready(Ok(()));
                 }
             }
@@ -457,10 +454,10 @@ where
         self.conn.close_write();
     }
 
-    /// If there is pending data in `body_rx`, we can make progress writing if the connection is
-    /// ready.
+    /// If there is pending data in `body_rx`, and the connection is still in a body-writing state,
+    /// we can make progress writing if the connection is ready.
     fn can_write_again(&mut self) -> bool {
-        self.body_rx.is_some()
+        !self.is_closing && self.body_rx.is_some() && self.conn.can_write_body()
     }
 
     fn is_done(&self) -> bool {
