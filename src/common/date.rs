@@ -74,7 +74,7 @@ impl CachedDate {
             .subsec_nanos();
 
         self.render(now);
-        self.next_update = now + Duration::new(1, 0) - Duration::from_nanos(nanos as u64);
+        self.next_update = now + Duration::new(1, 0) - Duration::from_nanos(u64::from(nanos));
     }
 
     fn render(&mut self, now: SystemTime) {
