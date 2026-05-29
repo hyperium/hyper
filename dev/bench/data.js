@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1779891965163,
+  "lastUpdate": 1780076171023,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11849,6 +11849,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 61765,
             "range": "± 12365.86",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c6cb906fdcbc3df64fc3fb613be57430e0387e48",
+          "message": "fix(http1): fix busy loop when peer half-closes and open body (#4086)\n\nCloses #4085",
+          "timestamp": "2026-05-29T13:35:19-04:00",
+          "tree_id": "03a9c092ce04413ac7dd09c1733ded86b8cd0cc4",
+          "url": "https://github.com/hyperium/hyper/commit/c6cb906fdcbc3df64fc3fb613be57430e0387e48"
+        },
+        "date": 1780076168443,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56935,
+            "range": "± 12443.52",
             "unit": "ns/iter"
           }
         ]
