@@ -84,7 +84,7 @@ fn from_digits(bytes: &[u8]) -> Option<u64> {
         match b {
             b'0'..=b'9' => {
                 result = result.checked_mul(RADIX)?;
-                result = result.checked_add((b - b'0') as u64)?;
+                result = result.checked_add(u64::from(b - b'0'))?;
             }
             _ => {
                 // not a DIGIT, get outta here!

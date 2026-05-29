@@ -423,7 +423,7 @@ impl Bdp {
 fn seconds(dur: Duration) -> f64 {
     const NANOS_PER_SEC: f64 = 1_000_000_000.0;
     let secs = dur.as_secs() as f64;
-    secs + (dur.subsec_nanos() as f64) / NANOS_PER_SEC
+    secs + (f64::from(dur.subsec_nanos())) / NANOS_PER_SEC
 }
 
 // ===== impl KeepAlive =====
