@@ -1563,6 +1563,10 @@ mod conn {
     use std::io::{self, Read, Write};
     use std::net::{SocketAddr, TcpListener};
     use std::pin::Pin;
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
     use std::task::{Context, Poll};
     use std::thread;
     use std::time::Duration;
@@ -3004,6 +3008,105 @@ mod conn {
         ) -> Poll<io::Result<()>> {
             Pin::new(&mut self.tcp).poll_read(cx, buf)
         }
+    }
+
+    struct CountingStream {
+        tcp: TokioIo<TcpStream>,
+        flush_count: Arc<AtomicUsize>,
+    }
+
+    impl hyper::rt::Write for CountingStream {
+        fn poll_shutdown(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), io::Error>> {
+            Pin::new(&mut self.tcp).poll_shutdown(cx)
+        }
+
+        fn poll_flush(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+        ) -> Poll<Result<(), io::Error>> {
+            self.flush_count.fetch_add(1, Ordering::Relaxed);
+            Pin::new(&mut self.tcp).poll_flush(cx)
+        }
+
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<Result<usize, io::Error>> {
+            Pin::new(&mut self.tcp).poll_write(cx, buf)
+        }
+    }
+
+    impl hyper::rt::Read for CountingStream {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: hyper::rt::ReadBufCursor<'_>,
+        ) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.tcp).poll_read(cx, buf)
+        }
+    }
+
+    // https://github.com/hyperium/hyper/issues/4085
+    #[tokio::test]
+    async fn http1_half_closed_peer_with_open_request_body_does_not_spin() {
+        let (listener, addr) = setup_tk_test_server().await;
+        let (headers_seen_tx, headers_seen_rx) = oneshot::channel();
+
+        tokio::spawn(async move {
+            let mut sock = listener.accept().await.unwrap().0;
+            let mut buf = [0; 1024];
+            let mut received = Vec::new();
+
+            loop {
+                let n = sock.read(&mut buf).await.expect("server read request");
+                assert_ne!(n, 0, "client closed before sending request headers");
+                received.extend_from_slice(&buf[..n]);
+
+                if received.windows(4).any(|window| window == b"\r\n\r\n") {
+                    break;
+                }
+            }
+
+            headers_seen_tx.send(()).unwrap();
+            sock.shutdown().await.expect("server half-close write");
+            tokio::time::sleep(Duration::from_millis(200)).await;
+        });
+
+        let flush_count = Arc::new(AtomicUsize::new(0));
+        let io = CountingStream {
+            tcp: tcp_connect(&addr).await.unwrap(),
+            flush_count: flush_count.clone(),
+        };
+        let (mut client, conn) = conn::http1::Builder::new()
+            .handshake::<_, StreamBody<mpsc::Receiver<Result<Frame<Bytes>, io::Error>>>>(io)
+            .await
+            .expect("handshake");
+
+        let conn_task = tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let (_tx, rx) = mpsc::channel::<Result<Frame<Bytes>, io::Error>>(0);
+        let req = Request::post("/a").body(StreamBody::new(rx)).unwrap();
+        let response_task = tokio::spawn(async move {
+            let _ = client.send_request(req).await;
+        });
+
+        headers_seen_rx.await.unwrap();
+        tokio::time::sleep(Duration::from_millis(100)).await;
+
+        let flushes = flush_count.load(Ordering::Relaxed);
+        assert!(
+            flushes < 100,
+            "client spun after peer half-close with open request body: poll_flush={flushes}",
+        );
+
+        response_task.abort();
+        conn_task.abort();
     }
 
     // https://github.com/hyperium/hyper/issues/4040
