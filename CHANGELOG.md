@@ -1,3 +1,11 @@
+### v1.10.1 (2026-05-29)
+
+
+#### Bug Fixes
+
+* **http1:** fix busy loop when peer half-closes and open body (#4086) ([c6cb906f](https://github.com/hyperium/hyper/commit/c6cb906fdcbc3df64fc3fb613be57430e0387e48), closes [#4085](https://github.com/hyperium/hyper/issues/4085))
+
+
 ## v1.10.0 (2026-05-27)
 
 
