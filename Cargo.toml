@@ -123,7 +123,6 @@ decimal_literal_representation = "allow" # TODO: consider
 default_trait_access = "allow"
 else_if_without_else = "allow"
 enum_glob_use = "allow"
-explicit_iter_loop = "allow" # TODO: easy fix
 float_arithmetic = "allow"
 ignored_unit_patterns = "allow"
 indexing_slicing = "allow"
