@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780084957664,
+  "lastUpdate": 1780136900214,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -11939,6 +11939,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44180,
             "range": "± 5706.98",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "danielmckenna93@gmail.com",
+            "name": "xd009642",
+            "username": "xd009642"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "92b6edc671e6b441531dcc880a50d835da7f5308",
+          "message": "style(rt): Fix the borrow_as_ptr lint (#4082)",
+          "timestamp": "2026-05-30T06:27:29-04:00",
+          "tree_id": "f69f8d708d1c8acf60f67fc117de3ee397078b67",
+          "url": "https://github.com/hyperium/hyper/commit/92b6edc671e6b441531dcc880a50d835da7f5308"
+        },
+        "date": 1780136896615,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57517,
+            "range": "± 12590.77",
             "unit": "ns/iter"
           }
         ]
