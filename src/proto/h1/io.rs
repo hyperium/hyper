@@ -101,14 +101,14 @@ where
     pub(crate) fn set_write_strategy_flatten(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
-        debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
+        debug_assert_eq!(self.write_buf.queue.bufs_cnt(), 0);
         self.write_buf.set_strategy(WriteStrategy::Flatten);
     }
 
     pub(crate) fn set_write_strategy_queue(&mut self) {
         // this should always be called only at construction time,
         // so this assert is here to catch myself
-        debug_assert!(self.write_buf.queue.bufs_cnt() == 0);
+        debug_assert_eq!(self.write_buf.queue.bufs_cnt(), 0);
         self.write_buf.set_strategy(WriteStrategy::Queue);
     }
 
