@@ -649,7 +649,7 @@ fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Er
     let res = httparse::parse_headers(buf, &mut headers);
     match res {
         Ok(httparse::Status::Complete((_, headers))) => {
-            for header in headers.iter() {
+            for header in headers {
                 use std::convert::TryFrom;
                 let name = match HeaderName::try_from(header.name) {
                     Ok(name) => name,
