@@ -258,7 +258,7 @@ impl<'data> ReadBuf<'data> {
     #[inline]
     pub fn filled(&self) -> &[u8] {
         // SAFETY: We only slice the filled part of the buffer, which is always valid
-        unsafe { &*(&self.raw[0..self.filled] as *const [MaybeUninit<u8>] as *const [u8]) }
+        unsafe { &*(std::ptr::addr_of!(self.raw[0..self.filled]) as *const [u8]) }
     }
 
     /// Get a cursor to the unfilled portion of the buffer.
