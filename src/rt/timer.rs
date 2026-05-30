@@ -107,7 +107,7 @@ impl dyn Sleep {
     where
         T: Sleep + 'static,
     {
-        self.__type_id(private::Sealed {}) == TypeId::of::<T>()
+        self.__type_id(private::Sealed) == TypeId::of::<T>()
     }
 
     /// Downcast a pinned `&mut Sleep` object to its original type.
@@ -130,5 +130,5 @@ impl dyn Sleep {
 
 mod private {
     #![allow(missing_debug_implementations)]
-    pub struct Sealed {}
+    pub struct Sealed;
 }
