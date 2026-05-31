@@ -307,7 +307,7 @@ impl dyn Io + Send {
             // Taken from `std::error::Error::downcast()`.
             unsafe {
                 let raw: *mut dyn Io = Box::into_raw(self);
-                Ok(Box::from_raw(raw as *mut T))
+                Ok(Box::from_raw(raw.cast()))
             }
         } else {
             Err(self)
