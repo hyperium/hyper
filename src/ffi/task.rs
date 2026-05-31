@@ -415,7 +415,7 @@ ffi_fn! {
         let task = non_null!(&mut *task ?= ptr::null_mut());
 
         if let Some(val) = task.output.take() {
-            let p = Box::into_raw(val) as *mut c_void;
+            let p = Box::into_raw(val).cast();
             // protect from returning fake pointers to empty types
             if p == std::ptr::NonNull::<c_void>::dangling().as_ptr() {
                 ptr::null_mut()
