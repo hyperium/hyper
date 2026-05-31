@@ -80,7 +80,7 @@ impl CachedDate {
     fn render(&mut self, now: SystemTime) {
         self.pos = 0;
         let _ = write!(self, "{}", HttpDate::from(now));
-        debug_assert!(self.pos == DATE_VALUE_LENGTH);
+        debug_assert_eq!(self.pos, DATE_VALUE_LENGTH);
         self.render_http2();
     }
 
