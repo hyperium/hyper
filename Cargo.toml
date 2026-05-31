@@ -130,7 +130,6 @@ integer_division = "allow"
 integer_division_remainder_used = "allow"
 large_enum_variant = "allow"
 let_unit_value = "allow"
-manual_assert_eq = "allow" # TODO: easy fix
 map_err_ignore = "allow"
 map_unwrap_or = "allow"
 match_wild_err_arm = "allow"
