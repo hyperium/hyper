@@ -143,7 +143,6 @@ needless_continue = "allow"
 needless_pass_by_value = "allow"
 panic = "allow"
 pattern_type_mismatch = "allow"
-ptr_as_ptr = "allow"
 question_mark = "allow" # TODO: probably easy fix
 redundant_closure_for_method_calls = "allow"
 redundant_else = "allow"

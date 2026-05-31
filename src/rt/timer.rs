@@ -119,7 +119,7 @@ impl dyn Sleep {
             unsafe {
                 let inner = Pin::into_inner_unchecked(self);
                 Some(Pin::new_unchecked(
-                    &mut *(&mut *inner as *mut dyn Sleep as *mut T),
+                    &mut *(&mut *inner as *mut dyn Sleep).cast(),
                 ))
             }
         } else {
