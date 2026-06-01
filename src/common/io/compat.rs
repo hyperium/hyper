@@ -23,6 +23,7 @@ impl<T> tokio::io::AsyncRead for Compat<T>
 where
     T: crate::rt::Read,
 {
+    /// `poll_read` fn implementation for `Compat<T>`.
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,
@@ -30,6 +31,13 @@ where
     ) -> Poll<Result<(), std::io::Error>> {
         let init = tbuf.initialized().len();
         let filled = tbuf.filled().len();
+        // SAFETY:
+        // 1. `tbuf.inner_mut()` returns a raw pointer/mutable slice which we wrap into
+        //    a `crate::rt::ReadBuf` that is layout-compatible with the source `tokio::io::ReadBuf`.
+        // 2. We explicitly restore the `init` and `filled` states from the original buffer
+        //    to maintain the invariant that the new `ReadBuf` tracks the same progress.
+        // 3. The underlying memory remains valid and uniquely accessible via `tbuf` for
+        //    the duration of this poll operation.
         let (new_init, new_filled) = unsafe {
             let mut buf = crate::rt::ReadBuf::uninit(tbuf.inner_mut());
             buf.set_init(init);
@@ -42,6 +50,11 @@ where
         };
 
         let n_init = new_init - init;
+        // SAFETY:
+        // 1. `tbuf.assume_init(n_init)` is safe because `crate::rt::Read::poll_read`
+        //    guarantees that the bytes written into the buffer were initialized.
+        // 2. `tbuf.set_filled(new_filled)` is safe because `new_filled` is derived
+        //    directly from the buffer state after the successful read operation.
         unsafe {
             tbuf.assume_init(n_init);
             tbuf.set_filled(new_filled);
