@@ -94,6 +94,8 @@ pin_project! {
     }
 }
 
+//#[expect(clippy::large_enum_variant, reason = "the whole future is boxed")]
+#[allow(clippy::large_enum_variant)]
 enum State<T, B>
 where
     B: Body,
