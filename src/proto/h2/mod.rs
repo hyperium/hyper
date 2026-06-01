@@ -7,7 +7,7 @@ use std::task::{Context, Poll};
 use bytes::Buf;
 use futures_core::ready;
 use h2::SendStream;
-use http::header::{HeaderName, CONNECTION, TE, TRANSFER_ENCODING, UPGRADE};
+use http::header::{HeaderName, CONNECTION, TRANSFER_ENCODING, UPGRADE};
 use http::HeaderMap;
 use pin_project_lite::pin_project;
 
@@ -40,22 +40,32 @@ static CONNECTION_HEADERS: [HeaderName; 4] = [
     UPGRADE,
 ];
 
-fn strip_connection_headers(headers: &mut HeaderMap, is_request: bool) {
+enum MessageKind {
+    #[cfg(feature = "client")]
+    Request,
+    #[cfg(feature = "server")]
+    Response,
+}
+
+fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
     for header in &CONNECTION_HEADERS {
         if headers.remove(header).is_some() {
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
         }
     }
 
-    if is_request {
+    #[cfg(not(feature = "client"))]
+    let _ = kind;
+    #[cfg(feature = "client")]
+    if matches!(kind, MessageKind::Request) {
         if headers
-            .get(TE)
+            .get(http::header::TE)
             .map_or(false, |te_header| te_header != "trailers")
         {
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
-            headers.remove(TE);
+            headers.remove(http::header::TE);
         }
-    } else if headers.remove(TE).is_some() {
+    } else if headers.remove(http::header::TE).is_some() {
         warn!("TE headers illegal in HTTP/2 responses");
     }
 
