@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780327035813,
+  "lastUpdate": 1780327214431,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12119,6 +12119,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 59309,
             "range": "± 14505.02",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "lorishu2412045439@gmail.com",
+            "name": "Lori-Shu",
+            "username": "Lori-Shu"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4df4607b35632b4228bda5f13852f11a396dfc11",
+          "message": "style(lib); fix 'undocumented_unsafe_blocks' lint (#4083)\n\nAll uses of `unsafe` now include a SAFETY comment.",
+          "timestamp": "2026-06-01T11:19:19-04:00",
+          "tree_id": "dba50f78c1e9f9820cef5025c0c4a2a0b8453887",
+          "url": "https://github.com/hyperium/hyper/commit/4df4607b35632b4228bda5f13852f11a396dfc11"
+        },
+        "date": 1780327211844,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43677,
+            "range": "± 5395.36",
             "unit": "ns/iter"
           }
         ]
