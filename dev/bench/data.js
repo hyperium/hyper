@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780339288690,
+  "lastUpdate": 1780415757914,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12179,6 +12179,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 59290,
             "range": "± 13074.58",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "90ede307470dba98b4e184ad88d6f5aae8b0afd7",
+          "message": "fix(http1): more strictly enforce max_buf_size when parsing (#4093)\n\nCloses #4081",
+          "timestamp": "2026-06-02T11:55:04-04:00",
+          "tree_id": "ff845819a1cb95170d411fec45b4fdec7dcf6621",
+          "url": "https://github.com/hyperium/hyper/commit/90ede307470dba98b4e184ad88d6f5aae8b0afd7"
+        },
+        "date": 1780415755386,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45296,
+            "range": "± 5823.39",
             "unit": "ns/iter"
           }
         ]
