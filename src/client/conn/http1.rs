@@ -230,7 +230,9 @@ where
     pub fn try_send_request(&mut self, req: Request<B>) -> TrySendFut<B> {
         let state = match self.dispatch.try_send(req) {
             Ok(rx) => TrySendFutState::Fut { rx },
-            Err(req) => TrySendFutState::Err { req: Some(req) },
+            Err(req) => TrySendFutState::Err {
+                req: Box::new(Some(req)),
+            },
         };
         TrySendFut { state }
     }
@@ -286,7 +288,7 @@ enum TrySendFutState<B> {
         rx: Receiver<Result<Response<IncomingBody>, TrySendError<Request<B>>>>,
     },
     Err {
-        req: Option<Request<B>>,
+        req: Box<Option<Request<B>>>,
     },
 }
 
@@ -301,9 +303,6 @@ impl<B> fmt::Debug for TrySendFut<B> {
         f.debug_struct("TrySendFut").finish()
     }
 }
-
-// `TrySendFut` never structurally pins any of its fields
-impl<B> Unpin for TrySendFut<B> {}
 
 impl<B> Future for TrySendFut<B> {
     type Output = Result<Response<IncomingBody>, TrySendError<Request<B>>>;
