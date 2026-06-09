@@ -3,7 +3,6 @@
 use std::error::Error as StdError;
 use std::fmt;
 use std::future::Future;
-use std::marker::PhantomData;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -212,15 +211,12 @@ where
     /// hyper closes the underlying connection when a request future is
     /// dropped before completion. Any subsequent calls on the same
     /// [`SendRequest`] will return a `canceled` error.
-    pub fn send_request(&mut self, req: Request<B>) -> SendFut<B> {
+    pub fn send_request(&mut self, req: Request<B>) -> SendFut {
         let state = match self.dispatch.send(req) {
             Ok(rx) => SendFutState::Fut { rx },
             Err(_) => SendFutState::Err,
         };
-        SendFut {
-            state,
-            body: PhantomData,
-        }
+        SendFut { state }
     }
 
     /// Sends a `Request` on the associated connection.
@@ -255,21 +251,17 @@ enum SendFutState {
 
 /// Future returned by [`SendRequest::send_request`], see the method definition
 /// for more details.
-pub struct SendFut<B> {
+pub struct SendFut {
     state: SendFutState,
-    body: PhantomData<B>,
 }
 
-impl<B> fmt::Debug for SendFut<B> {
+impl fmt::Debug for SendFut {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SendFut").finish()
     }
 }
 
-// `SendFut` never structurally pins any of its fields
-impl<B> Unpin for SendFut<B> {}
-
-impl<B> Future for SendFut<B> {
+impl Future for SendFut {
     type Output = crate::Result<Response<IncomingBody>>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
