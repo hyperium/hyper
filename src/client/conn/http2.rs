@@ -151,9 +151,12 @@ where
     pub fn send_request(&mut self, req: Request<B>) -> SendFut<B> {
         let state = match self.dispatch.send(req) {
             Ok(rx) => SendFutState::Fut { rx },
-            Err(req) => SendFutState::Err { req },
+            Err(_) => SendFutState::Err,
         };
-        SendFut { state }
+        SendFut {
+            state,
+            body: PhantomData,
+        }
     }
 
     /// Sends a `Request` on the associated connection.
@@ -179,19 +182,18 @@ impl<B> fmt::Debug for SendRequest<B> {
     }
 }
 
-enum SendFutState<B> {
+enum SendFutState {
     Fut {
         rx: Receiver<crate::Result<Response<IncomingBody>>>,
     },
-    Err {
-        req: Request<B>,
-    },
+    Err,
 }
 
 /// Future returned by [`SendRequest::send_request`], see the method definition
 /// for more details.
 pub struct SendFut<B> {
-    state: SendFutState<B>,
+    state: SendFutState,
+    body: PhantomData<B>,
 }
 
 impl<B> fmt::Debug for SendFut<B> {
@@ -214,7 +216,7 @@ impl<B> Future for SendFut<B> {
                 // this is definite bug if it happens, but it shouldn't happen!
                 Err(_) => panic!("dispatch dropped without returning error"),
             },
-            SendFutState::Err { req: _req } => {
+            SendFutState::Err => {
                 debug!("connection was not ready");
                 Err(crate::Error::new_canceled().with("connection was not ready"))
             }
