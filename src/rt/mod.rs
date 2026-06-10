@@ -17,7 +17,7 @@ pub mod bounds;
 mod io;
 mod timer;
 
-#[cfg(hyper_unstable_quic)]
+//#[cfg(hyper_unstable_quic)]
 #[cfg_attr(docsrs, doc(cfg(hyper_unstable_quic)))]
 pub mod quic;
 
