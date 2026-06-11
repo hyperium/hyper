@@ -109,6 +109,11 @@ impl Write for ReadyOnPollStream {
 
     fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         self.flush_count += 1;
+
+        if self.pending_write.is_none() {
+            return Poll::Ready(Ok(()));
+        }
+
         // We require two flushes to complete each chunk, simulating a success at the end of the old
         // poll loop. After all chunks are written, we always succeed on flush to allow for finish.
         const TOTAL_CHUNKS: usize = 16;
