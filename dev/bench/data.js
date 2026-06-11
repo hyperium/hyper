@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1780415882221,
+  "lastUpdate": 1781211793859,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12209,6 +12209,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45296,
             "range": "± 5823.39",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "diretnandomnan@gmail.com",
+            "name": "Diretnan Domnan",
+            "username": "deven96"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "72046cc72e7aa82c439eed00850b8b1ad3f7e4dc",
+          "message": "fix(http1): flush buffered data before shutdown (#4018)\n\nCloses #4022",
+          "timestamp": "2026-06-11T17:02:18-04:00",
+          "tree_id": "ef83ac023dd6ef48c64aeff876c8d3651a327577",
+          "url": "https://github.com/hyperium/hyper/commit/72046cc72e7aa82c439eed00850b8b1ad3f7e4dc"
+        },
+        "date": 1781211790954,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 60866,
+            "range": "± 13982.43",
             "unit": "ns/iter"
           }
         ]
