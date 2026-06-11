@@ -2435,7 +2435,7 @@ async fn h2_connect_zero_window_then_release() {
 }
 
 #[tokio::test]
-async fn h2_connect_reset_during_backpressure() {
+async fn h2_connect_shutdown_while_send_backpressured() {
     let (listener, addr) = setup_tcp_listener();
     let conn = connect_async(addr).await;
 
@@ -2448,40 +2448,46 @@ async fn h2_connect_reset_during_backpressure() {
     });
     let mut h2 = h2.ready().await.unwrap();
 
-    let (write_err_tx, write_err_rx) = oneshot::channel::<bool>();
-    let write_err_tx = Arc::new(Mutex::new(Some(write_err_tx)));
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<bool>();
+    let shutdown_tx = Arc::new(Mutex::new(Some(shutdown_tx)));
 
-    tokio::spawn(async move {
+    let client_handle = tokio::spawn(async move {
         let request = Request::connect("localhost").body(()).unwrap();
-        let (response, mut send_stream) = h2.send_request(request, false).unwrap();
+        let (response, _send_stream) = h2.send_request(request, false).unwrap();
         let response = response.await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
         let mut body = response.into_body();
         let bytes = body.data().await.unwrap().unwrap();
-        let _ = body.flow_control().release_capacity(bytes.len());
+        assert_eq!(bytes.len(), 1024);
 
-        send_stream.send_reset(h2::Reason::CANCEL);
-        drop(body);
-        drop(send_stream);
-
-        let got_err = write_err_rx.await.unwrap_or(false);
-        assert!(got_err, "server write should have failed after RST_STREAM");
+        // Do not release capacity. The server-side upgraded writer should
+        // still observe shutdown of its mpsc sender instead of waiting for
+        // more h2 send capacity.
+        let shutdown_completed = shutdown_rx.await.unwrap_or(false);
+        assert!(
+            shutdown_completed,
+            "upgraded shutdown should not wait for h2 capacity after the writer closes"
+        );
     });
 
     let svc = service_fn(move |req: Request<IncomingBody>| {
         let on_upgrade = hyper::upgrade::on(req);
-        let write_err_tx = write_err_tx.clone();
+        let shutdown_tx = shutdown_tx.clone();
 
         tokio::spawn(async move {
             let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
-            upgraded.write_all(b"initial").await.unwrap();
+            upgraded.write_all(&[b'x'; 1024]).await.unwrap();
 
-            let large_data = vec![b'x'; 1024 * 1024];
-            let write_result = upgraded.write_all(&large_data).await;
+            // Regression trigger: shutdown closes the mpsc sender while the
+            // send task is already parked waiting for h2 capacity.
+            let shutdown_completed =
+                tokio::time::timeout(Duration::from_secs(1), upgraded.shutdown())
+                    .await
+                    .is_ok();
 
-            if let Some(tx) = write_err_tx.lock().unwrap().take() {
-                let _ = tx.send(write_result.is_err());
+            if let Some(tx) = shutdown_tx.lock().unwrap().take() {
+                let _ = tx.send(shutdown_completed);
             }
         });
 
@@ -2498,6 +2504,88 @@ async fn h2_connect_reset_during_backpressure() {
     let _ = http2::Builder::new(TokioExecutor)
         .serve_connection(socket, svc)
         .await;
+
+    client_handle.await.unwrap();
+}
+
+#[tokio::test]
+async fn h2_connect_reset_during_backpressure() {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let mut builder = h2::client::Builder::new();
+    builder.initial_window_size(1024);
+    builder.initial_connection_window_size(1024);
+    let (h2, connection) = builder.handshake::<_, Bytes>(conn).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let (write_err_tx, write_err_rx) = oneshot::channel::<bool>();
+    let write_err_tx = Arc::new(Mutex::new(Some(write_err_tx)));
+    let (reset_tx, reset_rx) = oneshot::channel::<()>();
+    let reset_rx = Arc::new(Mutex::new(Some(reset_rx)));
+
+    let client_handle = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, mut send_stream) = h2.send_request(request, false).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let mut received = 0;
+        while received < 1024 {
+            let bytes = body.data().await.unwrap().unwrap();
+            received += bytes.len();
+        }
+        assert_eq!(received, 1024);
+
+        send_stream.send_reset(h2::Reason::CANCEL);
+        let _ = reset_tx.send(());
+        drop(body);
+        drop(send_stream);
+
+        let got_err = write_err_rx.await.unwrap_or(false);
+        assert!(got_err, "server write side should have observed RST_STREAM");
+    });
+
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+        let write_err_tx = write_err_tx.clone();
+        let reset_rx = reset_rx.clone();
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+            upgraded.write_all(&[b'x'; 1024]).await.unwrap();
+
+            let reset_rx = reset_rx.lock().unwrap().take().unwrap();
+            reset_rx.await.unwrap();
+
+            let large_data = vec![b'x'; 1024 * 1024];
+            let write = upgraded.write_all(&large_data).await;
+            let shutdown = upgraded.shutdown().await;
+
+            if let Some(tx) = write_err_tx.lock().unwrap().take() {
+                let _ = tx.send(write.is_err() || shutdown.is_err());
+            }
+        });
+
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let _ = http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await;
+
+    client_handle.await.unwrap();
 }
 
 #[tokio::test]
