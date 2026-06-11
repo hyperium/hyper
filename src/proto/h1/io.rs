@@ -242,10 +242,10 @@ where
             Poll::Ready(Ok(_)) => {
                 let n = buf.filled().len();
                 trace!("received {} bytes", n);
+                // Safety: we just read that many bytes into the
+                // uninitialized part of the buffer, so this is okay.
+                // @tokio pls give me back `poll_read_buf` thanks
                 unsafe {
-                    // Safety: we just read that many bytes into the
-                    // uninitialized part of the buffer, so this is okay.
-                    // @tokio pls give me back `poll_read_buf` thanks
                     self.read_buf.advance_mut(n);
                 }
                 self.read_buf_strategy.record(n);
@@ -261,10 +261,6 @@ where
 
     pub(crate) fn into_inner(self) -> (T, Bytes) {
         (self.io, self.read_buf.freeze())
-    }
-
-    pub(crate) fn io_mut(&mut self) -> &mut T {
-        &mut self.io
     }
 
     pub(crate) fn is_read_blocked(&self) -> bool {
@@ -328,6 +324,11 @@ where
             }
         }
         Pin::new(&mut self.io).poll_flush(cx)
+    }
+
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        ready!(self.poll_flush(cx))?;
+        Pin::new(&mut self.io).poll_shutdown(cx)
     }
 
     #[cfg(test)]
