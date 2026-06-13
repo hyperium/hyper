@@ -500,13 +500,13 @@ impl Http1Transaction for Server {
 
 #[cfg(feature = "server")]
 impl Server {
-    fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
+    fn can_have_body(method: Option<&Method>, status: StatusCode) -> bool {
         Server::can_chunked(method, status)
     }
 
-    fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD)
-            || method == &Some(Method::CONNECT) && status.is_success()
+    fn can_chunked(method: Option<&Method>, status: StatusCode) -> bool {
+        if method == Some(&Method::HEAD)
+            || method == Some(&Method::CONNECT) && status.is_success()
             || status.is_informational()
         {
             false
@@ -515,16 +515,16 @@ impl Server {
         }
     }
 
-    fn can_have_content_length(method: &Option<Method>, status: StatusCode) -> bool {
-        if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
+    fn can_have_content_length(method: Option<&Method>, status: StatusCode) -> bool {
+        if status.is_informational() || method == Some(&Method::CONNECT) && status.is_success() {
             false
         } else {
             !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
-    fn can_have_implicit_zero_content_length(method: &Option<Method>, status: StatusCode) -> bool {
-        Server::can_have_content_length(method, status) && method != &Some(Method::HEAD)
+    fn can_have_implicit_zero_content_length(method: Option<&Method>, status: StatusCode) -> bool {
+        Server::can_have_content_length(method, status) && method != Some(&Method::HEAD)
     }
 
     fn encode_headers_with_lower_case(
@@ -801,7 +801,7 @@ impl Server {
                     }
                     // check that we actually can send a chunked body...
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method.as_ref(), msg.head.subject)
                     {
                         continue;
                     }
@@ -849,7 +849,7 @@ impl Server {
                 header::TRAILER => {
                     // check that we actually can send a chunked body...
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method.as_ref(), msg.head.subject)
                     {
                         continue;
                     }
@@ -911,7 +911,7 @@ impl Server {
             encoder = match msg.body {
                 Some(BodyLength::Unknown) => {
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method.as_ref(), msg.head.subject)
                     {
                         Encoder::close_delimited()
                     } else {
@@ -925,7 +925,7 @@ impl Server {
                 }
                 None | Some(BodyLength::Known(0)) => {
                     if Server::can_have_implicit_zero_content_length(
-                        msg.req_method,
+                        msg.req_method.as_ref(),
                         msg.head.subject,
                     ) {
                         header_name_writer.write_full_header_line(
@@ -937,7 +937,7 @@ impl Server {
                     Encoder::length(0)
                 }
                 Some(BodyLength::Known(len)) => {
-                    if !Server::can_have_content_length(msg.req_method, msg.head.subject) {
+                    if !Server::can_have_content_length(msg.req_method.as_ref(), msg.head.subject) {
                         Encoder::length(0)
                     } else {
                         header_name_writer.write_header_name_with_colon(
@@ -953,7 +953,7 @@ impl Server {
             };
         }
 
-        if !Server::can_have_body(msg.req_method, msg.head.subject) {
+        if !Server::can_have_body(msg.req_method.as_ref(), msg.head.subject) {
             trace!(
                 "server body forced to 0; method={:?}, status={:?}",
                 msg.req_method,
