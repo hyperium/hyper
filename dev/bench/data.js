@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781351889074,
+  "lastUpdate": 1781352021429,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -62329,6 +62329,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3406196,
             "range": "± 265487.25",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "128471892+nakaryo716@users.noreply.github.com",
+            "name": "Nakaryo",
+            "username": "nakaryo716"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e64ad1e1b37f2d60d963ac9c0259b46fae3084d5",
+          "message": "style(http1): remove ref_option lint (#4101)\n\nRemove `ref_option = \"allow\"` from Cargo.toml and change the server\nmethods to take `Option<&Method>` instead of `&Option<Method>`.",
+          "timestamp": "2026-06-13T07:57:21-04:00",
+          "tree_id": "e53baaa30907648b8b1669bad70dcb2710cb2859",
+          "url": "https://github.com/hyperium/hyper/commit/e64ad1e1b37f2d60d963ac9c0259b46fae3084d5"
+        },
+        "date": 1781352018274,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 36271,
+            "range": "± 726.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3661472,
+            "range": "± 74820.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 11424,
+            "range": "± 160.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 12783,
+            "range": "± 317.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 18010,
+            "range": "± 448.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 51314,
+            "range": "± 700.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000059,
+            "range": "± 31745.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 64859,
+            "range": "± 1805.54",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 12665554,
+            "range": "± 16322504.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 12711397,
+            "range": "± 16436184.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4362189,
+            "range": "± 54559.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 73780588,
+            "range": "± 946821.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 32268422,
+            "range": "± 573732.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3400276,
+            "range": "± 36610.26",
             "unit": "ns/iter"
           }
         ]
