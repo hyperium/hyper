@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781211953619,
+  "lastUpdate": 1781351889074,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12239,6 +12239,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60866,
             "range": "± 13982.43",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "128471892+nakaryo716@users.noreply.github.com",
+            "name": "Nakaryo",
+            "username": "nakaryo716"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e64ad1e1b37f2d60d963ac9c0259b46fae3084d5",
+          "message": "style(http1): remove ref_option lint (#4101)\n\nRemove `ref_option = \"allow\"` from Cargo.toml and change the server\nmethods to take `Option<&Method>` instead of `&Option<Method>`.",
+          "timestamp": "2026-06-13T07:57:21-04:00",
+          "tree_id": "e53baaa30907648b8b1669bad70dcb2710cb2859",
+          "url": "https://github.com/hyperium/hyper/commit/e64ad1e1b37f2d60d963ac9c0259b46fae3084d5"
+        },
+        "date": 1781351885720,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 66617,
+            "range": "± 14954.02",
             "unit": "ns/iter"
           }
         ]
