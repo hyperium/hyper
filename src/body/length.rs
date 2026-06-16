@@ -102,7 +102,7 @@ impl fmt::Display for DecodedLength {
             DecodedLength::CLOSE_DELIMITED => f.write_str("close-delimited"),
             DecodedLength::CHUNKED => f.write_str("chunked encoding"),
             DecodedLength::ZERO => f.write_str("empty"),
-            DecodedLength(n) => write!(f, "content-length ({} bytes)", n),
+            DecodedLength(n) => write!(f, "content-length ({n} bytes)"),
         }
     }
 }
