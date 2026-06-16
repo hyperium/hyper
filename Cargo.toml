@@ -150,7 +150,6 @@ single_char_lifetime_names = "allow"
 single_match_else = "allow" # TODO: easy fix
 struct_excessive_bools = "allow" # TODO: bogus lint?
 trivially_copy_pass_by_ref = "allow"
-uninlined_format_args = "allow" # TODO: easy fix
 unnecessary_semicolon = "allow" # TODO: easy fix
 unnecessary_trailing_comma = "allow"
 unnested_or_patterns = "allow"
