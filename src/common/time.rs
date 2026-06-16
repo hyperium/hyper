@@ -77,7 +77,7 @@ impl Time {
                 Time::Timer(..) => Some(dur),
             },
             Dur::Configured(Some(dur)) => match self {
-                Time::Empty => panic!("timeout `{}` set, but no timer set", name,),
+                Time::Empty => panic!("timeout `{name}` set, but no timer set",),
                 Time::Timer(..) => Some(dur),
             },
             Dur::Default(None) | Dur::Configured(None) => None,

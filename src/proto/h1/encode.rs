@@ -352,7 +352,7 @@ impl ChunkSize {
             pos: 0,
             len: 0,
         };
-        write!(&mut size, "{:X}\r\n", len).expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
+        write!(&mut size, "{len:X}\r\n").expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
         size
     }
 }
