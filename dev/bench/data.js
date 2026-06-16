@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781352021429,
+  "lastUpdate": 1781612860433,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12269,6 +12269,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 66617,
             "range": "± 14954.02",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "32043000+josetorrs@users.noreply.github.com",
+            "name": "Jose",
+            "username": "josetorrs"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "45271131f8687cceb4242871344843b8353b2216",
+          "message": "style(lib): remove unnecessary_semicolon lint (#4103)",
+          "timestamp": "2026-06-16T08:26:52-04:00",
+          "tree_id": "2e81a5999c2bfaba662a0fc56e5c6edf35998743",
+          "url": "https://github.com/hyperium/hyper/commit/45271131f8687cceb4242871344843b8353b2216"
+        },
+        "date": 1781612857594,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 34889,
+            "range": "± 5313.26",
             "unit": "ns/iter"
           }
         ]
