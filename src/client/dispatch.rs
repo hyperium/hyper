@@ -370,7 +370,7 @@ where
                         this.call_back.set(Some(call_back));
                         return Poll::Pending;
                     }
-                };
+                }
                 trace!("send_when canceled");
                 // Tell pipe_task to reset the h2 stream so that
                 // RST_STREAM is sent and flow-control capacity freed.

@@ -225,7 +225,7 @@ where
                         // error letting them know about that.
                         pending.manual();
                     }
-                };
+                }
                 Poll::Ready(Ok(()))
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -479,7 +479,7 @@ impl Builder {
             .check(self.h1_header_read_timeout, "header_read_timeout")
         {
             conn.set_http1_header_read_timeout(dur);
-        };
+        }
         if let Some(writev) = self.h1_writev {
             if writev {
                 conn.set_write_strategy_queue();

@@ -529,7 +529,7 @@ where
                 return
             }
             Reading::Init => (),
-        };
+        }
 
         match self.state.writing {
             Writing::Body(..) => return,
