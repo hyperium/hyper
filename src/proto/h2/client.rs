@@ -510,7 +510,7 @@ where
                 return Poll::Ready(());
             }
             Poll::Pending => (),
-        };
+        }
         Poll::Pending
     }
 }
@@ -688,7 +688,7 @@ where
                         Poll::Ready(Err(crate::Error::new_h2(err)))
                     };
                 }
-            };
+            }
 
             // If we were waiting on pending open
             // continue where we left off.
