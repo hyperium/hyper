@@ -147,7 +147,6 @@ redundant_else = "allow"
 ref_patterns = "allow" # TODO: perhaps deny?
 semicolon_if_nothing_returned = "allow" # TODO: easy fix
 single_char_lifetime_names = "allow"
-single_match_else = "allow" # TODO: easy fix
 struct_excessive_bools = "allow" # TODO: bogus lint?
 trivially_copy_pass_by_ref = "allow"
 unnecessary_trailing_comma = "allow"
