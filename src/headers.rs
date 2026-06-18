@@ -53,7 +53,7 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
             for v in line.split(',') {
                 if let Some(n) = from_digits(v.trim().as_bytes()) {
                     if content_length.is_none() {
-                        content_length = Some(n)
+                        content_length = Some(n);
                     } else if content_length != Some(n) {
                         return None;
                     }

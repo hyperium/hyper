@@ -545,7 +545,7 @@ where
                             if self.state.is_idle() {
                                 self.state.close();
                             } else {
-                                self.close_read()
+                                self.close_read();
                             }
                             return;
                         }
@@ -1084,14 +1084,14 @@ impl State {
                 }
             }
             (&Reading::Closed, &Writing::KeepAlive) | (&Reading::KeepAlive, &Writing::Closed) => {
-                self.close()
+                self.close();
             }
             _ => (),
         }
     }
 
     fn disable_keep_alive(&mut self) {
-        self.keep_alive.disable()
+        self.keep_alive.disable();
     }
 
     fn busy(&mut self) {

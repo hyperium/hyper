@@ -145,7 +145,6 @@ question_mark = "allow" # TODO: probably easy fix
 redundant_closure_for_method_calls = "allow"
 redundant_else = "allow"
 ref_patterns = "allow" # TODO: perhaps deny?
-semicolon_if_nothing_returned = "allow" # TODO: easy fix
 single_char_lifetime_names = "allow"
 single_match_else = "allow" # TODO: easy fix
 struct_excessive_bools = "allow" # TODO: bogus lint?
