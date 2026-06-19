@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781615526042,
+  "lastUpdate": 1781879688481,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12329,6 +12329,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51494,
             "range": "± 11130.85",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "53400613+MonkieeBoi@users.noreply.github.com",
+            "name": "MonkieeBoi",
+            "username": "MonkieeBoi"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a7085b278c340f5c860389a83c8281120f08dc37",
+          "message": "style(lib): remove `semicolon_if_nothing_returned` lint (#4106)",
+          "timestamp": "2026-06-19T10:34:01-04:00",
+          "tree_id": "5424be2268fca63c3eaf095a44792414f1dc515d",
+          "url": "https://github.com/hyperium/hyper/commit/a7085b278c340f5c860389a83c8281120f08dc37"
+        },
+        "date": 1781879685945,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44832,
+            "range": "± 6438.74",
             "unit": "ns/iter"
           }
         ]
