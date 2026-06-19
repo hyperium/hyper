@@ -544,7 +544,7 @@ impl Server {
                 line: &str,
                 _: (HeaderName, &str),
             ) {
-                extend(dst, line.as_bytes())
+                extend(dst, line.as_bytes());
             }
 
             #[inline]
@@ -554,12 +554,12 @@ impl Server {
                 name_with_colon: &str,
                 _: HeaderName,
             ) {
-                extend(dst, name_with_colon.as_bytes())
+                extend(dst, name_with_colon.as_bytes());
             }
 
             #[inline]
             fn write_header_name(&mut self, dst: &mut Vec<u8>, name: &HeaderName) {
-                extend(dst, name.as_str().as_bytes())
+                extend(dst, name.as_str().as_bytes());
             }
         }
 
@@ -929,7 +929,7 @@ impl Server {
                             dst,
                             "content-length: 0\r\n",
                             (header::CONTENT_LENGTH, ": 0\r\n"),
-                        )
+                        );
                     }
                     Encoder::length(0)
                 }

@@ -146,7 +146,7 @@ where
     }
 
     pub(crate) fn buffer<BB: Buf + Into<B>>(&mut self, buf: BB) {
-        self.write_buf.buffer(buf)
+        self.write_buf.buffer(buf);
     }
 
     pub(crate) fn can_buffer(&self) -> bool {
