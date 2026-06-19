@@ -19,7 +19,7 @@ use tracing::{debug, error, trace};
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
-use crate::headers::connection_keep_alive;
+use crate::headers::{connection_close, connection_keep_alive};
 use crate::proto::{BodyLength, MessageHead};
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
@@ -548,6 +548,20 @@ where
 
         if !T::should_read_first() {
             self.state.busy();
+            // A client request carrying `Connection: close` must not be pooled or
+            // reused. hyper otherwise derives connection reuse from the response
+            // alone, so a backend that ignores the request-side close (omits
+            // `Connection: close` in its response) would leave the connection in
+            // the pool. Disable keep-alive up front so the connection is evicted
+            // regardless of the response.
+            if head
+                .headers
+                .get(CONNECTION)
+                .map(connection_close)
+                .unwrap_or(false)
+            {
+                self.state.disable_keep_alive();
+            }
         }
 
         self.enforce_version(&mut head);

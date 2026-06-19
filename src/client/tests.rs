@@ -23,6 +23,110 @@ async fn client_connect_uri_argument() {
         .expect_err("response should fail");
 }
 
+// A client request carrying `Connection: close` must NOT be pooled or reused,
+// even when the backend's response omits `Connection: close` (i.e. the backend keeps the
+// socket alive). A keep-alive request, by contrast, reuses a single pooled connection.
+#[tokio::test]
+async fn conn_close_request_is_not_pooled_even_if_backend_keeps_alive() {
+    // Control: keep-alive requests reuse a single pooled connection, so the connection
+    // count stays at 1 across requests.
+    assert_eq!(
+        keepalive_backend_conn_counts(None, 2).await,
+        vec![1, 1],
+        "keep-alive requests should reuse a single pooled connection"
+    );
+    // A `Connection: close` request must open a fresh connection every time: the count
+    // increments per request rather than staying at 1.
+    assert_eq!(
+        keepalive_backend_conn_counts(Some("close"), 2).await,
+        vec![1, 2],
+        "each Connection: close request must open a new connection (no pool reuse)"
+    );
+}
+
+// Sends `num_requests` sequential requests (optionally with the given `Connection` header)
+// through a client whose backend always replies keep-alive, and returns the cumulative
+// number of connections opened observed after each request.
+async fn keepalive_backend_conn_counts(
+    connection: Option<&'static str>,
+    num_requests: usize,
+) -> Vec<usize> {
+    use crate::client::connect::{Connected, Connection};
+    use std::pin::Pin;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::task::{Context, Poll};
+    use std::time::Duration;
+    use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt, ReadBuf};
+
+    struct MockIo(tokio::io::DuplexStream);
+    impl AsyncRead for MockIo {
+        fn poll_read(mut self: Pin<&mut Self>, cx: &mut Context<'_>, b: &mut ReadBuf<'_>) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_read(cx, b)
+        }
+    }
+    impl AsyncWrite for MockIo {
+        fn poll_write(mut self: Pin<&mut Self>, cx: &mut Context<'_>, b: &[u8]) -> Poll<std::io::Result<usize>> {
+            Pin::new(&mut self.0).poll_write(cx, b)
+        }
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_flush(cx)
+        }
+        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Pin::new(&mut self.0).poll_shutdown(cx)
+        }
+    }
+    impl Connection for MockIo {
+        fn connected(&self) -> Connected {
+            Connected::new()
+        }
+    }
+
+    let conn_count = Arc::new(AtomicUsize::new(0));
+    let cc = conn_count.clone();
+    let connector = tower::service_fn(move |_dst: http::Uri| {
+        cc.fetch_add(1, Ordering::SeqCst);
+        let (client_io, mut server_io) = tokio::io::duplex(1024);
+        tokio::spawn(async move {
+            let mut buf = [0u8; 1024];
+            // Always reply keep-alive (NO Connection: close) to every request on this connection.
+            while let Ok(read) = server_io.read(&mut buf).await {
+                if read == 0 {
+                    break;
+                }
+                if server_io
+                    .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                    .await
+                    .is_err()
+                {
+                    break;
+                }
+            }
+        });
+        future::ok::<_, std::io::Error>(MockIo(client_io))
+    });
+
+    let client = Client::builder().build::<_, crate::Body>(connector);
+
+    let mut counts = Vec::with_capacity(num_requests);
+    for i in 0..num_requests {
+        let mut builder = http::Request::builder().uri(format!("http://mock.local/{}", i));
+        if let Some(value) = connection {
+            builder = builder.header(http::header::CONNECTION, value);
+        }
+        let res = client
+            .request(builder.body(crate::Body::empty()).unwrap())
+            .await
+            .expect("request ok");
+        assert_eq!(res.status(), 200);
+        crate::body::to_bytes(res.into_body()).await.expect("drain body");
+        // Let any pool insertion settle so a reusable connection would be reused next.
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        counts.push(conn_count.load(Ordering::SeqCst));
+    }
+    counts
+}
+
 /*
 // FIXME: re-implement tests with `async/await`
 #[test]
