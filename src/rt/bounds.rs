@@ -27,7 +27,7 @@ mod h2_common {
         E: Executor<UpgradedSendStreamTask<B>>,
     {
         fn execute_upgrade(&self, fut: UpgradedSendStreamTask<B>) {
-            self.execute(fut)
+            self.execute(fut);
         }
     }
 }
@@ -70,7 +70,7 @@ mod h2_client {
         T: Read + Write + Unpin,
     {
         fn execute_h2_future(&mut self, future: H2ClientFuture<B, T, E>) {
-            self.execute(future)
+            self.execute(future);
         }
     }
 
@@ -123,7 +123,7 @@ mod h2_server {
         B: Body,
     {
         fn execute_h2stream(&mut self, fut: H2Stream<F, B, E>) {
-            self.execute(fut)
+            self.execute(fut);
         }
     }
 
