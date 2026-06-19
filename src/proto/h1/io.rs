@@ -175,7 +175,7 @@ where
         S: Http1Transaction,
     {
         loop {
-            match super::role::parse_headers::<S>(
+            if let Some(msg) = super::role::parse_headers::<S>(
                 &mut self.read_buf,
                 self.partial_len,
                 ParseContext {
@@ -191,25 +191,22 @@ where
                     on_informational: parse_ctx.on_informational,
                 },
             )? {
-                Some(msg) => {
-                    debug!("parsed {} headers", msg.head.headers.len());
-                    self.partial_len = None;
-                    return Poll::Ready(Ok(msg));
+                debug!("parsed {} headers", msg.head.headers.len());
+                self.partial_len = None;
+                return Poll::Ready(Ok(msg));
+            } else {
+                let max = self.read_buf_strategy.max();
+                let curr_len = self.read_buf.len();
+                if curr_len >= max {
+                    debug!("max_buf_size ({}) reached, closing", max);
+                    return Poll::Ready(Err(crate::Error::new_too_large()));
                 }
-                None => {
-                    let max = self.read_buf_strategy.max();
-                    let curr_len = self.read_buf.len();
-                    if curr_len >= max {
-                        debug!("max_buf_size ({}) reached, closing", max);
-                        return Poll::Ready(Err(crate::Error::new_too_large()));
-                    }
-                    if curr_len > 0 {
-                        trace!("partial headers; {} bytes so far", curr_len);
-                        self.partial_len = Some(curr_len);
-                    } else {
-                        // 1xx gobled some bytes
-                        self.partial_len = None;
-                    }
+                if curr_len > 0 {
+                    trace!("partial headers; {} bytes so far", curr_len);
+                    self.partial_len = Some(curr_len);
+                } else {
+                    // 1xx gobled some bytes
+                    self.partial_len = None;
                 }
             }
             if ready!(self.poll_read_from_io(cx)).map_err(crate::Error::new_io)? == 0 {

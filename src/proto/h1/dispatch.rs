@@ -291,13 +291,11 @@ where
 
     fn poll_read_head(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<()>> {
         // can dispatch receive, or does it still care about other incoming message?
-        match ready!(self.dispatch.poll_ready(cx)) {
-            Ok(()) => (),
-            Err(()) => {
-                trace!("dispatch no longer receiving messages");
-                self.close();
-                return Poll::Ready(Ok(()));
-            }
+        if let Ok(()) = ready!(self.dispatch.poll_ready(cx)) {
+        } else {
+            trace!("dispatch no longer receiving messages");
+            self.close();
+            return Poll::Ready(Ok(()));
         }
 
         // dispatch is ready for a message, try to read one
