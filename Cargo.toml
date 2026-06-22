@@ -120,7 +120,6 @@ cast_precision_loss = "allow" # TODO: consider
 checked_conversions = "allow"
 collapsible_match = "allow"
 decimal_literal_representation = "allow" # TODO: consider
-default_trait_access = "allow"
 else_if_without_else = "allow"
 enum_glob_use = "allow"
 float_arithmetic = "allow"

@@ -298,7 +298,7 @@ where
         Builder {
             exec,
             timer: Time::Empty,
-            h2_builder: Default::default(),
+            h2_builder: proto::h2::client::Config::default(),
         }
     }
 
