@@ -332,7 +332,7 @@ impl Builder {
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
-            h1_parser_config: Default::default(),
+            h1_parser_config: ParserConfig::default(),
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,

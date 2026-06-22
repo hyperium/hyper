@@ -12,6 +12,7 @@ use crate::rt::{Read, Write};
 use crate::upgrade::Upgraded;
 use bytes::Bytes;
 use futures_core::ready;
+use httparse::ParserConfig;
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
@@ -69,7 +70,7 @@ pin_project_lite::pin_project! {
 /// to bind the built connection to a service.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    h1_parser_config: httparse::ParserConfig,
+    h1_parser_config: ParserConfig,
     timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
@@ -239,7 +240,7 @@ impl Builder {
     /// Create a new connection builder.
     pub fn new() -> Self {
         Self {
-            h1_parser_config: Default::default(),
+            h1_parser_config: ParserConfig::default(),
             timer: Time::Empty,
             h1_half_close: false,
             h1_keep_alive: true,
