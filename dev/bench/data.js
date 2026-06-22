@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1781880692674,
+  "lastUpdate": 1782138002226,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12389,6 +12389,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 58178,
             "range": "± 12804.55",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "128471892+nakaryo716@users.noreply.github.com",
+            "name": "Nakaryo",
+            "username": "nakaryo716"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2e32de6ed15b5cb57ab9275444fa42eb4e3b5870",
+          "message": "style(lib): remove `default_trait_access` lint (#4111)\n\nPart of #4071",
+          "timestamp": "2026-06-22T10:19:16-04:00",
+          "tree_id": "d7dc44ef9b9aa362b127002b5a7ec44bf27cedc1",
+          "url": "https://github.com/hyperium/hyper/commit/2e32de6ed15b5cb57ab9275444fa42eb4e3b5870"
+        },
+        "date": 1782137998832,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 63502,
+            "range": "± 17315.17",
             "unit": "ns/iter"
           }
         ]
