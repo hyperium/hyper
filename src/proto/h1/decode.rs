@@ -671,7 +671,7 @@ fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Er
                     }
                 };
 
-                trailers.insert(name, value);
+                trailers.append(name, value);
             }
 
             Ok(trailers)
@@ -1154,6 +1154,21 @@ mod tests {
             "Wed, 21 Oct 2015 07:28:00 GMT"
         );
         assert_eq!(headers.get("X-Stream-Error").unwrap(), "failed to decode");
+    }
+
+    #[test]
+    fn test_decode_trailers_preserves_duplicate_values() {
+        let mut buf = BytesMut::new();
+        buf.extend_from_slice(b"X-Trace: first\r\nX-Trace: second\r\n\r\n");
+
+        let headers = decode_trailers(&mut buf, 2).expect("decode_trailers");
+        let values = headers
+            .get_all("X-Trace")
+            .iter()
+            .map(|value| value.to_str().unwrap())
+            .collect::<Vec<_>>();
+
+        assert_eq!(values, ["first", "second"]);
     }
 
     #[tokio::test]
