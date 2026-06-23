@@ -2374,7 +2374,9 @@ async fn max_buf_size() {
         let mut buf = [0; 256];
         tcp.read(&mut buf).expect("read 1");
 
-        let expected = "HTTP/1.1 431 ";
+        // The request line overflows the buffer before it is even complete,
+        // so this is reported as `414 URI Too Long`, not `431`.
+        let expected = "HTTP/1.1 414 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
     });
 
@@ -2384,7 +2386,7 @@ async fn max_buf_size() {
         .max_buf_size(MAX)
         .serve_connection(socket, HelloWorld)
         .await
-        .expect_err("should TooLarge error");
+        .expect_err("should UriTooLong error");
 }
 
 #[cfg(feature = "http1")]

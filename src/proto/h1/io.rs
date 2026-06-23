@@ -202,6 +202,13 @@ where
                     let curr_len = self.read_buf.len();
                     if curr_len >= max {
                         debug!("max_buf_size ({}) reached, closing", max);
+                        // When parsing a request and the start-line (request
+                        // line) hasn't even finished, the overflow is caused by
+                        // an oversized URI rather than the header fields, so
+                        // report `414 URI Too Long` instead of `431`.
+                        if S::is_server() && !self.read_buf.contains(&b'\n') {
+                            return Poll::Ready(Err(crate::Error::new_uri_too_long()));
+                        }
                         return Poll::Ready(Err(crate::Error::new_too_large()));
                     }
                     if curr_len > 0 {
@@ -730,6 +737,95 @@ mod tests {
         assert_eq!(
             buffered.read_buf,
             b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]
+        );
+    }
+
+    #[cfg(not(miri))]
+    #[cfg(feature = "server")]
+    #[tokio::test]
+    async fn parse_overlong_uri_is_uri_too_long() {
+        use crate::proto::h1::ServerTransaction;
+
+        let _ = pretty_env_logger::try_init();
+
+        // A request line whose URI overflows `max_buf_size` before any line
+        // terminator is seen should be reported as `414 URI Too Long` rather
+        // than `431 Request Header Fields Too Large`.
+        let max = MINIMUM_MAX_BUFFER_SIZE;
+        let mut req = b"GET /".to_vec();
+        req.resize(max, b'a');
+
+        let mock = Mock::new().read(&req).build();
+
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
+        buffered.set_max_buf_size(max);
+
+        let err = futures_util::future::poll_fn(|cx| {
+            let parse_ctx = ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut None,
+                h1_parser_config: Default::default(),
+                h1_max_headers: None,
+                preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
+                h09_responses: false,
+                #[cfg(feature = "client")]
+                on_informational: &mut None,
+            };
+            buffered.parse::<ServerTransaction>(cx, parse_ctx)
+        })
+        .await
+        .expect_err("parse should fail");
+
+        assert!(
+            matches!(err.kind(), crate::error::Kind::Parse(crate::error::Parse::UriTooLong)),
+            "expected UriTooLong, got {:?}",
+            err,
+        );
+    }
+
+    #[cfg(not(miri))]
+    #[cfg(feature = "server")]
+    #[tokio::test]
+    async fn parse_overlong_headers_is_too_large() {
+        use crate::proto::h1::ServerTransaction;
+
+        let _ = pretty_env_logger::try_init();
+
+        // A complete request line followed by header fields that overflow
+        // `max_buf_size` should remain a `431` (`TooLarge`) error.
+        let max = MINIMUM_MAX_BUFFER_SIZE;
+        let mut req = b"GET / HTTP/1.1\r\nLong: ".to_vec();
+        req.resize(max, b'a');
+
+        let mock = Mock::new().read(&req).build();
+
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
+        buffered.set_max_buf_size(max);
+
+        let err = futures_util::future::poll_fn(|cx| {
+            let parse_ctx = ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut None,
+                h1_parser_config: Default::default(),
+                h1_max_headers: None,
+                preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
+                h09_responses: false,
+                #[cfg(feature = "client")]
+                on_informational: &mut None,
+            };
+            buffered.parse::<ServerTransaction>(cx, parse_ctx)
+        })
+        .await
+        .expect_err("parse should fail");
+
+        assert!(
+            matches!(err.kind(), crate::error::Kind::Parse(crate::error::Parse::TooLarge)),
+            "expected TooLarge, got {:?}",
+            err,
         );
     }
 
