@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782138135862,
+  "lastUpdate": 1782243172293,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12419,6 +12419,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 63502,
             "range": "± 17315.17",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "876effe10fd8f8ad4535ade1f84e88f199f2cf6b",
+          "message": "fix(http1): use append for repeat trailers (#4107)",
+          "timestamp": "2026-06-23T15:31:56-04:00",
+          "tree_id": "6fa55960dc3c38f027c4fd5293c351e4b74802be",
+          "url": "https://github.com/hyperium/hyper/commit/876effe10fd8f8ad4535ade1f84e88f199f2cf6b"
+        },
+        "date": 1782243168646,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44119,
+            "range": "± 6517.76",
             "unit": "ns/iter"
           }
         ]
