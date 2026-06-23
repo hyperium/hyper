@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782243172293,
+  "lastUpdate": 1782243196212,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12449,6 +12449,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44119,
             "range": "± 6517.76",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f584091ac096bd5dd478f73256188c3261a945b9",
+          "message": "fix(http1): allow up to max_headers trailers (#4108)",
+          "timestamp": "2026-06-23T15:32:08-04:00",
+          "tree_id": "e3f1e97d889968ac361d580d810dde63b010291d",
+          "url": "https://github.com/hyperium/hyper/commit/f584091ac096bd5dd478f73256188c3261a945b9"
+        },
+        "date": 1782243193028,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44407,
+            "range": "± 6637.86",
             "unit": "ns/iter"
           }
         ]
