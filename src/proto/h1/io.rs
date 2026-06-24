@@ -68,7 +68,7 @@ where
             io,
             partial_len: None,
             read_blocked: false,
-            read_buf: BytesMut::with_capacity(0),
+            read_buf: BytesMut::with_capacity(INIT_BUFFER_SIZE),
             read_buf_strategy: ReadStrategy::default(),
             write_buf,
         }
