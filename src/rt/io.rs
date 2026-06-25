@@ -382,6 +382,39 @@ impl ReadBufCursor<'_> {
         }
         self.buf.filled = end;
     }
+
+    /// Returns a mutable reference to the unfilled part of the buffer, ensuring it is fully initialized.
+    #[inline]
+    pub fn initialize_unfilled(&mut self) -> &mut [u8] {
+        self.initialize_unfilled_to(self.remaining())
+    }
+
+    /// Returns a mutable reference to the first `n` bytes of the unfilled part of the buffer, ensuring it is
+    /// fully initialized.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `self.remaining()` is less than `n`.
+    #[inline]
+    pub fn initialize_unfilled_to(&mut self, n: usize) -> &mut [u8] {
+        assert!(self.remaining() >= n, "n overflows remaining");
+
+        // This can't overflow as the assert above would have panicked otherwise.
+        let end = self.buf.filled + n;
+
+        if self.buf.init < end {
+            unsafe {
+                self.buf.raw[self.buf.init..end]
+                    .as_mut_ptr()
+                    .write_bytes(0, end - self.buf.init);
+            }
+            self.buf.init = end;
+        }
+
+        let slice = &mut self.buf.raw[self.buf.filled..end];
+
+        unsafe { &mut *(slice as *mut [MaybeUninit<u8>] as *mut [u8]) }
+    }
 }
 
 macro_rules! deref_async_read {
