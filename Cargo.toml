@@ -140,7 +140,6 @@ needless_continue = "allow"
 needless_pass_by_value = "allow"
 panic = "allow"
 pattern_type_mismatch = "allow"
-question_mark = "allow" # TODO: probably easy fix
 redundant_closure_for_method_calls = "allow"
 redundant_else = "allow"
 ref_patterns = "allow" # TODO: perhaps deny?
