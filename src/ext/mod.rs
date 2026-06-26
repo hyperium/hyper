@@ -35,8 +35,6 @@
 //!
 //! See the documentation on each item for details about its usage and requirements.
 
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-use bytes::Bytes;
 #[cfg(any(
     all(any(feature = "client", feature = "server"), feature = "http1"),
     feature = "ffi"
@@ -158,7 +156,7 @@ impl fmt::Debug for Protocol {
 /// [`preserve_header_case`]: /client/struct.Client.html#method.preserve_header_case
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 #[derive(Clone, Debug)]
-pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
+pub(crate) struct HeaderCaseMap(HeaderMap<String>);
 
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 impl HeaderCaseMap {
@@ -175,7 +173,7 @@ impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
     #[cfg(any(feature = "client", feature = "server"))]
-    pub(crate) fn get_all_internal(&self, name: &HeaderName) -> ValueIter<'_, Bytes> {
+    pub(crate) fn get_all_internal(&self, name: &HeaderName) -> ValueIter<'_, String> {
         self.0.get_all(name).into_iter()
     }
 
@@ -185,12 +183,12 @@ impl HeaderCaseMap {
     }
 
     #[cfg(any(test, feature = "ffi"))]
-    pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
+    pub(crate) fn insert(&mut self, name: HeaderName, orig: String) {
         self.0.insert(name, orig);
     }
 
     #[cfg(any(feature = "client", feature = "server"))]
-    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
+    pub(crate) fn append<N>(&mut self, name: N, orig: String)
     where
         N: IntoHeaderName,
     {
