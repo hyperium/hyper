@@ -51,13 +51,11 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
     for h in values {
         if let Ok(line) = h.to_str() {
             for v in line.split(',') {
-                if let Some(n) = from_digits(v.trim().as_bytes()) {
-                    if content_length.is_none() {
-                        content_length = Some(n);
-                    } else if content_length != Some(n) {
-                        return None;
-                    }
-                } else {
+                let n = from_digits(v.trim().as_bytes())?;
+
+                if content_length.is_none() {
+                    content_length = Some(n);
+                } else if content_length != Some(n) {
                     return None;
                 }
             }
