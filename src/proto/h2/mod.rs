@@ -27,7 +27,7 @@ cfg_server! {
 }
 
 /// Default initial stream window size defined in HTTP2 spec.
-pub(crate) const SPEC_WINDOW_SIZE: u32 = 65_535;
+pub(crate) const SPEC_WINDOW_SIZE: u32 = 0xFFFF; // 65,535
 
 // List of connection headers from RFC 9110 Section 7.6.1
 //
