@@ -1678,7 +1678,7 @@ mod tests {
             ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut method,
-                h1_parser_config: Default::default(),
+                h1_parser_config: &Default::default(),
                 h1_max_headers: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
@@ -1706,7 +1706,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1730,7 +1730,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut None,
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1751,7 +1751,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1774,7 +1774,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1801,7 +1801,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
-            h1_parser_config,
+            h1_parser_config: &h1_parser_config,
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1825,7 +1825,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut Some(crate::Method::GET),
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1853,7 +1853,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut method,
-            h1_parser_config,
+            h1_parser_config: &h1_parser_config,
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1880,7 +1880,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut None,
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
@@ -1900,7 +1900,7 @@ mod tests {
         let ctx = ParseContext {
             cached_headers: &mut None,
             req_method: &mut None,
-            h1_parser_config: Default::default(),
+            h1_parser_config: &Default::default(),
             h1_max_headers: None,
             preserve_header_case: true,
             #[cfg(feature = "ffi")]
@@ -1939,7 +1939,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut None,
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
@@ -1960,7 +1960,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut None,
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
@@ -2190,7 +2190,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
@@ -2211,7 +2211,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(m),
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
@@ -2232,7 +2232,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut None,
                     req_method: &mut Some(Method::GET),
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
@@ -2802,7 +2802,7 @@ mod tests {
             ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut Some(Method::GET),
-                h1_parser_config: Default::default(),
+                h1_parser_config: &Default::default(),
                 h1_max_headers: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
@@ -2846,7 +2846,7 @@ mod tests {
                     ParseContext {
                         cached_headers: &mut None,
                         req_method: &mut None,
-                        h1_parser_config: Default::default(),
+                        h1_parser_config: &Default::default(),
                         h1_max_headers: max_headers,
                         preserve_header_case: false,
                         #[cfg(feature = "ffi")]
@@ -2870,7 +2870,7 @@ mod tests {
                     ParseContext {
                         cached_headers: &mut None,
                         req_method: &mut None,
-                        h1_parser_config: Default::default(),
+                        h1_parser_config: &Default::default(),
                         h1_max_headers: max_headers,
                         preserve_header_case: false,
                         #[cfg(feature = "ffi")]
@@ -3039,7 +3039,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut headers,
                     req_method: &mut None,
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
@@ -3084,7 +3084,7 @@ mod tests {
                 ParseContext {
                     cached_headers: &mut headers,
                     req_method: &mut None,
-                    h1_parser_config: Default::default(),
+                    h1_parser_config: &Default::default(),
                     h1_max_headers: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
