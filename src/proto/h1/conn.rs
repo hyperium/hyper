@@ -208,6 +208,7 @@ where
         read_buf.len() >= 24 && read_buf[..24] == *H2_PREFACE
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     pub(super) fn poll_read_head(
         &mut self,
         cx: &mut Context<'_>,

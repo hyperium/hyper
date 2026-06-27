@@ -123,6 +123,7 @@ where
 
     /// Return the "allocated" available space, not the potential space
     /// that could be allocated in the future.
+    #[allow(clippy::arithmetic_side_effects)]
     fn read_buf_remaining_mut(&self) -> usize {
         self.read_buf.capacity() - self.read_buf.len()
     }
@@ -153,6 +154,7 @@ where
         self.flush_pipeline || self.write_buf.can_buffer()
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     pub(crate) fn consume_leading_lines(&mut self) {
         if !self.read_buf.is_empty() {
             let mut i = 0;
@@ -432,6 +434,7 @@ fn incr_power_of_two(n: usize) -> usize {
     n.saturating_mul(2)
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn prev_power_of_two(n: usize) -> usize {
     // Only way this shift can underflow is if n is less than 4.
     // (Which would means `usize::MAX >> 64` and underflowed!)
@@ -462,6 +465,7 @@ impl Cursor<Vec<u8>> {
     /// If we've advanced the position a bit in this cursor, and wish to
     /// extend the underlying vector, we may wish to unshift the "read" bytes
     /// off, and move everything else over.
+    #[allow(clippy::arithmetic_side_effects)]
     fn maybe_unshift(&mut self, additional: usize) {
         if self.pos == 0 {
             // nothing to do
@@ -494,6 +498,7 @@ impl<T: AsRef<[u8]>> fmt::Debug for Cursor<T> {
 
 impl<T: AsRef<[u8]>> Buf for Cursor<T> {
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn remaining(&self) -> usize {
         self.bytes.as_ref().len() - self.pos
     }
@@ -504,6 +509,7 @@ impl<T: AsRef<[u8]>> Buf for Cursor<T> {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn advance(&mut self, cnt: usize) {
         debug_assert!(self.pos + cnt <= self.bytes.as_ref().len());
         self.pos += cnt;
@@ -602,6 +608,7 @@ impl<B: Buf> fmt::Debug for WriteBuf<B> {
 
 impl<B: Buf> Buf for WriteBuf<B> {
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn remaining(&self) -> usize {
         self.headers.remaining() + self.queue.remaining()
     }
@@ -617,6 +624,7 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn advance(&mut self, cnt: usize) {
         let hrem = self.headers.remaining();
 
@@ -632,6 +640,7 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         let n = self.headers.chunks_vectored(dst);
         self.queue.chunks_vectored(&mut dst[n..]) + n

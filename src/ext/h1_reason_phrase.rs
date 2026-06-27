@@ -157,6 +157,7 @@ const fn is_valid_byte(b: u8) -> bool {
     b == b'\t' || b == b' ' || is_vchar(b) || is_obs_text(b)
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 const fn find_invalid_byte(bytes: &[u8]) -> Option<u8> {
     let mut i = 0;
     while i < bytes.len() {

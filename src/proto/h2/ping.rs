@@ -213,7 +213,7 @@ impl Recorder {
         }
 
         if let Some(ref mut bytes) = locked.bytes {
-            *bytes += len;
+            *bytes = bytes.saturating_add(len);
         } else {
             // no need to send bdp ping if bdp is disabled
             return;
@@ -284,7 +284,8 @@ impl Ponger {
                     .ping_sent_at
                     .expect("pong received implies ping_sent_at");
                 locked.ping_sent_at = None;
-                let rtt = now - start;
+
+                let rtt = now.saturating_duration_since(start);
                 trace!("recv pong");
 
                 if let Some(ref mut ka) = self.keep_alive {
@@ -299,7 +300,8 @@ impl Ponger {
                     trace!("received BDP ack; bytes = {}, rtt = {:?}", bytes, rtt);
 
                     let update = bdp.calculate(bytes, rtt);
-                    locked.next_bdp_at = Some(now + bdp.ping_delay);
+                    // if we saturate, we don't have any Instant to check for next BDP
+                    locked.next_bdp_at = now.checked_add(bdp.ping_delay);
                     if let Some(update) = update {
                         return Poll::Ready(Ponged::SizeUpdate(update));
                     }
@@ -395,12 +397,12 @@ impl Bdp {
 
         // if the current `bytes` sample is at least 2/3 the previous
         // bdp, increase to double the current sample.
-        if bytes >= self.bdp as usize * 2 / 3 {
-            self.bdp = (bytes * 2).min(BDP_LIMIT) as WindowSize;
+        if bytes >= (self.bdp as usize).saturating_mul(2) / 3 {
+            self.bdp = (bytes.saturating_mul(2)).min(BDP_LIMIT) as WindowSize;
             trace!("BDP increased to {}", self.bdp);
 
             self.stable_count = 0;
-            self.ping_delay /= 2;
+            self.reduce_ping_delay();
             Some(self.bdp)
         } else {
             self.stabilize_delay();
@@ -408,12 +410,18 @@ impl Bdp {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
+    #[inline]
+    fn reduce_ping_delay(&mut self) {
+        self.ping_delay /= 2;
+    }
+
     fn stabilize_delay(&mut self) {
         if self.ping_delay < Duration::from_secs(10) {
-            self.stable_count += 1;
+            self.stable_count = self.stable_count.saturating_add(1);
 
             if self.stable_count >= 2 {
-                self.ping_delay *= 4;
+                self.ping_delay = self.ping_delay.saturating_mul(4);
                 self.stable_count = 0;
             }
         }
@@ -448,12 +456,14 @@ impl KeepAlive {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn schedule(&mut self, shared: &Shared) {
         let interval = shared.last_read_at() + self.interval;
         self.state = KeepAliveState::Scheduled(interval);
         self.timer.reset(&mut self.sleep, interval);
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn maybe_ping(&mut self, cx: &mut task::Context<'_>, is_idle: bool, shared: &mut Shared) {
         match self.state {
             KeepAliveState::Scheduled(at) => {

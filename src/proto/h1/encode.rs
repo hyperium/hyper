@@ -125,6 +125,7 @@ impl Encoder {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     pub(crate) fn encode<B>(&mut self, msg: B) -> EncodedBuf<B>
     where
         B: Buf,
@@ -359,6 +360,7 @@ impl ChunkSize {
 
 impl Buf for ChunkSize {
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn remaining(&self) -> usize {
         (self.len - self.pos).into()
     }
@@ -369,6 +371,7 @@ impl Buf for ChunkSize {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn advance(&mut self, cnt: usize) {
         assert!(cnt <= self.remaining());
         self.pos += cnt as u8; // just asserted cnt fits in u8
@@ -385,6 +388,7 @@ impl fmt::Debug for ChunkSize {
 }
 
 impl fmt::Write for ChunkSize {
+    #[allow(clippy::arithmetic_side_effects)]
     fn write_str(&mut self, num: &str) -> fmt::Result {
         use std::io::Write;
         (&mut self.bytes[self.len.into()..])
