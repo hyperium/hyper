@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782749289764,
+  "lastUpdate": 1782749291310,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -63739,6 +63739,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5320255,
             "range": "± 160137.09",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "m.hirakawa07@icloud.com",
+            "name": "greymoth",
+            "username": "greymoth-jp"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "de1483d7db70477cc8799a344634ae6ee020a7db",
+          "message": "fix(http1): use append for repeat trailer values in encoder (#4118)\n\nThe chunked trailer encoder built allowed_trailers with HeaderMap::insert,\nwhich overwrites prior values for the same name. When a user sets the same\ntrailer field multiple times, only the last value was written to the wire.\n\nThis mirrors the decode-side fix (#4107): use append so duplicate trailer\nvalues are preserved on encode, matching how regular headers are emitted.",
+          "timestamp": "2026-06-29T12:05:21-04:00",
+          "tree_id": "f6acec8a3bd7d590684c210a209843cfbe71f6c4",
+          "url": "https://github.com/hyperium/hyper/commit/de1483d7db70477cc8799a344634ae6ee020a7db"
+        },
+        "date": 1782749288655,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 61898,
+            "range": "± 1858.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4088754,
+            "range": "± 71889.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22671,
+            "range": "± 205.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23849,
+            "range": "± 480.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 28379,
+            "range": "± 290.53",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 90497,
+            "range": "± 1218.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999974,
+            "range": "± 2633.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 77526,
+            "range": "± 1315.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 8169799,
+            "range": "± 188864.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8011095,
+            "range": "± 14726492.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7880352,
+            "range": "± 86926.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 54767542,
+            "range": "± 520965.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 54893608,
+            "range": "± 576257.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5619393,
+            "range": "± 85869.04",
             "unit": "ns/iter"
           }
         ]
