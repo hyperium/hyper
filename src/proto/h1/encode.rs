@@ -181,7 +181,7 @@ impl Encoder {
 
                     if allowed_set.contains(name) {
                         if is_valid_trailer_field(name) {
-                            allowed_trailers.insert(name, value);
+                            allowed_trailers.append(name, value);
                         } else {
                             debug!("trailer field is not valid: {}", &name);
                         }
@@ -564,6 +564,32 @@ mod tests {
         assert_eq!(
             dst,
             b"0\r\nchunky-trailer: header data\r\nchunky-trailer-2: more header data\r\n\r\n"
+        );
+    }
+
+    #[test]
+    fn chunked_with_duplicate_trailer_values() {
+        let encoder = Encoder::chunked();
+        let trailers = vec![HeaderName::from_static("chunky-trailer")];
+        let encoder = encoder.into_chunked_with_trailing_fields(trailers);
+
+        let mut headers = HeaderMap::new();
+        headers.append(
+            HeaderName::from_static("chunky-trailer"),
+            HeaderValue::from_static("first"),
+        );
+        headers.append(
+            HeaderName::from_static("chunky-trailer"),
+            HeaderValue::from_static("second"),
+        );
+
+        let buf1 = encoder.encode_trailers::<&[u8]>(headers, false).unwrap();
+
+        let mut dst = Vec::new();
+        dst.put(buf1);
+        assert_eq!(
+            dst,
+            b"0\r\nchunky-trailer: first\r\nchunky-trailer: second\r\n\r\n"
         );
     }
 
