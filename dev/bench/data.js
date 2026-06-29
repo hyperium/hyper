@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782439577987,
+  "lastUpdate": 1782749171338,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12539,6 +12539,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44431,
             "range": "± 6128.45",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "m.hirakawa07@icloud.com",
+            "name": "greymoth",
+            "username": "greymoth-jp"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "de1483d7db70477cc8799a344634ae6ee020a7db",
+          "message": "fix(http1): use append for repeat trailer values in encoder (#4118)\n\nThe chunked trailer encoder built allowed_trailers with HeaderMap::insert,\nwhich overwrites prior values for the same name. When a user sets the same\ntrailer field multiple times, only the last value was written to the wire.\n\nThis mirrors the decode-side fix (#4107): use append so duplicate trailer\nvalues are preserved on encode, matching how regular headers are emitted.",
+          "timestamp": "2026-06-29T12:05:21-04:00",
+          "tree_id": "f6acec8a3bd7d590684c210a209843cfbe71f6c4",
+          "url": "https://github.com/hyperium/hyper/commit/de1483d7db70477cc8799a344634ae6ee020a7db"
+        },
+        "date": 1782749168701,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 53418,
+            "range": "± 6774.61",
             "unit": "ns/iter"
           }
         ]
