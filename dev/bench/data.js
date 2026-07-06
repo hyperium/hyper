@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1782749425949,
+  "lastUpdate": 1783353254702,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12599,6 +12599,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 38458,
             "range": "± 5621.87",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2fc06fc7724e2b684c2658327f0721fd3bfa57d9",
+          "message": "docs(governance): define Advisor role (#4098)\n\nA way for busy experts to still contribute advice when needed.",
+          "timestamp": "2026-07-06T11:53:21-04:00",
+          "tree_id": "4c6a89be9499d77c6e4c7e16c6cca0fab6cda1a8",
+          "url": "https://github.com/hyperium/hyper/commit/2fc06fc7724e2b684c2658327f0721fd3bfa57d9"
+        },
+        "date": 1783353250895,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 63307,
+            "range": "± 13722.49",
             "unit": "ns/iter"
           }
         ]
