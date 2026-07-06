@@ -11,26 +11,26 @@ To see what these roles do, and how to become one, look at [GOVERNANCE](./GOVERN
 
 - Sean McArthur (@seanmonstar)
 - Steven Fackler (@sfackler)
-- Oliver Gould (@olix0r)
-- Eliza Weisman (@hawkw)
-- Lucio Franco (@LucioFranco)
-- Anthony Ramine (@nox)
-- David Pedersen (@davidpdrsn)
-- Adam Foltzer (@acfoltzer)
-- Noah Kennedy (@Noah-Kennedy)
 - dswij (@dswij)
 - tottoto (@tottoto)
 - katelyn martin (@cratelyn)
-
-<details>
-<summary>Emeriti</summary>
 
 ### Collaborator emeriti
 
 - Jonathan Reem (@reem)
 - Carl Lerche (@carllerche)
+- Oliver Gould (@olix0r)
+- Eliza Weisman (@hawkw)
+- Lucio Franco (@LucioFranco)
+- Adam Foltzer (@acfoltzer)
+- David Pedersen (@davidpdrsn)
+- Anthony Ramine (@nox)
+- Noah Kennedy (@Noah-Kennedy)
 
-</details>
+## Advisors
+
+- Oliver Gould (@olix0r)
+- Adam Foltzer (@acfoltzer)
 
 ## Maintainers
 
