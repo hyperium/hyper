@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783359197947,
+  "lastUpdate": 1783437323625,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12659,6 +12659,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 51131,
             "range": "± 9404.92",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "satsyndicate@gmail.com",
+            "name": "Abhinav",
+            "username": "abh1nav10"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ccc1e850dc0cda3e71b0acd11f60ca3d48d09034",
+          "message": "feat(rt): add `ReadBufCursor::initialized_unfilled()` method (#4115)",
+          "timestamp": "2026-07-07T11:14:34-04:00",
+          "tree_id": "e98bf4ecc89b6bea4dfbc7899fe44c484b712cf7",
+          "url": "https://github.com/hyperium/hyper/commit/ccc1e850dc0cda3e71b0acd11f60ca3d48d09034"
+        },
+        "date": 1783437319960,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 58767,
+            "range": "± 10781.24",
             "unit": "ns/iter"
           }
         ]
