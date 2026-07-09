@@ -512,7 +512,7 @@ impl<T: AsRef<[u8]>> Buf for Cursor<T> {
 
 // an internal buffer to collect writes before flushes
 pub(super) struct WriteBuf<B> {
-    /// Re-usable buffer that holds message headers.
+    /// Reusable buffer that holds message headers.
     headers: Cursor<Vec<u8>>,
     max_buf_size: usize,
     /// Deque of user buffers if strategy is `Queue`.
