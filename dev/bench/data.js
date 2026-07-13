@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1783437479791,
+  "lastUpdate": 1783954644444,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12689,6 +12689,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 58767,
             "range": "± 10781.24",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "540fff9180ce47ee5fab01b6cc2126eb6c286eda",
+          "message": "fix(http1): discard content-length header when received before transfer-encoding (#4124)\n\nWhile hyper currently recognizes the correct message payload semantics when both\ncontent-length and transfer-encoding headers are sent, there are cases where it\ndoesn't always strip the canceled content-length header.\n\nThis fix now correctly removes the header if it was seen before transfer-encoding.\n\nIt also now sets the connection to close at the end of the message, as\nrecommended in the new RFC 9112.\n\n(To be clear, the semantics have always been correct. This reduces the possibility\nof forwarding confusing headers to a remote that doesn't know how to act correctly.)\n\nCloses #4123",
+          "timestamp": "2026-07-13T10:56:37-04:00",
+          "tree_id": "7037d03b04b98215b2d6e7094dcb9de5c5bdc13f",
+          "url": "https://github.com/hyperium/hyper/commit/540fff9180ce47ee5fab01b6cc2126eb6c286eda"
+        },
+        "date": 1783954641128,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 34686,
+            "range": "± 2955.98",
             "unit": "ns/iter"
           }
         ]
