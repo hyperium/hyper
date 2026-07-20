@@ -9,7 +9,7 @@ use bytes::{Buf, BufMut, Bytes, BytesMut};
 use futures_core::ready;
 
 use super::{Http1Transaction, ParseContext, ParsedMessage};
-use crate::common::buf::BufList;
+use crate::common::buf::{BufList, VectoredBuf};
 
 /// The initial buffer size allocated before trying to read from IO.
 pub(crate) const INIT_BUFFER_SIZE: usize = 8192;
@@ -263,7 +263,10 @@ where
         self.read_blocked
     }
 
-    pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_flush(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>>
+    where
+        B: VectoredBuf,
+    {
         if self.flush_pipeline && !self.read_buf.is_empty() {
             Poll::Ready(Ok(()))
         } else if self.write_buf.remaining() == 0 {
@@ -277,7 +280,7 @@ where
             loop {
                 let n = {
                     let mut iovs = [IoSlice::new(&[]); MAX_WRITEV_BUFS];
-                    let len = self.write_buf.chunks_vectored(&mut iovs);
+                    let (len, _) = self.write_buf.chunks_vectored_prefix(&mut iovs);
                     ready!(Pin::new(&mut self.io).poll_write_vectored(cx, &iovs[..len]))?
                 };
                 // TODO(eliza): we have to do this manually because
@@ -322,13 +325,19 @@ where
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
-    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+    pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>>
+    where
+        B: VectoredBuf,
+    {
         ready!(self.poll_flush(cx))?;
         Pin::new(&mut self.io).poll_shutdown(cx)
     }
 
     #[cfg(test)]
-    fn flush(&mut self) -> impl std::future::Future<Output = io::Result<()>> + '_ {
+    fn flush(&mut self) -> impl std::future::Future<Output = io::Result<()>> + '_
+    where
+        B: VectoredBuf,
+    {
         futures_util::future::poll_fn(move |cx| self.poll_flush(cx))
     }
 }
@@ -510,6 +519,8 @@ impl<T: AsRef<[u8]>> Buf for Cursor<T> {
     }
 }
 
+impl<T: AsRef<[u8]>> VectoredBuf for Cursor<T> {}
+
 // an internal buffer to collect writes before flushes
 pub(super) struct WriteBuf<B> {
     /// Re-usable buffer that holds message headers.
@@ -630,11 +641,18 @@ impl<B: Buf> Buf for WriteBuf<B> {
             }
         }
     }
+}
 
+impl<B: VectoredBuf> VectoredBuf for WriteBuf<B> {
     #[inline]
-    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
-        let n = self.headers.chunks_vectored(dst);
-        self.queue.chunks_vectored(&mut dst[n..]) + n
+    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+        let (headers, complete) = self.headers.chunks_vectored_prefix(dst);
+        if !complete {
+            return (headers, false);
+        }
+
+        let (queued, complete) = self.queue.chunks_vectored_prefix(&mut dst[headers..]);
+        (headers + queued, complete)
     }
 }
 
@@ -648,9 +666,96 @@ enum WriteStrategy {
 mod tests {
     use super::*;
     use crate::common::io::Compat;
+    use crate::proto::h1::encode::{EncodedBuf, Encoder};
+    use crate::rt::ReadBufCursor;
     use std::time::Duration;
 
     use tokio_test::io::Builder as Mock;
+
+    #[derive(Default)]
+    struct RecordingIo {
+        bytes: Vec<u8>,
+        max_write: Option<usize>,
+        vectored_writes: Vec<Vec<Vec<u8>>>,
+    }
+
+    impl Read for RecordingIo {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            _buf: ReadBufCursor<'_>,
+        ) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    impl Write for RecordingIo {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            let this = self.get_mut();
+            let len = this.max_write.unwrap_or(buf.len()).min(buf.len());
+            this.bytes.extend_from_slice(&buf[..len]);
+            Poll::Ready(Ok(len))
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn is_write_vectored(&self) -> bool {
+            true
+        }
+
+        fn poll_write_vectored(
+            self: Pin<&mut Self>,
+            _cx: &mut Context<'_>,
+            bufs: &[IoSlice<'_>],
+        ) -> Poll<io::Result<usize>> {
+            let this = self.get_mut();
+            this.vectored_writes
+                .push(bufs.iter().map(|buf| buf.to_vec()).collect());
+
+            let offered = bufs.iter().map(|buf| buf.len()).sum();
+            let mut remaining = this.max_write.unwrap_or(offered).min(offered);
+            let written = remaining;
+            for buf in bufs {
+                let len = remaining.min(buf.len());
+                this.bytes.extend_from_slice(&buf[..len]);
+                remaining -= len;
+                if remaining == 0 {
+                    break;
+                }
+            }
+            Poll::Ready(Ok(written))
+        }
+    }
+
+    struct OneByteAtATime {
+        data: &'static [u8],
+        pos: usize,
+    }
+
+    impl Buf for OneByteAtATime {
+        fn remaining(&self) -> usize {
+            self.data.len() - self.pos
+        }
+
+        fn chunk(&self) -> &[u8] {
+            let end = std::cmp::min(self.pos + 1, self.data.len());
+            &self.data[self.pos..end]
+        }
+
+        fn advance(&mut self, cnt: usize) {
+            self.pos += cnt;
+        }
+    }
 
     // #[cfg(feature = "nightly")]
     // use test::Bencher;
@@ -887,6 +992,59 @@ mod tests {
         assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
 
         buffered.flush().await.expect("flush");
+    }
+
+    #[tokio::test]
+    async fn write_buf_queue_preserves_nested_body_order() {
+        let io = RecordingIo {
+            max_write: Some(2),
+            ..RecordingIo::default()
+        };
+        let mut buffered =
+            Buffered::<_, EncodedBuf<bytes::buf::Chain<OneByteAtATime, Bytes>>>::new(io);
+        let mut encoder = Encoder::chunked();
+        let first = OneByteAtATime {
+            data: b"abc",
+            pos: 0,
+        }
+        .chain(Bytes::from_static(b"xyz"));
+        let second = OneByteAtATime {
+            data: b"def",
+            pos: 0,
+        }
+        .chain(Bytes::from_static(b"uvw"));
+
+        buffered.buffer(encoder.encode(first));
+        buffered.buffer(encoder.encode(second));
+        buffered.flush().await.expect("flush");
+
+        assert_eq!(buffered.io.bytes, b"6\r\nabcxyz\r\n6\r\ndefuvw\r\n");
+        assert!(buffered.io.vectored_writes.len() > 1);
+    }
+
+    #[tokio::test]
+    async fn write_buf_queue_batches_bytes_frames() {
+        let mut buffered = Buffered::<_, EncodedBuf<Bytes>>::new(RecordingIo::default());
+        let mut encoder = Encoder::chunked();
+
+        buffered.headers_buf().extend_from_slice(b"headers");
+        buffered.buffer(encoder.encode(Bytes::from_static(b"foo")));
+        buffered.buffer(encoder.encode(Bytes::from_static(b"bar")));
+        buffered.flush().await.expect("flush");
+
+        assert_eq!(buffered.io.bytes, b"headers3\r\nfoo\r\n3\r\nbar\r\n");
+        assert_eq!(
+            buffered.io.vectored_writes,
+            [vec![
+                b"headers".to_vec(),
+                b"3\r\n".to_vec(),
+                b"foo".to_vec(),
+                b"\r\n".to_vec(),
+                b"3\r\n".to_vec(),
+                b"bar".to_vec(),
+                b"\r\n".to_vec(),
+            ]]
+        );
     }
 
     #[test]

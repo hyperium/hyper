@@ -1,6 +1,6 @@
 use std::error::Error as StdError;
 use std::future::Future;
-use std::io::{Cursor, IoSlice};
+use std::io::Cursor;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
@@ -282,6 +282,9 @@ enum SendBuf<B> {
     None,
 }
 
+// Intentionally use `Buf`'s single-chunk `chunks_vectored` default. Forwarding
+// to `B::chunks_vectored` could expose non-contiguous user data to h2's framing
+// buffer when `B::chunk()` is only a partial prefix.
 impl<B: Buf> Buf for SendBuf<B> {
     #[inline]
     fn remaining(&self) -> usize {
@@ -309,12 +312,72 @@ impl<B: Buf> Buf for SendBuf<B> {
             Self::None => {}
         }
     }
+}
 
-    fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
-        match *self {
-            Self::Buf(ref b) => b.chunks_vectored(dst),
-            Self::Cursor(ref c) => c.chunks_vectored(dst),
-            Self::None => 0,
+#[cfg(test)]
+mod tests {
+    use std::io::IoSlice;
+
+    use bytes::{Buf, Bytes};
+
+    use super::SendBuf;
+
+    struct OneByteAtATime {
+        data: &'static [u8],
+        pos: usize,
+    }
+
+    impl Buf for OneByteAtATime {
+        fn remaining(&self) -> usize {
+            self.data.len() - self.pos
         }
+
+        fn chunk(&self) -> &[u8] {
+            let end = std::cmp::min(self.pos + 1, self.data.len());
+            &self.data[self.pos..end]
+        }
+
+        fn advance(&mut self, cnt: usize) {
+            self.pos += cnt;
+        }
+    }
+
+    fn drain_vectored(mut buf: impl Buf) -> Vec<u8> {
+        let mut out = Vec::new();
+        while buf.has_remaining() {
+            let mut iovs = [IoSlice::new(&[]); 8];
+            let n = buf.chunks_vectored(&mut iovs);
+            assert!(n > 0, "chunks_vectored returned 0 while bytes remain");
+            let mut wrote = 0;
+            for iov in &iovs[..n] {
+                out.extend_from_slice(iov);
+                wrote += iov.len();
+            }
+            buf.advance(wrote);
+        }
+        out
+    }
+
+    #[test]
+    fn send_buf_vectored_is_contiguous_prefix() {
+        let body = OneByteAtATime {
+            data: b"abc",
+            pos: 0,
+        }
+        .chain(Bytes::from_static(b"XYZ"));
+        assert_eq!(drain_vectored(SendBuf::Buf(body)), b"abcXYZ");
+    }
+
+    #[test]
+    fn send_buf_bytes_stays_vectored_with_framing() {
+        let buf =
+            Bytes::from_static(b"frame header").chain(SendBuf::Buf(Bytes::from_static(b"hello")));
+        let mut iovs = [IoSlice::new(&[]); 2];
+
+        let n = buf.chunks_vectored(&mut iovs);
+
+        assert_eq!(n, 2);
+        assert_eq!(&*iovs[0], b"frame header");
+        assert_eq!(&*iovs[1], b"hello");
     }
 }
