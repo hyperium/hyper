@@ -1,3 +1,23 @@
+## v1.11.0 (2026-07-20)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * discard content-length header when received before transfer-encoding (#4124) ([540fff91](https://github.com/hyperium/hyper/commit/540fff9180ce47ee5fab01b6cc2126eb6c286eda), closes [#4123](https://github.com/hyperium/hyper/issues/4123))
+  * use append for repeat trailer values in encoder (#4118) ([de1483d7](https://github.com/hyperium/hyper/commit/de1483d7db70477cc8799a344634ae6ee020a7db))
+  * allow up to max_headers trailers (#4108) ([f584091a](https://github.com/hyperium/hyper/commit/f584091ac096bd5dd478f73256188c3261a945b9))
+  * use append for repeat trailers (#4107) ([876effe1](https://github.com/hyperium/hyper/commit/876effe10fd8f8ad4535ade1f84e88f199f2cf6b))
+  * flush buffered data before shutdown (#4018) ([72046cc7](https://github.com/hyperium/hyper/commit/72046cc72e7aa82c439eed00850b8b1ad3f7e4dc), closes [#4022](https://github.com/hyperium/hyper/issues/4022))
+  * more strictly enforce max_buf_size when parsing (#4093) ([90ede307](https://github.com/hyperium/hyper/commit/90ede307470dba98b4e184ad88d6f5aae8b0afd7), closes [#4081](https://github.com/hyperium/hyper/issues/4081))
+* **http2:** avoid buffering `Upgraded` writes without send capacity (#4102) ([aecf5abf](https://github.com/hyperium/hyper/commit/aecf5abfbc3dc95f21ac1538db1aa3f690fa6ab6))
+
+
+#### Features
+
+* **rt:** add `ReadBufCursor::initialized_unfilled()` method (#4115) ([ccc1e850](https://github.com/hyperium/hyper/commit/ccc1e850dc0cda3e71b0acd11f60ca3d48d09034))
+
+
 ### v1.10.1 (2026-05-29)
 
 
