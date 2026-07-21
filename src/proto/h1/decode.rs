@@ -141,6 +141,7 @@ impl Decoder {
         )
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     pub(crate) fn decode<R: MemRead>(
         &mut self,
         cx: &mut Context<'_>,
@@ -339,6 +340,7 @@ impl ChunkedState {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn read_start<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
@@ -371,6 +373,7 @@ impl ChunkedState {
         Poll::Ready(Ok(ChunkedState::Size))
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn read_size<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
@@ -420,6 +423,7 @@ impl ChunkedState {
             ))),
         }
     }
+    #[allow(clippy::arithmetic_side_effects)]
     fn read_extension<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
@@ -473,6 +477,7 @@ impl ChunkedState {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn read_body<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,
@@ -548,6 +553,7 @@ impl ChunkedState {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn read_trailer_lf<R: MemRead>(
         cx: &mut Context<'_>,
         rdr: &mut R,

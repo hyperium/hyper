@@ -67,6 +67,7 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
     content_length
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn from_digits(bytes: &[u8]) -> Option<u64> {
     // cannot use FromStr for u64, since it allows a signed prefix
     let mut result = 0u64;
@@ -137,6 +138,7 @@ pub(super) fn is_chunked_(value: &HeaderValue) -> bool {
 }
 
 #[cfg(all(feature = "client", feature = "http1"))]
+#[allow(clippy::arithmetic_side_effects)]
 pub(super) fn add_chunked(mut entry: http::header::OccupiedEntry<'_, HeaderValue>) {
     const CHUNKED: &str = "chunked";
 
