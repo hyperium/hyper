@@ -372,6 +372,11 @@ impl Error {
         Error::new(Kind::Parse(Parse::TooLarge))
     }
 
+    #[cfg(all(feature = "server", feature = "http1"))]
+    pub(super) fn new_uri_too_long() -> Error {
+        Error::new(Kind::Parse(Parse::UriTooLong))
+    }
+
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(super) fn new_version_h2() -> Error {
         Error::new(Kind::Parse(Parse::VersionH2))
