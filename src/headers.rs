@@ -68,30 +68,14 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
 }
 
 fn from_digits(bytes: &[u8]) -> Option<u64> {
-    // cannot use FromStr for u64, since it allows a signed prefix
-    let mut result = 0u64;
-    const RADIX: u64 = 10;
-
     if bytes.is_empty() {
         return None;
     }
 
-    for &b in bytes {
-        // can't use char::to_digit, since we haven't verified these bytes
-        // are utf-8.
-        match b {
-            b'0'..=b'9' => {
-                result = result.checked_mul(RADIX)?;
-                result = result.checked_add(u64::from(b - b'0'))?;
-            }
-            _ => {
-                // not a DIGIT, get outta here!
-                return None;
-            }
-        }
-    }
-
-    Some(result)
+    bytes.iter().try_fold(0u64, |acc, &b| match b {
+        b'0'..=b'9' => acc.checked_mul(10)?.checked_add(u64::from(b - b'0')),
+        _ => None,
+    })
 }
 
 #[cfg(all(feature = "http2", feature = "client"))]
