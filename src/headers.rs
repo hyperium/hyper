@@ -73,9 +73,7 @@ fn from_digits(bytes: &[u8]) -> Option<u64> {
     }
 
     bytes.iter().try_fold(0u64, |acc, &b| match b {
-        b'0'..=b'9' => acc
-            .checked_mul(10)?
-            .checked_add(u64::from(b - b'0')),
+        b'0'..=b'9' => acc.checked_mul(10)?.checked_add(u64::from(b - b'0')),
         _ => None,
     })
 }
