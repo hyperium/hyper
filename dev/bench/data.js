@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785273587076,
+  "lastUpdate": 1785278838217,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12779,6 +12779,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 64457,
             "range": "± 16119.47",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "116a9dfec5e38bd77993dac9b61520a29d002321",
+          "message": "test(http1): rewrite disabled old 0.1-futures conn tests (#4138)",
+          "timestamp": "2026-07-28T18:46:30-04:00",
+          "tree_id": "023a60b4f228d5696c22fa224152139fb732a936",
+          "url": "https://github.com/hyperium/hyper/commit/116a9dfec5e38bd77993dac9b61520a29d002321"
+        },
+        "date": 1785278835265,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46804,
+            "range": "± 5547.89",
             "unit": "ns/iter"
           }
         ]
