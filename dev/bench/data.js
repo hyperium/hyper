@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1784555745932,
+  "lastUpdate": 1785273440563,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12749,6 +12749,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 49601,
             "range": "± 6211.83",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "slandfried@bignerdranch.com",
+            "name": "Sam Landfried",
+            "username": "samlandfried"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "da19be08f34d3da01c4c0f9cfe2837e7d377f73d",
+          "message": "fix(http1): evict pooled conn on request-side Connection: close (#4110)\n\nhyper's client derives connection reuse from the response alone, so a\nrequest carrying `Connection: close` whose backend response omits it\n(keeps the socket alive) leaves the connection pooled and reusable.\nDisable keep-alive at request-encode time when the outgoing request\ncarries a `Connection: close` token so the connection is evicted\nregardless of the response.\n\nEvery `Connection` header line is inspected via a `connection_any_close`\nhelper (over `get_all`), not just the first, so a `close` on a later\nline or within a comma-separated value is honored.\n\nAdds a conn-level regression test (client Conn + write_head) asserting a\n`Connection: close` request disables keep-alive -- including\ncomma-separated and multi-line forms -- while a keep-alive request stays\nreusable.\n\nCo-authored-by: Sam Landfried <samlland@amazon.com>",
+          "timestamp": "2026-07-28T17:16:32-04:00",
+          "tree_id": "1fe8379d6916785651649cc180717c25ff74ed90",
+          "url": "https://github.com/hyperium/hyper/commit/da19be08f34d3da01c4c0f9cfe2837e7d377f73d"
+        },
+        "date": 1785273437894,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 64457,
+            "range": "± 16119.47",
             "unit": "ns/iter"
           }
         ]
