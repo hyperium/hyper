@@ -613,6 +613,15 @@ where
 
         if !T::should_read_first() {
             self.state.busy();
+            // A client request carrying `Connection: close` must not be pooled or
+            // reused. hyper otherwise derives connection reuse from the response
+            // alone, so a backend that ignores the request-side close (omits
+            // `Connection: close` in its response) would leave the connection in
+            // the pool. Disable keep-alive up front so the connection is evicted
+            // regardless of the response.
+            if headers::connection_any_close(&head.headers) {
+                self.state.disable_keep_alive();
+            }
         }
 
         self.enforce_version(&mut head);
@@ -1194,6 +1203,65 @@ mod tests {
                 Poll::Ready(())
             }));
         });
+    }
+
+    // A client request carrying `Connection: close` must evict the connection
+    // (disable keep-alive) at request-encode time, so it is never returned to the
+    // pool for reuse — independent of whether the backend response echoes
+    // `Connection: close`. hyper otherwise derives reuse from the response alone.
+    #[test]
+    fn client_request_connection_close_disables_keep_alive() {
+        use super::*;
+        use crate::common::io::Compat;
+        use crate::proto::RequestLine;
+
+        // Encodes a client GET (with the given Connection header lines, one
+        // `append` each) on a fresh client Conn and returns whether the
+        // connection remains reusable.
+        fn remains_reusable_after_get(connection_values: &[&'static str]) -> bool {
+            let io = Compat(tokio_test::io::Builder::new().build());
+            let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ClientTransaction>::new(io);
+            assert!(
+                conn.state.wants_keep_alive(),
+                "a fresh client connection should want keep-alive"
+            );
+
+            let mut headers = HeaderMap::new();
+            for value in connection_values {
+                headers.append(CONNECTION, HeaderValue::from_static(value));
+            }
+            let head = MessageHead {
+                version: Version::HTTP_11,
+                subject: RequestLine(Method::GET, "/".parse().unwrap()),
+                headers,
+                extensions: http::Extensions::new(),
+            };
+            conn.write_head(head, None);
+            conn.state.wants_keep_alive()
+        }
+
+        // Control: a request without `Connection: close` leaves the connection reusable.
+        assert!(
+            remains_reusable_after_get(&[]),
+            "a keep-alive request must leave the connection reusable"
+        );
+        // Fix: a `Connection: close` request must disable keep-alive so the
+        // connection is evicted regardless of the response.
+        assert!(
+            !remains_reusable_after_get(&["close"]),
+            "a `Connection: close` request must disable keep-alive (connection evicted)"
+        );
+        // A `close` token in a comma-separated value is honored.
+        assert!(
+            !remains_reusable_after_get(&["keep-alive, close"]),
+            "a `close` token in a comma-separated Connection value must disable keep-alive"
+        );
+        // A `close` in ANY of multiple Connection header lines is honored
+        // (get_all, not just the first line).
+        assert!(
+            !remains_reusable_after_get(&["keep-alive", "close"]),
+            "a `close` in any Connection header line must disable keep-alive"
+        );
     }
 
     /*
