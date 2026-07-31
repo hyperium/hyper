@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785522162055,
+  "lastUpdate": 1785522284684,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -64951,6 +64951,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3449705,
             "range": "± 28982.63",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "91108185+Catwoman08@users.noreply.github.com",
+            "name": "Catwoman08",
+            "username": "Catwoman08"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "084473f728f9d07b3be5845475aa2f62ed9ff579",
+          "message": "docs(contrib): update CONTRIBUTING.md (#4140)",
+          "timestamp": "2026-07-31T14:21:38-04:00",
+          "tree_id": "69b712b8ec3bf78368528a26b8d0dc19f20cbfb7",
+          "url": "https://github.com/hyperium/hyper/commit/084473f728f9d07b3be5845475aa2f62ed9ff579"
+        },
+        "date": 1785522279957,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 28996,
+            "range": "± 1582.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3148777,
+            "range": "± 204762.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 8398,
+            "range": "± 639.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 9367,
+            "range": "± 198.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 12892,
+            "range": "± 428.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 38384,
+            "range": "± 2208.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999848,
+            "range": "± 21747.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 54654,
+            "range": "± 1849.71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 11843376,
+            "range": "± 16337315.57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 19880692,
+            "range": "± 16425435.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 3588175,
+            "range": "± 389950.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 68002731,
+            "range": "± 1318625.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 26240873,
+            "range": "± 952492.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 2812570,
+            "range": "± 92170.34",
             "unit": "ns/iter"
           }
         ]
