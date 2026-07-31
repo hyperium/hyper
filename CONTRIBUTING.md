@@ -2,11 +2,11 @@
 
 You want to contribute? You're awesome!
 
-Contributions come in all shapes and sizes. Let's take a tour of some of the different wants you could contribute.
+Contributions come in all shapes and sizes. Let's take a tour of some of the different ways you could contribute.
 
 ## [Code of Conduct](./docs/CODE_OF_CONDUCT.md)
 
-Firstly, all interactions with the project need to abide by the code of conduct. This is to make sure everyone is treated kindly.
+Firstly, all interactions with the project need to abide by the code of conduct. This makes sure everyone is treated kindly.
 
 ## [Issues](./docs/ISSUES.md)
 
@@ -29,7 +29,7 @@ By the way, consider checking the [list of easy issues](https://github.com/hyper
 
 Improving hyper's documentation is a huge help for everyone who is trying to _use_ hyper.
 
-- The API documentation (rendered at https://docs.rs/hyper) is stored as rustdoc comments directly in the source.
+- The API [documentation](https://docs.rs/hyper) is stored as rustdoc comments directly in the source.
 - The main website has [tutorial-style guides](https://hyper.rs/guides). As of v1, they are currently in a [revamp](https://github.com/hyperium/hyper/issues/3411), and would greatly benefit from being filled out.
 
 ## Help
