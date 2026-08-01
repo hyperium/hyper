@@ -38,6 +38,7 @@ impl<T: Buf> Buf for BufList<T> {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn advance(&mut self, mut cnt: usize) {
         while cnt > 0 {
             {
@@ -56,6 +57,7 @@ impl<T: Buf> Buf for BufList<T> {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
         if dst.is_empty() {
             return 0;

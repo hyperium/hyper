@@ -67,6 +67,7 @@ impl CachedDate {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn update(&mut self, now: SystemTime) {
         let nanos = now
             .duration_since(UNIX_EPOCH)
@@ -95,6 +96,7 @@ impl CachedDate {
 }
 
 impl fmt::Write for CachedDate {
+    #[allow(clippy::arithmetic_side_effects)]
     fn write_str(&mut self, s: &str) -> fmt::Result {
         let len = s.len();
         self.bytes[self.pos..self.pos + len].copy_from_slice(s.as_bytes());

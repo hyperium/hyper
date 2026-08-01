@@ -24,6 +24,7 @@ where
     T: crate::rt::Read,
 {
     /// `poll_read` fn implementation for `Compat<T>`.
+    #[allow(clippy::arithmetic_side_effects)]
     fn poll_read(
         self: Pin<&mut Self>,
         cx: &mut Context<'_>,

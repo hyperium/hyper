@@ -97,6 +97,7 @@ where
 /// A fast scan for the end of a message.
 /// Used when there was a partial read, to skip full parsing on a
 /// a slow connection.
+#[allow(clippy::arithmetic_side_effects)]
 fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
     let start = prev_len.saturating_sub(3);
     let bytes = &bytes[start..];
@@ -376,6 +377,7 @@ impl Http1Transaction for Server {
         }))
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn encode(mut msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!(
             "Server::encode status={:?}, body={:?}, req_method={:?}",
@@ -678,7 +680,7 @@ impl Server {
                 if is_name_written {
                     // we need to clean up and write the newline
                     debug_assert_ne!(
-                        &dst[dst.len() - 2..],
+                        &dst[dst.len().saturating_sub(2)..],
                         b"\r\n",
                         "previous header wrote newline but set is_name_written"
                     );
@@ -990,6 +992,7 @@ impl Server {
 
     /// Helper for zero-copy parsing of request path URI.
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn record_path_range(bytes: &[u8], req_path: &str) -> std::ops::Range<usize> {
         let bytes_ptr = bytes.as_ptr() as usize;
         let start = req_path.as_ptr() as usize - bytes_ptr;
@@ -1192,6 +1195,7 @@ impl Http1Transaction for Client {
         }
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn encode(msg: Encode<'_, Self::Outgoing>, dst: &mut Vec<u8>) -> crate::Result<Encoder> {
         trace!(
             "Client::encode method={:?}, body={:?}",
@@ -1452,6 +1456,7 @@ impl Client {
         set_content_length(headers, len)
     }
 
+    #[allow(clippy::arithmetic_side_effects)]
     fn obs_fold_line(all: &mut [u8], idx: &mut HeaderIndices) {
         // If the value has obs-folded text, then in-place shift the bytes out
         // of here.
@@ -1552,6 +1557,7 @@ struct HeaderIndices {
     value: (usize, usize),
 }
 
+#[allow(clippy::arithmetic_side_effects)]
 fn record_header_indices(
     bytes: &[u8],
     headers: &[httparse::Header<'_>],

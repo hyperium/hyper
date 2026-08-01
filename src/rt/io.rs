@@ -300,7 +300,13 @@ impl<'data> ReadBuf<'data> {
     }
 
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     fn remaining(&self) -> usize {
+        debug_assert!(
+            self.capacity() >= self.filled,
+            "filled must fit in capacity()"
+        );
+        // Cannot overflow, asserted above
         self.capacity() - self.filled
     }
 
@@ -359,6 +365,7 @@ impl ReadBufCursor<'_> {
     ///
     /// `self` must have enough remaining capacity to contain all of `src`.
     #[inline]
+    #[allow(clippy::arithmetic_side_effects)]
     pub fn put_slice(&mut self, src: &[u8]) {
         assert!(
             self.buf.remaining() >= src.len(),

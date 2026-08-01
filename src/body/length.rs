@@ -70,7 +70,7 @@ impl DecodedLength {
         match *self {
             DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => (),
             DecodedLength(ref mut known) => {
-                *known -= amt;
+                *known = known.saturating_sub(amt);
             }
         }
     }
