@@ -394,15 +394,15 @@ impl ReadStrategy {
     }
 
     fn record(&mut self, bytes_read: usize) {
-        match *self {
+        match self {
             ReadStrategy::Adaptive {
-                ref mut decrease_now,
-                ref mut next,
+                decrease_now,
+                next,
                 max,
                 ..
             } => {
                 if bytes_read >= *next {
-                    *next = cmp::min(incr_power_of_two(*next), max);
+                    *next = cmp::min(incr_power_of_two(*next), *max);
                     *decrease_now = false;
                 } else {
                     let decr_to = prev_power_of_two(*next);
