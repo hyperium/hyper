@@ -38,6 +38,8 @@ futures-util = { version = "0.3", default-features = false }
 
 * [`echo`](echo.rs) - An echo server that copies POST request's content to the response content.
 
+* [`http2_early_hints`](http2_early_hints.rs) - An HTTP/2 server that sends 103 Early Hints.
+
 ## Going Further
 
 * [`gateway`](gateway.rs) - A server gateway (reverse proxy) that proxies to the `hello` service above.
