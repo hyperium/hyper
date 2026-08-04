@@ -3563,7 +3563,7 @@ impl Drop for Serve {
         drop(self.thread.take());
         /*
         let r = self.thread.take().unwrap().join();
-        if let Err(ref e) = r {
+        if let Err(e) = &r {
             println!("{:?}", e);
         }
         r.unwrap();
