@@ -43,10 +43,16 @@ macro_rules! header_name {
         }
     }};
 }
-
+/// construct `HeaderValue` from a maybe shared expression.
 macro_rules! header_value {
     ($bytes:expr) => {{
         {
+            // unsafe used because of the call of `HeaderValue::from_maybe_shared_unchecked`.
+            // SAFETY:
+            // 1. The input `$bytes` must be a valid header value as per RFC 7230.
+            // 2. Specifically, it must not contain any prohibited characters (like `\r`, `\n`, or non-visible ASCII characters outside of allowed ranges).
+            // 3. This is safe because the caller is responsible for ensuring the byte content
+            //    has been validated or is known to be a constant/static valid header value.
             unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
         }
     }};
@@ -172,13 +178,14 @@ impl Http1Transaction for Server {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
                     len = parsed_len;
-                    let uri = req.path.unwrap();
+                    let uri = req.path.expect("httparse completed");
                     if uri.len() > MAX_URI_LEN {
                         return Err(Parse::UriTooLong);
                     }
-                    method = Method::from_bytes(req.method.unwrap().as_bytes())?;
+                    method =
+                        Method::from_bytes(req.method.expect("httparse completed").as_bytes())?;
                     path_range = Server::record_path_range(bytes, uri);
-                    version = if req.version.unwrap() == 1 {
+                    version = if req.version.expect("httparse completed") == 1 {
                         keep_alive = true;
                         is_http_11 = true;
                         Version::HTTP_11
@@ -227,6 +234,7 @@ impl Http1Transaction for Server {
         let mut decoder = DecodedLength::ZERO;
         let mut expect_continue = false;
         let mut con_len = None;
+        let mut is_cl = false;
         let mut is_te = false;
         let mut is_te_chunked = false;
         let mut wants_upgrade = subject.0 == Method::CONNECT;
@@ -265,6 +273,9 @@ impl Http1Transaction for Server {
                         return Err(Parse::transfer_encoding_unexpected());
                     }
                     is_te = true;
+                    if is_cl && con_len.take().is_some() {
+                        headers.remove(header::CONTENT_LENGTH);
+                    }
                     if headers::is_chunked_(&value) {
                         is_te_chunked = true;
                         decoder = DecodedLength::CHUNKED;
@@ -273,6 +284,7 @@ impl Http1Transaction for Server {
                     }
                 }
                 header::CONTENT_LENGTH => {
+                    is_cl = true;
                     if is_te {
                         continue;
                     }
@@ -331,6 +343,10 @@ impl Http1Transaction for Server {
         if is_te && !is_te_chunked {
             debug!("request with transfer-encoding header, but not chunked, bad request");
             return Err(Parse::transfer_encoding_invalid());
+        }
+
+        if is_te && is_cl {
+            keep_alive = false;
         }
 
         let mut extensions = http::Extensions::default();
@@ -414,7 +430,7 @@ impl Http1Transaction for Server {
                     debug!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
                 }
-                other => panic!("unexpected response version: {:?}", other),
+                other => panic!("unexpected response version: {other:?}"),
             }
 
             extend(dst, msg.head.subject.as_str().as_bytes());
@@ -493,13 +509,13 @@ impl Http1Transaction for Server {
 
 #[cfg(feature = "server")]
 impl Server {
-    fn can_have_body(method: &Option<Method>, status: StatusCode) -> bool {
+    fn can_have_body(method: Option<&Method>, status: StatusCode) -> bool {
         Server::can_chunked(method, status)
     }
 
-    fn can_chunked(method: &Option<Method>, status: StatusCode) -> bool {
-        if method == &Some(Method::HEAD)
-            || method == &Some(Method::CONNECT) && status.is_success()
+    fn can_chunked(method: Option<&Method>, status: StatusCode) -> bool {
+        if method == Some(&Method::HEAD)
+            || method == Some(&Method::CONNECT) && status.is_success()
             || status.is_informational()
         {
             false
@@ -508,16 +524,16 @@ impl Server {
         }
     }
 
-    fn can_have_content_length(method: &Option<Method>, status: StatusCode) -> bool {
-        if status.is_informational() || method == &Some(Method::CONNECT) && status.is_success() {
+    fn can_have_content_length(method: Option<&Method>, status: StatusCode) -> bool {
+        if status.is_informational() || method == Some(&Method::CONNECT) && status.is_success() {
             false
         } else {
             !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
         }
     }
 
-    fn can_have_implicit_zero_content_length(method: &Option<Method>, status: StatusCode) -> bool {
-        Server::can_have_content_length(method, status) && method != &Some(Method::HEAD)
+    fn can_have_implicit_zero_content_length(method: Option<&Method>, status: StatusCode) -> bool {
+        Server::can_have_content_length(method, status) && method != Some(&Method::HEAD)
     }
 
     fn encode_headers_with_lower_case(
@@ -537,7 +553,7 @@ impl Server {
                 line: &str,
                 _: (HeaderName, &str),
             ) {
-                extend(dst, line.as_bytes())
+                extend(dst, line.as_bytes());
             }
 
             #[inline]
@@ -547,12 +563,12 @@ impl Server {
                 name_with_colon: &str,
                 _: HeaderName,
             ) {
-                extend(dst, name_with_colon.as_bytes())
+                extend(dst, name_with_colon.as_bytes());
             }
 
             #[inline]
             fn write_header_name(&mut self, dst: &mut Vec<u8>, name: &HeaderName) {
-                extend(dst, name.as_str().as_bytes())
+                extend(dst, name.as_str().as_bytes());
             }
         }
 
@@ -705,9 +721,7 @@ impl Server {
                                     if msg.req_method != &Some(Method::HEAD) || known_len != 0 {
                                         assert!(
                                         len == known_len,
-                                        "payload claims content-length of {}, custom content-length header claims {}",
-                                        known_len,
-                                        len,
+                                        "payload claims content-length of {known_len}, custom content-length header claims {len}",
                                     );
                                     }
                                 }
@@ -794,7 +808,7 @@ impl Server {
                     }
                     // check that we actually can send a chunked body...
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method.as_ref(), msg.head.subject)
                     {
                         continue;
                     }
@@ -842,7 +856,7 @@ impl Server {
                 header::TRAILER => {
                     // check that we actually can send a chunked body...
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method.as_ref(), msg.head.subject)
                     {
                         continue;
                     }
@@ -889,8 +903,7 @@ impl Server {
             // non-special write Name and Value
             debug_assert!(
                 !is_name_written,
-                "{:?} set is_name_written and didn't continue loop",
-                name,
+                "{name:?} set is_name_written and didn't continue loop",
             );
             header_name_writer.write_header_name(dst, name);
             extend(dst, b": ");
@@ -904,7 +917,7 @@ impl Server {
             encoder = match msg.body {
                 Some(BodyLength::Unknown) => {
                     if msg.head.version == Version::HTTP_10
-                        || !Server::can_chunked(msg.req_method, msg.head.subject)
+                        || !Server::can_chunked(msg.req_method.as_ref(), msg.head.subject)
                     {
                         Encoder::close_delimited()
                     } else {
@@ -918,19 +931,19 @@ impl Server {
                 }
                 None | Some(BodyLength::Known(0)) => {
                     if Server::can_have_implicit_zero_content_length(
-                        msg.req_method,
+                        msg.req_method.as_ref(),
                         msg.head.subject,
                     ) {
                         header_name_writer.write_full_header_line(
                             dst,
                             "content-length: 0\r\n",
                             (header::CONTENT_LENGTH, ": 0\r\n"),
-                        )
+                        );
                     }
                     Encoder::length(0)
                 }
                 Some(BodyLength::Known(len)) => {
-                    if !Server::can_have_content_length(msg.req_method, msg.head.subject) {
+                    if !Server::can_have_content_length(msg.req_method.as_ref(), msg.head.subject) {
                         Encoder::length(0)
                     } else {
                         header_name_writer.write_header_name_with_colon(
@@ -946,7 +959,7 @@ impl Server {
             };
         }
 
-        if !Server::can_have_body(msg.req_method, msg.head.subject) {
+        if !Server::can_have_body(msg.req_method.as_ref(), msg.head.subject) {
             trace!(
                 "server body forced to 0; method={:?}, status={:?}",
                 msg.req_method,
@@ -1036,10 +1049,10 @@ impl Http1Transaction for Client {
                 ) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
-                        let status = StatusCode::from_u16(res.code.unwrap())?;
+                        let status = StatusCode::from_u16(res.code.expect("httparse completed"))?;
 
                         let reason = {
-                            let reason = res.reason.unwrap();
+                            let reason = res.reason.expect("httparse completed");
                             // Only save the reason phrase if it isn't the canonical reason
                             if Some(reason) != status.canonical_reason() {
                                 Some(Bytes::copy_from_slice(reason.as_bytes()))
@@ -1048,7 +1061,7 @@ impl Http1Transaction for Client {
                             }
                         };
 
-                        let version = if res.version.unwrap() == 1 {
+                        let version = if res.version.expect("httparse completed") == 1 {
                             Version::HTTP_11
                         } else {
                             Version::HTTP_10
@@ -1205,7 +1218,7 @@ impl Http1Transaction for Client {
                 debug!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
             }
-            other => panic!("unexpected request version: {:?}", other),
+            other => panic!("unexpected request version: {other:?}"),
         }
         extend(dst, b"\r\n");
 
@@ -1240,9 +1253,9 @@ impl Http1Transaction for Client {
 
 #[cfg(feature = "client")]
 impl Client {
-    /// Returns Some(length, wants_upgrade) if successful.
+    /// Returns `Some(length, wants_upgrade)` if successful.
     ///
-    /// Returns None if this message head should be skipped (like a 100 status).
+    /// Returns `None` if this message head should be skipped (like a 100 status).
     fn decoder(
         inc: &MessageHead<StatusCode>,
         method: &mut Option<Method>,
@@ -2044,45 +2057,55 @@ mod tests {
         );
 
         // transfer-encoding and content-length = chunked
-        assert_eq!(
-            parse(
-                "\
-                 POST / HTTP/1.1\r\n\
-                 content-length: 10\r\n\
-                 transfer-encoding: chunked\r\n\
-                 \r\n\
-                 "
-            )
-            .decode,
-            DecodedLength::CHUNKED
+        let msg = parse(
+            "\
+             POST / HTTP/1.1\r\n\
+             content-length: 10\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
         );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
 
-        assert_eq!(
-            parse(
-                "\
-                 POST / HTTP/1.1\r\n\
-                 transfer-encoding: chunked\r\n\
-                 content-length: 10\r\n\
-                 \r\n\
-                 "
-            )
-            .decode,
-            DecodedLength::CHUNKED
+        let msg = parse(
+            "\
+             POST / HTTP/1.1\r\n\
+             transfer-encoding: chunked\r\n\
+             content-length: 10\r\n\
+             \r\n\
+             ",
         );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
 
-        assert_eq!(
-            parse(
-                "\
-                 POST / HTTP/1.1\r\n\
-                 transfer-encoding: gzip\r\n\
-                 content-length: 10\r\n\
-                 transfer-encoding: chunked\r\n\
-                 \r\n\
-                 "
-            )
-            .decode,
-            DecodedLength::CHUNKED
+        let msg = parse(
+            "\
+             POST / HTTP/1.1\r\n\
+             transfer-encoding: gzip\r\n\
+             content-length: 10\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
         );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
+
+        let msg = parse(
+            "\
+             POST / HTTP/1.1\r\n\
+             connection: keep-alive\r\n\
+             content-length: 10\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
 
         // multiple content-lengths of same value are fine
         assert_eq!(

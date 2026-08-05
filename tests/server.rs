@@ -2301,6 +2301,371 @@ async fn h2_connect_empty_frames() {
 }
 
 #[tokio::test]
+async fn h2_connect_backpressure_respected() {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let mut builder = h2::client::Builder::new();
+    builder.initial_window_size(1024);
+    builder.initial_connection_window_size(1024);
+    let (h2, connection) = builder.handshake::<_, Bytes>(conn).await.unwrap();
+    tokio::spawn(async move {
+        connection.await.unwrap();
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    const CHUNK: &[u8] = b"backpressure test data chunk!\n";
+    const TOTAL_LEN: usize = CHUNK.len() * 2000;
+
+    let client_handle = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, _send_stream) = h2.send_request(request, false).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let mut received = 0usize;
+
+        while let Some(chunk) = body.data().await {
+            let chunk = chunk.unwrap();
+            if chunk.is_empty() {
+                break;
+            }
+            let len = chunk.len();
+            received += len;
+            let _ = body.flow_control().release_capacity(len);
+        }
+
+        assert_eq!(received, TOTAL_LEN);
+    });
+
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+
+            for _ in 0..2000 {
+                upgraded.write_all(CHUNK).await.unwrap();
+            }
+
+            upgraded.shutdown().await.unwrap();
+        });
+
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await
+        .unwrap();
+
+    client_handle.await.unwrap();
+}
+
+#[tokio::test]
+async fn h2_connect_zero_window_then_release() {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let mut builder = h2::client::Builder::new();
+    builder.initial_window_size(65535);
+    let (h2, connection) = builder.handshake::<_, Bytes>(conn).await.unwrap();
+    tokio::spawn(async move {
+        connection.await.unwrap();
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    const DATA: &[u8] = b"Hello from upgraded stream";
+
+    let client_handle = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, _send_stream) = h2.send_request(request, false).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let mut received = Vec::new();
+
+        while let Some(chunk) = body.data().await {
+            let chunk = chunk.unwrap();
+            if chunk.is_empty() {
+                break;
+            }
+            let len = chunk.len();
+            received.extend_from_slice(&chunk);
+            let _ = body.flow_control().release_capacity(len);
+        }
+
+        assert_eq!(&received[..], DATA);
+    });
+
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+            upgraded.write_all(DATA).await.unwrap();
+            upgraded.shutdown().await.unwrap();
+        });
+
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await
+        .unwrap();
+
+    client_handle.await.unwrap();
+}
+
+#[tokio::test]
+async fn h2_connect_shutdown_while_send_backpressured() {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let mut builder = h2::client::Builder::new();
+    builder.initial_window_size(1024);
+    builder.initial_connection_window_size(1024);
+    let (h2, connection) = builder.handshake::<_, Bytes>(conn).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let (shutdown_tx, shutdown_rx) = oneshot::channel::<bool>();
+    let shutdown_tx = Arc::new(Mutex::new(Some(shutdown_tx)));
+
+    let client_handle = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, _send_stream) = h2.send_request(request, false).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let bytes = body.data().await.unwrap().unwrap();
+        assert_eq!(bytes.len(), 1024);
+
+        // Do not release capacity. The server-side upgraded writer should
+        // still observe shutdown of its mpsc sender instead of waiting for
+        // more h2 send capacity.
+        let shutdown_completed = shutdown_rx.await.unwrap_or(false);
+        assert!(
+            shutdown_completed,
+            "upgraded shutdown should not wait for h2 capacity after the writer closes"
+        );
+    });
+
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+        let shutdown_tx = shutdown_tx.clone();
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+            upgraded.write_all(&[b'x'; 1024]).await.unwrap();
+
+            // Regression trigger: shutdown closes the mpsc sender while the
+            // send task is already parked waiting for h2 capacity.
+            let shutdown_completed =
+                tokio::time::timeout(Duration::from_secs(1), upgraded.shutdown())
+                    .await
+                    .is_ok();
+
+            if let Some(tx) = shutdown_tx.lock().unwrap().take() {
+                let _ = tx.send(shutdown_completed);
+            }
+        });
+
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let _ = http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await;
+
+    client_handle.await.unwrap();
+}
+
+#[tokio::test]
+async fn h2_connect_reset_during_backpressure() {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let mut builder = h2::client::Builder::new();
+    builder.initial_window_size(1024);
+    builder.initial_connection_window_size(1024);
+    let (h2, connection) = builder.handshake::<_, Bytes>(conn).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let (write_err_tx, write_err_rx) = oneshot::channel::<bool>();
+    let write_err_tx = Arc::new(Mutex::new(Some(write_err_tx)));
+    let (reset_tx, reset_rx) = oneshot::channel::<()>();
+    let reset_rx = Arc::new(Mutex::new(Some(reset_rx)));
+
+    let client_handle = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, mut send_stream) = h2.send_request(request, false).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let mut received = 0;
+        while received < 1024 {
+            let bytes = body.data().await.unwrap().unwrap();
+            received += bytes.len();
+        }
+        assert_eq!(received, 1024);
+
+        send_stream.send_reset(h2::Reason::CANCEL);
+        let _ = reset_tx.send(());
+        drop(body);
+        drop(send_stream);
+
+        let got_err = write_err_rx.await.unwrap_or(false);
+        assert!(got_err, "server write side should have observed RST_STREAM");
+    });
+
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+        let write_err_tx = write_err_tx.clone();
+        let reset_rx = reset_rx.clone();
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+            upgraded.write_all(&[b'x'; 1024]).await.unwrap();
+
+            let reset_rx = reset_rx.lock().unwrap().take().unwrap();
+            reset_rx.await.unwrap();
+
+            let large_data = vec![b'x'; 1024 * 1024];
+            let write = upgraded.write_all(&large_data).await;
+            let shutdown = upgraded.shutdown().await;
+
+            if let Some(tx) = write_err_tx.lock().unwrap().take() {
+                let _ = tx.send(write.is_err() || shutdown.is_err());
+            }
+        });
+
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let _ = http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await;
+
+    client_handle.await.unwrap();
+}
+
+#[tokio::test]
+async fn h2_connect_backpressure_bidirectional() {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let mut builder = h2::client::Builder::new();
+    builder.initial_window_size(2048);
+    builder.initial_connection_window_size(4096);
+    let (h2, connection) = builder.handshake::<_, Bytes>(conn).await.unwrap();
+    tokio::spawn(async move {
+        connection.await.unwrap();
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    const PATTERN: &[u8] = b"All work and no bread makes nox a dull boy.\n";
+    const REPEAT: usize = 500;
+    let expected_len = PATTERN.len() * REPEAT;
+
+    let client_handle = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, mut send_stream) = h2.send_request(request, false).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let mut body = response.into_body();
+        let mut received = 0usize;
+
+        while let Some(chunk) = body.data().await {
+            let chunk = chunk.unwrap();
+            if chunk.is_empty() {
+                break;
+            }
+            let len = chunk.len();
+            received += len;
+            let _ = body.flow_control().release_capacity(len);
+        }
+
+        assert_eq!(received, expected_len);
+
+        send_stream.send_data("client done".into(), true).unwrap();
+    });
+
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+
+            for _ in 0..REPEAT {
+                upgraded.write_all(PATTERN).await.unwrap();
+            }
+
+            upgraded.shutdown().await.unwrap();
+
+            let mut response_buf = vec![0u8; 64];
+            let n = upgraded.read(&mut response_buf).await.unwrap();
+            assert_eq!(&response_buf[..n], b"client done");
+        });
+
+        future::ok::<_, hyper::Error>(
+            Response::builder()
+                .status(200)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http2::Builder::new(TokioExecutor)
+        .serve_connection(socket, svc)
+        .await
+        .unwrap();
+
+    client_handle.await.unwrap();
+}
+
+#[tokio::test]
 async fn parse_errors_send_4xx_response() {
     let (listener, addr) = setup_tcp_listener();
 
@@ -2376,6 +2741,38 @@ async fn max_buf_size() {
 
         let expected = "HTTP/1.1 431 ";
         assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_buf_size(MAX)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("should TooLarge error");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn max_buf_size_split_header_boundary() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX: usize = 8192;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\nX: ")
+            .expect("write 1");
+        tcp.write_all(&[b'a'; 7000]).expect("write 2");
+        thread::sleep(Duration::from_millis(100));
+        tcp.write_all(&[b'a'; 5000]).expect("write 3");
+        tcp.write_all(b"\r\n\r\n").expect("write 4");
+
+        let mut buf = String::new();
+        tcp.read_to_string(&mut buf).expect("read response");
+
+        let expected = "HTTP/1.1 431 ";
+        assert_eq!(&buf[..expected.len()], expected);
     });
 
     let (socket, _) = listener.accept().await.unwrap();
@@ -2965,6 +3362,58 @@ fn http1_trailer_recv_fields() {
         trailers.get("chunky-trailer"),
         Some(&"header data".parse().unwrap())
     );
+}
+
+#[test]
+fn http1_trailer_recv_keep_alive() {
+    let server = serve();
+    server.reply().header("content-length", "2").body(b"ok");
+    let mut req = connect(server.addr());
+
+    // First request: chunked POST with trailers
+    req.write_all(
+        b"\
+        POST / HTTP/1.1\r\n\
+        trailer: chunky-trailer\r\n\
+        host: example.domain\r\n\
+        transfer-encoding: chunked\r\n\
+        \r\n\
+        5\r\n\
+        hello\r\n\
+        0\r\n\
+        chunky-trailer: header data\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing 1");
+
+    assert_eq!(server.body(), b"hello");
+
+    let trailers = server.trailers();
+    assert_eq!(
+        trailers.get("chunky-trailer"),
+        Some(&"header data".parse().unwrap())
+    );
+
+    read_until(&mut req, |buf| buf.ends_with(b"ok")).expect("reading 1");
+
+    // Second request: reuse the same connection to verify keep-alive
+    let quux = b"zar quux";
+    server
+        .reply()
+        .header("content-length", quux.len().to_string())
+        .body(quux);
+    req.write_all(
+        b"\
+        GET /quux HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing 2");
+
+    read_until(&mut req, |buf| buf.ends_with(quux)).expect("reading 2");
 }
 
 // -------------------------------------------------

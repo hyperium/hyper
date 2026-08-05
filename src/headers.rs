@@ -19,6 +19,17 @@ pub(super) fn connection_close(value: &HeaderValue) -> bool {
     connection_has(value, "close")
 }
 
+// Returns true if any `Connection` header field carries a `close` token.
+// A message may have more than one `Connection` header line, so all of them
+// must be inspected (`get`/`connection_close` alone only sees the first).
+#[cfg(feature = "http1")]
+pub(super) fn connection_any_close(headers: &http::HeaderMap) -> bool {
+    headers
+        .get_all(http::header::CONNECTION)
+        .iter()
+        .any(connection_close)
+}
+
 #[cfg(feature = "http1")]
 fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     if let Ok(s) = value.to_str() {
@@ -51,13 +62,11 @@ pub(super) fn content_length_parse_all_values(values: ValueIter<'_, HeaderValue>
     for h in values {
         if let Ok(line) = h.to_str() {
             for v in line.split(',') {
-                if let Some(n) = from_digits(v.trim().as_bytes()) {
-                    if content_length.is_none() {
-                        content_length = Some(n)
-                    } else if content_length != Some(n) {
-                        return None;
-                    }
-                } else {
+                let n = from_digits(v.trim().as_bytes())?;
+
+                if content_length.is_none() {
+                    content_length = Some(n);
+                } else if content_length != Some(n) {
                     return None;
                 }
             }
@@ -84,7 +93,7 @@ fn from_digits(bytes: &[u8]) -> Option<u64> {
         match b {
             b'0'..=b'9' => {
                 result = result.checked_mul(RADIX)?;
-                result = result.checked_add((b - b'0') as u64)?;
+                result = result.checked_add(u64::from(b - b'0'))?;
             }
             _ => {
                 // not a DIGIT, get outta here!

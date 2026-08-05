@@ -43,7 +43,6 @@ All contributors MUST follow the [Code of Conduct][coc].
 
 👋  **New here?** [This could be you!][contrib]
 
-
 ### Triager
 
 Triagers assess issues on the issue tracker. They help make sure the work is
@@ -99,6 +98,26 @@ How to become:
 
 Don't be afraid to ask a collaborator for what you could work on to reach this
 goal!
+
+### Advisor
+
+Advisors are contributors with a lot of domain expertise. They offer advice on
+proposals, complicated bugs or features, based on their experience elsewhere in
+the industry.
+
+Responsibilities:
+
+- Adhere to the [Code of Conduct][coc]
+- Try to offer advice when the `@hyperium/advisors` team is tagged for input.
+  (This is not a frequent occurence, so the time commitment should generally be
+  low.)
+
+How to become:
+
+- Advisors are invited by a maintainer.
+- Sometimes they are experienced Collaborators who must step back from active
+  contributing. Sometimes they are experts placed elsehwere who are friendly to
+  the project.
 
 ### Maintainer
 

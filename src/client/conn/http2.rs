@@ -1,4 +1,4 @@
-//! HTTP/2 client connections
+//! HTTP/2 client connections.
 
 use std::error::Error;
 use std::fmt;
@@ -38,7 +38,14 @@ impl<B> Clone for SendRequest<B> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 ///
-/// Instances of this type are typically created via the [`handshake`] function
+/// Instances of this type are typically created via the [`handshake`] function.
+///
+/// # Drop behavior
+///
+/// Dropping the `Connection` will close the underlying IO resource.
+/// Any in-flight requests that have not received a response will be
+/// interrupted. If graceful shutdown is desired, poll the connection
+/// until it completes instead of dropping.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B, E>
 where
@@ -95,7 +102,7 @@ impl<B> SendRequest<B> {
         }
     }
 
-    /// Waits until the dispatcher is ready
+    /// Waits until the dispatcher is ready.
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
@@ -131,6 +138,15 @@ where
     ///
     /// Absolute-form `Uri`s are not required. If received, they will be serialized
     /// as-is.
+    ///
+    /// # Cancel safety
+    ///
+    /// Dropping the returned future is the supported way to cancel an
+    /// in-flight HTTP/2 request. The stream is reset with `RST_STREAM`
+    /// (`CANCEL` error code); the shared connection remains usable for
+    /// other in-flight and future requests. The peer is notified
+    /// immediately rather than continuing to send a response body that
+    /// would be discarded.
     pub fn send_request(
         &mut self,
         req: Request<B>,
@@ -282,7 +298,7 @@ where
         Builder {
             exec,
             timer: Time::Empty,
-            h2_builder: Default::default(),
+            h2_builder: proto::h2::client::Config::default(),
         }
     }
 
@@ -311,7 +327,7 @@ where
         self
     }
 
-    /// Sets the max connection-level flow control for HTTP2
+    /// Sets the max connection-level flow control for HTTP2.
     ///
     /// Passing `None` will do nothing.
     ///
@@ -493,6 +509,36 @@ where
     /// The default value is 1024.
     pub fn max_local_error_reset_streams(&mut self, max: impl Into<Option<usize>>) -> &mut Self {
         self.h2_builder.max_local_error_reset_streams = max.into();
+        self
+    }
+
+    /// Sets the duration to remember locally reset streams.
+    ///
+    /// When a stream is explicitly reset by either the client or the server,
+    /// the HTTP/2 specification requires that any further frames received for
+    /// that stream must be ignored for "some time".
+    ///
+    /// In order to satisfy the specification, internal state must be maintained
+    /// to implement the behavior. This state grows linearly with the number of
+    /// streams that are locally reset.
+    ///
+    /// The `reset_stream_duration` setting configures the max amount of time
+    /// this state will be maintained in memory. Once the duration elapses, the
+    /// stream state is purged from memory.
+    ///
+    /// Once the stream has been fully purged from memory, any additional frames
+    /// received for that stream will result in a connection level protocol
+    /// error, forcing the connection to terminate.
+    ///
+    /// The default value is determined by the `h2` crate, and is currently
+    /// 1 second.
+    ///
+    /// See the documentation of [`h2::client::Builder::reset_stream_duration`] for more
+    /// details.
+    ///
+    /// [`h2::client::Builder::reset_stream_duration`]: https://docs.rs/h2/client/struct.Builder.html#method.reset_stream_duration
+    pub fn reset_stream_duration(&mut self, dur: Duration) -> &mut Self {
+        self.h2_builder.reset_stream_duration = Some(dur);
         self
     }
 

@@ -53,6 +53,7 @@ pub(crate) struct Config {
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
     pub(crate) max_send_buffer_size: usize,
+    pub(crate) header_table_size: Option<u32>,
     pub(crate) max_header_list_size: u32,
     pub(crate) date_header: bool,
 }
@@ -68,6 +69,7 @@ impl Default for Config {
             max_concurrent_streams: Some(200),
             max_pending_accept_reset_streams: None,
             max_local_error_reset_streams: Some(DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS),
+            header_table_size: None,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
@@ -93,6 +95,8 @@ pin_project! {
     }
 }
 
+//#[expect(clippy::large_enum_variant, reason = "the whole future is boxed")]
+#[allow(clippy::large_enum_variant)]
 enum State<T, B>
 where
     B: Body,
@@ -142,6 +146,9 @@ where
         }
         if let Some(max) = config.max_pending_accept_reset_streams {
             builder.max_pending_accept_reset_streams(max);
+        }
+        if let Some(size) = config.header_table_size {
+            builder.header_table_size(size);
         }
         if config.enable_connect_protocol {
             builder.enable_connect_protocol();
@@ -468,7 +475,10 @@ where
 
                     let (head, body) = res.into_parts();
                     let mut res = ::http::Response::from_parts(head, ());
-                    super::strip_connection_headers(res.headers_mut(), false);
+                    super::strip_connection_headers(
+                        res.headers_mut(),
+                        super::MessageKind::Response,
+                    );
 
                     // set Date header if it isn't already set if instructed
                     if *me.date_header {

@@ -393,7 +393,8 @@ where
                             };
                             (reading, Poll::Ready(maybe_frame))
                         } else if frame.is_trailers() {
-                            (Reading::Closed, Poll::Ready(Some(Ok(frame))))
+                            debug!("incoming body completed with trailers");
+                            (Reading::KeepAlive, Poll::Ready(Some(Ok(frame))))
                         } else {
                             trace!("discarding unknown frame");
                             (Reading::Closed, Poll::Ready(None))
@@ -528,7 +529,7 @@ where
                 return
             }
             Reading::Init => (),
-        };
+        }
 
         match self.state.writing {
             Writing::Body(..) => return,
@@ -544,7 +545,7 @@ where
                             if self.state.is_idle() {
                                 self.state.close();
                             } else {
-                                self.close_read()
+                                self.close_read();
                             }
                             return;
                         }
@@ -612,6 +613,15 @@ where
 
         if !T::should_read_first() {
             self.state.busy();
+            // A client request carrying `Connection: close` must not be pooled or
+            // reused. hyper otherwise derives connection reuse from the response
+            // alone, so a backend that ignores the request-side close (omits
+            // `Connection: close` in its response) would leave the connection in
+            // the pool. Disable keep-alive up front so the connection is evicted
+            // regardless of the response.
+            if headers::connection_any_close(&head.headers) {
+                self.state.disable_keep_alive();
+            }
         }
 
         self.enforce_version(&mut head);
@@ -832,7 +842,7 @@ where
     }
 
     pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
-        match ready!(Pin::new(self.io.io_mut()).poll_shutdown(cx)) {
+        match ready!(self.io.poll_shutdown(cx)) {
             Ok(()) => {
                 trace!("shut down IO complete");
                 Poll::Ready(Ok(()))
@@ -910,7 +920,7 @@ impl<I: Unpin, B, T> Unpin for Conn<I, B, T> {}
 
 struct State {
     allow_half_close: bool,
-    /// Re-usable HeaderMap to reduce allocating new ones.
+    /// Re-usable `HeaderMap` to reduce allocating new ones.
     cached_headers: Option<HeaderMap>,
     /// If an error occurs when there wasn't a direct way to return it
     /// back to the user, this is set.
@@ -947,15 +957,15 @@ struct State {
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,
-    /// State of allowed reads
+    /// State of allowed reads.
     reading: Reading,
-    /// State of allowed writes
+    /// State of allowed writes.
     writing: Writing,
     /// An expected pending HTTP upgrade.
     upgrade: Option<crate::upgrade::Pending>,
-    /// Either HTTP/1.0 or 1.1 connection
+    /// Either HTTP/1.0 or 1.1 connection.
     version: Version,
-    /// Flag to track if trailer fields are allowed to be sent
+    /// Flag to track if trailer fields are allowed to be sent.
     allow_trailer_fields: bool,
 }
 
@@ -1083,14 +1093,14 @@ impl State {
                 }
             }
             (&Reading::Closed, &Writing::KeepAlive) | (&Reading::KeepAlive, &Writing::Closed) => {
-                self.close()
+                self.close();
             }
             _ => (),
         }
     }
 
     fn disable_keep_alive(&mut self) {
-        self.keep_alive.disable()
+        self.keep_alive.disable();
     }
 
     fn busy(&mut self) {
@@ -1195,336 +1205,233 @@ mod tests {
         });
     }
 
-    /*
-    //TODO: rewrite these using dispatch... someday...
-    use futures::{Async, Future, Stream, Sink};
-    use futures::future;
-
-    use proto::{self, ClientTransaction, MessageHead, ServerTransaction};
-    use super::super::Encoder;
-    use mock::AsyncIo;
-
-    use super::{Conn, Decoder, Reading, Writing};
-    use ::uri::Uri;
-
-    use std::str::FromStr;
-
+    // A client request carrying `Connection: close` must evict the connection
+    // (disable keep-alive) at request-encode time, so it is never returned to the
+    // pool for reuse — independent of whether the backend response echoes
+    // `Connection: close`. hyper otherwise derives reuse from the response alone.
+    #[cfg(feature = "client")]
     #[test]
-    fn test_conn_init_read() {
-        let good_message = b"GET / HTTP/1.1\r\n\r\n".to_vec();
-        let len = good_message.len();
-        let io = AsyncIo::new_buf(good_message, len);
-        let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
+    fn client_request_connection_close_disables_keep_alive() {
+        use super::*;
+        use crate::common::io::Compat;
+        use crate::proto::RequestLine;
 
-        match conn.poll().unwrap() {
-            Async::Ready(Some(Frame::Message { message, body: false })) => {
-                assert_eq!(message, MessageHead {
-                    subject: ::proto::RequestLine(::Get, Uri::from_str("/").unwrap()),
-                    .. MessageHead::default()
-                })
-            },
-            f => panic!("frame is not Frame::Message: {:?}", f)
+        // Encodes a client GET (with the given Connection header lines, one
+        // `append` each) on a fresh client Conn and returns whether the
+        // connection remains reusable.
+        fn remains_reusable_after_get(connection_values: &[&'static str]) -> bool {
+            let io = Compat(tokio_test::io::Builder::new().build());
+            let mut conn = Conn::<_, bytes::Bytes, crate::proto::h1::ClientTransaction>::new(io);
+            assert!(
+                conn.state.wants_keep_alive(),
+                "a fresh client connection should want keep-alive"
+            );
+
+            let mut headers = HeaderMap::new();
+            for value in connection_values {
+                headers.append(CONNECTION, HeaderValue::from_static(value));
+            }
+            let head = MessageHead {
+                version: Version::HTTP_11,
+                subject: RequestLine(Method::GET, "/".parse().unwrap()),
+                headers,
+                extensions: http::Extensions::new(),
+            };
+            conn.write_head(head, None);
+            conn.state.wants_keep_alive()
+        }
+
+        // Control: a request without `Connection: close` leaves the connection reusable.
+        assert!(
+            remains_reusable_after_get(&[]),
+            "a keep-alive request must leave the connection reusable"
+        );
+        // Fix: a `Connection: close` request must disable keep-alive so the
+        // connection is evicted regardless of the response.
+        assert!(
+            !remains_reusable_after_get(&["close"]),
+            "a `Connection: close` request must disable keep-alive (connection evicted)"
+        );
+        // A `close` token in a comma-separated value is honored.
+        assert!(
+            !remains_reusable_after_get(&["keep-alive, close"]),
+            "a `close` token in a comma-separated Connection value must disable keep-alive"
+        );
+        // A `close` in ANY of multiple Connection header lines is honored
+        // (get_all, not just the first line).
+        assert!(
+            !remains_reusable_after_get(&["keep-alive", "close"]),
+            "a `close` in any Connection header line must disable keep-alive"
+        );
+    }
+
+    use super::*;
+    use crate::common::io::Compat;
+    #[cfg(feature = "client")]
+    use crate::proto::h1::ClientTransaction;
+    #[cfg(feature = "server")]
+    use crate::proto::h1::ServerTransaction;
+    #[cfg(feature = "server")]
+    use crate::proto::RequestLine;
+    use bytes::Bytes;
+
+    fn poll_head<I, T>(
+        conn: &mut Conn<Compat<I>, Bytes, T>,
+    ) -> Poll<Option<crate::Result<(MessageHead<T::Incoming>, DecodedLength, Wants)>>>
+    where
+        I: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin,
+        T: Http1Transaction + Unpin,
+    {
+        tokio_test::task::spawn(()).enter(|cx, _| conn.poll_read_head(cx))
+    }
+
+    fn ready<T>(poll: Poll<T>) -> T {
+        match poll {
+            Poll::Ready(value) => value,
+            Poll::Pending => panic!("expected ready"),
         }
     }
 
+    #[cfg(feature = "server")]
     #[test]
-    fn test_conn_parse_partial() {
-        let _: Result<(), ()> = future::lazy(|| {
-            let good_message = b"GET / HTTP/1.1\r\nHost: foo.bar\r\n\r\n".to_vec();
-            let io = AsyncIo::new_buf(good_message, 10);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            assert!(conn.poll().unwrap().is_not_ready());
-            conn.io.io_mut().block_in(50);
-            let async = conn.poll().unwrap();
-            assert!(async.is_ready());
-            match async {
-                Async::Ready(Some(Frame::Message { .. })) => (),
-                f => panic!("frame is not Message: {:?}", f),
-            }
-            Ok(())
-        }).wait();
+    fn conn_reads_request_head() {
+        let io = tokio_test::io::Builder::new()
+            .read(b"GET / HTTP/1.1\r\n\r\n")
+            .build();
+        let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+
+        let (head, body, _) = ready(poll_head(&mut conn))
+            .expect("message")
+            .expect("valid request");
+        assert_eq!(head.subject, RequestLine(Method::GET, "/".parse().unwrap()));
+        assert_eq!(body, DecodedLength::ZERO);
     }
 
+    #[cfg(feature = "server")]
     #[test]
-    fn test_conn_init_read_eof_idle() {
-        let io = AsyncIo::new_buf(vec![], 1);
-        let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-        conn.state.idle();
-
-        match conn.poll().unwrap() {
-            Async::Ready(None) => {},
-            other => panic!("frame is not None: {:?}", other)
-        }
-    }
-
-    #[test]
-    fn test_conn_init_read_eof_idle_partial_parse() {
-        let io = AsyncIo::new_buf(b"GET / HTTP/1.1".to_vec(), 100);
-        let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-        conn.state.idle();
-
-        match conn.poll() {
-            Err(ref err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {},
-            other => panic!("unexpected frame: {:?}", other)
-        }
-    }
-
-    #[test]
-    fn test_conn_init_read_eof_busy() {
-        let _: Result<(), ()> = future::lazy(|| {
-            // server ignores
-            let io = AsyncIo::new_eof();
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.busy();
-
-            match conn.poll().unwrap() {
-                Async::Ready(None) => {},
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            // client
-            let io = AsyncIo::new_eof();
-            let mut conn = Conn::<_, proto::Bytes, ClientTransaction>::new(io);
-            conn.state.busy();
-
-            match conn.poll() {
-                Err(ref err) if err.kind() == std::io::ErrorKind::UnexpectedEof => {},
-                other => panic!("unexpected frame: {:?}", other)
-            }
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_body_finish_read_eof() {
-        let _: Result<(), ()> = future::lazy(|| {
-            let io = AsyncIo::new_eof();
-            let mut conn = Conn::<_, proto::Bytes, ClientTransaction>::new(io);
-            conn.state.busy();
-            conn.state.writing = Writing::KeepAlive;
-            conn.state.reading = Reading::Body(Decoder::length(0));
-
-            match conn.poll() {
-                Ok(Async::Ready(Some(Frame::Body { chunk: None }))) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            // conn eofs, but tokio-proto will call poll() again, before calling flush()
-            // the conn eof in this case is perfectly fine
-
-            match conn.poll() {
-                Ok(Async::Ready(None)) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_message_empty_body_read_eof() {
-        let _: Result<(), ()> = future::lazy(|| {
-            let io = AsyncIo::new_buf(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n".to_vec(), 1024);
-            let mut conn = Conn::<_, proto::Bytes, ClientTransaction>::new(io);
-            conn.state.busy();
-            conn.state.writing = Writing::KeepAlive;
-
-            match conn.poll() {
-                Ok(Async::Ready(Some(Frame::Message { body: false, .. }))) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            // conn eofs, but tokio-proto will call poll() again, before calling flush()
-            // the conn eof in this case is perfectly fine
-
-            match conn.poll() {
-                Ok(Async::Ready(None)) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_read_body_end() {
-        let _: Result<(), ()> = future::lazy(|| {
-            let io = AsyncIo::new_buf(b"POST / HTTP/1.1\r\nContent-Length: 5\r\n\r\n12345".to_vec(), 1024);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.busy();
-
-            match conn.poll() {
-                Ok(Async::Ready(Some(Frame::Message { body: true, .. }))) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            match conn.poll() {
-                Ok(Async::Ready(Some(Frame::Body { chunk: Some(_) }))) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            // When the body is done, `poll` MUST return a `Body` frame with chunk set to `None`
-            match conn.poll() {
-                Ok(Async::Ready(Some(Frame::Body { chunk: None }))) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-
-            match conn.poll() {
-                Ok(Async::NotReady) => (),
-                other => panic!("unexpected frame: {:?}", other)
-            }
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_closed_read() {
-        let io = AsyncIo::new_buf(vec![], 0);
-        let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-        conn.state.close();
-
-        match conn.poll().unwrap() {
-            Async::Ready(None) => {},
-            other => panic!("frame is not None: {:?}", other)
-        }
-    }
-
-    #[test]
-    fn test_conn_body_write_length() {
-        let _ = pretty_env_logger::try_init();
-        let _: Result<(), ()> = future::lazy(|| {
-            let io = AsyncIo::new_buf(vec![], 0);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            let max = super::super::io::DEFAULT_MAX_BUFFER_SIZE + 4096;
-            conn.state.writing = Writing::Body(Encoder::length((max * 2) as u64));
-
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; max].into()) }).unwrap().is_ready());
-            assert!(!conn.can_buffer_body());
-
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'b'; 1024 * 8].into()) }).unwrap().is_not_ready());
-
-            conn.io.io_mut().block_in(1024 * 3);
-            assert!(conn.poll_complete().unwrap().is_not_ready());
-            conn.io.io_mut().block_in(1024 * 3);
-            assert!(conn.poll_complete().unwrap().is_not_ready());
-            conn.io.io_mut().block_in(max * 2);
-            assert!(conn.poll_complete().unwrap().is_ready());
-
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'c'; 1024 * 8].into()) }).unwrap().is_ready());
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_body_write_chunked() {
-        let _: Result<(), ()> = future::lazy(|| {
-            let io = AsyncIo::new_buf(vec![], 4096);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.writing = Writing::Body(Encoder::chunked());
-
-            assert!(conn.start_send(Frame::Body { chunk: Some("headers".into()) }).unwrap().is_ready());
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'x'; 8192].into()) }).unwrap().is_ready());
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_body_flush() {
-        let _: Result<(), ()> = future::lazy(|| {
-            let io = AsyncIo::new_buf(vec![], 1024 * 1024 * 5);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.writing = Writing::Body(Encoder::length(1024 * 1024));
-            assert!(conn.start_send(Frame::Body { chunk: Some(vec![b'a'; 1024 * 1024].into()) }).unwrap().is_ready());
-            assert!(!conn.can_buffer_body());
-            conn.io.io_mut().block_in(1024 * 1024 * 5);
-            assert!(conn.poll_complete().unwrap().is_ready());
-            assert!(conn.can_buffer_body());
-            assert!(conn.io.io_mut().flushed());
-
-            Ok(())
-        }).wait();
-    }
-
-    #[test]
-    fn test_conn_parking() {
-        use std::sync::Arc;
-        use futures::executor::Notify;
-        use futures::executor::NotifyHandle;
-
-        struct Car {
-            permit: bool,
-        }
-        impl Notify for Car {
-            fn notify(&self, _id: usize) {
-                assert!(self.permit, "unparked without permit");
-            }
-        }
-
-        fn car(permit: bool) -> NotifyHandle {
-            Arc::new(Car {
-                permit: permit,
-            }).into()
-        }
-
-        // test that once writing is done, unparks
-        let f = future::lazy(|| {
-            let io = AsyncIo::new_buf(vec![], 4096);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.reading = Reading::KeepAlive;
-            assert!(conn.poll().unwrap().is_not_ready());
-
-            conn.state.writing = Writing::KeepAlive;
-            assert!(conn.poll_complete().unwrap().is_ready());
-            Ok::<(), ()>(())
+    fn conn_reads_partial_request_head() {
+        tokio_test::task::spawn(()).enter(|cx, _| {
+            let (io, mut handle) = tokio_test::io::Builder::new().build_with_handle();
+            let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+            handle.read(b"GET / HTTP");
+            assert!(conn.poll_read_head(cx).is_pending());
+            handle.read(b"/1.1\r\nHost: foo.bar\r\n\r\n");
+            assert!(conn.poll_read_head(cx).is_ready());
         });
-        ::futures::executor::spawn(f).poll_future_notify(&car(true), 0).unwrap();
-
-
-        // test that flushing when not waiting on read doesn't unpark
-        let f = future::lazy(|| {
-            let io = AsyncIo::new_buf(vec![], 4096);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.writing = Writing::KeepAlive;
-            assert!(conn.poll_complete().unwrap().is_ready());
-            Ok::<(), ()>(())
-        });
-        ::futures::executor::spawn(f).poll_future_notify(&car(false), 0).unwrap();
-
-
-        // test that flushing and writing isn't done doesn't unpark
-        let f = future::lazy(|| {
-            let io = AsyncIo::new_buf(vec![], 4096);
-            let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-            conn.state.reading = Reading::KeepAlive;
-            assert!(conn.poll().unwrap().is_not_ready());
-            conn.state.writing = Writing::Body(Encoder::length(5_000));
-            assert!(conn.poll_complete().unwrap().is_ready());
-            Ok::<(), ()>(())
-        });
-        ::futures::executor::spawn(f).poll_future_notify(&car(false), 0).unwrap();
     }
 
+    #[cfg(feature = "server")]
     #[test]
-    fn test_conn_closed_write() {
-        let io = AsyncIo::new_buf(vec![], 0);
-        let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
-        conn.state.close();
-
-        match conn.start_send(Frame::Body { chunk: Some(b"foobar".to_vec().into()) }) {
-            Err(_e) => {},
-            other => panic!("did not return Err: {:?}", other)
-        }
-
-        assert!(conn.state.is_write_closed());
+    fn conn_accepts_eof_when_idle() {
+        let io = tokio_test::io::Builder::new().build();
+        let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+        conn.state.idle::<ServerTransaction>();
+        assert!(matches!(poll_head(&mut conn), Poll::Ready(None)));
     }
 
+    #[cfg(feature = "server")]
     #[test]
-    fn test_conn_write_empty_chunk() {
-        let io = AsyncIo::new_buf(vec![], 0);
-        let mut conn = Conn::<_, proto::Bytes, ServerTransaction>::new(io);
+    fn conn_rejects_eof_during_partial_head() {
+        let io = tokio_test::io::Builder::new()
+            .read(b"GET / HTTP/1.1")
+            .build();
+        let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+        conn.state.idle::<ServerTransaction>();
+        let err = ready(poll_head(&mut conn))
+            .expect("error result")
+            .expect_err("partial head must fail");
+        assert!(err.is_incomplete_message(), "unexpected error: {err:?}");
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn client_rejects_eof_while_busy() {
+        let io = tokio_test::io::Builder::new().build();
+        let mut client = Conn::<_, Bytes, ClientTransaction>::new(Compat::new(io));
+        client.state.busy();
+        client.state.writing = Writing::KeepAlive;
+        let err = ready(poll_head(&mut client))
+            .expect("error result")
+            .expect_err("client EOF must fail");
+        assert!(err.is_incomplete_message(), "unexpected error: {err:?}");
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn server_accepts_eof_while_busy() {
+        let io = tokio_test::io::Builder::new().build();
+        let mut server = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+        server.state.busy();
+        assert!(matches!(poll_head(&mut server), Poll::Ready(None)));
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn conn_reads_empty_response_before_eof() {
+        let io = tokio_test::io::Builder::new()
+            .read(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+            .build();
+        let mut conn = Conn::<_, Bytes, ClientTransaction>::new(Compat::new(io));
+        conn.state.busy();
         conn.state.writing = Writing::KeepAlive;
-
-        assert!(conn.start_send(Frame::Body { chunk: None }).unwrap().is_ready());
-        assert!(conn.start_send(Frame::Body { chunk: Some(Vec::new().into()) }).unwrap().is_ready());
-        conn.start_send(Frame::Body { chunk: Some(vec![b'a'].into()) }).unwrap_err();
+        let (_, body, _) = ready(poll_head(&mut conn))
+            .expect("response")
+            .expect("valid response");
+        assert_eq!(body, DecodedLength::ZERO);
     }
-    */
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn conn_reads_body_and_reports_end() {
+        let io = tokio_test::io::Builder::new()
+            .read(b"POST / HTTP/1.1\r\nContent-Length: 5\r\n\r\n12345")
+            .wait(std::time::Duration::from_secs(1))
+            .build();
+        let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+        let (_, body, _) = ready(poll_head(&mut conn))
+            .expect("request")
+            .expect("valid request");
+        assert_eq!(body, DecodedLength::new(5));
+
+        tokio_test::task::spawn(()).enter(|cx, _| {
+            let frame = conn.poll_read_body(cx);
+            let data = ready(frame)
+                .expect("body frame")
+                .expect("valid body")
+                .into_data()
+                .expect("data frame");
+            assert_eq!(data, "12345");
+            assert!(
+                !conn.can_read_body(),
+                "the complete body must return to head-reading state"
+            );
+        });
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn closed_conn_cannot_read_or_write() {
+        let io = tokio_test::io::Builder::new().build();
+        let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+        conn.state.close();
+        assert!(conn.is_read_closed());
+        assert!(conn.is_write_closed());
+        assert!(!conn.can_read_head());
+        assert!(!conn.can_write_head());
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn conn_writes_chunked_body() {
+        let io = tokio_test::io::Builder::new()
+            .write(b"7\r\nheaders\r\n0\r\n\r\n")
+            .build();
+        let mut conn = Conn::<_, Bytes, ServerTransaction>::new(Compat::new(io));
+        conn.state.writing = Writing::Body(Encoder::chunked());
+        conn.write_body(Bytes::from_static(b"headers"));
+        conn.end_body().unwrap();
+        tokio_test::task::spawn(()).enter(|cx, _| {
+            assert!(conn.poll_flush(cx).is_ready());
+        });
+    }
 }

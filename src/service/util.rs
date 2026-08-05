@@ -38,7 +38,7 @@ where
     }
 }
 
-/// Service returned by [`service_fn`]
+/// Service returned by [`service_fn`].
 pub struct ServiceFn<F, R> {
     f: F,
     _req: PhantomData<fn(R)>,

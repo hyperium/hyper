@@ -258,7 +258,7 @@ impl<'data> ReadBuf<'data> {
     #[inline]
     pub fn filled(&self) -> &[u8] {
         // SAFETY: We only slice the filled part of the buffer, which is always valid
-        unsafe { &*(&self.raw[0..self.filled] as *const [MaybeUninit<u8>] as *const [u8]) }
+        unsafe { &*(std::ptr::addr_of!(self.raw[0..self.filled]) as *const [u8]) }
     }
 
     /// Get a cursor to the unfilled portion of the buffer.
@@ -346,7 +346,7 @@ impl ReadBufCursor<'_> {
     /// Returns the number of bytes that can be written from the current
     /// position until the end of the buffer is reached.
     ///
-    /// This value is equal to the length of the slice returned by `as_mut()``.
+    /// This value is equal to the length of the slice returned by `as_mut()`.
     #[inline]
     pub fn remaining(&self) -> usize {
         self.buf.remaining()
@@ -381,6 +381,46 @@ impl ReadBufCursor<'_> {
             self.buf.init = end;
         }
         self.buf.filled = end;
+    }
+
+    /// Returns a mutable reference to the unfilled part of the buffer, ensuring it is fully initialized.
+    #[inline]
+    pub fn initialize_unfilled(&mut self) -> &mut [u8] {
+        self.initialize_unfilled_to(self.remaining())
+    }
+
+    /// Returns a mutable reference to the first `n` bytes of the unfilled part of the buffer, ensuring it is
+    /// fully initialized.
+    ///
+    /// # Panics
+    ///
+    /// Panics if `self.remaining()` is less than `n`.
+    #[inline]
+    pub fn initialize_unfilled_to(&mut self, n: usize) -> &mut [u8] {
+        assert!(self.remaining() >= n, "n overflows remaining");
+
+        // This can't overflow as the assert above would have panicked otherwise.
+        let end = self.buf.filled + n;
+
+        if self.buf.init < end {
+            // SAFETY:
+            // 1. The raw pointer is not null and not dangling either as the slice outlives the
+            // pointer's usage. The pointer is also properly aligned.
+            // 2. Further, `end - self.buf.init` is inbounds and hence safe to write
+            // to.
+            unsafe {
+                self.buf.raw[self.buf.init..end]
+                    .as_mut_ptr()
+                    .write_bytes(0, end - self.buf.init);
+            }
+            self.buf.init = end;
+        }
+
+        let slice = &mut self.buf.raw[self.buf.filled..end];
+
+        // SAFETY: `MaybeUninit<u8>` has the same memory layout as u8 and we properly initialized
+        // the slice above.
+        unsafe { &mut *(slice as *mut [MaybeUninit<u8>] as *mut [u8]) }
     }
 }
 
@@ -495,8 +535,8 @@ where
     }
 }
 
-/// Polyfill for Pin::as_deref_mut()
-/// TODO: use Pin::as_deref_mut() instead once stabilized
+/// Polyfill for `Pin::as_deref_mut()`.
+/// TODO: use `Pin::as_deref_mut()` instead once stabilized.
 fn pin_as_deref_mut<P: DerefMut>(pin: Pin<&mut Pin<P>>) -> Pin<&mut P::Target> {
     // SAFETY: we go directly from Pin<&mut Pin<P>> to Pin<&mut P::Target>, without moving or
     // giving out the &mut Pin<P> in the process. See Pin::as_deref_mut() for more detail.
