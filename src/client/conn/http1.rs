@@ -1,4 +1,4 @@
-//! HTTP/1 client connections
+//! HTTP/1 client connections.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -49,7 +49,14 @@ pub struct Parts<T> {
 /// In most cases, this should just be spawned into an executor, so that it
 /// can process incoming and outgoing messages, notice hangups, and the like.
 ///
-/// Instances of this type are typically created via the [`handshake`] function
+/// Instances of this type are typically created via the [`handshake`] function.
+///
+/// # Drop behavior
+///
+/// Dropping the `Connection` will close the underlying IO resource.
+/// Any in-flight requests that have not received a response will be
+/// interrupted. If graceful shutdown is desired, poll the connection
+/// until it completes instead of dropping.
 #[must_use = "futures do nothing unless polled"]
 pub struct Connection<T, B>
 where
@@ -93,8 +100,14 @@ where
     pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
         let mut conn = Some(self);
         crate::common::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
-            ready!(conn.as_mut().unwrap().poll_without_shutdown(cx))?;
-            Poll::Ready(Ok(conn.take().unwrap().into_parts()))
+            ready!(conn
+                .as_mut()
+                .expect("client connection polled after completion")
+                .poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(conn
+                .take()
+                .expect("client connection missing before completion")
+                .into_parts()))
         })
         .await
     }
@@ -144,7 +157,7 @@ impl<B> SendRequest<B> {
         self.dispatch.poll_ready(cx)
     }
 
-    /// Waits until the dispatcher is ready
+    /// Waits until the dispatcher is ready.
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
@@ -188,6 +201,15 @@ where
     ///
     /// This is however not enforced or validated and it is up to the user
     /// of this method to ensure the `Uri` is correct for their intended purpose.
+    ///
+    /// # Cancel safety
+    ///
+    /// Dropping the returned future is the supported way to cancel an
+    /// in-flight HTTP/1 request. Because HTTP/1 has no in-protocol way to
+    /// abort a single request without affecting the shared connection,
+    /// hyper closes the underlying connection when a request future is
+    /// dropped before completion. Any subsequent calls on the same
+    /// [`SendRequest`] will return a `canceled` error.
     pub fn send_request(
         &mut self,
         req: Request<B>,
@@ -310,7 +332,7 @@ impl Builder {
             h09_responses: false,
             h1_writev: None,
             h1_read_buf_exact_size: None,
-            h1_parser_config: Default::default(),
+            h1_parser_config: ParserConfig::default(),
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,
@@ -409,11 +431,11 @@ impl Builder {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Setting this to true will force hyper to use queued strategy
-    /// which may eliminate unnecessary cloning on some TLS backends
+    /// Setting this to true will force hyper to use queued strategy,
+    /// which may eliminate unnecessary cloning on some TLS backends.
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
-    /// mode to use
+    /// mode to use.
     pub fn writev(&mut self, enabled: bool) -> &mut Builder {
         self.h1_writev = Some(enabled);
         self
@@ -569,10 +591,11 @@ impl Builder {
 }
 
 mod upgrades {
+    use super::{Connection, Context, Future, Parts, Pin, Poll, Read, StdError, Write};
+    use crate::body::Body;
+    use crate::proto::Dispatched;
     use crate::upgrade::Upgraded;
-
-    use super::*;
-
+    use futures_core::ready;
     // A future binding a connection with a Service with Upgrade support.
     //
     // This type is unnameable outside the crate.
@@ -597,10 +620,22 @@ mod upgrades {
         type Output = crate::Result<()>;
 
         fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-            match ready!(Pin::new(&mut self.inner.as_mut().unwrap().inner).poll(cx)) {
-                Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
-                Ok(proto::Dispatched::Upgrade(pending)) => {
-                    let Parts { io, read_buf } = self.inner.take().unwrap().into_parts();
+            match ready!(Pin::new(
+                &mut self
+                    .inner
+                    .as_mut()
+                    .expect("upgradeable client connection polled after upgrade")
+                    .inner,
+            )
+            .poll(cx))
+            {
+                Ok(Dispatched::Shutdown) => Poll::Ready(Ok(())),
+                Ok(Dispatched::Upgrade(pending)) => {
+                    let Parts { io, read_buf } = self
+                        .inner
+                        .take()
+                        .expect("upgradeable client connection missing after upgrade")
+                        .into_parts();
                     pending.fulfill(Upgraded::new(io, read_buf));
                     Poll::Ready(Ok(()))
                 }

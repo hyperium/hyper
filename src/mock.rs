@@ -16,6 +16,8 @@ use tokio_io::{AsyncRead, AsyncWrite};
 
 #[cfg(feature = "runtime")]
 use crate::client::connect::{Connect, Connected, Destination};
+#[cfg(feature = "runtime")]
+use crate::common::lock::LockResultExt;
 
 
 
@@ -59,14 +61,14 @@ impl Duplex {
 #[cfg(feature = "runtime")]
 impl Read for Duplex {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.inner.lock().unwrap().read.read(buf)
+        self.inner.lock().panic_if_poisoned().read.read(buf)
     }
 }
 
 #[cfg(feature = "runtime")]
 impl Write for Duplex {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().panic_if_poisoned();
         let ret = inner.write.write(buf);
         if let Some(task) = inner.handle_read_task.take() {
             trace!("waking DuplexHandle read");
@@ -76,7 +78,7 @@ impl Write for Duplex {
     }
 
     fn flush(&mut self) -> io::Result<()> {
-        self.inner.lock().unwrap().write.flush()
+        self.inner.lock().panic_if_poisoned().write.flush()
     }
 }
 
@@ -91,7 +93,7 @@ impl AsyncWrite for Duplex {
     }
 
     fn write_buf<B: Buf>(&mut self, buf: &mut B) -> Poll<usize, io::Error> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().panic_if_poisoned();
         if let Some(task) = inner.handle_read_task.take() {
             task.notify();
         }
@@ -107,7 +109,7 @@ pub struct DuplexHandle {
 #[cfg(feature = "runtime")]
 impl DuplexHandle {
     pub fn read(&self, buf: &mut [u8]) -> Poll<usize, io::Error> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().panic_if_poisoned();
         assert!(buf.len() >= inner.write.inner.len());
         if inner.write.inner.is_empty() {
             trace!("DuplexHandle read parking");
@@ -118,7 +120,7 @@ impl DuplexHandle {
     }
 
     pub fn write(&self, bytes: &[u8]) -> Poll<usize, io::Error> {
-        let mut inner = self.inner.lock().unwrap();
+        let mut inner = self.inner.lock().panic_if_poisoned();
         assert_eq!(inner.read.inner.pos, 0);
         assert_eq!(inner.read.inner.vec.len(), 0, "write but read isn't empty");
         inner
@@ -136,7 +138,7 @@ impl Drop for DuplexHandle {
     fn drop(&mut self) {
         trace!("mock duplex handle drop");
         if !::std::thread::panicking() {
-            let mut inner = self.inner.lock().unwrap();
+            let mut inner = self.inner.lock().panic_if_poisoned();
             inner.read.close();
             inner.write.close();
         }
@@ -187,7 +189,7 @@ impl MockConnector {
             trace!("MockConnector mocked fut ready");
             Ok((duplex, connected))
         }));
-        self.mocks.lock().unwrap().0.entry(key)
+        self.mocks.lock().panic_if_poisoned().0.entry(key)
             .or_insert(Vec::new())
             .push(fut);
 
@@ -208,7 +210,7 @@ impl Connect for MockConnector {
         } else {
             "".to_owned()
         });
-        let mut mocks = self.mocks.lock().unwrap();
+        let mut mocks = self.mocks.lock().panic_if_poisoned();
         let mocks = mocks.0.get_mut(&key)
             .expect(&format!("unknown mocks uri: {}", key));
         assert!(!mocks.is_empty(), "no additional mocks for {}", key);

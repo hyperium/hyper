@@ -1,4 +1,4 @@
-//! HTTP Upgrades
+//! HTTP Upgrades.
 //!
 //! This module deals with managing [HTTP Upgrades][mdn] in hyper. Since
 //! several concepts in HTTP allow for first talking HTTP, and then converting
@@ -53,6 +53,7 @@ use bytes::Bytes;
 use tokio::sync::oneshot;
 
 use crate::common::io::Rewind;
+use crate::common::lock::LockResultExt;
 
 /// An upgraded HTTP connection.
 ///
@@ -226,7 +227,7 @@ impl Future for OnUpgrade {
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         match self.rx {
-            Some(ref rx) => Pin::new(&mut *rx.lock().unwrap())
+            Some(ref rx) => Pin::new(&mut *rx.lock().panic_if_poisoned())
                 .poll(cx)
                 .map(|res| match res {
                     Ok(Ok(upgraded)) => Ok(upgraded),
@@ -300,13 +301,23 @@ impl dyn Io + Send {
         let t = TypeId::of::<T>();
         self.__hyper_type_id() == t
     }
-
+    /// downcast a Box wrapped Type to a Box<T>
+    /// implemented by raw pointer cast.
     fn __hyper_downcast<T: Io>(self: Box<Self>) -> Result<Box<T>, Box<Self>> {
         if self.__hyper_is::<T>() {
             // Taken from `std::error::Error::downcast()`.
+            // SAFETY:
+            // 1. `self.__hyper_is::<T>()` performs a runtime type check (typically via `TypeId`),
+            //    guaranteeing that the underlying concrete type is indeed `T`.
+            // 2. We use `Box::into_raw` to obtain a pointer to the trait object, which
+            //    has the same memory layout as the underlying concrete type `T` at the
+            //    location identified by the runtime check.
+            // 3. `Box::from_raw` is safe to call here because we are reconstructing the
+            //    box from the pointer that was originally created by `Box::into_raw`,
+            //    and the type `T` matches the original type of the allocated memory.
             unsafe {
                 let raw: *mut dyn Io = Box::into_raw(self);
-                Ok(Box::from_raw(raw as *mut T))
+                Ok(Box::from_raw(raw.cast()))
             }
         } else {
             Err(self)

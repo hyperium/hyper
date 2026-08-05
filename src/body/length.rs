@@ -31,7 +31,7 @@ impl DecodedLength {
     /// Takes the length as a content-length without other checks.
     ///
     /// Should only be called if previously confirmed this isn't
-    /// CLOSE_DELIMITED or CHUNKED.
+    /// `CLOSE_DELIMITED` or `CHUNKED`.
     #[inline]
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
     pub(crate) fn danger_len(self) -> u64 {
@@ -102,7 +102,7 @@ impl fmt::Display for DecodedLength {
             DecodedLength::CLOSE_DELIMITED => f.write_str("close-delimited"),
             DecodedLength::CHUNKED => f.write_str("chunked encoding"),
             DecodedLength::ZERO => f.write_str("empty"),
-            DecodedLength(n) => write!(f, "content-length ({} bytes)", n),
+            DecodedLength(n) => write!(f, "content-length ({n} bytes)"),
         }
     }
 }

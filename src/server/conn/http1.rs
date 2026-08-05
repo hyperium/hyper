@@ -1,4 +1,4 @@
-//! HTTP/1 Server Connections
+//! HTTP/1 Server Connections.
 
 use std::error::Error as StdError;
 use std::fmt;
@@ -12,6 +12,7 @@ use crate::rt::{Read, Write};
 use crate::upgrade::Upgraded;
 use bytes::Bytes;
 use futures_core::ready;
+use httparse::ParserConfig;
 
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
@@ -70,7 +71,7 @@ pin_project_lite::pin_project! {
 /// to bind the built connection to a service.
 #[derive(Clone, Debug)]
 pub struct Builder {
-    h1_parser_config: httparse::ParserConfig,
+    h1_parser_config: ParserConfig,
     timer: Time,
     h1_half_close: bool,
     h1_keep_alive: bool,
@@ -181,8 +182,15 @@ where
     pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> + 'body {
         let mut zelf = Some(self);
         crate::common::future::poll_fn(move |cx| {
-            ready!(zelf.as_mut().unwrap().conn.poll_without_shutdown(cx))?;
-            Poll::Ready(Ok(zelf.take().unwrap().into_parts()))
+            ready!(zelf
+                .as_mut()
+                .expect("server connection polled after completion")
+                .conn
+                .poll_without_shutdown(cx))?;
+            Poll::Ready(Ok(zelf
+                .take()
+                .expect("server connection missing before completion")
+                .into_parts()))
         })
     }
 
@@ -219,7 +227,7 @@ where
                         // error letting them know about that.
                         pending.manual();
                     }
-                };
+                }
                 Poll::Ready(Ok(()))
             }
             Err(e) => Poll::Ready(Err(e)),
@@ -233,7 +241,7 @@ impl Builder {
     /// Create a new connection builder.
     pub fn new() -> Self {
         Self {
-            h1_parser_config: Default::default(),
+            h1_parser_config: ParserConfig::default(),
             timer: Time::Empty,
             h1_half_close: false,
             h1_keep_alive: true,
@@ -354,11 +362,11 @@ impl Builder {
     /// but may also improve performance when an IO transport doesn't
     /// support vectored writes well, such as most TLS implementations.
     ///
-    /// Setting this to true will force hyper to use queued strategy
-    /// which may eliminate unnecessary cloning on some TLS backends
+    /// Setting this to true will force hyper to use queued strategy,
+    /// which may eliminate unnecessary cloning on some TLS backends.
     ///
     /// Default is `auto`. In this mode hyper will try to guess which
-    /// mode to use
+    /// mode to use.
     pub fn writev(&mut self, val: bool) -> &mut Self {
         self.h1_writev = Some(val);
         self
@@ -473,7 +481,7 @@ impl Builder {
             .check(self.h1_header_read_timeout, "header_read_timeout")
         {
             conn.set_http1_header_read_timeout(dur);
-        };
+        }
         if let Some(writev) = self.h1_writev {
             if writev {
                 conn.set_write_strategy_queue();
@@ -520,8 +528,14 @@ where
         // Connection (`inner`) is `None` if it was upgraded (and `poll` is `Ready`).
         // In that case, we don't need to call `graceful_shutdown`.
         if let Some(conn) = self.inner.as_mut() {
-            Pin::new(conn).graceful_shutdown()
+            Pin::new(conn).graceful_shutdown();
         }
+    }
+
+    /// Return the inner IO object, and additional information provided the connection
+    /// has not yet been upgraded.
+    pub fn into_parts(self) -> Option<Parts<I, S>> {
+        self.inner.map(|conn| conn.into_parts())
     }
 }
 
@@ -540,7 +554,12 @@ where
             match ready!(Pin::new(&mut conn.conn).poll(cx)) {
                 Ok(proto::Dispatched::Shutdown) => Poll::Ready(Ok(())),
                 Ok(proto::Dispatched::Upgrade(pending)) => {
-                    let (io, buf, _) = self.inner.take().unwrap().conn.into_inner();
+                    let (io, buf, _) = self
+                        .inner
+                        .take()
+                        .expect("upgradeable server connection missing after upgrade")
+                        .conn
+                        .into_inner();
                     pending.fulfill(Upgraded::new(io, buf));
                     Poll::Ready(Ok(()))
                 }

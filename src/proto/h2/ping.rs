@@ -1,4 +1,4 @@
-//! HTTP2 Ping usage
+//! HTTP2 Ping usage.
 //!
 //! hyper uses HTTP2 pings for two purposes:
 //!
@@ -28,6 +28,7 @@ use std::time::{Duration, Instant};
 
 use h2::{Ping, PingPong};
 
+use crate::common::lock::LockResultExt;
 use crate::common::time::Time;
 use crate::rt::Sleep;
 
@@ -137,11 +138,11 @@ struct Shared {
 }
 
 struct Bdp {
-    /// Current BDP in bytes
+    /// Current BDP in bytes.
     bdp: u32,
     /// Largest bandwidth we've seen so far.
     max_bandwidth: f64,
-    /// Round trip time in seconds
+    /// Round trip time in seconds.
     rtt: f64,
     /// Delay the next ping by this amount.
     ///
@@ -196,7 +197,7 @@ impl Recorder {
             return;
         };
 
-        let mut locked = shared.lock().unwrap();
+        let mut locked = shared.lock().panic_if_poisoned();
 
         locked.update_last_read_at();
 
@@ -230,7 +231,7 @@ impl Recorder {
             return;
         };
 
-        let mut locked = shared.lock().unwrap();
+        let mut locked = shared.lock().panic_if_poisoned();
 
         locked.update_last_read_at();
     }
@@ -248,7 +249,7 @@ impl Recorder {
 
     pub(super) fn ensure_not_timed_out(&self) -> crate::Result<()> {
         if let Some(ref shared) = self.shared {
-            let locked = shared.lock().unwrap();
+            let locked = shared.lock().panic_if_poisoned();
             if locked.is_keep_alive_timed_out {
                 return Err(KeepAliveTimedOut.crate_error());
             }
@@ -263,7 +264,7 @@ impl Recorder {
 
 impl Ponger {
     pub(super) fn poll(&mut self, cx: &mut task::Context<'_>) -> Poll<Ponged> {
-        let mut locked = self.shared.lock().unwrap();
+        let mut locked = self.shared.lock().panic_if_poisoned();
         let now = locked.timer.now(); // hoping this is fine to move within the lock
         let is_idle = self.is_idle();
 
@@ -422,7 +423,7 @@ impl Bdp {
 fn seconds(dur: Duration) -> f64 {
     const NANOS_PER_SEC: f64 = 1_000_000_000.0;
     let secs = dur.as_secs() as f64;
-    secs + (dur.subsec_nanos() as f64) / NANOS_PER_SEC
+    secs + (f64::from(dur.subsec_nanos())) / NANOS_PER_SEC
 }
 
 // ===== impl KeepAlive =====

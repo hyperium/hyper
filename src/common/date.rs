@@ -14,14 +14,14 @@ pub(crate) const DATE_VALUE_LENGTH: usize = 29;
 pub(crate) fn extend(dst: &mut Vec<u8>) {
     CACHED.with(|cache| {
         dst.extend_from_slice(cache.borrow().buffer());
-    })
+    });
 }
 
 #[cfg(feature = "http1")]
 pub(crate) fn update() {
     CACHED.with(|cache| {
         cache.borrow_mut().check();
-    })
+    });
 }
 
 #[cfg(feature = "http2")]
@@ -74,13 +74,13 @@ impl CachedDate {
             .subsec_nanos();
 
         self.render(now);
-        self.next_update = now + Duration::new(1, 0) - Duration::from_nanos(nanos as u64);
+        self.next_update = now + Duration::new(1, 0) - Duration::from_nanos(u64::from(nanos));
     }
 
     fn render(&mut self, now: SystemTime) {
         self.pos = 0;
         let _ = write!(self, "{}", HttpDate::from(now));
-        debug_assert!(self.pos == DATE_VALUE_LENGTH);
+        debug_assert_eq!(self.pos, DATE_VALUE_LENGTH);
         self.render_http2();
     }
 

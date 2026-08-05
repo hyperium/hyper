@@ -1,4 +1,4 @@
-//! Provides a timer trait with timer-like functions
+//! Provides a timer trait with timer-like functions.
 //!
 //! Example using tokio timer:
 //! ```rust
@@ -90,7 +90,7 @@ pub trait Timer {
 /// A future returned by a `Timer`.
 pub trait Sleep: Send + Sync + Future<Output = ()> {
     #[doc(hidden)]
-    /// This method is private and can not be implemented by downstream crate
+    /// This method is private and can not be implemented by downstream crates.
     fn __type_id(&self, _: private::Sealed) -> TypeId
     where
         Self: 'static,
@@ -100,26 +100,35 @@ pub trait Sleep: Send + Sync + Future<Output = ()> {
 }
 
 impl dyn Sleep {
-    //! This is a re-implementation of downcast methods from std::any::Any
+    // This is a re-implementation of downcast methods from `std::any::Any`.
 
-    /// Check whether the type is the same as `T`
+    /// Check whether the type is the same as `T`.
     pub fn is<T>(&self) -> bool
     where
         T: Sleep + 'static,
     {
-        self.__type_id(private::Sealed {}) == TypeId::of::<T>()
+        self.__type_id(private::Sealed) == TypeId::of::<T>()
     }
 
-    /// Downcast a pinned &mut Sleep object to its original type
+    /// Downcast a pinned `&mut Sleep` object to its original type.
     pub fn downcast_mut_pin<T>(self: Pin<&mut Self>) -> Option<Pin<&mut T>>
     where
         T: Sleep + 'static,
     {
         if self.is::<T>() {
+            // SAFETY:
+            // 1. `self.is::<T>()` guarantees that the underlying object is indeed of type `T`.
+            // 2. We use `Pin::into_inner_unchecked` to gain mutable access to the underlying
+            //    value because we are maintaining the pinning contract.
+            // 3. We convert the reference to `dyn Sleep` to a reference to `T` via raw pointers.
+            //    Since we've verified the type, this is a sound downcast.
+            // 4. `Pin::new_unchecked` is safe here because the original object was already pinned,
+            //    and by pinning the downcasted reference, we continue to uphold the pinning guarantee
+            //    that the object will not be moved.
             unsafe {
                 let inner = Pin::into_inner_unchecked(self);
                 Some(Pin::new_unchecked(
-                    &mut *(&mut *inner as *mut dyn Sleep as *mut T),
+                    &mut *(&mut *inner as *mut dyn Sleep).cast(),
                 ))
             }
         } else {
@@ -130,5 +139,5 @@ impl dyn Sleep {
 
 mod private {
     #![allow(missing_debug_implementations)]
-    pub struct Sealed {}
+    pub struct Sealed;
 }
