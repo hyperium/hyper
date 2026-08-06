@@ -592,6 +592,11 @@ where
         self.io.can_buffer()
     }
 
+    /// Whether bytes are sitting in the write buffer waiting to be flushed.
+    pub(crate) fn has_buffered_write(&self) -> bool {
+        self.io.has_buffered_write()
+    }
+
     pub(crate) fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
         if let Some(encoder) = self.encode_head(head, body) {
             self.state.writing = if !encoder.is_eof() {
