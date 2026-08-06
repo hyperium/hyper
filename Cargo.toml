@@ -23,7 +23,7 @@ include = [
 bytes = "1.2"
 http = "1"
 http-body = "1"
-tokio = { version = "1", features = ["sync"] }
+tokio = { version = "1", default-features = false, features = ["sync"] }
 
 # Optional
 
