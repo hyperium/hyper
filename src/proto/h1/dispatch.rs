@@ -600,7 +600,7 @@ cfg_server! {
             cx: &mut Context<'_>,
         ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
             let mut this = self.as_mut();
-            let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
+            let ret = if let Some(fut) = &mut this.in_flight.as_mut().as_pin_mut() {
                 let resp = ready!(fut.as_mut().poll(cx)?);
                 let (parts, body) = resp.into_parts();
                 let head = MessageHead {
@@ -750,8 +750,8 @@ cfg_client! {
         }
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>> {
-            match self.callback {
-                Some(ref mut cb) => match cb.poll_canceled(cx) {
+            match &mut self.callback {
+                Some(cb) => match cb.poll_canceled(cx) {
                     Poll::Ready(()) => {
                         trace!("callback receiver has dropped");
                         Poll::Ready(Err(()))

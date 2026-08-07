@@ -2351,7 +2351,7 @@ mod conn {
                     if let Poll::Ready(res) = fut2.as_mut().poll(cx) {
                         return Poll::Ready(res);
                     }
-                    if let Some(ref mut conn) = conn_opt {
+                    if let Some(conn) = &mut conn_opt {
                         match Pin::new(conn).poll(cx) {
                             Poll::Ready(_) => {
                                 conn_opt = None;
