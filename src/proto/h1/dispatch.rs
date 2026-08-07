@@ -205,6 +205,15 @@ where
                 // we need to check it again. If it is still pending, it is safe to yield and rely
                 // on wake-up from the connection futures.
                 if self.poll_write(cx)?.is_pending() {
+                    // That write can have buffered bytes before going pending: a body that
+                    // reached end-of-stream between the two write polls buffers the end of the
+                    // message here, and then the write goes pending on the *next* message.
+                    // Yielding without flushing would strand those bytes in the write buffer
+                    // until the peer gives up, since the wake-ups we then rely on are for
+                    // reads. Flush what was just buffered before yielding.
+                    if self.conn.has_buffered_write() {
+                        let _ = self.poll_flush(cx)?;
+                    }
                     return Poll::Ready(Ok(()));
                 }
             }
