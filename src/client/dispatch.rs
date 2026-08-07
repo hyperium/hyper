@@ -266,30 +266,30 @@ fn dispatch_gone() -> crate::Error {
 impl<T, U> Callback<T, U> {
     #[cfg(feature = "http2")]
     pub(crate) fn is_canceled(&self) -> bool {
-        match *self {
-            Callback::Retry(Some(ref tx)) => tx.is_closed(),
-            Callback::NoRetry(Some(ref tx)) => tx.is_closed(),
+        match self {
+            Callback::Retry(Some(tx)) => tx.is_closed(),
+            Callback::NoRetry(Some(tx)) => tx.is_closed(),
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn poll_canceled(&mut self, cx: &mut Context<'_>) -> Poll<()> {
-        match *self {
-            Callback::Retry(Some(ref mut tx)) => tx.poll_closed(cx),
-            Callback::NoRetry(Some(ref mut tx)) => tx.poll_closed(cx),
+        match self {
+            Callback::Retry(Some(tx)) => tx.poll_closed(cx),
+            Callback::NoRetry(Some(tx)) => tx.poll_closed(cx),
             _ => unreachable!(),
         }
     }
 
     pub(crate) fn send(mut self, val: Result<U, TrySendError<T>>) {
-        match self {
-            Callback::Retry(ref mut tx) => {
+        match &mut self {
+            Callback::Retry(tx) => {
                 let _ = tx
                     .take()
                     .expect("callback sender not dropped before send")
                     .send(val);
             }
-            Callback::NoRetry(ref mut tx) => {
+            Callback::NoRetry(tx) => {
                 let _ = tx
                     .take()
                     .expect("callback sender not dropped before send")

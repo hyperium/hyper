@@ -67,9 +67,9 @@ impl DecodedLength {
         any(feature = "client", feature = "server")
     ))]
     pub(crate) fn sub_if(&mut self, amt: u64) {
-        match *self {
-            DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED => (),
-            DecodedLength(ref mut known) => {
+        match self {
+            &mut DecodedLength::CHUNKED | &mut DecodedLength::CLOSE_DELIMITED => (),
+            DecodedLength(known) => {
                 *known -= amt;
             }
         }

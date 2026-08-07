@@ -172,15 +172,12 @@ impl Incoming {
 
     #[cfg(feature = "ffi")]
     pub(crate) fn as_ffi_mut(&mut self) -> &mut crate::ffi::UserBody {
-        match self.kind {
-            Kind::Ffi(ref mut body) => return body,
-            _ => {
-                self.kind = Kind::Ffi(crate::ffi::UserBody::new());
-            }
+        if !matches!(self.kind, Kind::Ffi(_)) {
+            self.kind = Kind::Ffi(crate::ffi::UserBody::new());
         }
 
-        match self.kind {
-            Kind::Ffi(ref mut body) => body,
+        match &mut self.kind {
+            Kind::Ffi(body) => body,
             _ => unreachable!(),
         }
     }
@@ -208,14 +205,14 @@ impl Body for Incoming {
         )]
         cx: &mut Context<'_>,
     ) -> Poll<Option<Result<Frame<Self::Data>, Self::Error>>> {
-        match self.kind {
+        match &mut self.kind {
             Kind::Empty => Poll::Ready(None),
             #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
             Kind::Chan {
-                content_length: ref mut len,
-                ref mut data_rx,
-                ref mut want_tx,
-                ref mut trailers_rx,
+                content_length: len,
+                data_rx,
+                want_tx,
+                trailers_rx,
             } => {
                 want_tx.send(WANT_READY);
 
@@ -234,10 +231,10 @@ impl Body for Incoming {
             }
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
-                ref mut data_done,
-                ref ping,
-                recv: ref mut h2,
-                content_length: ref mut len,
+                data_done,
+                ping,
+                recv: h2,
+                content_length: len,
             } => {
                 if !*data_done {
                     match ready!(h2.poll_data(cx)) {
@@ -284,17 +281,17 @@ impl Body for Incoming {
             }
 
             #[cfg(feature = "ffi")]
-            Kind::Ffi(ref mut body) => body.poll_data(cx),
+            Kind::Ffi(body) => body.poll_data(cx),
         }
     }
 
     fn is_end_stream(&self) -> bool {
-        match self.kind {
+        match &self.kind {
             Kind::Empty => true,
             #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-            Kind::Chan { content_length, .. } => content_length == DecodedLength::ZERO,
+            Kind::Chan { content_length, .. } => *content_length == DecodedLength::ZERO,
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
-            Kind::H2 { recv: ref h2, .. } => h2.is_end_stream(),
+            Kind::H2 { recv: h2, .. } => h2.is_end_stream(),
             #[cfg(feature = "ffi")]
             Kind::Ffi(..) => false,
         }
@@ -633,8 +630,8 @@ mod tests {
         drop(rx);
         assert!(tx_ready.is_woken(), "dropping rx wakes tx");
 
-        match tx_ready.poll() {
-            Poll::Ready(Err(ref e)) if e.is_closed() => (),
+        match &tx_ready.poll() {
+            Poll::Ready(Err(e)) if e.is_closed() => (),
             unexpected => panic!("tx poll ready unexpected: {:?}", unexpected),
         }
     }

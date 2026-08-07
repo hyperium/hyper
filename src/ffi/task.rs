@@ -355,9 +355,9 @@ impl hyper_task {
     }
 
     fn output_type(&self) -> hyper_task_return_type {
-        match self.output {
+        match &self.output {
             None => hyper_task_return_type::HYPER_TASK_EMPTY,
-            Some(ref val) => val.as_task_type(),
+            Some(val) => val.as_task_type(),
         }
     }
 }

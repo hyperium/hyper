@@ -328,12 +328,12 @@ impl Http1Transaction for Server {
                 _ => (),
             }
 
-            if let Some(ref mut header_case_map) = header_case_map {
+            if let Some(header_case_map) = &mut header_case_map {
                 header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
             }
 
             #[cfg(feature = "ffi")]
-            if let Some(ref mut header_order) = header_order {
+            if let Some(header_order) = &mut header_order {
                 header_order.append(&name);
             }
 
@@ -618,9 +618,9 @@ impl Server {
             fn write_header_name(&mut self, dst: &mut Vec<u8>, name: &HeaderName) {
                 let Self {
                     map,
-                    ref mut current,
+                    current,
                     title_case_headers,
-                } = *self;
+                } = self;
                 if current.as_ref().map_or(true, |(last, _)| last != name) {
                     *current = None;
                 }
@@ -629,7 +629,7 @@ impl Server {
 
                 if let Some(orig_name) = values.next() {
                     extend(dst, orig_name);
-                } else if title_case_headers {
+                } else if *title_case_headers {
                     title_case(dst, name.as_str().as_bytes());
                 } else {
                     extend(dst, name.as_str().as_bytes());
@@ -883,8 +883,8 @@ impl Server {
                             .filter_map(|s| HeaderName::from_bytes(s.trim().as_bytes()).ok())
                             .collect();
 
-                        match allowed_trailer_fields {
-                            Some(ref mut fields) => {
+                        match &mut allowed_trailer_fields {
+                            Some(fields) => {
                                 fields.extend(names);
                             }
                             None => {
@@ -1130,12 +1130,12 @@ impl Http1Transaction for Client {
                     }
                 }
 
-                if let Some(ref mut header_case_map) = header_case_map {
+                if let Some(header_case_map) = &mut header_case_map {
                     header_case_map.append(&name, slice.slice(header.name.0..header.name.1));
                 }
 
                 #[cfg(feature = "ffi")]
-                if let Some(ref mut header_order) = header_order {
+                if let Some(header_order) = &mut header_order {
                     header_order.append(&name);
                 }
 

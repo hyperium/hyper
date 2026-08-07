@@ -368,13 +368,9 @@ impl Opts {
         };
 
         let mut send_request = |req| {
-            let fut = match client {
-                Client::Http1(ref mut tx) => {
-                    futures_util::future::Either::Left(tx.send_request(req))
-                }
-                Client::Http2(ref mut tx) => {
-                    futures_util::future::Either::Right(tx.send_request(req))
-                }
+            let fut = match &mut client {
+                Client::Http1(tx) => futures_util::future::Either::Left(tx.send_request(req)),
+                Client::Http2(tx) => futures_util::future::Either::Right(tx.send_request(req)),
             };
             async {
                 let res = fut.await.expect("client wait");
