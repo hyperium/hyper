@@ -7,6 +7,43 @@ pub(crate) struct BufList<T> {
     bufs: VecDeque<T>,
 }
 
+/// A `Buf` that can expose a contiguous prefix as vectored slices.
+///
+/// Unlike `Buf::chunks_vectored`, this method guarantees that every returned
+/// slice follows the previous one in the buffer's logical byte stream. The
+/// boolean indicates whether the slices cover all remaining bytes.
+pub(crate) trait VectoredBuf: Buf {
+    #[inline]
+    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+        chunks_vectored_from_chunk(self, dst)
+    }
+}
+
+/// Fill one vectored slice from the only prefix primitive guaranteed by `Buf`.
+#[inline]
+pub(crate) fn chunks_vectored_from_chunk<'t, B>(
+    buf: &'t B,
+    dst: &mut [IoSlice<'t>],
+) -> (usize, bool)
+where
+    B: Buf + ?Sized,
+{
+    let remaining = buf.remaining();
+    if remaining == 0 {
+        return (0, true);
+    }
+    if dst.is_empty() {
+        return (0, false);
+    }
+
+    let chunk = buf.chunk();
+    if chunk.is_empty() {
+        return (0, false);
+    }
+    dst[0] = IoSlice::new(chunk);
+    (1, chunk.len() == remaining)
+}
+
 impl<T: Buf> BufList<T> {
     pub(crate) fn new() -> BufList<T> {
         BufList {
@@ -56,21 +93,6 @@ impl<T: Buf> Buf for BufList<T> {
     }
 
     #[inline]
-    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
-        if dst.is_empty() {
-            return 0;
-        }
-        let mut vecs = 0;
-        for buf in &self.bufs {
-            vecs += buf.chunks_vectored(&mut dst[vecs..]);
-            if vecs == dst.len() {
-                break;
-            }
-        }
-        vecs
-    }
-
-    #[inline]
     fn copy_to_bytes(&mut self, len: usize) -> Bytes {
         // Our inner buffer may have an optimized version of copy_to_bytes, and if the whole
         // request can be fulfilled by the front buffer, we can take advantage.
@@ -88,6 +110,24 @@ impl<T: Buf> Buf for BufList<T> {
                 bm.freeze()
             }
         }
+    }
+}
+
+impl<T: VectoredBuf> VectoredBuf for BufList<T> {
+    #[inline]
+    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+        let mut vecs = 0;
+        for buf in &self.bufs {
+            if vecs == dst.len() {
+                return (vecs, false);
+            }
+            let (n, complete) = buf.chunks_vectored_prefix(&mut dst[vecs..]);
+            vecs += n;
+            if !complete {
+                return (vecs, false);
+            }
+        }
+        (vecs, true)
     }
 }
 
