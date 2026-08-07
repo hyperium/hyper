@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786118454606,
+  "lastUpdate": 1786119145080,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12869,6 +12869,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 57281,
             "range": "± 14463.35",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "ricochet@users.noreply.github.com",
+            "name": "Bailey Hayes",
+            "username": "ricochet"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f660f5bf6eed3fe793f899507ff5bb9e266d4b0d",
+          "message": "fix(http1): flush bytes buffered by the write re-check before yielding (#4143)\n\n`poll_loop`'s main path always calls `poll_flush` after `poll_write`. The\n\"wants_write_again\" re-check added in #3988 calls `poll_write` a second time\nand returns straight out of the loop when it pends, skipping that flush.\n\nThat second write can buffer bytes before it pends. When a response body\nreaches end-of-stream between the two write polls, `end_body()` buffers the\nend of the message and the write then pends on the *next* message\n(`poll_msg`). Returning there strands the terminating chunk in the write\nbuffer: the wake-ups the connection is left waiting on are for reads, so\nnothing flushes it. The peer receives the body but never the terminator and\nwaits until it gives up, at which point the connection reports\n`IncompleteMessage` from `mid_message_detect_eof`.\n\nObserved on a server streaming a chunked body fed from another thread, at\nroughly one connection in 600k. hyper's own trace shows the divergence:\n\n    healthy:  buf.len=24, buf.len=5, flushed 29 bytes\n    stalled:  buf.len=24, flushed 24 bytes, buf.len=5, <nothing>\n\nFlush what the re-check buffered before yielding. Guard the flush on there\nbeing buffered bytes so the call pattern is otherwise unchanged.\n\nAdd a test that drives the interleaving deterministically: a body that yields\none data frame, then pends, then ends the stream on the very next poll, all\nwithin a single `poll_loop` iteration.",
+          "timestamp": "2026-08-07T12:11:31-04:00",
+          "tree_id": "761a7970afb2531153d67299803543f938ca8b5a",
+          "url": "https://github.com/hyperium/hyper/commit/f660f5bf6eed3fe793f899507ff5bb9e266d4b0d"
+        },
+        "date": 1786119141918,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 62624,
+            "range": "± 11753.04",
             "unit": "ns/iter"
           }
         ]
