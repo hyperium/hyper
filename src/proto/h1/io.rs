@@ -149,6 +149,11 @@ where
         self.write_buf.buffer(buf);
     }
 
+    /// Whether there are bytes waiting in the write buffer to be flushed.
+    pub(crate) fn has_buffered_write(&self) -> bool {
+        self.write_buf.remaining() > 0
+    }
+
     pub(crate) fn can_buffer(&self) -> bool {
         self.flush_pipeline || self.write_buf.can_buffer()
     }
