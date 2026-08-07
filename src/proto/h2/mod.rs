@@ -288,27 +288,27 @@ enum SendBuf<B> {
 impl<B: Buf> Buf for SendBuf<B> {
     #[inline]
     fn remaining(&self) -> usize {
-        match *self {
-            Self::Buf(ref b) => b.remaining(),
-            Self::Cursor(ref c) => Buf::remaining(c),
+        match self {
+            Self::Buf(b) => b.remaining(),
+            Self::Cursor(c) => Buf::remaining(c),
             Self::None => 0,
         }
     }
 
     #[inline]
     fn chunk(&self) -> &[u8] {
-        match *self {
-            Self::Buf(ref b) => b.chunk(),
-            Self::Cursor(ref c) => c.chunk(),
+        match self {
+            Self::Buf(b) => b.chunk(),
+            Self::Cursor(c) => c.chunk(),
             Self::None => &[],
         }
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        match *self {
-            Self::Buf(ref mut b) => b.advance(cnt),
-            Self::Cursor(ref mut c) => c.advance(cnt),
+        match self {
+            Self::Buf(b) => b.advance(cnt),
+            Self::Cursor(c) => c.advance(cnt),
             Self::None => {}
         }
     }

@@ -133,7 +133,7 @@ impl Encoder {
         let len = msg.remaining();
         debug_assert!(len > 0, "encode() called with empty buf");
 
-        let kind = match self.kind {
+        let kind = match &mut self.kind {
             Kind::Chunked(_) => {
                 trace!("encoding chunked {}B", len);
                 let buf = ChunkSize::new(len)
@@ -141,7 +141,7 @@ impl Encoder {
                     .chain(b"\r\n" as &'static [u8]);
                 BufKind::Chunked(buf)
             }
-            Kind::Length(ref mut remaining) => {
+            Kind::Length(remaining) => {
                 trace!("sized write, len = {}", len);
                 if len as u64 > *remaining {
                     let limit = *remaining as usize;
@@ -286,34 +286,34 @@ where
 {
     #[inline]
     fn remaining(&self) -> usize {
-        match self.kind {
-            BufKind::Exact(ref b) => b.remaining(),
-            BufKind::Limited(ref b) => b.remaining(),
-            BufKind::Chunked(ref b) => b.remaining(),
-            BufKind::ChunkedEnd(ref b) => b.remaining(),
-            BufKind::Trailers(ref b) => b.remaining(),
+        match &self.kind {
+            BufKind::Exact(b) => b.remaining(),
+            BufKind::Limited(b) => b.remaining(),
+            BufKind::Chunked(b) => b.remaining(),
+            BufKind::ChunkedEnd(b) => b.remaining(),
+            BufKind::Trailers(b) => b.remaining(),
         }
     }
 
     #[inline]
     fn chunk(&self) -> &[u8] {
-        match self.kind {
-            BufKind::Exact(ref b) => b.chunk(),
-            BufKind::Limited(ref b) => b.chunk(),
-            BufKind::Chunked(ref b) => b.chunk(),
-            BufKind::ChunkedEnd(ref b) => b.chunk(),
-            BufKind::Trailers(ref b) => b.chunk(),
+        match &self.kind {
+            BufKind::Exact(b) => b.chunk(),
+            BufKind::Limited(b) => b.chunk(),
+            BufKind::Chunked(b) => b.chunk(),
+            BufKind::ChunkedEnd(b) => b.chunk(),
+            BufKind::Trailers(b) => b.chunk(),
         }
     }
 
     #[inline]
     fn advance(&mut self, cnt: usize) {
-        match self.kind {
-            BufKind::Exact(ref mut b) => b.advance(cnt),
-            BufKind::Limited(ref mut b) => b.advance(cnt),
-            BufKind::Chunked(ref mut b) => b.advance(cnt),
-            BufKind::ChunkedEnd(ref mut b) => b.advance(cnt),
-            BufKind::Trailers(ref mut b) => b.advance(cnt),
+        match &mut self.kind {
+            BufKind::Exact(b) => b.advance(cnt),
+            BufKind::Limited(b) => b.advance(cnt),
+            BufKind::Chunked(b) => b.advance(cnt),
+            BufKind::ChunkedEnd(b) => b.advance(cnt),
+            BufKind::Trailers(b) => b.advance(cnt),
         }
     }
 }
@@ -321,10 +321,10 @@ where
 impl<B: Buf> VectoredBuf for EncodedBuf<B> {
     #[inline]
     fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
-        match self.kind {
-            BufKind::Exact(ref b) => chunks_vectored_from_chunk(b, dst),
-            BufKind::Limited(ref b) => chunks_vectored_from_chunk(b, dst),
-            BufKind::Chunked(ref b) => {
+        match &self.kind {
+            BufKind::Exact(b) => chunks_vectored_from_chunk(b, dst),
+            BufKind::Limited(b) => chunks_vectored_from_chunk(b, dst),
+            BufKind::Chunked(b) => {
                 let mut vecs = 0;
                 if !append_chunk(b.first_ref().first_ref(), dst, &mut vecs) {
                     return (vecs, false);
@@ -335,8 +335,8 @@ impl<B: Buf> VectoredBuf for EncodedBuf<B> {
                 let complete = append_chunk(b.last_ref(), dst, &mut vecs);
                 (vecs, complete)
             }
-            BufKind::ChunkedEnd(ref b) => chunks_vectored_from_chunk(b, dst),
-            BufKind::Trailers(ref b) => {
+            BufKind::ChunkedEnd(b) => chunks_vectored_from_chunk(b, dst),
+            BufKind::Trailers(b) => {
                 let mut vecs = 0;
                 if !append_chunk(b.first_ref().first_ref(), dst, &mut vecs) {
                     return (vecs, false);
