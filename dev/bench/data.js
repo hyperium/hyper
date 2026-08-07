@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1785522284684,
+  "lastUpdate": 1786118348436,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12839,6 +12839,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 39702,
             "range": "± 9908.53",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "mail@logan-cox.com",
+            "name": "Logan",
+            "username": "logan-bobo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8af678759de2b8bc19b34c12ca3ad58e3746b279",
+          "message": "style(lib): move from the use of ref patterns to `&` (#4141)\n\nAnd remove allow for lint `ref_patterns` \n\nPart of #4071",
+          "timestamp": "2026-08-07T11:58:12-04:00",
+          "tree_id": "e24420ff5762d684e5eefd1ac2cbff311336c234",
+          "url": "https://github.com/hyperium/hyper/commit/8af678759de2b8bc19b34c12ca3ad58e3746b279"
+        },
+        "date": 1786118344600,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57281,
+            "range": "± 14463.35",
             "unit": "ns/iter"
           }
         ]
