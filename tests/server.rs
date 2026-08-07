@@ -3561,13 +3561,6 @@ impl Drop for Serve {
     fn drop(&mut self) {
         drop(self.shutdown_signal.take());
         drop(self.thread.take());
-        /*
-        let r = self.thread.take().unwrap().join();
-        if let Err(ref e) = r {
-            println!("{:?}", e);
-        }
-        r.unwrap();
-        */
     }
 }
 
