@@ -17,7 +17,51 @@
 //! There are additional implementations available in [`http-body-util`][],
 //! such as a `Full` or `Empty` body.
 //!
+//! ## Reading a body
+//!
+//! The [`BodyExt`][] extension trait provides an asynchronous way to read the
+//! frames of a body. A frame can contain either data or trailers:
+//!
+//! ```
+//! use http_body_util::BodyExt as _;
+//! use hyper::body::Incoming;
+//!
+//! async fn read_body(mut body: Incoming) -> Result<(), hyper::Error> {
+//!     while let Some(frame) = body.frame().await {
+//!         let frame = frame?;
+//!
+//!         if let Some(data) = frame.data_ref() {
+//!             println!("received {} bytes", data.len());
+//!         }
+//!
+//!         if let Some(trailers) = frame.trailers_ref() {
+//!             println!("received trailers: {trailers:?}");
+//!         }
+//!     }
+//!
+//!     Ok(())
+//! }
+//! ```
+//!
+//! A body only advances when it is polled. Processing each frame before
+//! polling for the next one preserves back-pressure on the connection.
+//!
+//! If a body is known to be small, it can be collected into memory instead:
+//!
+//! ```
+//! use http_body_util::BodyExt as _;
+//! use hyper::body::{Bytes, Incoming};
+//!
+//! async fn read_entire_body(body: Incoming) -> Result<Bytes, hyper::Error> {
+//!     Ok(body.collect().await?.to_bytes())
+//! }
+//! ```
+//!
+//! Collecting buffers the whole body, so it should be avoided for large or
+//! untrusted bodies unless their size is limited.
+//!
 //! [`http-body-util`]: https://docs.rs/http-body-util
+//! [`BodyExt`]: https://docs.rs/http-body-util/latest/http_body_util/trait.BodyExt.html
 
 pub use bytes::{Buf, Bytes};
 pub use http_body::Body;
