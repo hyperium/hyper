@@ -106,12 +106,11 @@ fn is_complete_fast(bytes: &[u8], prev_len: usize) -> bool {
             if bytes[i + 1..].chunks(3).next() == Some(&b"\n\r\n"[..]) {
                 return true;
             }
-        } else if b == b'\n' {
-            if bytes.get(i + 1) == Some(&b'\n')
-                || bytes[i + 1..].chunks(2).next() == Some(&b"\r\n"[..])
-            {
-                return true;
-            }
+        } else if b == b'\n'
+            && (bytes.get(i + 1) == Some(&b'\n')
+                || bytes[i + 1..].chunks(2).next() == Some(&b"\r\n"[..]))
+        {
+            return true;
         }
     }
 
