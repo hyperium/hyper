@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786368373205,
+  "lastUpdate": 1786368525690,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -65503,6 +65503,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5493682,
             "range": "± 99226.42",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sander@saares.eu",
+            "name": "Sander Saares",
+            "username": "sandersaares"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4cbb92960c531675664376123668887e0deebde0",
+          "message": "perf(http2): reserve minimal send capacity when piping request bodies (#4149)\n\nReserving the full chunk length makes every in-flight stream a heavyweight\nclaimant in the connection-window distribution for as long as it waits for\ncapacity, which is costly once the streams sharing a connection collectively\ndemand more than the window the peer advertises.\n\nThe chunk is still only reserved against once it is in hand, so capacity can\nnever be pinned by a body that produces nothing (#4003). h2 raises the\nrequested send capacity to the buffered length inside `send_data`, so the\ndemand eventually signalled to the peer is unchanged; only the transient claim\nheld while the stream waits for its first byte of capacity differs.",
+          "timestamp": "2026-08-10T09:25:32-04:00",
+          "tree_id": "bb422aa21ae087df959518e25ae7d647752045ab",
+          "url": "https://github.com/hyperium/hyper/commit/4cbb92960c531675664376123668887e0deebde0"
+        },
+        "date": 1786368522756,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 61875,
+            "range": "± 1243.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4360832,
+            "range": "± 331633.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22557,
+            "range": "± 659.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23841,
+            "range": "± 350.76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 28376,
+            "range": "± 506.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 91679,
+            "range": "± 1623.27",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000250,
+            "range": "± 33782.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 76236,
+            "range": "± 41835.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16831996,
+            "range": "± 16360748.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8105178,
+            "range": "± 268745.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7968368,
+            "range": "± 159695.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 97791711,
+            "range": "± 1712967.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 58013122,
+            "range": "± 1036450.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5919475,
+            "range": "± 420174.29",
             "unit": "ns/iter"
           }
         ]
