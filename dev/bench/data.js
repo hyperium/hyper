@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786368710646,
+  "lastUpdate": 1786375221365,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12989,6 +12989,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 28963,
             "range": "± 3011.39",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dswijj@gmail.com",
+            "name": "dswij",
+            "username": "dswij"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fa3a4b2c04c12fd849dc50abaceba32c4d436069",
+          "message": "chore(lib): old commented code cleanup (#4151)",
+          "timestamp": "2026-08-10T11:19:24-04:00",
+          "tree_id": "3e7eeb01e7b65e7a74b50bce2df91ca446b8665f",
+          "url": "https://github.com/hyperium/hyper/commit/fa3a4b2c04c12fd849dc50abaceba32c4d436069"
+        },
+        "date": 1786375216989,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 39180,
+            "range": "± 10685.08",
             "unit": "ns/iter"
           }
         ]
