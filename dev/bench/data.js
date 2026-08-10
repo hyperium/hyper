@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786378297932,
+  "lastUpdate": 1786378321649,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -66055,6 +66055,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5751674,
             "range": "± 130004.85",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "100508620+fzlzjerry@users.noreply.github.com",
+            "name": "Morax",
+            "username": "fzlzjerry"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "af432e993c92ea65e76fc590738334e74b5ccf34",
+          "message": "docs(body): add streaming read examples (#4148)\n\nShow how to process data and trailer frames while preserving back-pressure, and contrast that with intentionally collecting a bounded body in memory.\n\nCloses #2201",
+          "timestamp": "2026-08-10T12:09:05-04:00",
+          "tree_id": "b05532277d0290969f449e3742426443a8a80b00",
+          "url": "https://github.com/hyperium/hyper/commit/af432e993c92ea65e76fc590738334e74b5ccf34"
+        },
+        "date": 1786378316917,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68016,
+            "range": "± 1649.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4394360,
+            "range": "± 214276.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20789,
+            "range": "± 525.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23023,
+            "range": "± 787.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30741,
+            "range": "± 926.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100722,
+            "range": "± 1697.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000314,
+            "range": "± 41947.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 82021,
+            "range": "± 1472.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16269380,
+            "range": "± 16495721.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7939817,
+            "range": "± 112884.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7765238,
+            "range": "± 500614.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 52238534,
+            "range": "± 3228453.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 58955033,
+            "range": "± 8960404.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5331357,
+            "range": "± 63623.25",
             "unit": "ns/iter"
           }
         ]
