@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786378204824,
+  "lastUpdate": 1786378297932,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -65947,6 +65947,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3271577,
             "range": "± 17228.76",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "81401376+nam2ee@users.noreply.github.com",
+            "name": "Nam2ee",
+            "username": "nam2ee"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "3534d75c898da17b023e6bff9b4cf71afed123ad",
+          "message": "fix(http1): recognize `\\n\\r\\n` as a head terminator in the partial-read fast path (#4147)\n\n`is_complete_fast` recognizes `\\r\\n\\r\\n` and `\\n\\n` as head terminators but not `\\n\\r\\n`, while the full parser (httparse) accepts all three. So a request whose head ends with `\\n\\r\\n` parses fine when it arrives in a single read, but stalls when it arrives split across reads: the fast path never reports the head complete and the connection keeps waiting for more bytes.\n\nThis extends the `\\n` branch to also accept a following `\\r\\n`, using the same panic-safe slicing idiom as the `\\r` branch. Added the `\\n\\r\\n` witness and the `\\n\\r` negative to `test_is_complete_fast`, plus a parse-level test documenting that the full parser accepts this terminator.\n\nCloses #4145",
+          "timestamp": "2026-08-10T12:08:24-04:00",
+          "tree_id": "9c66951723fec09ad5245672368ad28379ed14a9",
+          "url": "https://github.com/hyperium/hyper/commit/3534d75c898da17b023e6bff9b4cf71afed123ad"
+        },
+        "date": 1786378293903,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 62108,
+            "range": "± 22938.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4213934,
+            "range": "± 274303.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 22563,
+            "range": "± 206.95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23534,
+            "range": "± 429.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 28443,
+            "range": "± 466.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 91163,
+            "range": "± 1964.26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999807,
+            "range": "± 4422.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 76006,
+            "range": "± 1206.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16418958,
+            "range": "± 16563269.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8132580,
+            "range": "± 169351.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 8009397,
+            "range": "± 102210.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 97000490,
+            "range": "± 3905160.04",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 55566797,
+            "range": "± 2848566.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5751674,
+            "range": "± 130004.85",
             "unit": "ns/iter"
           }
         ]
