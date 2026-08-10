@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786350958253,
+  "lastUpdate": 1786368373205,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -12929,6 +12929,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 47517,
             "range": "± 6117.64",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sander@saares.eu",
+            "name": "Sander Saares",
+            "username": "sandersaares"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4cbb92960c531675664376123668887e0deebde0",
+          "message": "perf(http2): reserve minimal send capacity when piping request bodies (#4149)\n\nReserving the full chunk length makes every in-flight stream a heavyweight\nclaimant in the connection-window distribution for as long as it waits for\ncapacity, which is costly once the streams sharing a connection collectively\ndemand more than the window the peer advertises.\n\nThe chunk is still only reserved against once it is in hand, so capacity can\nnever be pinned by a body that produces nothing (#4003). h2 raises the\nrequested send capacity to the buffered length inside `send_data`, so the\ndemand eventually signalled to the peer is unchanged; only the transient claim\nheld while the stream waits for its first byte of capacity differs.",
+          "timestamp": "2026-08-10T09:25:32-04:00",
+          "tree_id": "bb422aa21ae087df959518e25ae7d647752045ab",
+          "url": "https://github.com/hyperium/hyper/commit/4cbb92960c531675664376123668887e0deebde0"
+        },
+        "date": 1786368370502,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 34416,
+            "range": "± 4787.84",
             "unit": "ns/iter"
           }
         ]
