@@ -491,8 +491,6 @@ mod tests {
             body_expected_size,
         );
 
-        //assert_eq!(body_size, mem::size_of::<Option<Incoming>>(), "Option<Incoming>");
-
         assert_eq!(
             mem::size_of::<Sender>(),
             mem::size_of::<usize>() * 5,

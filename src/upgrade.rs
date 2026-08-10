@@ -405,7 +405,6 @@ mod tests {
             _: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
-            // panic!("poll_write shouldn't be called");
             Poll::Ready(Ok(buf.len()))
         }
 
