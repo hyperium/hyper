@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786378148903,
+  "lastUpdate": 1786378204824,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13049,6 +13049,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 58241,
             "range": "± 14740.29",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "100508620+fzlzjerry@users.noreply.github.com",
+            "name": "Morax",
+            "username": "fzlzjerry"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "af432e993c92ea65e76fc590738334e74b5ccf34",
+          "message": "docs(body): add streaming read examples (#4148)\n\nShow how to process data and trailer frames while preserving back-pressure, and contrast that with intentionally collecting a bounded body in memory.\n\nCloses #2201",
+          "timestamp": "2026-08-10T12:09:05-04:00",
+          "tree_id": "b05532277d0290969f449e3742426443a8a80b00",
+          "url": "https://github.com/hyperium/hyper/commit/af432e993c92ea65e76fc590738334e74b5ccf34"
+        },
+        "date": 1786378198413,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 41753,
+            "range": "± 9681.32",
             "unit": "ns/iter"
           }
         ]
