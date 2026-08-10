@@ -216,12 +216,21 @@ where
                             continue;
                         }
 
-                        // Reserve exactly the chunk size so we never pin more
-                        // connection-level flow-control window than we are
-                        // about to consume. Stash the chunk in `self` so it
-                        // survives the upcoming `poll_capacity` wait even if
-                        // it returns `Poll::Pending`.
-                        me.body_tx.reserve_capacity(len);
+                        // Reserve a minimal claim on the connection-level
+                        // flow-control window rather than the whole chunk. The
+                        // chunk is already in hand, so this still cannot pin
+                        // capacity against a body that never produces data
+                        // (#4003), and h2 raises the request to the buffered
+                        // length inside `send_data`, so the demand eventually
+                        // signalled to the peer is unchanged. Claiming the full
+                        // length up front instead makes every in-flight stream a
+                        // heavyweight claimant while it waits, which is costly
+                        // once the streams on a connection collectively demand
+                        // more than the window the peer advertises. Stash the
+                        // chunk in `self` so it survives the upcoming
+                        // `poll_capacity` wait even if it returns
+                        // `Poll::Pending`.
+                        me.body_tx.reserve_capacity(1);
                         *me.buffered_data = Some(Peeked {
                             data: chunk,
                             is_eos,
