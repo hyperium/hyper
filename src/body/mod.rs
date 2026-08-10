@@ -52,6 +52,7 @@
 //! use http_body_util::BodyExt as _;
 //! use hyper::body::{Bytes, Incoming};
 //!
+//! /// Consider using `Limited` if the body is untrusted.
 //! async fn read_entire_body(body: Incoming) -> Result<Bytes, hyper::Error> {
 //!     Ok(body.collect().await?.to_bytes())
 //! }
