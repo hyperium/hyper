@@ -657,19 +657,6 @@ mod tests {
 
     use tokio_test::io::Builder as Mock;
 
-    // #[cfg(feature = "nightly")]
-    // use test::Bencher;
-
-    /*
-    impl<T: Read> MemRead for AsyncIo<T> {
-        fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
-            let mut v = vec![0; len];
-            let n = try_nb!(self.read(v.as_mut_slice()));
-            Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
-        }
-    }
-    */
-
     #[tokio::test]
     #[ignore]
     async fn iobuf_write_empty_slice() {
