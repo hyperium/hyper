@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786378321649,
+  "lastUpdate": 1786432659492,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13079,6 +13079,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 41753,
             "range": "± 9681.32",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "72fcf545c9b4a261f31d89bafd3019a2d4e9e1d7",
+          "message": "fix(http1): detect TE: trailers caselessly and with other values (#4152)",
+          "timestamp": "2026-08-11T07:16:47Z",
+          "tree_id": "41be8370cf91b722bb18cbf621ff41c415ce9581",
+          "url": "https://github.com/hyperium/hyper/commit/72fcf545c9b4a261f31d89bafd3019a2d4e9e1d7"
+        },
+        "date": 1786432656076,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57327,
+            "range": "± 11703.21",
             "unit": "ns/iter"
           }
         ]
