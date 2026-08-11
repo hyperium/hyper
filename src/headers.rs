@@ -42,6 +42,26 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     false
 }
 
+#[cfg(feature = "http1")]
+pub(super) fn te_is_trailers(headers: &http::HeaderMap) -> bool {
+    header_value_list_has(headers.get_all(http::header::TE).into_iter(), "trailers")
+}
+
+#[cfg(feature = "http1")]
+fn header_value_list_has(values: http::header::ValueIter<'_, HeaderValue>, needle: &str) -> bool {
+    for value in values {
+        if let Ok(line) = value.to_str() {
+            for token in line.split(',') {
+                if token.trim().eq_ignore_ascii_case(needle) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    false
+}
+
 #[cfg(all(feature = "http1", feature = "server"))]
 pub(super) fn content_length_parse(value: &HeaderValue) -> Option<u64> {
     from_digits(value.as_bytes())
@@ -165,4 +185,36 @@ pub(super) fn add_chunked(mut entry: http::header::OccupiedEntry<'_, HeaderValue
     }
 
     entry.insert(HeaderValue::from_static(CHUNKED));
+}
+
+#[cfg(all(test, feature = "http1"))]
+mod tests {
+    use super::te_is_trailers;
+    use http::header::{HeaderValue, TE};
+    use http::HeaderMap;
+
+    #[test]
+    fn te_is_trailers_accepts_comma_separated_values() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TE, HeaderValue::from_static("gzip, Trailers"));
+
+        assert!(te_is_trailers(&headers));
+    }
+
+    #[test]
+    fn te_is_trailers_accepts_multiple_header_lines() {
+        let mut headers = HeaderMap::new();
+        headers.append(TE, HeaderValue::from_static("gzip"));
+        headers.append(TE, HeaderValue::from_static("trailers"));
+
+        assert!(te_is_trailers(&headers));
+    }
+
+    #[test]
+    fn te_is_trailers_rejects_missing_trailers_token() {
+        let mut headers = HeaderMap::new();
+        headers.insert(TE, HeaderValue::from_static("gzip"));
+
+        assert!(!te_is_trailers(&headers));
+    }
 }

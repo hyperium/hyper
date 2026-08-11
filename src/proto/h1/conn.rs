@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use futures_core::ready;
-use http::header::{HeaderValue, CONNECTION, TE};
+use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use http_body::Frame;
 use httparse::ParserConfig;
@@ -325,11 +325,7 @@ where
             ));
         }
 
-        self.state.allow_trailer_fields = msg
-            .head
-            .headers
-            .get(TE)
-            .map_or(false, |te_header| te_header == "trailers");
+        self.state.allow_trailer_fields = headers::te_is_trailers(&msg.head.headers);
 
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }
