@@ -131,7 +131,6 @@ map_err_ignore = "allow"
 map_unwrap_or = "allow"
 match_wild_err_arm = "allow"
 missing_fields_in_debug = "allow" # TODO: use finish_non_exhaustive
-missing_errors_doc = "allow" # TODO: good to fix
 missing_panics_doc = "allow" # TODO: might be false
 multiple_inherent_impl = "allow"
 multiple_unsafe_ops_per_block = "allow"
