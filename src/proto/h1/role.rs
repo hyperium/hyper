@@ -47,13 +47,10 @@ macro_rules! header_name {
 macro_rules! header_value {
     ($bytes:expr) => {{
         {
-            // unsafe used because of the call of `HeaderValue::from_maybe_shared_unchecked`.
-            // SAFETY:
-            // 1. The input `$bytes` must be a valid header value as per RFC 7230.
-            // 2. Specifically, it must not contain any prohibited characters (like `\r`, `\n`, or non-visible ASCII characters outside of allowed ranges).
-            // 3. This is safe because the caller is responsible for ensuring the byte content
-            //    has been validated or is known to be a constant/static valid header value.
-            unsafe { HeaderValue::from_maybe_shared_unchecked($bytes) }
+            match HeaderValue::from_bytes($bytes) {
+                Ok(name) => name,
+                Err(e) => maybe_panic!(e),
+            }
         }
     }};
 }
@@ -263,7 +260,7 @@ impl Http1Transaction for Server {
             // SAFETY: array is valid up to `headers_len`
             let header = unsafe { header.assume_init_ref() };
             let name = header_name!(&slice[header.name.0..header.name.1]);
-            let value = header_value!(slice.slice(header.value.0..header.value.1));
+            let value = header_value!(&slice.slice(header.value.0..header.value.1));
 
             match name {
                 header::TRANSFER_ENCODING => {
@@ -1120,7 +1117,7 @@ impl Http1Transaction for Client {
                 // SAFETY: array is valid up to `headers_len`
                 let header = unsafe { header.assume_init_ref() };
                 let name = header_name!(&slice[header.name.0..header.name.1]);
-                let value = header_value!(slice.slice(header.value.0..header.value.1));
+                let value = header_value!(&slice.slice(header.value.0..header.value.1));
 
                 if let header::CONNECTION = name {
                     // keep_alive was previously set to default for Version

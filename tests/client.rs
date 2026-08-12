@@ -1558,6 +1558,35 @@ test! {
             body: None,
 }
 
+test! {
+    name: client_handle_whitespace_characters,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: "\
+            HTTP/1.1 200 OK\r\n\
+            Content-Length: 0\r\n\
+            Content-Security-Policy: img-src\x0B'none'; default-src\x0C'none';\r\n\
+            \r\n\
+            ",
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+        },
+        response:
+            status: OK,
+            headers: {
+                "content-security-policy" => "img-src\x0B'none'; default-src\x0C'none';",
+            },
+            body: None,
+}
+
 mod conn {
     use std::error::Error;
     use std::io::{self, Read, Write};
