@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786548491669,
+  "lastUpdate": 1786794840097,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13139,6 +13139,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 55652,
             "range": "± 12262.71",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "129399053+MsfPablo@users.noreply.github.com",
+            "name": "MsfPablo",
+            "username": "MsfPablo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d32b294f0bd0320df96c37d39a3047219ab0d7ae",
+          "message": "style(lib): fix needless_continue lint (#4157)",
+          "timestamp": "2026-08-15T19:53:09+08:00",
+          "tree_id": "4904be2b26456a2b1e27b05cae8998fa72619da1",
+          "url": "https://github.com/hyperium/hyper/commit/d32b294f0bd0320df96c37d39a3047219ab0d7ae"
+        },
+        "date": 1786794836639,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44539,
+            "range": "± 5769.79",
             "unit": "ns/iter"
           }
         ]
