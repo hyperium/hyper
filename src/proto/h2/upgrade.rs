@@ -236,9 +236,7 @@ impl Read for H2Upgraded {
             self.buf = loop {
                 match ready!(self.recv_stream.poll_data(cx)) {
                     None => return Poll::Ready(Ok(())),
-                    Some(Ok(buf)) if buf.is_empty() && !self.recv_stream.is_end_stream() => {
-                        continue
-                    }
+                    Some(Ok(buf)) if buf.is_empty() && !self.recv_stream.is_end_stream() => {}
                     Some(Ok(buf)) => {
                         self.ping.record_data(buf.len());
                         break buf;

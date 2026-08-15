@@ -430,7 +430,6 @@ where
                             );
                         } else {
                             trace!("discarding unknown frame");
-                            continue;
                         }
                     } else {
                         *clear_body = true;
