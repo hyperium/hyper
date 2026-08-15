@@ -147,8 +147,10 @@ impl Upgraded {
 
     /// Tries to downcast the internal trait object to the type passed.
     ///
-    /// On success, returns the downcasted parts. On error, returns the
-    /// `Upgraded` back.
+    /// On success, returns the downcasted parts.
+    ///
+    /// # Errors
+    /// On error, returns the `Upgraded` back.
     pub fn downcast<T: Read + Write + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
         match io.__hyper_downcast() {
@@ -405,7 +407,6 @@ mod tests {
             _: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
-            // panic!("poll_write shouldn't be called");
             Poll::Ready(Ok(buf.len()))
         }
 

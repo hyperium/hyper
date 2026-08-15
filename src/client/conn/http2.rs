@@ -74,6 +74,10 @@ pub struct Builder<Ex> {
 ///
 /// This is a shortcut for `Builder::new(exec).handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP/2 connection handshake fails.
 pub async fn handshake<E, T, B>(
     exec: E,
     io: T,
@@ -103,6 +107,8 @@ impl<B> SendRequest<B> {
     }
 
     /// Waits until the dispatcher is ready.
+    ///
+    /// # Errors
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
@@ -147,6 +153,11 @@ where
     /// other in-flight and future requests. The peer is notified
     /// immediately rather than continuing to send a response body that
     /// would be discarded.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection is not ready or if an error occurs while
+    /// processing the request.
     pub fn send_request(
         &mut self,
         req: Request<B>,
@@ -174,7 +185,7 @@ where
     ///
     /// Returns a future that if successful, yields the `Response`.
     ///
-    /// # Error
+    /// # Errors
     ///
     /// If there was an error before trying to serialize the request to the
     /// connection, the message will be returned as part of this error.
@@ -547,6 +558,10 @@ where
     ///
     /// Note, if [`Connection`] is not `await`-ed, [`SendRequest`] will
     /// do nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP/2 connection handshake fails.
     pub fn handshake<T, B>(
         &self,
         io: T,
