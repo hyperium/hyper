@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786794971058,
+  "lastUpdate": 1786996061800,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13169,6 +13169,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44539,
             "range": "± 5769.79",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "129399053+MsfPablo@users.noreply.github.com",
+            "name": "MsfPablo",
+            "username": "MsfPablo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8fcaf1a62787b824fdd7b95a3e7c9ea81acd3449",
+          "message": "docs(lib): expand crate-level cancel safety section with HTTP/1 vs HTTP/2 (#4156)\n\nCloses #4054",
+          "timestamp": "2026-08-17T15:46:48-04:00",
+          "tree_id": "160f521d798f28025520bef920a7d852990f8572",
+          "url": "https://github.com/hyperium/hyper/commit/8fcaf1a62787b824fdd7b95a3e7c9ea81acd3449"
+        },
+        "date": 1786996058280,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 68228,
+            "range": "± 12937.46",
             "unit": "ns/iter"
           }
         ]
