@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786996061800,
+  "lastUpdate": 1786996194651,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -66607,6 +66607,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5157369,
             "range": "± 83935.61",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "129399053+MsfPablo@users.noreply.github.com",
+            "name": "MsfPablo",
+            "username": "MsfPablo"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8fcaf1a62787b824fdd7b95a3e7c9ea81acd3449",
+          "message": "docs(lib): expand crate-level cancel safety section with HTTP/1 vs HTTP/2 (#4156)\n\nCloses #4054",
+          "timestamp": "2026-08-17T15:46:48-04:00",
+          "tree_id": "160f521d798f28025520bef920a7d852990f8572",
+          "url": "https://github.com/hyperium/hyper/commit/8fcaf1a62787b824fdd7b95a3e7c9ea81acd3449"
+        },
+        "date": 1786996190571,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69753,
+            "range": "± 2685.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3923468,
+            "range": "± 72930.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21456,
+            "range": "± 1183.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23716,
+            "range": "± 531.87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 29905,
+            "range": "± 510.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99530,
+            "range": "± 1768.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000215,
+            "range": "± 24541.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 80786,
+            "range": "± 1497.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16271815,
+            "range": "± 8242925.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8016665,
+            "range": "± 74649.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7897474,
+            "range": "± 445034.77",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 96001153,
+            "range": "± 1310262.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 53216738,
+            "range": "± 783377.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5644788,
+            "range": "± 83800.79",
             "unit": "ns/iter"
           }
         ]
