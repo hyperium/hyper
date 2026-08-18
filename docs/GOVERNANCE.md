@@ -71,6 +71,7 @@ How to become:
 ### Collaborator
 
 Collaborators are contributors who have been helping out in a consistent basis.
+See the [collaborator guide](./COLLABORATORS.md) for practical guidance on the role.
 
 Responsibilities:
 
