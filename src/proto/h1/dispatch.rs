@@ -207,6 +207,15 @@ where
                 // we need to check it again. If it is still pending, it is safe to yield and rely
                 // on wake-up from the connection futures.
                 if self.poll_write(cx)?.is_pending() {
+                    // That write can have buffered bytes before going pending: a body that
+                    // reached end-of-stream between the two write polls buffers the end of the
+                    // message here, and then the write goes pending on the *next* message.
+                    // Yielding without flushing would strand those bytes in the write buffer
+                    // until the peer gives up, since the wake-ups we then rely on are for
+                    // reads. Flush what was just buffered before yielding.
+                    if self.conn.has_buffered_write() {
+                        let _ = self.poll_flush(cx)?;
+                    }
                     return Poll::Ready(Ok(()));
                 }
             }
@@ -423,7 +432,6 @@ where
                             );
                         } else {
                             trace!("discarding unknown frame");
-                            continue;
                         }
                     } else {
                         *clear_body = true;
@@ -593,7 +601,7 @@ cfg_server! {
             cx: &mut Context<'_>,
         ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>> {
             let mut this = self.as_mut();
-            let ret = if let Some(ref mut fut) = this.in_flight.as_mut().as_pin_mut() {
+            let ret = if let Some(fut) = &mut this.in_flight.as_mut().as_pin_mut() {
                 let resp = ready!(fut.as_mut().poll(cx)?);
                 let (parts, body) = resp.into_parts();
                 let head = MessageHead {
@@ -743,8 +751,8 @@ cfg_client! {
         }
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>> {
-            match self.callback {
-                Some(ref mut cb) => match cb.poll_canceled(cx) {
+            match &mut self.callback {
+                Some(cb) => match cb.poll_canceled(cx) {
                     Poll::Ready(()) => {
                         trace!("callback receiver has dropped");
                         Poll::Ready(Err(()))

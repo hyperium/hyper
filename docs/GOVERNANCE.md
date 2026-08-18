@@ -109,7 +109,7 @@ Responsibilities:
 
 - Adhere to the [Code of Conduct][coc]
 - Try to offer advice when the `@hyperium/advisors` team is tagged for input.
-  (This is not a frequent occurence, so the time commitment should generally be
+  (This is not a frequent occurrence, so the time commitment should generally be
   low.)
 
 How to become:

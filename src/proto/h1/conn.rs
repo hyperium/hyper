@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use futures_core::ready;
-use http::header::{HeaderValue, CONNECTION, TE};
+use http::header::{HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use http_body::Frame;
 use httparse::ParserConfig;
@@ -220,8 +220,8 @@ where
             if let Some(h1_header_read_timeout) = self.state.h1_header_read_timeout {
                 let deadline = self.state.timer.now() + h1_header_read_timeout;
                 self.state.h1_header_read_timeout_running = true;
-                match self.state.h1_header_read_timeout_fut {
-                    Some(ref mut h1_header_read_timeout_fut) => {
+                match &mut self.state.h1_header_read_timeout_fut {
+                    Some(h1_header_read_timeout_fut) => {
                         trace!("resetting h1 header read timeout timer");
                         self.state.timer.reset(h1_header_read_timeout_fut, deadline);
                     }
@@ -254,8 +254,8 @@ where
             Poll::Pending => {
                 #[cfg(feature = "server")]
                 if self.state.h1_header_read_timeout_running {
-                    if let Some(ref mut h1_header_read_timeout_fut) =
-                        self.state.h1_header_read_timeout_fut
+                    if let Some(h1_header_read_timeout_fut) =
+                        &mut self.state.h1_header_read_timeout_fut
                     {
                         if Pin::new(h1_header_read_timeout_fut).poll(cx).is_ready() {
                             self.state.h1_header_read_timeout_running = false;
@@ -325,11 +325,7 @@ where
             ));
         }
 
-        self.state.allow_trailer_fields = msg
-            .head
-            .headers
-            .get(TE)
-            .map_or(false, |te_header| te_header == "trailers");
+        self.state.allow_trailer_fields = headers::te_is_trailers(&msg.head.headers);
 
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }
@@ -366,8 +362,8 @@ where
     ) -> Poll<Option<io::Result<Frame<Bytes>>>> {
         debug_assert!(self.can_read_body());
 
-        let (reading, ret) = match self.state.reading {
-            Reading::Body(ref mut decoder) => {
+        let (reading, ret) = match &mut self.state.reading {
+            Reading::Body(decoder) => {
                 match ready!(decoder.decode(cx, &mut self.io)) {
                     Ok(frame) => {
                         if frame.is_data() {
@@ -406,7 +402,7 @@ where
                     }
                 }
             }
-            Reading::Continue(ref decoder) => {
+            Reading::Continue(decoder) => {
                 // Write the 100 Continue if not already responded...
                 if let Writing::Init = self.state.writing {
                     trace!("automatically sending 100 Continue");
@@ -592,6 +588,11 @@ where
         self.io.can_buffer()
     }
 
+    /// Whether bytes are sitting in the write buffer waiting to be flushed.
+    pub(crate) fn has_buffered_write(&self) -> bool {
+        self.io.has_buffered_write()
+    }
+
     pub(crate) fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
         if let Some(encoder) = self.encode_head(head, body) {
             self.state.writing = if !encoder.is_eof() {
@@ -715,8 +716,8 @@ where
         // empty chunks should be discarded at Dispatcher level
         debug_assert!(chunk.remaining() != 0);
 
-        let state = match self.state.writing {
-            Writing::Body(ref mut encoder) => {
+        let state = match &mut self.state.writing {
+            Writing::Body(encoder) => {
                 self.io.buffer(encoder.encode(chunk));
 
                 if !encoder.is_eof() {
@@ -742,8 +743,8 @@ where
         }
         debug_assert!(self.can_write_body() && self.can_buffer_body());
 
-        match self.state.writing {
-            Writing::Body(ref encoder) => {
+        match &mut self.state.writing {
+            Writing::Body(encoder) => {
                 if let Some(enc_buf) =
                     encoder.encode_trailers(trailers, self.state.title_case_headers)
                 {
@@ -765,8 +766,8 @@ where
         // empty chunks should be discarded at Dispatcher level
         debug_assert!(chunk.remaining() != 0);
 
-        let state = match self.state.writing {
-            Writing::Body(ref encoder) => {
+        let state = match &mut self.state.writing {
+            Writing::Body(encoder) => {
                 let can_keep_alive = encoder.encode_and_end(chunk, self.io.write_buf());
                 if can_keep_alive {
                     Writing::KeepAlive
@@ -783,8 +784,8 @@ where
     pub(crate) fn end_body(&mut self) -> crate::Result<()> {
         debug_assert!(self.can_write_body());
 
-        let encoder = match self.state.writing {
-            Writing::Body(ref mut enc) => enc,
+        let encoder = match &mut self.state.writing {
+            Writing::Body(enc) => enc,
             _ => return Ok(()),
         };
 
@@ -856,7 +857,7 @@ where
 
     /// If the read side can be cheaply drained, do so. Otherwise, close.
     pub(super) fn poll_drain_or_close_read(&mut self, cx: &mut Context<'_>) {
-        if let Reading::Continue(ref decoder) = self.state.reading {
+        if let Reading::Continue(decoder) = &mut self.state.reading {
             // skip sending the 100-continue
             // just move forward to a read, in case a tiny body was included
             self.state.reading = Reading::Body(decoder.clone());
@@ -994,7 +995,7 @@ impl fmt::Debug for State {
             .field("keep_alive", &self.keep_alive);
 
         // Only show error field if it's interesting...
-        if let Some(ref error) = self.error {
+        if let Some(error) = &self.error {
             builder.field("error", error);
         }
 
@@ -1010,9 +1011,9 @@ impl fmt::Debug for State {
 
 impl fmt::Debug for Writing {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
+        match self {
             Writing::Init => f.write_str("Init"),
-            Writing::Body(ref enc) => f.debug_tuple("Body").field(enc).finish(),
+            Writing::Body(enc) => f.debug_tuple("Body").field(enc).finish(),
             Writing::KeepAlive => f.write_str("KeepAlive"),
             Writing::Closed => f.write_str("Closed"),
         }

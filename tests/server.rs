@@ -3336,6 +3336,79 @@ fn http1_trailer_fields_not_allowed() {
 }
 
 #[test]
+fn http1_trailer_fields_allowed_with_comma_separated_te() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "chunky-trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: gzip, Trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
+fn http1_trailer_fields_allowed_with_multiple_te_headers() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "chunky-trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: gzip\r\n\
+        TE: trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
 fn http1_trailer_recv_fields() {
     let server = serve();
     let mut req = connect(server.addr());
@@ -3561,13 +3634,6 @@ impl Drop for Serve {
     fn drop(&mut self) {
         drop(self.shutdown_signal.take());
         drop(self.thread.take());
-        /*
-        let r = self.thread.take().unwrap().join();
-        if let Err(ref e) = r {
-            println!("{:?}", e);
-        }
-        r.unwrap();
-        */
     }
 }
 

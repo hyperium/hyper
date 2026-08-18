@@ -149,6 +149,11 @@ where
         self.write_buf.buffer(buf);
     }
 
+    /// Whether there are bytes waiting in the write buffer to be flushed.
+    pub(crate) fn has_buffered_write(&self) -> bool {
+        self.write_buf.remaining() > 0
+    }
+
     pub(crate) fn can_buffer(&self) -> bool {
         self.flush_pipeline || self.write_buf.can_buffer()
     }
@@ -394,15 +399,15 @@ impl ReadStrategy {
     }
 
     fn record(&mut self, bytes_read: usize) {
-        match *self {
+        match self {
             ReadStrategy::Adaptive {
-                ref mut decrease_now,
-                ref mut next,
+                decrease_now,
+                next,
                 max,
                 ..
             } => {
                 if bytes_read >= *next {
-                    *next = cmp::min(incr_power_of_two(*next), max);
+                    *next = cmp::min(incr_power_of_two(*next), *max);
                     *decrease_now = false;
                 } else {
                     let decr_to = prev_power_of_two(*next);
@@ -651,19 +656,6 @@ mod tests {
     use std::time::Duration;
 
     use tokio_test::io::Builder as Mock;
-
-    // #[cfg(feature = "nightly")]
-    // use test::Bencher;
-
-    /*
-    impl<T: Read> MemRead for AsyncIo<T> {
-        fn read_mem(&mut self, len: usize) -> Poll<Bytes, io::Error> {
-            let mut v = vec![0; len];
-            let n = try_nb!(self.read(v.as_mut_slice()));
-            Ok(Async::Ready(BytesMut::from(&v[..n]).freeze()))
-        }
-    }
-    */
 
     #[tokio::test]
     #[ignore]

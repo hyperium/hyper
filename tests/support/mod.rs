@@ -235,7 +235,7 @@ macro_rules! __internal_headers_eq {
     (@val $name: expr, $val:expr) => ({
         let __val = Option::from($val);
         std::sync::Arc::new(move |__hdrs: &hyper::HeaderMap| {
-            if let Some(ref val) = __val {
+            if let Some(val) = &__val {
                 assert_eq!(__hdrs.get($name).expect(stringify!($name)), val.to_string().as_str(), stringify!($name));
             } else {
                 assert_eq!(__hdrs.get($name), None, stringify!($name));

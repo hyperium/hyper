@@ -147,8 +147,10 @@ impl Upgraded {
 
     /// Tries to downcast the internal trait object to the type passed.
     ///
-    /// On success, returns the downcasted parts. On error, returns the
-    /// `Upgraded` back.
+    /// On success, returns the downcasted parts.
+    ///
+    /// # Errors
+    /// On error, returns the `Upgraded` back.
     pub fn downcast<T: Read + Write + Unpin + 'static>(self) -> Result<Parts<T>, Self> {
         let (io, buf) = self.io.into_inner();
         match io.__hyper_downcast() {
@@ -226,16 +228,18 @@ impl Future for OnUpgrade {
     type Output = Result<Upgraded, crate::Error>;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.rx {
-            Some(ref rx) => Pin::new(&mut *rx.lock().panic_if_poisoned())
-                .poll(cx)
-                .map(|res| match res {
-                    Ok(Ok(upgraded)) => Ok(upgraded),
-                    Ok(Err(err)) => Err(err),
-                    Err(_oneshot_canceled) => {
-                        Err(crate::Error::new_canceled().with(UpgradeExpected))
-                    }
-                }),
+        match &self.rx {
+            Some(rx) => {
+                Pin::new(&mut *rx.lock().panic_if_poisoned())
+                    .poll(cx)
+                    .map(|res| match res {
+                        Ok(Ok(upgraded)) => Ok(upgraded),
+                        Ok(Err(err)) => Err(err),
+                        Err(_oneshot_canceled) => {
+                            Err(crate::Error::new_canceled().with(UpgradeExpected))
+                        }
+                    })
+            }
             None => Poll::Ready(Err(crate::Error::new_user_no_upgrade())),
         }
     }
@@ -403,7 +407,6 @@ mod tests {
             _: &mut Context<'_>,
             buf: &[u8],
         ) -> Poll<io::Result<usize>> {
-            // panic!("poll_write shouldn't be called");
             Poll::Ready(Ok(buf.len()))
         }
 
