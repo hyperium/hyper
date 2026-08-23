@@ -392,6 +392,21 @@ where
         self
     }
 
+    /// Sets a connection-level budget for limiting memory overhead from
+    /// received small DATA frames.
+    ///
+    /// See the documentation of [`h2::client::Builder::data_frame_budget`] for more
+    /// details.
+    ///
+    /// The default value is determined by the `h2` crate. As of v0.4.18, it is
+    /// 25,600 bytes.
+    ///
+    /// [`h2::client::Builder::data_frame_budget`]: https://docs.rs/h2/client/struct.Builder.html#method.data_frame_budget
+    pub fn data_frame_budget(&mut self, budget: usize) -> &mut Self {
+        self.h2_builder.data_frame_budget = Some(budget);
+        self
+    }
+
     /// Sets the max size of received header frames.
     ///
     /// Default is currently 16KB, but can change.
