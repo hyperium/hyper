@@ -390,6 +390,7 @@ impl Sender {
 
     /// Send trailers on trailers channel.
     #[allow(unused)]
+    #[allow(clippy::unused_async_trait_impl)]
     pub(crate) async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
         let tx = match self.trailers_tx.take() {
             Some(tx) => tx,
