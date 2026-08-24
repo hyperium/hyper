@@ -189,6 +189,7 @@ where
     ///
     /// If there was an error before trying to serialize the request to the
     /// connection, the message will be returned as part of this error.
+    #[allow(clippy::result_large_err)]
     pub fn try_send_request(
         &mut self,
         req: Request<B>,
