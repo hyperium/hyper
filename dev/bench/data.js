@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1786996194651,
+  "lastUpdate": 1787573445846,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13199,6 +13199,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 68228,
             "range": "± 12937.46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8b2e533253cf3acaadd85d3c05c93b3be2205d43",
+          "message": "style(lib): temporarily allow some new clippy lints (#4165)",
+          "timestamp": "2026-08-24T08:09:52-04:00",
+          "tree_id": "15d528074768883c5128ee82bd8a15f2383b1b3b",
+          "url": "https://github.com/hyperium/hyper/commit/8b2e533253cf3acaadd85d3c05c93b3be2205d43"
+        },
+        "date": 1787573442346,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57163,
+            "range": "± 15220.25",
             "unit": "ns/iter"
           }
         ]
