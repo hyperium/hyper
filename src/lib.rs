@@ -144,7 +144,11 @@ pub mod ffi;
 
 cfg_proto! {
     mod headers;
-    mod proto;
+    #[cfg_attr(docsrs, doc(cfg(all(
+        any(feature = "http1", feature = "http2"),
+        any(feature = "client", feature = "server"),
+    ))))]
+    pub mod proto;
 }
 
 cfg_feature! {

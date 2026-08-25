@@ -45,13 +45,41 @@ pub(super) fn pair<B>(
     )
 }
 
-pub(super) struct H2Upgraded {
+/// The I/O object returned by an HTTP/2 upgrade.
+///
+/// After downgrading an [`Upgraded`](crate::upgrade::Upgraded) connection that
+/// was established over HTTP/2, this type can be used as a [`Read`]/[`Write`]
+/// stream for the upgraded protocol.
+///
+/// ```no_run
+/// # use hyper::upgrade::Upgraded;
+/// use hyper::proto::h2::upgrade::H2Upgraded;
+/// # use hyper::rt::Read;
+///
+/// # fn run(upgraded: Upgraded) {
+/// if let Ok(parts) = upgraded.downcast::<H2Upgraded>() {
+///     let io = parts.io;
+///     // use `io` as Read/Write for the HTTP/2 upgraded stream
+/// #   let _ = io;
+/// }
+/// # }
+/// ```
+pub struct H2Upgraded {
     ping: Recorder,
     send_stream: UpgradedSendStreamBridge,
     recv_stream: RecvStream,
     buf: Bytes,
 }
 
+impl std::fmt::Debug for H2Upgraded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("H2Upgraded")
+            .field("buf", &self.buf)
+            .finish_non_exhaustive()
+    }
+}
+
+#[derive(Debug)]
 struct UpgradedSendStreamBridge {
     tx: mpsc::Sender<Cursor<Box<[u8]>>>,
     error_rx: oneshot::Receiver<crate::Error>,
@@ -64,6 +92,9 @@ impl Drop for UpgradedSendStreamBridge {
     }
 }
 
+/// Shared state for tracking close notification across the upgraded
+/// send and receive halves.
+#[derive(Debug)]
 struct UpgradedCloseNotify {
     closed: AtomicBool,
     task: AtomicWaker,
@@ -98,7 +129,9 @@ impl UpgradedCloseNotify {
 }
 
 pin_project! {
+    /// Task that drives an HTTP/2 upgraded send stream to completion.
     #[must_use = "futures do nothing unless polled"]
+    #[derive(Debug)]
     pub struct UpgradedSendStreamTask<B> {
         #[pin]
         h2_tx: SendStream<SendBuf<B>>,

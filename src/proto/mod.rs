@@ -13,8 +13,9 @@ cfg_feature! {
     pub(crate) use self::h1::ServerTransaction;
 }
 
+/// HTTP/2 protocol implementation.
 #[cfg(feature = "http2")]
-pub(crate) mod h2;
+pub mod h2;
 
 /// An Incoming Message head. Includes request/status line, and headers.
 #[cfg(feature = "http1")]

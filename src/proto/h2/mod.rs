@@ -14,7 +14,8 @@ use pin_project_lite::pin_project;
 use crate::body::Body;
 
 pub(crate) mod ping;
-pub(crate) mod upgrade;
+/// HTTP/2 connection upgrade handling.
+pub mod upgrade;
 
 cfg_client! {
     pub(crate) mod client;
@@ -285,6 +286,7 @@ impl<B: Buf> SendStreamExt for SendStream<SendBuf<B>> {
 }
 
 #[repr(usize)]
+#[derive(Debug)]
 enum SendBuf<B> {
     Buf(B),
     Cursor(Cursor<Box<[u8]>>),
