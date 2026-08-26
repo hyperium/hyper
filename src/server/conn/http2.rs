@@ -239,6 +239,26 @@ impl<E> Builder<E> {
         self
     }
 
+    /// Set a timeout for the client to send its connection preface.
+    ///
+    /// A client that opens a connection and then sends nothing otherwise holds
+    /// it open indefinitely: the keep-alive ping above cannot help, because
+    /// pings only begin once the handshake has completed. If the preface has
+    /// not arrived within this timeout, the connection is closed with an error
+    /// for which [`Error::is_timeout`](crate::Error::is_timeout) is true.
+    ///
+    /// This is the HTTP/2 counterpart of
+    /// [`http1::Builder::header_read_timeout`](crate::server::conn::http1::Builder::header_read_timeout).
+    ///
+    /// Requires a [`Timer`](crate::rt::Timer) set by [`Builder::timer`] to take
+    /// effect.
+    ///
+    /// Default is no timeout.
+    pub fn handshake_timeout(&mut self, timeout: impl Into<Option<Duration>>) -> &mut Self {
+        self.h2_builder.handshake_timeout = timeout.into();
+        self
+    }
+
     /// Set the maximum write buffer size for each HTTP/2 stream.
     ///
     /// Default is currently ~400KB, but may change.

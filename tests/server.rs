@@ -2048,6 +2048,66 @@ async fn h2_connect() {
 }
 
 #[tokio::test]
+async fn http2_handshake_timeout() {
+    let (listener, addr) = setup_tcp_listener();
+
+    // A client that opens the connection and then never sends the preface.
+    // The server writes its own SETTINGS straight away, so read and discard
+    // until it gives up on us and closes the connection.
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        let mut buf = [0u8; 256];
+        while let Ok(n) = tcp.read(&mut buf) {
+            if n == 0 {
+                break;
+            }
+        }
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let conn = http2::Builder::new(TokioExecutor)
+        .timer(TokioTimer)
+        .handshake_timeout(Duration::from_secs(1))
+        .serve_connection(socket, unreachable_service());
+    assert!(conn.await.unwrap_err().is_timeout());
+}
+
+#[tokio::test]
+async fn http2_handshake_timeout_does_not_apply_once_connected() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.expect("accept");
+        let socket = TokioIo::new(socket);
+
+        http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .handshake_timeout(Duration::from_secs(1))
+            .serve_connection(socket, HelloWorld)
+            .await
+            .expect("serve_connection");
+    });
+
+    let tcp = TokioIo::new(connect_async(addr).await);
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
+        .handshake(tcp)
+        .await
+        .expect("http handshake");
+
+    tokio::spawn(async move {
+        conn.await.expect("client conn");
+    });
+
+    // Idle well past the handshake timeout. It bounds the wait for the preface
+    // only, so a connection that has already spoken is unaffected.
+    TokioTimer.sleep(Duration::from_secs(3)).await;
+
+    let req = http::Request::new(Empty::<Bytes>::new());
+    client.send_request(req).await.expect("client.send_request");
+}
+
+#[tokio::test]
 async fn h2_connect_multiplex() {
     use futures_util::stream::FuturesUnordered;
     use futures_util::StreamExt;

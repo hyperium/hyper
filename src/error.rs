@@ -64,6 +64,9 @@ pub(super) enum Kind {
     /// User took too long to send headers.
     #[cfg(all(feature = "http1", feature = "server"))]
     HeaderTimeout,
+    /// Client took too long to send the HTTP/2 connection preface.
+    #[cfg(all(feature = "http2", feature = "server"))]
+    Http2HandshakeTimeout,
     /// Error while reading a body from connection.
     #[cfg(all(
         any(feature = "client", feature = "server"),
@@ -311,10 +314,16 @@ impl Error {
     ///
     /// For HTTP/1 servers, this includes the header read timeout (see
     /// [`header_read_timeout`](crate::server::conn::http1::Builder::header_read_timeout)).
+    /// For HTTP/2 servers, it includes the handshake timeout (see
+    /// [`handshake_timeout`](crate::server::conn::http2::Builder::handshake_timeout)).
     /// It also covers any timeout set via a user-provided timer.
     pub fn is_timeout(&self) -> bool {
         #[cfg(all(feature = "http1", feature = "server"))]
         if matches!(self.inner.kind, Kind::HeaderTimeout) {
+            return true;
+        }
+        #[cfg(all(feature = "http2", feature = "server"))]
+        if matches!(self.inner.kind, Kind::Http2HandshakeTimeout) {
             return true;
         }
         self.find_source::<TimedOut>().is_some()
@@ -437,6 +446,11 @@ impl Error {
         Error::new(Kind::HeaderTimeout)
     }
 
+    #[cfg(all(feature = "http2", feature = "server"))]
+    pub(super) fn new_h2_handshake_timeout() -> Error {
+        Error::new(Kind::Http2HandshakeTimeout)
+    }
+
     #[cfg(feature = "http1")]
     #[cfg(feature = "server")]
     pub(super) fn new_user_unsupported_status_code() -> Error {
@@ -540,6 +554,8 @@ impl Error {
             Kind::Canceled => "operation was canceled",
             #[cfg(all(feature = "http1", feature = "server"))]
             Kind::HeaderTimeout => "read header from client timeout",
+            #[cfg(all(feature = "http2", feature = "server"))]
+            Kind::Http2HandshakeTimeout => "read HTTP/2 handshake from client timeout",
             #[cfg(all(
                 any(feature = "client", feature = "server"),
                 any(feature = "http1", feature = "http2")

@@ -21,7 +21,7 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::Dispatched;
 use crate::rt::bounds::{Http2ServerConnExec, Http2UpgradedExec};
-use crate::rt::{Read, Write};
+use crate::rt::{Read, Sleep, Write};
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
@@ -52,6 +52,7 @@ pub(crate) struct Config {
     pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
+    pub(crate) handshake_timeout: Option<Duration>,
     pub(crate) max_send_buffer_size: usize,
     pub(crate) header_table_size: Option<u32>,
     pub(crate) max_header_list_size: u32,
@@ -72,6 +73,7 @@ impl Default for Config {
             header_table_size: None,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
+            handshake_timeout: None,
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_header_list_size: DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE,
             date_header: true,
@@ -103,6 +105,12 @@ where
     Handshaking {
         ping_config: ping::Config,
         hs: Handshake<Compat<T>, SendBuf<B::Data>>,
+        /// Bounds how long the client may take to send its connection preface.
+        /// Nothing else does: keep-alive pings only begin once the handshake
+        /// has completed, so without this a peer that connects and stays
+        /// silent holds the connection, and any graceful shutdown waiting on
+        /// it, forever.
+        timeout: Option<Pin<Box<dyn Sleep>>>,
     },
     Serving(Serving<T, B>),
 }
@@ -169,12 +177,17 @@ where
             keep_alive_while_idle: true,
         };
 
+        let handshake_timeout = config
+            .handshake_timeout
+            .map(|duration| timer.sleep(duration));
+
         Server {
             exec,
             timer,
             state: State::Handshaking {
                 ping_config,
                 hs: handshake,
+                timeout: handshake_timeout,
             },
             service,
             date_header: config.date_header,
@@ -211,7 +224,17 @@ where
         let me = &mut *self;
         loop {
             let next = match &mut me.state {
-                State::Handshaking { hs, ping_config } => {
+                State::Handshaking {
+                    hs,
+                    ping_config,
+                    timeout,
+                } => {
+                    if let Some(timeout) = timeout.as_mut() {
+                        if Pin::new(timeout).poll(cx).is_ready() {
+                            debug!("timed out waiting for HTTP/2 client handshake");
+                            return Poll::Ready(Err(crate::Error::new_h2_handshake_timeout()));
+                        }
+                    }
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
