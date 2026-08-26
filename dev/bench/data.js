@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1787747026193,
+  "lastUpdate": 1787747158068,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -67021,6 +67021,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5654206,
             "range": "± 137323.52",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "tangyan01@loongson.cn",
+            "name": "tangaac",
+            "username": "tangaac"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "37c9d0c7e018d3c218f1fc0e472207ff05ef3772",
+          "message": "style(lib): remove lints that have been removed in newer clippy (#4167)\n\nThe following lints no longer exist in recent clippy versions and cause\n`unknown lint` errors (promoted to errors by `-D warnings` / `-W unknown-lints`):\n\n- clippy::unnecessary_rest_pattern\n- clippy::rest_pattern_accessible_field\n- clippy::definition_in_module_root\n\nRemove them from the allowed lints list in Cargo.toml.",
+          "timestamp": "2026-08-26T08:22:52-04:00",
+          "tree_id": "8e3d027cff300832165a08c42518a5ddfd90f69f",
+          "url": "https://github.com/hyperium/hyper/commit/37c9d0c7e018d3c218f1fc0e472207ff05ef3772"
+        },
+        "date": 1787747154738,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68484,
+            "range": "± 1392.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4088521,
+            "range": "± 59643.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20339,
+            "range": "± 392.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22613,
+            "range": "± 230.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 29779,
+            "range": "± 1532.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101910,
+            "range": "± 1835.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000062,
+            "range": "± 4918.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 78963,
+            "range": "± 2146.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 15971717,
+            "range": "± 16486372.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 8014677,
+            "range": "± 115239.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 48402919,
+            "range": "± 1003182.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51013612,
+            "range": "± 681834.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 49849265,
+            "range": "± 390347.43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5105928,
+            "range": "± 48620.70",
             "unit": "ns/iter"
           }
         ]
