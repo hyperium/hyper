@@ -21,7 +21,7 @@ use crate::headers;
 use crate::proto::h2::ping::Recorder;
 use crate::proto::Dispatched;
 use crate::rt::bounds::{Http2ServerConnExec, Http2UpgradedExec};
-use crate::rt::{Read, Write};
+use crate::rt::{Read, Sleep, Write};
 use crate::service::HttpService;
 
 use crate::upgrade::{OnUpgrade, Pending, Upgraded};
@@ -39,6 +39,20 @@ const DEFAULT_MAX_FRAME_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_SEND_BUF_SIZE: usize = 1024 * 400; // 400kb
 const DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE: u32 = 1024 * 16; // 16kb
 const DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS: usize = 1024;
+
+// How long the handshake is given to finish once a graceful shutdown has been
+// requested.
+//
+// A client may coalesce its connection preface with real requests, so a
+// shutdown arriving mid-handshake has to let the handshake finish where it
+// can: that is what allows those requests to be answered, or at least
+// accounted for in a GOAWAY. Waiting for it unconditionally is what cannot be
+// done, because a peer that connects and then says nothing leaves the
+// handshake pending forever and takes the shutdown down with it.
+//
+// This only has to cover a handshake whose bytes have already arrived, which
+// takes microseconds, so it is deliberately short.
+const HANDSHAKE_SHUTDOWN_GRACE: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -90,7 +104,11 @@ pin_project! {
         service: S,
         state: State<T, B>,
         date_header: bool,
-        close_pending: bool
+        close_pending: bool,
+        // Bounds `close_pending`. `None` while a shutdown is pending means
+        // there was no timer to build a deadline with, and the connection is
+        // closed at the next poll instead.
+        handshake_deadline: Option<Pin<Box<dyn Sleep>>>
     }
 }
 
@@ -179,6 +197,7 @@ where
             service,
             date_header: config.date_header,
             close_pending: false,
+            handshake_deadline: None,
         }
     }
 
@@ -186,7 +205,16 @@ where
         trace!("graceful_shutdown");
         match &mut self.state {
             State::Handshaking { .. } => {
-                self.close_pending = true;
+                if !self.close_pending {
+                    self.close_pending = true;
+                    // Without a timer there is no way to bound the wait, so
+                    // none is granted: the next poll closes the connection,
+                    // which is what hyper did before 1.10.
+                    if let Time::Timer(_) = self.timer {
+                        self.handshake_deadline =
+                            Some(self.timer.sleep(HANDSHAKE_SHUTDOWN_GRACE));
+                    }
+                }
             }
             State::Serving(srv) => {
                 if srv.closing.is_none() {
@@ -212,6 +240,22 @@ where
         loop {
             let next = match &mut me.state {
                 State::Handshaking { hs, ping_config } => {
+                    if me.close_pending {
+                        match me.handshake_deadline.as_mut() {
+                            None => {
+                                trace!("graceful shutdown during handshake, no timer set");
+                                return Poll::Ready(Ok(Dispatched::Shutdown));
+                            }
+                            Some(deadline) => {
+                                if Pin::new(deadline).poll(cx).is_ready() {
+                                    debug!(
+                                        "graceful shutdown timed out waiting for the handshake"
+                                    );
+                                    return Poll::Ready(Ok(Dispatched::Shutdown));
+                                }
+                            }
+                        }
+                    }
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");

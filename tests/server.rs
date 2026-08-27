@@ -2810,6 +2810,80 @@ async fn graceful_shutdown_before_first_request_no_block() {
         .expect("error receiving response");
 }
 
+#[tokio::test]
+async fn http2_graceful_shutdown_before_handshake_no_block() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let socket = listener.accept().await.unwrap().0;
+        let socket = TokioIo::new(socket);
+
+        let future = http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .serve_connection(socket, HelloWorld);
+        pin!(future);
+        // Shutdown requested before the handshake has been polled at all.
+        future.as_mut().graceful_shutdown();
+
+        future.await.unwrap();
+    });
+
+    // This client never sends its preface, so the handshake it is holding open
+    // can never complete. The shutdown must finish regardless, which we see as
+    // the socket being closed.
+    let mut stream = TkTcpStream::connect(addr).await.unwrap();
+
+    let mut buf = vec![];
+    tokio::time::timeout(Duration::from_secs(10), stream.read_to_end(&mut buf))
+        .await
+        .expect("timed out waiting for graceful shutdown")
+        .expect("error reading");
+}
+
+#[tokio::test]
+async fn http2_graceful_shutdown_during_handshake_lets_it_finish() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let socket = listener.accept().await.unwrap().0;
+        let socket = TokioIo::new(socket);
+
+        let future = http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .serve_connection(socket, HelloWorld);
+        pin!(future);
+        // Again before the first poll, but this time the peer does speak.
+        future.as_mut().graceful_shutdown();
+
+        let _ = future.await;
+    });
+
+    let mut stream = TkTcpStream::connect(addr).await.unwrap();
+    // The preface and an empty SETTINGS frame, so the handshake can complete
+    // from bytes that have already arrived.
+    stream
+        .write_all(b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
+        .await
+        .unwrap();
+    stream
+        .write_all(&[0, 0, 0, 4, 0, 0, 0, 0, 0])
+        .await
+        .unwrap();
+
+    // A shutdown that dropped the connection outright would close without a
+    // word, taking any requests coalesced with the preface down with it, which
+    // is what hyper#3729 fixed. Letting the handshake finish means the server
+    // speaks first, starting with its own SETTINGS.
+    let mut buf = [0u8; 64];
+    let n = tokio::time::timeout(Duration::from_secs(10), stream.read(&mut buf))
+        .await
+        .expect("timed out waiting for the server")
+        .expect("error reading");
+    assert!(n > 0, "server closed without completing the handshake");
+    // Frame header is a 3 byte length then the type; 0x04 is SETTINGS.
+    assert_eq!(buf[3], 0x04, "expected SETTINGS, got {:?}", &buf[..n]);
+}
+
 #[test]
 fn streaming_body() {
     use futures_util::StreamExt;
