@@ -16,6 +16,7 @@ use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
 use crate::rt::bounds::Http2ServerConnExec;
 use crate::service::HttpService;
+use crate::common::time::Dur;
 use crate::{common::time::Time, rt::Timer};
 
 pin_project! {
@@ -236,6 +237,31 @@ impl<E> Builder<E> {
     /// Default is 20 seconds.
     pub fn keep_alive_timeout(&mut self, timeout: Duration) -> &mut Self {
         self.h2_builder.keep_alive_timeout = timeout;
+        self
+    }
+
+    /// Set how long a graceful shutdown will wait for an in-progress handshake
+    /// to finish.
+    ///
+    /// A shutdown requested while a connection is still handshaking is applied
+    /// once that handshake completes, so that requests a client coalesced with
+    /// its connection preface are still answered, or at least accounted for in
+    /// a GOAWAY. A handshake that never completes would otherwise hold the
+    /// shutdown open forever, which this bounds.
+    ///
+    /// Passing `None` restores that unbounded wait.
+    ///
+    /// Requires a [`Timer`](crate::rt::Timer) set by [`Builder::timer`]. If one
+    /// is configured without a timer, this panics. Without a timer the default
+    /// cannot be applied either, and such connections are closed at once
+    /// rather than waited on.
+    ///
+    /// Default is 1 second.
+    pub fn handshake_shutdown_timeout(
+        &mut self,
+        timeout: impl Into<Option<Duration>>,
+    ) -> &mut Self {
+        self.h2_builder.handshake_shutdown_timeout = Dur::Configured(timeout.into());
         self
     }
 

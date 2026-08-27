@@ -15,7 +15,7 @@ use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::date;
 use crate::common::io::Compat;
-use crate::common::time::Time;
+use crate::common::time::{Dur, Time};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
@@ -52,7 +52,7 @@ const DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS: usize = 1024;
 //
 // This only has to cover a handshake whose bytes have already arrived, which
 // takes microseconds, so it is deliberately short.
-const HANDSHAKE_SHUTDOWN_GRACE: Duration = Duration::from_secs(1);
+const DEFAULT_HANDSHAKE_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 
 #[derive(Clone, Debug)]
 pub(crate) struct Config {
@@ -66,6 +66,7 @@ pub(crate) struct Config {
     pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
+    pub(crate) handshake_shutdown_timeout: Dur,
     pub(crate) max_send_buffer_size: usize,
     pub(crate) header_table_size: Option<u32>,
     pub(crate) max_header_list_size: u32,
@@ -86,6 +87,9 @@ impl Default for Config {
             header_table_size: None,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
+            handshake_shutdown_timeout: Dur::Default(Some(
+                DEFAULT_HANDSHAKE_SHUTDOWN_TIMEOUT,
+            )),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_header_list_size: DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE,
             date_header: true,
@@ -104,12 +108,21 @@ pin_project! {
         service: S,
         state: State<T, B>,
         date_header: bool,
-        close_pending: bool,
-        // Bounds `close_pending`. `None` while a shutdown is pending means
-        // there was no timer to build a deadline with, and the connection is
-        // closed at the next poll instead.
-        handshake_deadline: Option<Pin<Box<dyn Sleep>>>
+        handshake_shutdown_timeout: Dur,
+        // `None` until a graceful shutdown arrives while still handshaking.
+        shutdown: Option<HandshakeShutdown>
     }
+}
+
+/// What a graceful shutdown that arrived mid-handshake should do about it.
+enum HandshakeShutdown {
+    /// Close once this elapses, if the handshake has not finished by then.
+    Deadline(Pin<Box<dyn Sleep>>),
+    /// Nothing to build a deadline from, so no grace is granted and the
+    /// connection closes at the next poll.
+    Immediate,
+    /// Bounding is switched off; wait for the handshake however long it takes.
+    Unbounded,
 }
 
 //#[expect(clippy::large_enum_variant, reason = "the whole future is boxed")]
@@ -196,8 +209,8 @@ where
             },
             service,
             date_header: config.date_header,
-            close_pending: false,
-            handshake_deadline: None,
+            handshake_shutdown_timeout: config.handshake_shutdown_timeout,
+            shutdown: None,
         }
     }
 
@@ -205,15 +218,21 @@ where
         trace!("graceful_shutdown");
         match &mut self.state {
             State::Handshaking { .. } => {
-                if !self.close_pending {
-                    self.close_pending = true;
-                    // Without a timer there is no way to bound the wait, so
-                    // none is granted: the next poll closes the connection,
-                    // which is what hyper did before 1.10.
-                    if let Time::Timer(_) = self.timer {
-                        self.handshake_deadline =
-                            Some(self.timer.sleep(HANDSHAKE_SHUTDOWN_GRACE));
-                    }
+                if self.shutdown.is_none() {
+                    self.shutdown = Some(match self.handshake_shutdown_timeout {
+                        // Explicitly switched off by the user.
+                        Dur::Configured(None) | Dur::Default(None) => {
+                            HandshakeShutdown::Unbounded
+                        }
+                        dur => match self.timer.check(dur, "handshake_shutdown_timeout") {
+                            Some(dur) => HandshakeShutdown::Deadline(self.timer.sleep(dur)),
+                            // Only reachable for the default, since `check`
+                            // panics on a configured value with no timer. With
+                            // no way to bound the wait, none is granted, which
+                            // is what hyper did before 1.10.
+                            None => HandshakeShutdown::Immediate,
+                        },
+                    });
                 }
             }
             State::Serving(srv) => {
@@ -240,21 +259,18 @@ where
         loop {
             let next = match &mut me.state {
                 State::Handshaking { hs, ping_config } => {
-                    if me.close_pending {
-                        match me.handshake_deadline.as_mut() {
-                            None => {
-                                trace!("graceful shutdown during handshake, no timer set");
+                    match me.shutdown.as_mut() {
+                        Some(HandshakeShutdown::Immediate) => {
+                            trace!("graceful shutdown during handshake, no timer set");
+                            return Poll::Ready(Ok(Dispatched::Shutdown));
+                        }
+                        Some(HandshakeShutdown::Deadline(deadline)) => {
+                            if Pin::new(deadline).poll(cx).is_ready() {
+                                debug!("graceful shutdown timed out waiting for the handshake");
                                 return Poll::Ready(Ok(Dispatched::Shutdown));
                             }
-                            Some(deadline) => {
-                                if Pin::new(deadline).poll(cx).is_ready() {
-                                    debug!(
-                                        "graceful shutdown timed out waiting for the handshake"
-                                    );
-                                    return Poll::Ready(Ok(Dispatched::Shutdown));
-                                }
-                            }
                         }
+                        Some(HandshakeShutdown::Unbounded) | None => (),
                     }
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
@@ -272,7 +288,7 @@ where
                 }
                 State::Serving(srv) => {
                     // graceful_shutdown was called before handshaking finished,
-                    if me.close_pending && srv.closing.is_none() {
+                    if me.shutdown.is_some() && srv.closing.is_none() {
                         srv.conn.graceful_shutdown();
                     }
                     ready!(srv.poll_server(cx, &mut me.service, &mut me.exec))?;

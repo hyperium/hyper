@@ -2884,6 +2884,63 @@ async fn http2_graceful_shutdown_during_handshake_lets_it_finish() {
     assert_eq!(buf[3], 0x04, "expected SETTINGS, got {:?}", &buf[..n]);
 }
 
+#[tokio::test]
+async fn http2_handshake_shutdown_timeout_configurable() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let socket = listener.accept().await.unwrap().0;
+        let socket = TokioIo::new(socket);
+
+        let future = http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .handshake_shutdown_timeout(Duration::from_millis(100))
+            .serve_connection(socket, HelloWorld);
+        pin!(future);
+        future.as_mut().graceful_shutdown();
+
+        future.await.unwrap();
+    });
+
+    // Same silent client as above, but the connection should be given up on
+    // well inside the one second default.
+    let mut stream = TkTcpStream::connect(addr).await.unwrap();
+
+    let mut buf = vec![];
+    tokio::time::timeout(Duration::from_millis(750), stream.read_to_end(&mut buf))
+        .await
+        .expect("should have closed inside the configured timeout")
+        .expect("error reading");
+}
+
+#[tokio::test]
+async fn http2_handshake_shutdown_timeout_can_be_disabled() {
+    let (listener, addr) = setup_tcp_listener();
+
+    tokio::spawn(async move {
+        let socket = listener.accept().await.unwrap().0;
+        let socket = TokioIo::new(socket);
+
+        let future = http2::Builder::new(TokioExecutor)
+            .timer(TokioTimer)
+            .handshake_shutdown_timeout(None)
+            .serve_connection(socket, HelloWorld);
+        pin!(future);
+        future.as_mut().graceful_shutdown();
+
+        future.await.unwrap();
+    });
+
+    // Opting out restores the unbounded wait, so this silent client keeps the
+    // shutdown open and nothing is closed.
+    let mut stream = TkTcpStream::connect(addr).await.unwrap();
+
+    let mut buf = vec![];
+    tokio::time::timeout(Duration::from_secs(2), stream.read_to_end(&mut buf))
+        .await
+        .expect_err("connection should still be waiting on the handshake");
+}
+
 #[test]
 fn streaming_body() {
     use futures_util::StreamExt;
