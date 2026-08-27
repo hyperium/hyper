@@ -1,3 +1,15 @@
+### v1.11.1 (2026-08-27)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * detect TE: trailers caselessly and with other values (#4152) ([72fcf545](https://github.com/hyperium/hyper/commit/72fcf545c9b4a261f31d89bafd3019a2d4e9e1d7))
+  * recognize `\n\r\n` as a head terminator in the partial-read fast path (#4147) ([3534d75c](https://github.com/hyperium/hyper/commit/3534d75c898da17b023e6bff9b4cf71afed123ad), closes [#4145](https://github.com/hyperium/hyper/issues/4145))
+  * flush bytes buffered by the write re-check before yielding (#4143) ([f660f5bf](https://github.com/hyperium/hyper/commit/f660f5bf6eed3fe793f899507ff5bb9e266d4b0d))
+  * evict pooled conn on request-side Connection: close (#4110) ([da19be08](https://github.com/hyperium/hyper/commit/da19be08f34d3da01c4c0f9cfe2837e7d377f73d))
+
+
 ## v1.11.0 (2026-07-20)
 
 
