@@ -15,7 +15,7 @@ use super::{ping, PipeToSendStream, SendBuf};
 use crate::body::{Body, Incoming as IncomingBody};
 use crate::common::date;
 use crate::common::io::Compat;
-use crate::common::time::Time;
+use crate::common::time::{Dur, Time};
 use crate::ext::Protocol;
 use crate::headers;
 use crate::proto::h2::ping::Recorder;
@@ -52,7 +52,7 @@ pub(crate) struct Config {
     pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
-    pub(crate) handshake_timeout: Option<Duration>,
+    pub(crate) handshake_timeout: Dur,
     pub(crate) max_send_buffer_size: usize,
     pub(crate) header_table_size: Option<u32>,
     pub(crate) max_header_list_size: u32,
@@ -73,7 +73,7 @@ impl Default for Config {
             header_table_size: None,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
-            handshake_timeout: None,
+            handshake_timeout: Dur::Default(Some(Duration::from_secs(30))),
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
             max_header_list_size: DEFAULT_SETTINGS_MAX_HEADER_LIST_SIZE,
             date_header: true,
@@ -177,8 +177,8 @@ where
             keep_alive_while_idle: true,
         };
 
-        let handshake_timeout = config
-            .handshake_timeout
+        let handshake_timeout = timer
+            .check(config.handshake_timeout, "handshake_timeout")
             .map(|duration| timer.sleep(duration));
 
         Server {

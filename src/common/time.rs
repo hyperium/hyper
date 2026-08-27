@@ -16,7 +16,7 @@ pub(crate) enum Time {
     Empty,
 }
 
-#[cfg(all(feature = "server", feature = "http1"))]
+#[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum Dur {
     Default(Option<Duration>),
@@ -66,7 +66,7 @@ impl Time {
         }
     }
 
-    #[cfg(all(feature = "server", feature = "http1"))]
+    #[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
     pub(crate) fn check(&self, dur: Dur, name: &'static str) -> Option<Duration> {
         match dur {
             Dur::Default(Some(dur)) => match self {

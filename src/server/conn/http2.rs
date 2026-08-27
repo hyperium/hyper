@@ -16,6 +16,7 @@ use crate::body::{Body, Incoming as IncomingBody};
 use crate::proto;
 use crate::rt::bounds::Http2ServerConnExec;
 use crate::service::HttpService;
+use crate::common::time::Dur;
 use crate::{common::time::Time, rt::Timer};
 
 pin_project! {
@@ -253,9 +254,9 @@ impl<E> Builder<E> {
     /// Requires a [`Timer`](crate::rt::Timer) set by [`Builder::timer`] to take
     /// effect.
     ///
-    /// Default is no timeout.
+    /// Default is 30 seconds.
     pub fn handshake_timeout(&mut self, timeout: impl Into<Option<Duration>>) -> &mut Self {
-        self.h2_builder.handshake_timeout = timeout.into();
+        self.h2_builder.handshake_timeout = Dur::Configured(timeout.into());
         self
     }
 
