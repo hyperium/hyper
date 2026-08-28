@@ -511,7 +511,9 @@ where
 // ===== impl hyper_context =====
 
 impl hyper_context<'_> {
-    pub(crate) fn wrap<'borrow, 'ctx>(cx: &'borrow mut Context<'ctx>) -> &'borrow mut hyper_context<'ctx> {
+    pub(crate) fn wrap<'borrow, 'ctx>(
+        cx: &'borrow mut Context<'ctx>,
+    ) -> &'borrow mut hyper_context<'ctx> {
         // A struct with only one field has the same layout as that field.
         unsafe { std::mem::transmute::<&mut Context<'_>, &mut hyper_context<'_>>(cx) }
     }
