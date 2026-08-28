@@ -113,8 +113,8 @@ impl Protocol {
 }
 
 #[cfg(feature = "http2")]
-impl<'a> From<&'a str> for Protocol {
-    fn from(value: &'a str) -> Self {
+impl<'proto> From<&'proto str> for Protocol {
+    fn from(value: &'proto str) -> Self {
         Self {
             inner: h2::ext::Protocol::from(value),
         }
@@ -165,10 +165,10 @@ impl HeaderCaseMap {
     /// Returns a view of all spellings associated with that header name,
     /// in the order they were found.
     #[cfg(feature = "client")]
-    pub(crate) fn get_all<'a>(
-        &'a self,
+    pub(crate) fn get_all<'hdr>(
+        &'hdr self,
         name: &HeaderName,
-    ) -> impl Iterator<Item = impl AsRef<[u8]> + 'a> + 'a {
+    ) -> impl Iterator<Item = impl AsRef<[u8]> + 'hdr> + 'hdr {
         self.get_all_internal(name)
     }
 

@@ -139,7 +139,6 @@ panic = "allow"
 pattern_type_mismatch = "allow"
 redundant_closure_for_method_calls = "allow"
 redundant_else = "allow"
-single_char_lifetime_names = "allow"
 struct_excessive_bools = "allow" # TODO: bogus lint?
 trivially_copy_pass_by_ref = "allow"
 unnecessary_trailing_comma = "allow"

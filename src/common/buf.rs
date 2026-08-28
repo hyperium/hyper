@@ -56,7 +56,7 @@ impl<T: Buf> Buf for BufList<T> {
     }
 
     #[inline]
-    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+    fn chunks_vectored<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> usize {
         if dst.is_empty() {
             return 0;
         }

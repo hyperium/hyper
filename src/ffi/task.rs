@@ -128,7 +128,7 @@ struct TaskFuture {
 /// its only purpose is to provide access to the waker. See `hyper_waker`.
 ///
 /// Corresponding Rust type: <https://doc.rust-lang.org/std/task/struct.Context.html>
-pub struct hyper_context<'a>(Context<'a>);
+pub struct hyper_context<'ctx>(Context<'ctx>);
 
 /// A waker that is saved and used to waken a pending task.
 ///
@@ -511,7 +511,7 @@ where
 // ===== impl hyper_context =====
 
 impl hyper_context<'_> {
-    pub(crate) fn wrap<'a, 'b>(cx: &'a mut Context<'b>) -> &'a mut hyper_context<'b> {
+    pub(crate) fn wrap<'borrow, 'ctx>(cx: &'borrow mut Context<'ctx>) -> &'borrow mut hyper_context<'ctx> {
         // A struct with only one field has the same layout as that field.
         unsafe { std::mem::transmute::<&mut Context<'_>, &mut hyper_context<'_>>(cx) }
     }

@@ -319,7 +319,7 @@ impl<B: Buf> Buf for SendBuf<B> {
         }
     }
 
-    fn chunks_vectored<'a>(&'a self, dst: &mut [IoSlice<'a>]) -> usize {
+    fn chunks_vectored<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> usize {
         match self {
             Self::Buf(b) => b.chunks_vectored(dst),
             Self::Cursor(c) => c.chunks_vectored(dst),
