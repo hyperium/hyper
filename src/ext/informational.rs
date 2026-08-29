@@ -66,7 +66,7 @@ where
 // being either a real reference, or moving the http::Response into the closure,
 // in a backwards-compatible change in the future.
 #[derive(Debug)]
-pub struct Response<'a>(&'a http::Response<()>);
+pub struct Response<'resp>(&'resp http::Response<()>);
 
 impl Response<'_> {
     #[inline]
