@@ -509,10 +509,10 @@ where
 
 /// A drop guard to allow a mutable borrow of an Option while being able to
 /// set whether the `Option` should be cleared on drop.
-struct OptGuard<'a, T>(Pin<&'a mut Option<T>>, bool);
+struct OptGuard<'opt, T>(Pin<&'opt mut Option<T>>, bool);
 
-impl<'a, T> OptGuard<'a, T> {
-    fn new(pin: Pin<&'a mut Option<T>>) -> Self {
+impl<'opt, T> OptGuard<'opt, T> {
+    fn new(pin: Pin<&'opt mut Option<T>>) -> Self {
         OptGuard(pin, false)
     }
 

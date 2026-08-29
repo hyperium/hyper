@@ -317,7 +317,7 @@ where
     }
 
     #[inline]
-    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+    fn chunks_vectored<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> usize {
         match &self.kind {
             BufKind::Exact(b) => b.chunks_vectored(dst),
             BufKind::Limited(b) => b.chunks_vectored(dst),

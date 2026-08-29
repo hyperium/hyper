@@ -68,9 +68,9 @@ pub(crate) struct ParsedMessage<T> {
     wants_upgrade: bool,
 }
 
-pub(crate) struct ParseContext<'a> {
-    cached_headers: &'a mut Option<HeaderMap>,
-    req_method: &'a mut Option<Method>,
+pub(crate) struct ParseContext<'ctx> {
+    cached_headers: &'ctx mut Option<HeaderMap>,
+    req_method: &'ctx mut Option<Method>,
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
     preserve_header_case: bool,
@@ -78,16 +78,16 @@ pub(crate) struct ParseContext<'a> {
     preserve_header_order: bool,
     h09_responses: bool,
     #[cfg(feature = "client")]
-    on_informational: &'a mut Option<crate::ext::OnInformational>,
+    on_informational: &'ctx mut Option<crate::ext::OnInformational>,
 }
 
 /// Passed to `Http1Transaction::encode`.
-pub(crate) struct Encode<'a, T> {
-    head: &'a mut MessageHead<T>,
+pub(crate) struct Encode<'encode, T> {
+    head: &'encode mut MessageHead<T>,
     body: Option<BodyLength>,
     #[cfg(feature = "server")]
     keep_alive: bool,
-    req_method: &'a mut Option<Method>,
+    req_method: &'encode mut Option<Method>,
     title_case_headers: bool,
     #[cfg(feature = "server")]
     date_header: bool,

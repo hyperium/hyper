@@ -637,7 +637,7 @@ impl<B: Buf> Buf for WriteBuf<B> {
     }
 
     #[inline]
-    fn chunks_vectored<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> usize {
+    fn chunks_vectored<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> usize {
         let n = self.headers.chunks_vectored(dst);
         self.queue.chunks_vectored(&mut dst[n..]) + n
     }

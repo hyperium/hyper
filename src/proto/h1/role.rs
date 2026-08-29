@@ -1652,7 +1652,7 @@ fn write_headers_original_case(
 }
 
 #[cfg(feature = "client")]
-struct FastWrite<'a>(&'a mut Vec<u8>);
+struct FastWrite<'data>(&'data mut Vec<u8>);
 
 #[cfg(feature = "client")]
 impl fmt::Write for FastWrite<'_> {

@@ -286,12 +286,12 @@ macro_rules! put_u8 {
     };
 }
 
-struct StepArgs<'a> {
-    chunk_size: &'a mut u64,
-    chunk_buf: &'a mut Option<Bytes>,
-    extensions_cnt: &'a mut u64,
-    trailers_buf: &'a mut Option<BytesMut>,
-    trailers_cnt: &'a mut usize,
+struct StepArgs<'args> {
+    chunk_size: &'args mut u64,
+    chunk_buf: &'args mut Option<Bytes>,
+    extensions_cnt: &'args mut u64,
+    trailers_buf: &'args mut Option<BytesMut>,
+    trailers_cnt: &'args mut usize,
     max_headers_cnt: usize,
     max_headers_bytes: usize,
 }

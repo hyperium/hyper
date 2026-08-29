@@ -3542,8 +3542,8 @@ impl Serve {
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<ReplyBody>, BoxError>> + Send>>;
 
-struct ReplyBuilder<'a> {
-    tx: &'a Mutex<spmc::Sender<Reply>>,
+struct ReplyBuilder<'mtx> {
+    tx: &'mtx Mutex<spmc::Sender<Reply>>,
 }
 
 impl ReplyBuilder<'_> {
