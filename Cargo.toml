@@ -118,7 +118,6 @@ as_conversions = "allow" # TODO: tricky
 cast_possible_truncation = "allow" # TODO: consider
 cast_precision_loss = "allow" # TODO: consider
 checked_conversions = "allow"
-collapsible_match = "allow"
 else_if_without_else = "allow"
 enum_glob_use = "allow"
 float_arithmetic = "allow"
