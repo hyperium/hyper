@@ -1096,6 +1096,9 @@ impl State {
             (&Reading::Closed, &Writing::KeepAlive) | (&Reading::KeepAlive, &Writing::Closed) => {
                 self.close();
             }
+            (&Reading::KeepAlive, &Writing::Body(_)) if T::is_client() => {
+                self.close();
+            }
             _ => (),
         }
     }
@@ -1264,6 +1267,37 @@ mod tests {
             !remains_reusable_after_get(&["keep-alive", "close"]),
             "a `close` in any Connection header line must disable keep-alive"
         );
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn client_closes_after_response_while_request_body_is_pending() {
+        let io = Compat(tokio_test::io::Builder::new().build());
+        let mut conn = Conn::<_, Bytes, crate::proto::h1::ClientTransaction>::new(io);
+        conn.state.reading = Reading::KeepAlive;
+        conn.state.writing = Writing::Body(Encoder::chunked());
+
+        conn.state
+            .try_keep_alive::<crate::proto::h1::ClientTransaction>();
+
+        assert!(conn.state.is_read_closed());
+        assert!(conn.state.is_write_closed());
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn server_keeps_streaming_body_after_request_is_read() {
+        let io = Compat(tokio_test::io::Builder::new().build());
+        let mut conn = Conn::<_, Bytes, crate::proto::h1::ServerTransaction>::new(io);
+        conn.state.reading = Reading::KeepAlive;
+        conn.state.writing = Writing::Body(Encoder::chunked());
+
+        conn.state
+            .try_keep_alive::<crate::proto::h1::ServerTransaction>();
+
+        assert!(!conn.state.is_read_closed());
+        assert!(!conn.state.is_write_closed());
+        assert!(matches!(conn.state.writing, Writing::Body(_)));
     }
 
     use super::*;
