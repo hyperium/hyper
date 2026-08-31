@@ -676,11 +676,9 @@ where
                 Version::HTTP_10 => self.state.disable_keep_alive(),
                 // If response is version 1.1 and keep-alive is wanted, add
                 // Connection: keep-alive header when not present
-                Version::HTTP_11 => {
-                    if self.state.wants_keep_alive() {
-                        head.headers
-                            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
-                    }
+                Version::HTTP_11 if self.state.wants_keep_alive() => {
+                    head.headers
+                        .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
                 }
                 _ => (),
             }
