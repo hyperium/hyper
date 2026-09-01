@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788168845490,
+  "lastUpdate": 1788295675540,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13409,6 +13409,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 42492,
             "range": "± 5675.29",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4f36f33a28709f93d693bc9f942b93b54d7032a4",
+          "message": "docs(hips): hyper improvement proposals (#4131)",
+          "timestamp": "2026-09-01T16:47:00-04:00",
+          "tree_id": "794abe43322de432eb06f5ac266e1b3ca959d1c5",
+          "url": "https://github.com/hyperium/hyper/commit/4f36f33a28709f93d693bc9f942b93b54d7032a4"
+        },
+        "date": 1788295672051,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 60919,
+            "range": "± 12671.99",
             "unit": "ns/iter"
           }
         ]
