@@ -18,5 +18,3 @@ pub(crate) mod task;
     all(any(feature = "client", feature = "server"), feature = "http2"),
 ))]
 pub(crate) mod time;
-#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
-pub(crate) mod watch;
