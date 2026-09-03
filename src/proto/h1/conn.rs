@@ -1,11 +1,11 @@
 use std::fmt;
-#[cfg(feature = "server")]
+#[cfg(any(feature = "server", feature = "client"))]
 use std::future::Future;
 use std::io;
 use std::marker::{PhantomData, Unpin};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-#[cfg(feature = "server")]
+#[cfg(any(feature = "server", feature = "client"))]
 use std::time::Duration;
 
 use crate::rt::{Read, Write};
@@ -19,11 +19,11 @@ use httparse::ParserConfig;
 use super::io::Buffered;
 use super::{Decoder, Encode, EncodedBuf, Encoder, Http1Transaction, ParseContext, Wants};
 use crate::body::DecodedLength;
-#[cfg(feature = "server")]
+#[cfg(any(feature = "server", feature = "client"))]
 use crate::common::time::Time;
 use crate::headers;
 use crate::proto::{BodyLength, MessageHead};
-#[cfg(feature = "server")]
+#[cfg(any(feature = "server", feature = "client"))]
 use crate::rt::Sleep;
 
 const H2_PREFACE: &[u8] = b"PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n";
@@ -66,7 +66,7 @@ where
                 h1_header_read_timeout_running: false,
                 #[cfg(feature = "server")]
                 date_header: true,
-                #[cfg(feature = "server")]
+                #[cfg(any(feature = "server", feature = "client"))]
                 timer: Time::Empty,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
@@ -75,6 +75,12 @@ where
                 h09_responses: false,
                 #[cfg(feature = "client")]
                 on_informational: None,
+                #[cfg(feature = "client")]
+                h1_continue_timeout: None,
+                #[cfg(feature = "client")]
+                h1_continue_timeout_fut: None,
+                #[cfg(feature = "client")]
+                h1_continue_timeout_running: false,
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
@@ -88,7 +94,7 @@ where
         }
     }
 
-    #[cfg(feature = "server")]
+    #[cfg(any(feature = "server", feature = "client"))]
     pub(crate) fn set_timer(&mut self, timer: Time) {
         self.state.timer = timer;
     }
@@ -144,6 +150,11 @@ where
     #[cfg(feature = "server")]
     pub(crate) fn set_http1_header_read_timeout(&mut self, val: Duration) {
         self.state.h1_header_read_timeout = Some(val);
+    }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn set_http1_continue_timeout(&mut self, val: Duration) {
+        self.state.h1_continue_timeout = Some(val);
     }
 
     #[cfg(feature = "server")]
@@ -605,6 +616,7 @@ where
         self.io.has_buffered_write()
     }
 
+    #[cfg(feature = "client")]
     pub(crate) fn is_awaiting_continue(&self) -> bool {
         matches!(self.state.writing, Writing::Continue(..))
     }
@@ -615,6 +627,38 @@ where
             Writing::Continue(enc) => Writing::Body(enc),
             other => other,
         };
+
+        // Reset so a reused connection re-arms instead of firing a stale deadline.
+        self.state.h1_continue_timeout_running = false;
+        self.state.h1_continue_timeout_fut = None;
+    }
+
+    #[cfg(feature = "client")]
+    pub(crate) fn poll_continue_timeout(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        if !matches!(self.state.writing, Writing::Continue(..)) {
+            return Poll::Pending;
+        }
+
+        let timeout = match self.state.h1_continue_timeout {
+            Some(t) => t,
+            None => return Poll::Pending,
+        };
+
+        if !self.state.h1_continue_timeout_running {
+            let deadline = self.state.timer.now() + timeout;
+            self.state.h1_continue_timeout_running = true;
+            self.state.h1_continue_timeout_fut = Some(self.state.timer.sleep_until(deadline));
+        }
+
+        if let Some(fut) = &mut self.state.h1_continue_timeout_fut {
+            if Pin::new(fut).poll(cx).is_ready() {
+                trace!("expect-continue timeout elapsed; sending body anyway");
+                self.release_continue();
+                return Poll::Ready(());
+            }
+        }
+
+        Poll::Pending
     }
 
     pub(crate) fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
@@ -973,7 +1017,7 @@ struct State {
     h1_header_read_timeout_running: bool,
     #[cfg(feature = "server")]
     date_header: bool,
-    #[cfg(feature = "server")]
+    #[cfg(any(feature = "server", feature = "client"))]
     timer: Time,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
@@ -985,6 +1029,12 @@ struct State {
     /// received.
     #[cfg(feature = "client")]
     on_informational: Option<crate::ext::OnInformational>,
+    #[cfg(feature = "client")]
+    h1_continue_timeout: Option<Duration>,
+    #[cfg(feature = "client")]
+    h1_continue_timeout_fut: Option<Pin<Box<dyn Sleep>>>,
+    #[cfg(feature = "client")]
+    h1_continue_timeout_running: bool,
     /// Set to true when the Dispatcher should poll read operations
     /// again. See the `maybe_notify` method for more.
     notify_read: bool,

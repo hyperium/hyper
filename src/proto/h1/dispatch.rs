@@ -390,8 +390,13 @@ where
                 {
                     debug_assert!(!*clear_body, "opt guard defaults to keeping body");
                     if !self.conn.can_write_body() {
+                        #[cfg(feature = "client")]
                         if self.conn.is_awaiting_continue() {
-                            return Poll::Pending;
+                            if self.conn.poll_continue_timeout(cx).is_pending() {
+                                return Poll::Pending;
+                            }
+
+                            continue;
                         }
 
                         trace!(

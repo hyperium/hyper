@@ -42,6 +42,7 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     false
 }
 
+#[cfg(feature = "http1")]
 pub(super) fn expect_continue(headers: &http::HeaderMap) -> bool {
     headers.get(http::header::EXPECT).map_or(false, |value| {
         value.as_bytes().eq_ignore_ascii_case(b"100-continue")

@@ -3389,6 +3389,36 @@ mod conn {
         let res = client.send_request(req).await.expect("send_request");
         assert_eq!(res.status(), 200);
     }
+
+    #[tokio::test]
+    async fn timeout_send_body() {
+        let io = tokio_test::io::Builder::new()
+            .write(b"POST /a HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 5\r\n\r\n")
+            .write(b"hello")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .build();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .timer(TokioTimer::new())
+            .expect_100_timeout(Duration::from_millis(50))
+            .handshake::<_, Full<Bytes>>(TokioIo::new(io))
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/a")
+            .header("expect", "100-continue")
+            .body(Full::new(Bytes::from("hello")))
+            .unwrap();
+
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), 200);
+    }
 }
 
 trait FutureHyperExt: TryFuture {
