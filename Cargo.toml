@@ -1,6 +1,6 @@
 [package]
 name = "hyper"
-version = "1.11.0"
+version = "1.11.1"
 description = "A protective and efficient HTTP library for all."
 readme = "README.md"
 homepage = "https://hyper.rs"
@@ -118,7 +118,6 @@ as_conversions = "allow" # TODO: tricky
 cast_possible_truncation = "allow" # TODO: consider
 cast_precision_loss = "allow" # TODO: consider
 checked_conversions = "allow"
-collapsible_match = "allow"
 else_if_without_else = "allow"
 enum_glob_use = "allow"
 float_arithmetic = "allow"
@@ -139,7 +138,6 @@ panic = "allow"
 pattern_type_mismatch = "allow"
 redundant_closure_for_method_calls = "allow"
 redundant_else = "allow"
-single_char_lifetime_names = "allow"
 struct_excessive_bools = "allow" # TODO: bogus lint?
 trivially_copy_pass_by_ref = "allow"
 unnecessary_trailing_comma = "allow"

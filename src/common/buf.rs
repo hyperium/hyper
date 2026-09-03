@@ -14,16 +14,16 @@ pub(crate) struct BufList<T> {
 /// boolean indicates whether the slices cover all remaining bytes.
 pub(crate) trait VectoredBuf: Buf {
     #[inline]
-    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+    fn chunks_vectored_prefix<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> (usize, bool) {
         chunks_vectored_from_chunk(self, dst)
     }
 }
 
 /// Fill one vectored slice from the only prefix primitive guaranteed by `Buf`.
 #[inline]
-pub(crate) fn chunks_vectored_from_chunk<'t, B>(
-    buf: &'t B,
-    dst: &mut [IoSlice<'t>],
+pub(crate) fn chunks_vectored_from_chunk<'data, B>(
+    buf: &'data B,
+    dst: &mut [IoSlice<'data>],
 ) -> (usize, bool)
 where
     B: Buf + ?Sized,
@@ -115,7 +115,7 @@ impl<T: Buf> Buf for BufList<T> {
 
 impl<T: VectoredBuf> VectoredBuf for BufList<T> {
     #[inline]
-    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+    fn chunks_vectored_prefix<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> (usize, bool) {
         let mut vecs = 0;
         for buf in &self.bufs {
             if vecs == dst.len() {

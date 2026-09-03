@@ -408,7 +408,7 @@ mod tests {
     }
 
     /// Helper to check if the future is ready after polling once.
-    struct PollOnce<'a, F>(&'a mut F);
+    struct PollOnce<'fut, F>(&'fut mut F);
 
     impl<F, T> Future for PollOnce<'_, F>
     where

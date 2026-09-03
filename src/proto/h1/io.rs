@@ -650,7 +650,7 @@ impl<B: Buf> Buf for WriteBuf<B> {
 
 impl<B: VectoredBuf> VectoredBuf for WriteBuf<B> {
     #[inline]
-    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+    fn chunks_vectored_prefix<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> (usize, bool) {
         let (headers, complete) = self.headers.chunks_vectored_prefix(dst);
         if !complete {
             return (headers, false);

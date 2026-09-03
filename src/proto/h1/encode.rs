@@ -320,7 +320,7 @@ where
 
 impl<B: Buf> VectoredBuf for EncodedBuf<B> {
     #[inline]
-    fn chunks_vectored_prefix<'t>(&'t self, dst: &mut [IoSlice<'t>]) -> (usize, bool) {
+    fn chunks_vectored_prefix<'data>(&'data self, dst: &mut [IoSlice<'data>]) -> (usize, bool) {
         match &self.kind {
             BufKind::Exact(b) => chunks_vectored_from_chunk(b, dst),
             BufKind::Limited(b) => chunks_vectored_from_chunk(b, dst),
@@ -352,7 +352,7 @@ impl<B: Buf> VectoredBuf for EncodedBuf<B> {
 }
 
 #[inline]
-fn append_chunk<'t, B>(buf: &'t B, dst: &mut [IoSlice<'t>], vecs: &mut usize) -> bool
+fn append_chunk<'data, B>(buf: &'data B, dst: &mut [IoSlice<'data>], vecs: &mut usize) -> bool
 where
     B: Buf + ?Sized,
 {
