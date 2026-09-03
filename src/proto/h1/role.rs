@@ -1182,6 +1182,10 @@ impl Http1Transaction for Client {
             }
 
             if head.subject.is_informational() {
+                if head.subject.as_u16() == 100 {
+                    *ctx.seen_continue = true;
+                }
+
                 if let Some(callback) = ctx.on_informational {
                     callback.call(head.into_response(()));
                 }
@@ -1698,6 +1702,8 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "client")]
                 on_informational: &mut None,
+                #[cfg(feature = "client")]
+                seen_continue: &mut false,
             },
         )
         .unwrap()
@@ -1726,6 +1732,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1750,6 +1758,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1771,6 +1781,8 @@ mod tests {
             h09_responses: true,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw, H09_RESPONSE);
@@ -1794,6 +1806,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
         assert_eq!(raw, H09_RESPONSE);
@@ -1821,6 +1835,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1845,6 +1861,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         Client::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1873,6 +1891,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         let msg = Server::parse(&mut raw, ctx).unwrap().unwrap();
         assert_eq!(raw.len(), 0);
@@ -1900,6 +1920,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         Server::parse(&mut raw, ctx).unwrap_err();
     }
@@ -1920,6 +1942,8 @@ mod tests {
             h09_responses: false,
             #[cfg(feature = "client")]
             on_informational: &mut None,
+            #[cfg(feature = "client")]
+            seen_continue: &mut false,
         };
         let parsed_message = Server::parse(&mut raw, ctx).unwrap().unwrap();
         let orig_headers = parsed_message
@@ -1959,6 +1983,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 },
             )
             .expect("parse ok")
@@ -1980,6 +2006,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 },
             )
             .expect_err(comment)
@@ -2220,6 +2248,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 }
             )
             .expect("parse ok")
@@ -2241,6 +2271,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 },
             )
             .expect("parse ok")
@@ -2262,6 +2294,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 },
             )
             .expect_err("parse should err")
@@ -2832,6 +2866,8 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "client")]
                 on_informational: &mut None,
+                #[cfg(feature = "client")]
+                seen_continue: &mut false,
             },
         )
         .expect("parse ok")
@@ -2876,6 +2912,8 @@ mod tests {
                         h09_responses: false,
                         #[cfg(feature = "client")]
                         on_informational: &mut None,
+                        #[cfg(feature = "client")]
+                        seen_continue: &mut false,
                     },
                 );
                 if should_success {
@@ -2900,6 +2938,8 @@ mod tests {
                         h09_responses: false,
                         #[cfg(feature = "client")]
                         on_informational: &mut None,
+                        #[cfg(feature = "client")]
+                        seen_continue: &mut false,
                     },
                 );
                 if should_success {
@@ -3020,6 +3060,8 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "client")]
                 on_informational: &mut None,
+                #[cfg(feature = "client")]
+                seen_continue: &mut false,
             },
         )
         .expect("parse ok")
@@ -3103,6 +3145,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 },
             )
             .unwrap()
@@ -3148,6 +3192,8 @@ mod tests {
                     h09_responses: false,
                     #[cfg(feature = "client")]
                     on_informational: &mut None,
+                    #[cfg(feature = "client")]
+                    seen_continue: &mut false,
                 },
             )
             .unwrap()
