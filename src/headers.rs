@@ -42,6 +42,12 @@ fn connection_has(value: &HeaderValue, needle: &str) -> bool {
     false
 }
 
+pub(super) fn expect_continue(headers: &http::HeaderMap) -> bool {
+    headers.get(http::header::EXPECT).map_or(false, |value| {
+        value.as_bytes().eq_ignore_ascii_case(b"100-continue")
+    })
+}
+
 #[cfg(feature = "http1")]
 pub(super) fn te_is_trailers(headers: &http::HeaderMap) -> bool {
     header_value_list_has(headers.get_all(http::header::TE).into_iter(), "trailers")

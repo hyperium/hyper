@@ -390,6 +390,10 @@ where
                 {
                     debug_assert!(!*clear_body, "opt guard defaults to keeping body");
                     if !self.conn.can_write_body() {
+                        if self.conn.is_awaiting_continue() {
+                            return Poll::Pending;
+                        }
+
                         trace!(
                             "no more write body allowed, user body is_end_stream = {}",
                             body.is_end_stream(),

@@ -194,6 +194,8 @@ where
                     h09_responses: parse_ctx.h09_responses,
                     #[cfg(feature = "client")]
                     on_informational: parse_ctx.on_informational,
+                    #[cfg(feature = "client")]
+                    seen_continue: parse_ctx.seen_continue,
                 },
             )? {
                 debug!("parsed {} headers", msg.head.headers.len());
@@ -708,6 +710,8 @@ mod tests {
                 h09_responses: false,
                 #[cfg(feature = "client")]
                 on_informational: &mut None,
+                #[cfg(feature = "client")]
+                seen_continue: &mut false,
             };
             assert!(buffered
                 .parse::<ClientTransaction>(cx, parse_ctx)

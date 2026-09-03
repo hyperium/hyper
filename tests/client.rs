@@ -3315,6 +3315,80 @@ mod conn {
         drop(tx_a);
         let _ = tokio::time::timeout(Duration::from_secs(5), a_handle).await;
     }
+
+    #[tokio::test]
+    async fn body_after_100() {
+        let io = tokio_test::io::Builder::new()
+            .write(b"POST /a HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 5\r\n\r\n")
+            .read(b"HTTP/1.1 100 Continue\r\n\r\n")
+            .write(b"hello")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .build();
+
+        let (mut client, conn) = conn::http1::handshake(TokioIo::new(io)).await.unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/a")
+            .header("expect", "100-continue")
+            .body(Full::new(Bytes::from("hello")))
+            .unwrap();
+
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), 200);
+    }
+
+    #[tokio::test]
+    async fn final_response_before_100() {
+        let io = tokio_test::io::Builder::new()
+            .write(b"POST /a HTTP/1.1\r\nexpect: 100-continue\r\ncontent-length: 5\r\n\r\n")
+            .read(b"HTTP/1.1 417 Expectation Failed\r\ncontent-length: 0\r\n\r\n")
+            .build();
+
+        let (mut client, conn) = conn::http1::handshake(TokioIo::new(io)).await.unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/a")
+            .header("expect", "100-continue")
+            .body(Full::new(Bytes::from("hello")))
+            .unwrap();
+
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), 417);
+    }
+
+    #[tokio::test]
+    async fn expect_ignored_with_empty_body() {
+        let io = tokio_test::io::Builder::new()
+            .write(b"POST /a HTTP/1.1\r\nexpect: 100-continue\r\n\r\n")
+            .read(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n")
+            .build();
+
+        let (mut client, conn) = conn::http1::handshake(TokioIo::new(io)).await.unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .method(Method::POST)
+            .uri("/a")
+            .header("expect", "100-continue")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), 200);
+    }
 }
 
 trait FutureHyperExt: TryFuture {

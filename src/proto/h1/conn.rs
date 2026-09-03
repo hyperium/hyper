@@ -234,7 +234,10 @@ where
             }
         }
 
-        let msg = match self.io.parse::<T>(
+        #[cfg(feature = "client")]
+        let mut seen_continue = false;
+
+        let parse_result = self.io.parse::<T>(
             cx,
             ParseContext {
                 cached_headers: &mut self.state.cached_headers,
@@ -247,8 +250,17 @@ where
                 h09_responses: self.state.h09_responses,
                 #[cfg(feature = "client")]
                 on_informational: &mut self.state.on_informational,
+                #[cfg(feature = "client")]
+                seen_continue: &mut seen_continue,
             },
-        ) {
+        );
+
+        #[cfg(feature = "client")]
+        if seen_continue {
+            self.release_continue();
+        }
+
+        let msg = match parse_result {
             Poll::Ready(Ok(msg)) => msg,
             Poll::Ready(Err(e)) => return self.on_read_head_error(e),
             Poll::Pending => {
@@ -529,7 +541,7 @@ where
 
         match self.state.writing {
             Writing::Body(..) => return,
-            Writing::Init | Writing::KeepAlive | Writing::Closed => (),
+            Writing::Init | Writing::Continue(..) | Writing::KeepAlive | Writing::Closed => (),
         }
 
         if !self.io.is_read_blocked() {
@@ -580,7 +592,7 @@ where
     pub(crate) fn can_write_body(&self) -> bool {
         match self.state.writing {
             Writing::Body(..) => true,
-            Writing::Init | Writing::KeepAlive | Writing::Closed => false,
+            Writing::Init | Writing::Continue(..) | Writing::KeepAlive | Writing::Closed => false,
         }
     }
 
@@ -593,10 +605,30 @@ where
         self.io.has_buffered_write()
     }
 
+    pub(crate) fn is_awaiting_continue(&self) -> bool {
+        matches!(self.state.writing, Writing::Continue(..))
+    }
+
+    #[cfg(feature = "client")]
+    fn release_continue(&mut self) {
+        self.state.writing = match std::mem::replace(&mut self.state.writing, Writing::Init) {
+            Writing::Continue(enc) => Writing::Body(enc),
+            other => other,
+        };
+    }
+
     pub(crate) fn write_head(&mut self, head: MessageHead<T::Outgoing>, body: Option<BodyLength>) {
+        let expect_continue = !T::should_read_first()
+            && head.version.gt(&Version::HTTP_10)
+            && headers::expect_continue(&head.headers);
+
         if let Some(encoder) = self.encode_head(head, body) {
             self.state.writing = if !encoder.is_eof() {
-                Writing::Body(encoder)
+                if expect_continue {
+                    Writing::Continue(encoder)
+                } else {
+                    Writing::Body(encoder)
+                }
             } else if encoder.is_last() {
                 Writing::Closed
             } else {
@@ -979,6 +1011,7 @@ enum Reading {
 
 enum Writing {
     Init,
+    Continue(Encoder),
     Body(Encoder),
     KeepAlive,
     Closed,
@@ -1011,6 +1044,7 @@ impl fmt::Debug for Writing {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Writing::Init => f.write_str("Init"),
+            Writing::Continue(enc) => f.debug_tuple("Continue").field(enc).finish(),
             Writing::Body(enc) => f.debug_tuple("Body").field(enc).finish(),
             Writing::KeepAlive => f.write_str("KeepAlive"),
             Writing::Closed => f.write_str("Closed"),

@@ -79,6 +79,8 @@ pub(crate) struct ParseContext<'ctx> {
     h09_responses: bool,
     #[cfg(feature = "client")]
     on_informational: &'ctx mut Option<crate::ext::OnInformational>,
+    #[cfg(feature = "client")]
+    seen_continue: &'ctx mut bool,
 }
 
 /// Passed to `Http1Transaction::encode`.
