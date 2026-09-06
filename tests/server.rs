@@ -2786,6 +2786,90 @@ async fn max_buf_size_split_header_boundary() {
 
 #[cfg(feature = "http1")]
 #[tokio::test]
+async fn max_header_size_exceeded() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX_HEADER: usize = 512;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ").expect("write 1");
+        tcp.write_all(&[b'a'; 1000]).expect("write 2");
+        tcp.write_all(b"\r\n\r\n").expect("write 3");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 431 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_header_size(MAX_HEADER)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("should TooLarge error");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn max_header_size_accepted() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX_HEADER: usize = 512;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").expect("write");
+        let mut buf = String::new();
+        tcp.read_to_string(&mut buf).expect("read");
+
+        let expected = "HTTP/1.1 200 ";
+        assert_eq!(&buf[..expected.len()], expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_header_size(MAX_HEADER)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect("should succeed");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn max_header_size_with_large_max_buf_size() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX_HEADER: usize = 512;
+    const MAX_BUF: usize = 64 * 1024;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ").expect("write 1");
+        tcp.write_all(&[b'a'; 1000]).expect("write 2");
+        tcp.write_all(b"\r\n\r\n").expect("write 3");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 431 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_buf_size(MAX_BUF)
+        .max_header_size(MAX_HEADER)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("should TooLarge error even with large max_buf_size");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
 async fn graceful_shutdown_before_first_request_no_block() {
     let (listener, addr) = setup_tcp_listener();
 
