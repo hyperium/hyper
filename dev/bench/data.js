@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788872278212,
+  "lastUpdate": 1788872434274,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -67849,6 +67849,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 2431387,
             "range": "± 14649.99",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a53292651b2ab7d8766e201cceaba63bab8b9f04",
+          "message": "perf(body): simpler custom Incoming channel (#4168)\n\nThe previous channel variant for `Incoming` used several individual channels to\nhandle the various mechanisms: sending data, signaling error/abort, sending\ntrailers, waiting for optional expect-101 polling. Each individual channel would\nallocate its own internal shared state in an Arc.\n\nNow the `Incoming` channel variant uses a single combined implementation,\nputting all the required shared pieces in a single Arc. This resulted in less\nallocations, and less places to potentially store wakers.\n\nThe following performance improvements were noticed with microbenchmarks:\n\n| Benchmark       | Before | After      | Improvement |\n| --------------- | ------ | ---------- | ----------- |\n| Create/drop     | 400 ns | 130–139 ns | ~66%        |\n| Data handoff    | 229 ns | 147–155 ns | ~34%        |\n| Expect-101 wait | 492 ns | 267–298 ns | ~40–46%     |",
+          "timestamp": "2026-09-08T08:57:15-04:00",
+          "tree_id": "6359412eb130fbc1318f1bb25b82ca1be11aa1b2",
+          "url": "https://github.com/hyperium/hyper/commit/a53292651b2ab7d8766e201cceaba63bab8b9f04"
+        },
+        "date": 1788872431627,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 48193,
+            "range": "± 830.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3384896,
+            "range": "± 284579.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 17646,
+            "range": "± 249.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 18476,
+            "range": "± 204.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 22250,
+            "range": "± 268.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 72859,
+            "range": "± 1742.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000038,
+            "range": "± 30903.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 61641,
+            "range": "± 6627.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 14604601,
+            "range": "± 16365980.43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 23001134,
+            "range": "± 12697137.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 6271529,
+            "range": "± 54583.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 86300129,
+            "range": "± 1310397.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 44898124,
+            "range": "± 3839007.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4576774,
+            "range": "± 106050.13",
             "unit": "ns/iter"
           }
         ]
