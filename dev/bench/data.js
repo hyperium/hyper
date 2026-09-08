@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788295843655,
+  "lastUpdate": 1788872278212,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13439,6 +13439,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60919,
             "range": "± 12671.99",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a53292651b2ab7d8766e201cceaba63bab8b9f04",
+          "message": "perf(body): simpler custom Incoming channel (#4168)\n\nThe previous channel variant for `Incoming` used several individual channels to\nhandle the various mechanisms: sending data, signaling error/abort, sending\ntrailers, waiting for optional expect-101 polling. Each individual channel would\nallocate its own internal shared state in an Arc.\n\nNow the `Incoming` channel variant uses a single combined implementation,\nputting all the required shared pieces in a single Arc. This resulted in less\nallocations, and less places to potentially store wakers.\n\nThe following performance improvements were noticed with microbenchmarks:\n\n| Benchmark       | Before | After      | Improvement |\n| --------------- | ------ | ---------- | ----------- |\n| Create/drop     | 400 ns | 130–139 ns | ~66%        |\n| Data handoff    | 229 ns | 147–155 ns | ~34%        |\n| Expect-101 wait | 492 ns | 267–298 ns | ~40–46%     |",
+          "timestamp": "2026-09-08T08:57:15-04:00",
+          "tree_id": "6359412eb130fbc1318f1bb25b82ca1be11aa1b2",
+          "url": "https://github.com/hyperium/hyper/commit/a53292651b2ab7d8766e201cceaba63bab8b9f04"
+        },
+        "date": 1788872275555,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 31400,
+            "range": "± 4768.00",
             "unit": "ns/iter"
           }
         ]
