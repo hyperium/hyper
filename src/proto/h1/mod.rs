@@ -73,6 +73,8 @@ pub(crate) struct ParseContext<'ctx> {
     req_method: &'ctx mut Option<Method>,
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
+    record_raw_headers: bool,
+    raw_request_headers: Option<&'a crate::ext::RawRequestHeaders>,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
