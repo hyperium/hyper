@@ -2793,7 +2793,8 @@ async fn max_header_size_exceeded() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ").expect("write 1");
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ")
+            .expect("write 1");
         tcp.write_all(&[b'a'; 1000]).expect("write 2");
         tcp.write_all(b"\r\n\r\n").expect("write 3");
         let mut buf = [0; 256];
@@ -2821,7 +2822,8 @@ async fn max_header_size_accepted() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n").expect("write");
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+            .expect("write");
         let mut buf = String::new();
         tcp.read_to_string(&mut buf).expect("read");
 
@@ -2848,7 +2850,8 @@ async fn max_header_size_with_large_max_buf_size() {
 
     thread::spawn(move || {
         let mut tcp = connect(&addr);
-        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ").expect("write 1");
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ")
+            .expect("write 1");
         tcp.write_all(&[b'a'; 1000]).expect("write 2");
         tcp.write_all(b"\r\n\r\n").expect("write 3");
         let mut buf = [0; 256];

@@ -2288,7 +2288,8 @@ mod conn {
             let mut sock = server.accept().unwrap().0;
             let mut buf = [0; 1024];
             sock.read(&mut buf).unwrap();
-            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n").unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
         });
 
         let tcp = tcp_connect(&addr).await.unwrap();
