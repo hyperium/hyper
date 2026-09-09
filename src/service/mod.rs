@@ -20,6 +20,17 @@
 //! The helper [`service_fn`] should be sufficient for most cases, but
 //! if you need to implement `Service` for a type manually, you can follow the example
 //! in `service_struct_impl.rs`.
+//!
+//! # Middleware
+//!
+//! This trait is not [`tower::Service`][tower], so a tower stack has to be wrapped in
+//! [`hyper_util::service::TowerToHyperService`][t2h] before a server can be given it.
+//! The `tower_layers.rs` example shows the shape, and the [middleware guide][guide]
+//! goes further.
+//!
+//! [tower]: https://docs.rs/tower/latest/tower/trait.Service.html
+//! [t2h]: https://docs.rs/hyper-util/latest/hyper_util/service/struct.TowerToHyperService.html
+//! [guide]: https://hyper.rs/guides/1/server/middleware/
 
 mod http;
 mod service;
