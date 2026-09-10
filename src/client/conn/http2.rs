@@ -20,6 +20,8 @@ use crate::proto;
 use crate::rt::bounds::Http2ClientConnExec;
 use crate::rt::Timer;
 
+pub use crate::proto::h2::ping::KeepAliveObserver;
+
 /// The sender side of an established connection.
 pub struct SendRequest<B> {
     dispatch: dispatch::UnboundedSender<Request<B>, Response<IncomingBody>>,
@@ -463,6 +465,35 @@ where
         self
     }
 
+    /// Sets the keep-alive PING acknowledgement timeout for stopping reuse.
+    ///
+    /// On expiry, the observer installed with [`Self::keep_alive_observer`] is
+    /// notified once. Hyper itself does not prevent new requests or close the
+    /// connection; the observer should retire it from the caller's connection
+    /// pool. Existing streams retain the original keep-alive timeout. A late
+    /// ACK does not undo the notification.
+    ///
+    /// Defaults to `None` (disabled). Does nothing when keep-alive is disabled.
+    /// When keep-alive is enabled, a configured duration must be greater than
+    /// zero and less than [`Self::keep_alive_timeout`]; otherwise `handshake`
+    /// panics. Validation uses the final configuration, regardless of setter order.
+    pub fn keep_alive_reuse_timeout(&mut self, timeout: Option<Duration>) -> &mut Self {
+        self.h2_builder.keep_alive_reuse_timeout = timeout;
+        self
+    }
+
+    /// Sets the observer for the keep-alive reuse timeout on new connections.
+    ///
+    /// Install a separate observer for each connection when retiring individual
+    /// pool entries. The observer must be nonblocking and must not panic.
+    pub fn keep_alive_observer(
+        &mut self,
+        observer: impl KeepAliveObserver + 'static,
+    ) -> &mut Self {
+        self.h2_builder.keep_alive_observer = Some(Arc::new(observer));
+        self
+    }
+
     /// Sets whether HTTP2 keep-alive should apply while the connection is idle.
     ///
     /// If disabled, keep-alive pings are only sent while there are open
@@ -560,6 +591,12 @@ where
     /// Note, if [`Connection`] is not `await`-ed, [`SendRequest`] will
     /// do nothing.
     ///
+    /// # Panics
+    ///
+    /// Panics if keep-alive is enabled and the configured reuse timeout is zero
+    /// or is not less than the keep-alive timeout. Validation uses the final
+    /// builder configuration, regardless of setter order.
+    ///
     /// # Errors
     ///
     /// Returns an error if the HTTP/2 connection handshake fails.
@@ -574,6 +611,14 @@ where
         B::Error: Into<Box<dyn Error + Send + Sync>>,
         Ex: Http2ClientConnExec<B, T> + Unpin,
     {
+        if self.h2_builder.keep_alive_interval.is_some() {
+            if let Some(timeout) = self.h2_builder.keep_alive_reuse_timeout {
+                assert!(
+                    timeout > Duration::ZERO && timeout < self.h2_builder.keep_alive_timeout,
+                    "keep_alive_reuse_timeout must be greater than zero and less than keep_alive_timeout"
+                );
+            }
+        }
         let opts = self.clone();
 
         async move {
@@ -596,6 +641,62 @@ where
 
 #[cfg(test)]
 mod tests {
+
+    #[derive(Clone)]
+    struct UnusedExecutor;
+
+    impl<F> crate::rt::Executor<F> for UnusedExecutor {
+        fn execute(&self, _: F) {
+            panic!("configuration validation must not spawn tasks");
+        }
+    }
+
+    fn check_reuse_config(soft: std::time::Duration, hard: std::time::Duration, enabled: bool) {
+        let mut builder = super::Builder::new(UnusedExecutor);
+        // Set soft before hard, even when soft exceeds the default hard timeout.
+        builder.keep_alive_reuse_timeout(Some(soft));
+        builder.keep_alive_timeout(hard);
+        if enabled {
+            builder.keep_alive_interval(Some(std::time::Duration::from_secs(10)));
+        }
+        let (io, _peer) = tokio::io::duplex(64);
+        let handshake = builder.handshake::<_, http_body_util::Empty<bytes::Bytes>>(
+            crate::common::io::Compat::new(io),
+        );
+        drop(handshake);
+    }
+
+    #[test]
+    fn reuse_timeout_validates_final_config_independent_of_setter_order() {
+        check_reuse_config(
+            std::time::Duration::from_secs(30),
+            std::time::Duration::from_secs(60),
+            true,
+        );
+    }
+
+    #[test]
+    fn reuse_timeout_is_inactive_without_keepalive() {
+        check_reuse_config(std::time::Duration::ZERO, std::time::Duration::ZERO, false);
+    }
+
+    #[test]
+    #[should_panic(expected = "keep_alive_reuse_timeout must be greater than zero")]
+    fn reuse_timeout_rejects_zero() {
+        check_reuse_config(std::time::Duration::ZERO, std::time::Duration::from_secs(60), true);
+    }
+
+    #[test]
+    #[should_panic(expected = "keep_alive_reuse_timeout must be greater than zero")]
+    fn reuse_timeout_rejects_equal_hard_timeout() {
+        check_reuse_config(std::time::Duration::from_secs(60), std::time::Duration::from_secs(60), true);
+    }
+
+    #[test]
+    #[should_panic(expected = "keep_alive_reuse_timeout must be greater than zero")]
+    fn reuse_timeout_rejects_larger_than_hard_timeout() {
+        check_reuse_config(std::time::Duration::from_secs(61), std::time::Duration::from_secs(60), true);
+    }
 
     #[tokio::test]
     #[ignore] // only compilation is checked
