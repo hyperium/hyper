@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789065062805,
+  "lastUpdate": 1789076101848,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13529,6 +13529,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 37463,
             "range": "± 7307.69",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "gngppz@gmail.com",
+            "name": "0x676e67",
+            "username": "0x676e67"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c9f0165fec729c5b7af862f8960a3fdfc3066572",
+          "message": "chore(dependencies): remove unused futures-channel from http1 feature (#4185)",
+          "timestamp": "2026-09-10T21:34:11Z",
+          "tree_id": "e021950bd11744f59fd63efe473c90a35abb098b",
+          "url": "https://github.com/hyperium/hyper/commit/c9f0165fec729c5b7af862f8960a3fdfc3066572"
+        },
+        "date": 1789076098933,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56412,
+            "range": "± 12974.56",
             "unit": "ns/iter"
           }
         ]
