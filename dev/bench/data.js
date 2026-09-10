@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1788955734884,
+  "lastUpdate": 1789064856769,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13499,6 +13499,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 36331,
             "range": "± 21603.28",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "270feeb71138f817c47e4c0d54a8cacea92d64f2",
+          "message": "docs(ext): remove broken `OriginalHeaderOrder` doctest (#4188)\n\ni stumbled across this while investigating a solution to #3914.\n\nin #2798, a documentation test was introduced that appears to have been broken\nsince its inception. after spending some time figuring out how to run this\ndocumentation test, i found the following errors:\n\n```\n; RUSTDOCFLAGS='--cfg hyper_unstable_ffi' RUSTFLAGS='--cfg hyper_unstable_ffi' cargo test --doc --features client,server,http1,http2,ffi get_in_order\n   Compiling hyper v1.11.1 (/hyper)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.39s\n   Doc-tests hyper\n\nrunning 1 test\ntest src/ext/mod.rs - ext::OriginalHeaderOrder::get_in_order (line 262) - compile ... FAILED\n\nfailures:\n\n---- src/ext/mod.rs - ext::OriginalHeaderOrder::get_in_order (line 262) stdout ----\nerror: expected item, found keyword `let`\n   --> src/ext/mod.rs:266:1\n    |\n266 | let mut h_order = OriginalHeaderOrder::default();\n    | ^^^ `let` cannot be used for global variables\n    |\n    = help: consider using `static` and a `Mutex` instead of `let mut`\n    = note: for a full list of items that can appear in modules, see <https://doc.rust-lang.org/reference/items.html>\n\nerror: aborting due to 1 previous error\n\nCouldn't compile the test.\n\nfailures:\n    src/ext/mod.rs - ext::OriginalHeaderOrder::get_in_order (line 262)\n```\n\nafter wrapping the code in the example in a `fn main() {}` block:\n\n```\n; RUSTDOCFLAGS='--cfg hyper_unstable_ffi' RUSTFLAGS='--cfg hyper_unstable_ffi' cargo test --doc --features client,server,http1,http2,ffi get_in_order\n   Compiling hyper v1.11.1 (/hyper)\n    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.37s\n   Doc-tests hyper\n\nrunning 1 test\ntest src/ext/mod.rs - ext::OriginalHeaderOrder::get_in_order (line 262) - compile ... FAILED\n\nfailures:\n\n---- src/ext/mod.rs - ext::OriginalHeaderOrder::get_in_order (line 262) stdout ----\nerror: expected `;`, found keyword `let`\n   --> src/ext/mod.rs:284:22\n    |\n284 | h_order.append(name3)\n    |                      ^ help: add `;` here\n285 |\n286 | let mut iter = h_order.get_in_order()\n    | --- unexpected token\n\nerror: expected `;`, found keyword `let`\n   --> src/ext/mod.rs:286:38\n    |\n286 | let mut iter = h_order.get_in_order()\n    |                                      ^ help: add `;` here\n287 |\n288 | let (name, idx) = iter.next();\n    | --- unexpected token\n\nerror[E0603]: struct `OriginalHeaderOrder` is private\n   --> src/ext/mod.rs:264:17\n    |\n264 | use hyper::ext::OriginalHeaderOrder;\n    |                 ^^^^^^^^^^^^^^^^^^^ private struct\n    |\nnote: the struct `OriginalHeaderOrder` is defined here\n   --> src/ext/mod.rs:204:1\n    |\n204 | pub(crate) struct OriginalHeaderOrder {\n    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n\nerror[E0433]: cannot find type `Headermap` in this scope\n   --> src/ext/mod.rs:269:17\n    |\n269 | let mut h_map = Headermap::new();\n    |                 ^^^^^^^^^ use of undeclared type `Headermap`\n    |\nhelp: a struct with a similar name exists\n    |\n269 - let mut h_map = Headermap::new();\n269 + let mut h_map = HeaderMap::new();\n    |\n\nerror: aborting due to 4 previous errors\n\nSome errors have detailed explanations: E0433, E0603.\nFor more information about an error, try `rustc --explain E0433`.\nCouldn't compile the test.\n\nfailures:\n    src/ext/mod.rs - ext::OriginalHeaderOrder::get_in_order (line 262)\n```\n\nafter addressing these errors, i observed:\n\n```\nerror[E0277]: the trait bound `&[u8; 10]: IntoHeaderName` is not satisfied\n    --> src/ext/mod.rs:273:14\n     |\n 273 | h_map.append(name1);\n     |       ------ ^^^^^ the trait `IntoHeaderName` is not implemented for `&[u8; 10]`\n     |       |\n     |       required by a bound introduced by this call\n     |\nhelp: the following other types implement trait `IntoHeaderName`\n    --> /.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/http-1.3.1/src/header/map.rs:3690:5\n     |\n3690 |     impl IntoHeaderName for HeaderName {}\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `HeaderName`\n...\n3712 |     impl<'a> IntoHeaderName for &'a HeaderName {}\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'a HeaderName`\n...\n3734 |     impl IntoHeaderName for &'static str {}\n     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ `&'static str`\nnote: required by a bound in `HeaderMap::<T>::append`\n    --> /.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/http-1.3.1/src/header/map.rs:1373:12\n     |\n1371 |     pub fn append<K>(&mut self, key: K, value: T) -> bool\n     |            ------ required by a bound in this associated function\n1372 |     where\n1373 |         K: IntoHeaderName,\n     |            ^^^^^^^^^^^^^^ required by this bound in `HeaderMap::<T>::append`\n\nerror[E0061]: this method takes 2 arguments but 1 argument was supplied\n    --> src/ext/mod.rs:273:7\n     |\n 273 | h_map.append(name1);\n     |       ^^^^^^------- argument #2 of type `HeaderValue` is missing\n     |\nnote: method defined here\n    --> /.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/http-1.3.1/src/header/map.rs:1371:12\n     |\n1371 |     pub fn append<K>(&mut self, key: K, value: T) -> bool\n     |            ^^^^^^\nhelp: provide the argument\n     |\n 273 | h_map.append(name1, /* HeaderValue */);\n     |                   +++++++++++++++++++\n```\n\nbecause these errors point to missing arguments and incorrect types, this\ncommit removes this example altogether. i'm not convinced it was ever run.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-09-10T14:26:46-04:00",
+          "tree_id": "2ec5911c3b36cfcfa4db3960e206505158150b7b",
+          "url": "https://github.com/hyperium/hyper/commit/270feeb71138f817c47e4c0d54a8cacea92d64f2"
+        },
+        "date": 1789064852797,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 37463,
+            "range": "± 7307.69",
             "unit": "ns/iter"
           }
         ]
