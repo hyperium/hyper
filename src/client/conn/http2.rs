@@ -486,10 +486,7 @@ where
     ///
     /// Install a separate observer for each connection when retiring individual
     /// pool entries. The observer must be nonblocking and must not panic.
-    pub fn keep_alive_observer(
-        &mut self,
-        observer: impl KeepAliveObserver + 'static,
-    ) -> &mut Self {
+    pub fn keep_alive_observer(&mut self, observer: impl KeepAliveObserver + 'static) -> &mut Self {
         self.h2_builder.keep_alive_observer = Some(Arc::new(observer));
         self
     }
@@ -683,19 +680,31 @@ mod tests {
     #[test]
     #[should_panic(expected = "keep_alive_reuse_timeout must be greater than zero")]
     fn reuse_timeout_rejects_zero() {
-        check_reuse_config(std::time::Duration::ZERO, std::time::Duration::from_secs(60), true);
+        check_reuse_config(
+            std::time::Duration::ZERO,
+            std::time::Duration::from_secs(60),
+            true,
+        );
     }
 
     #[test]
     #[should_panic(expected = "keep_alive_reuse_timeout must be greater than zero")]
     fn reuse_timeout_rejects_equal_hard_timeout() {
-        check_reuse_config(std::time::Duration::from_secs(60), std::time::Duration::from_secs(60), true);
+        check_reuse_config(
+            std::time::Duration::from_secs(60),
+            std::time::Duration::from_secs(60),
+            true,
+        );
     }
 
     #[test]
     #[should_panic(expected = "keep_alive_reuse_timeout must be greater than zero")]
     fn reuse_timeout_rejects_larger_than_hard_timeout() {
-        check_reuse_config(std::time::Duration::from_secs(61), std::time::Duration::from_secs(60), true);
+        check_reuse_config(
+            std::time::Duration::from_secs(61),
+            std::time::Duration::from_secs(60),
+            true,
+        );
     }
 
     #[tokio::test]
