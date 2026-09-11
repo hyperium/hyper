@@ -81,7 +81,7 @@ full = [
 ]
 
 # HTTP versions
-http1 = ["dep:atomic-waker", "dep:futures-channel", "dep:futures-core", "dep:httparse", "dep:itoa"]
+http1 = ["dep:atomic-waker", "dep:futures-core", "dep:httparse", "dep:itoa"]
 http2 = ["dep:atomic-waker", "dep:futures-channel", "dep:futures-core", "dep:h2"]
 
 # Client/Server
