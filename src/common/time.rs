@@ -81,7 +81,7 @@ impl Time {
             },
             Dur::Configured(Some(dur)) => match self {
                 #[allow(clippy::panic)]
-                Time::Empty => panic!("timeout `{name}` set, but no timer set",),
+                Time::Empty => panic!("timeout `{name}` set, but no timer set"),
                 Time::Timer(..) => Some(dur),
             },
             Dur::Default(None) | Dur::Configured(None) => None,
