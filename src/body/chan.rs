@@ -124,6 +124,7 @@ impl Sender {
 
     #[allow(dead_code)]
     #[allow(clippy::unused_async_trait_impl)]
+    #[allow(clippy::map_err_ignore, reason="dead code")]
     pub(crate) async fn send_trailers(&mut self, trailers: HeaderMap) -> crate::Result<()> {
         self.try_send_trailers(trailers)
             .map_err(|_| crate::Error::new_closed())

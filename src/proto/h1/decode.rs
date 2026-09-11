@@ -314,7 +314,7 @@ impl ChunkedState {
             max_headers_bytes,
         }: StepArgs<'_>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        use self::ChunkedState::*;
+        use self::ChunkedState::{Start, Size, SizeLws, Extension, SizeLf, Body, BodyCr, BodyLf, Trailer, TrailerLf, EndCr, EndLf, End};
         match *self {
             Start => ChunkedState::read_start(cx, body, chunk_size),
             Size => ChunkedState::read_size(cx, body, chunk_size),
