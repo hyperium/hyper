@@ -337,6 +337,11 @@ impl ReadBufCursor<'_> {
     /// # Safety
     ///
     /// The caller must take care that `n` more bytes have been initialized.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if advancing would cause the filled cursor to
+    /// overflow `usize`.
     #[inline]
     pub unsafe fn advance(&mut self, n: usize) {
         self.buf.filled = self.buf.filled.checked_add(n).expect("overflow");

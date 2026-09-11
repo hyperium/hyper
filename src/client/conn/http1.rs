@@ -101,6 +101,7 @@ where
     /// # Errors
     ///
     /// Returns an error if the connection encounters an error while being polled to completion.
+    #[allow(clippy::missing_panics_doc, reason="panic behavior consistent with future's existing invariant")]
     pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
         let mut conn = Some(self);
         crate::common::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
@@ -237,7 +238,7 @@ where
                     Ok(Ok(resp)) => Ok(resp),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_canceled) => panic!("dispatch dropped without returning error"),
+                    Err(_canceled) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
                     debug!("connection was not ready");
@@ -267,7 +268,7 @@ where
                     Ok(Ok(res)) => Ok(res),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_) => panic!("dispatch dropped without returning error"),
+                    Err(_) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(req) => {
                     debug!("connection was not ready");
