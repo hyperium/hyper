@@ -361,12 +361,12 @@ impl Shared {
 // ===== impl Bdp =====
 
 /// Any higher than this likely will be hitting the TCP flow control.
-const BDP_LIMIT: usize = 1024 * 1024 * 16;
+const BDP_LIMIT: WindowSize = 1024 * 1024 * 16;
 
 impl Bdp {
     fn calculate(&mut self, bytes: usize, rtt: Duration) -> Option<WindowSize> {
         // No need to do any math if we're at the limit.
-        if self.bdp as usize == BDP_LIMIT {
+        if self.bdp == BDP_LIMIT {
             self.stabilize_delay();
             return None;
         }
@@ -396,7 +396,8 @@ impl Bdp {
         // if the current `bytes` sample is at least 2/3 the previous
         // bdp, increase to double the current sample.
         if bytes >= self.bdp as usize * 2 / 3 {
-            self.bdp = (bytes * 2).min(BDP_LIMIT) as WindowSize;
+            self.bdp = WindowSize::try_from((bytes * 2).min(BDP_LIMIT as usize))
+                .unwrap_or(BDP_LIMIT);
             trace!("BDP increased to {}", self.bdp);
 
             self.stable_count = 0;
