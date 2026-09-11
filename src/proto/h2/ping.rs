@@ -508,9 +508,7 @@ impl KeepAlive {
                 self.timer.reset(&mut self.sleep, timeout);
                 if self.observer.is_some() {
                     if let Some(reuse_timeout) = self.reuse_timeout {
-                        let mut sleep = self.timer.sleep(reuse_timeout);
-                        self.timer.reset(&mut sleep, now + reuse_timeout);
-                        self.reuse_sleep = Some(sleep);
+                        self.reuse_sleep = Some(self.timer.sleep_until(now + reuse_timeout));
                     }
                 }
             }
