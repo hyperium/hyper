@@ -534,12 +534,7 @@ impl<B: Buf> WriteBuf<B> {
             strategy,
         }
     }
-}
 
-impl<B> WriteBuf<B>
-where
-    B: Buf,
-{
     fn set_strategy(&mut self, strategy: WriteStrategy) {
         self.strategy = strategy;
     }

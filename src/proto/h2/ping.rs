@@ -395,6 +395,8 @@ impl Bdp {
 
         // if the current `bytes` sample is at least 2/3 the previous
         // bdp, increase to double the current sample.
+        #[allow(clippy::integer_division_remainder_used, reason="bdp heuristic, integer precision loss acceptable")]
+        #[allow(clippy::integer_division, reason="bdp heuristic, integer precision loss acceptable")]
         if bytes >= self.bdp as usize * 2 / 3 {
             self.bdp = (bytes * 2).min(BDP_LIMIT) as WindowSize;
             trace!("BDP increased to {}", self.bdp);
