@@ -22,7 +22,8 @@ use crate::{
     rt::Timer,
 };
 
-type Http1Dispatcher<T, B, S> = proto::h1::Dispatcher<
+type Http1Dispatcher<'body, T, B, S> = proto::h1::Dispatcher<
+    'body,
     proto::h1::dispatch::Server<S, IncomingBody>,
     B,
     T,
@@ -37,11 +38,11 @@ pin_project_lite::pin_project! {
     /// To drive HTTP on this connection this future **must be polled**, typically with
     /// `.await`. If it isn't polled, no progress will be made on this connection.
     #[must_use = "futures do nothing unless polled"]
-    pub struct Connection<T, S>
+    pub struct Connection<'body, T, S>
     where
         S: HttpService<IncomingBody>,
     {
-        conn: Http1Dispatcher<T, S::ResBody, S>,
+        conn: Http1Dispatcher<'body, T, S::ResBody, S>,
     }
 }
 
@@ -108,7 +109,7 @@ pub struct Parts<T, S> {
 
 // ===== impl Connection =====
 
-impl<I, S> fmt::Debug for Connection<I, S>
+impl<'body, I, S> fmt::Debug for Connection<'body, I, S>
 where
     S: HttpService<IncomingBody>,
 {
@@ -117,12 +118,12 @@ where
     }
 }
 
-impl<I, B, S> Connection<I, S>
+impl<'body, I, B, S> Connection<'body, I, S>
 where
-    S: HttpService<IncomingBody, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B> + 'body,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: Read + Write + Unpin,
-    B: Body + 'static,
+    I: Read + Write + Unpin + 'body,
+    B: Body + 'body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     /// Start a graceful shutdown process for this connection.
@@ -178,7 +179,7 @@ where
     /// # Error
     ///
     /// This errors if the underlying connection protocol is not HTTP/1.
-    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> {
+    pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> + 'body {
         let mut zelf = Some(self);
         crate::common::future::poll_fn(move |cx| {
             ready!(zelf
@@ -196,7 +197,7 @@ where
     /// Enable this connection to support higher-level HTTP upgrades.
     ///
     /// See [the `upgrade` module](crate::upgrade) for more.
-    pub fn with_upgrades(self) -> UpgradeableConnection<I, S>
+    pub fn with_upgrades(self) -> UpgradeableConnection<'body, I, S>
     where
         I: Send,
     {
@@ -204,12 +205,12 @@ where
     }
 }
 
-impl<I, B, S> Future for Connection<I, S>
+impl<'body, I, B, S> Future for Connection<'body, I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin,
-    B: Body + 'static,
+    B: Body + 'body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<()>;
@@ -449,11 +450,11 @@ impl Builder {
     /// # }
     /// # fn main() {}
     /// ```
-    pub fn serve_connection<I, S>(&self, io: I, service: S) -> Connection<I, S>
+    pub fn serve_connection<'body, I, S>(&self, io: I, service: S) -> Connection<'body, I, S>
     where
         S: HttpService<IncomingBody>,
         S::Error: Into<Box<dyn StdError + Send + Sync>>,
-        S::ResBody: 'static,
+        S::ResBody: 'body,
         <S::ResBody as Body>::Error: Into<Box<dyn StdError + Send + Sync>>,
         I: Read + Write + Unpin,
     {
@@ -504,19 +505,19 @@ impl Builder {
 /// A future binding a connection with a Service with Upgrade support.
 #[must_use = "futures do nothing unless polled"]
 #[allow(missing_debug_implementations)]
-pub struct UpgradeableConnection<T, S>
+pub struct UpgradeableConnection<'body, T, S>
 where
     S: HttpService<IncomingBody>,
 {
-    pub(super) inner: Option<Connection<T, S>>,
+    pub(super) inner: Option<Connection<'body, T, S>>,
 }
 
-impl<I, B, S> UpgradeableConnection<I, S>
+impl<'body, I, B, S> UpgradeableConnection<'body, I, S>
 where
-    S: HttpService<IncomingBody, ResBody = B>,
+    S: HttpService<IncomingBody, ResBody = B> + 'body,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
-    I: Read + Write + Unpin,
-    B: Body + 'static,
+    I: Read + Write + Unpin + 'body,
+    B: Body + 'body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     /// Start a graceful shutdown process for this connection.
@@ -538,12 +539,12 @@ where
     }
 }
 
-impl<I, B, S> Future for UpgradeableConnection<I, S>
+impl<'body, I, B, S> Future for UpgradeableConnection<'body, I, S>
 where
     S: HttpService<IncomingBody, ResBody = B>,
     S::Error: Into<Box<dyn StdError + Send + Sync>>,
     I: Read + Write + Unpin + Send + 'static,
-    B: Body + 'static,
+    B: Body + 'body,
     B::Error: Into<Box<dyn StdError + Send + Sync>>,
 {
     type Output = crate::Result<()>;
