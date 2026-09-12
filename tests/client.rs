@@ -2248,6 +2248,71 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn client_max_header_size_exceeded() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            let mut buf = [0; 1024];
+            sock.read(&mut buf).unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nX-Long: ").unwrap();
+            sock.write_all(&[b'a'; 1000]).unwrap();
+            sock.write_all(b"\r\n\r\n").unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .max_header_size(512)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let err = client.send_request(req).await.unwrap_err();
+        assert!(err.is_parse_too_large());
+    }
+
+    #[tokio::test]
+    async fn client_max_header_size_accepted() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            let mut buf = [0; 1024];
+            sock.read(&mut buf).unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .max_header_size(512)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn client_on_informational_ext() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;

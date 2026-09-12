@@ -188,6 +188,7 @@ where
                     req_method: parse_ctx.req_method,
                     h1_parser_config: parse_ctx.h1_parser_config.clone(),
                     h1_max_headers: parse_ctx.h1_max_headers,
+                    h1_max_header_size: parse_ctx.h1_max_header_size,
                     preserve_header_case: parse_ctx.preserve_header_case,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: parse_ctx.preserve_header_order,
@@ -200,8 +201,14 @@ where
                 self.partial_len = None;
                 return Poll::Ready(Ok(msg));
             } else {
-                let max = self.read_buf_strategy.max();
                 let curr_len = self.read_buf.len();
+                if let Some(max_header_size) = parse_ctx.h1_max_header_size {
+                    if curr_len >= max_header_size {
+                        debug!("max_header_size ({}) reached, closing", max_header_size);
+                        return Poll::Ready(Err(crate::Error::new_too_large()));
+                    }
+                }
+                let max = self.read_buf_strategy.max();
                 if curr_len >= max {
                     debug!("max_buf_size ({}) reached, closing", max);
                     return Poll::Ready(Err(crate::Error::new_too_large()));
@@ -702,6 +709,7 @@ mod tests {
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
+                h1_max_header_size: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
