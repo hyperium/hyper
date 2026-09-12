@@ -2999,37 +2999,16 @@ mod tests {
     }
 
     #[test]
-    fn test_h1_max_header_size() {
+    #[cfg(feature = "server")]
+    fn test_h1_server_max_header_size() {
         let _ = pretty_env_logger::try_init();
 
         let req_str = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
         assert_eq!(req_str.len(), 37);
-        let resp_str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
-        assert_eq!(resp_str.len(), 38);
 
         let parse_req = |max_header_size: Option<usize>| {
             let mut bytes = BytesMut::from(req_str);
             Server::parse(
-                &mut bytes,
-                ParseContext {
-                    cached_headers: &mut None,
-                    req_method: &mut None,
-                    h1_parser_config: Default::default(),
-                    h1_max_headers: None,
-                    h1_max_header_size: max_header_size,
-                    preserve_header_case: false,
-                    #[cfg(feature = "ffi")]
-                    preserve_header_order: false,
-                    h09_responses: false,
-                    #[cfg(feature = "client")]
-                    on_informational: &mut None,
-                },
-            )
-        };
-
-        let parse_resp = |max_header_size: Option<usize>| {
-            let mut bytes = BytesMut::from(resp_str);
-            Client::parse(
                 &mut bytes,
                 ParseContext {
                     cached_headers: &mut None,
@@ -3053,6 +3032,35 @@ mod tests {
         parse_req(Some(50)).unwrap().unwrap();
         assert!(matches!(parse_req(Some(36)), Err(Parse::TooLarge)));
         assert!(matches!(parse_req(Some(10)), Err(Parse::TooLarge)));
+    }
+
+    #[test]
+    #[cfg(feature = "client")]
+    fn test_h1_client_max_header_size() {
+        let _ = pretty_env_logger::try_init();
+
+        let resp_str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+        assert_eq!(resp_str.len(), 38);
+
+        let parse_resp = |max_header_size: Option<usize>| {
+            let mut bytes = BytesMut::from(resp_str);
+            Client::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut None,
+                    h1_parser_config: Default::default(),
+                    h1_max_headers: None,
+                    h1_max_header_size: max_header_size,
+                    preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
+                    h09_responses: false,
+                    #[cfg(feature = "client")]
+                    on_informational: &mut None,
+                },
+            )
+        };
 
         // Client checks
         parse_resp(None).unwrap().unwrap();
