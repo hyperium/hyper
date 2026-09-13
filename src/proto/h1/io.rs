@@ -240,7 +240,7 @@ where
         let dst = unsafe { self.read_buf.chunk_mut().as_uninit_slice_mut() };
         let mut buf = ReadBuf::uninit(dst);
         match Pin::new(&mut self.io).poll_read(cx, buf.unfilled()) {
-            Poll::Ready(Ok(_)) => {
+            Poll::Ready(Ok(())) => {
                 let n = buf.filled().len();
                 trace!("received {} bytes", n);
                 // Safety: we just read that many bytes into the
