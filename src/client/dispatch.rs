@@ -111,7 +111,7 @@ impl<T, U> Sender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
@@ -123,7 +123,7 @@ impl<T, U> Sender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
@@ -150,7 +150,7 @@ impl<T, U> UnboundedSender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
@@ -158,7 +158,7 @@ impl<T, U> UnboundedSender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 }
