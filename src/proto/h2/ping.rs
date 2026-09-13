@@ -34,6 +34,20 @@ use crate::rt::Sleep;
 
 type WindowSize = u32;
 
+/// Receives a one-way notification that an HTTP/2 connection should stop being reused.
+///
+/// Implementations must return promptly and must not block or panic. Hyper calls
+/// the observer at most once per connection, outside its internal PING lock.
+/// The observer must not retain the connection or its request sender.
+/// Notification does not close the connection or cancel existing streams.
+pub trait KeepAliveObserver: std::fmt::Debug + Send + Sync {
+    /// The keep-alive PING exceeded the configured reuse timeout without an ACK.
+    fn on_reuse_timeout(&self);
+}
+
+#[cfg(test)]
+mod tests;
+
 pub(super) fn disabled() -> Recorder {
     Recorder { shared: None }
 }
@@ -63,6 +77,9 @@ pub(super) fn channel(ping_pong: PingPong, config: Config, timer: Time) -> (Reco
     let keep_alive = config.keep_alive_interval.map(|interval| KeepAlive {
         interval,
         timeout: config.keep_alive_timeout,
+        reuse_timeout: config.keep_alive_reuse_timeout,
+        reuse_sleep: None,
+        observer: config.keep_alive_observer,
         while_idle: config.keep_alive_while_idle,
         sleep: timer.sleep(interval),
         state: KeepAliveState::Init,
@@ -101,6 +118,8 @@ pub(super) struct Config {
     /// After sending a keepalive PING, the connection will be closed if
     /// a pong is not received in this amount of time.
     pub(super) keep_alive_timeout: Duration,
+    pub(super) keep_alive_reuse_timeout: Option<Duration>,
+    pub(super) keep_alive_observer: Option<Arc<dyn KeepAliveObserver>>,
     /// If true, sends pings even when there are no active streams.
     pub(super) keep_alive_while_idle: bool,
 }
@@ -158,6 +177,10 @@ struct KeepAlive {
     /// After sending a keepalive PING, the connection will be closed if
     /// a pong is not received in this amount of time.
     timeout: Duration,
+    reuse_timeout: Option<Duration>,
+    reuse_sleep: Option<Pin<Box<dyn Sleep>>>,
+    // Taking the observer makes retirement irreversible for this connection.
+    observer: Option<Arc<dyn KeepAliveObserver>>,
     /// If true, sends pings even when there are no active streams.
     while_idle: bool,
     state: KeepAliveState,
@@ -315,6 +338,12 @@ impl Ponger {
                         locked.is_keep_alive_timed_out = true;
                         return Poll::Ready(Ponged::KeepAliveTimedOut);
                     }
+                    if let Some(observer) = ka.poll_reuse_timeout(cx) {
+                        // Never invoke user code under the shared PING lock.
+                        drop(locked);
+                        observer.on_reuse_timeout();
+                        return Poll::Pending;
+                    }
                 }
             }
         }
@@ -449,6 +478,7 @@ impl KeepAlive {
     }
 
     fn schedule(&mut self, shared: &Shared) {
+        self.reuse_sleep = None;
         let interval = shared.last_read_at() + self.interval;
         self.state = KeepAliveState::Scheduled(interval);
         self.timer.reset(&mut self.sleep, interval);
@@ -473,11 +503,32 @@ impl KeepAlive {
                 trace!("keep-alive interval ({:?}) reached", self.interval);
                 shared.send_ping();
                 self.state = KeepAliveState::PingSent;
-                let timeout = self.timer.now() + self.timeout;
+                let now = self.timer.now();
+                let timeout = now + self.timeout;
                 self.timer.reset(&mut self.sleep, timeout);
+                if self.observer.is_some() {
+                    if let Some(reuse_timeout) = self.reuse_timeout {
+                        self.reuse_sleep = Some(self.timer.sleep_until(now + reuse_timeout));
+                    }
+                }
             }
             KeepAliveState::Init | KeepAliveState::PingSent => (),
         }
+    }
+
+    fn poll_reuse_timeout(
+        &mut self,
+        cx: &mut task::Context<'_>,
+    ) -> Option<Arc<dyn KeepAliveObserver>> {
+        if !matches!(self.state, KeepAliveState::PingSent) {
+            return None;
+        }
+        if self.reuse_sleep.as_mut()?.as_mut().poll(cx).is_pending() {
+            return None;
+        }
+        self.reuse_sleep = None;
+        trace!("keep-alive reuse timeout reached; retiring connection");
+        self.observer.take()
     }
 
     fn maybe_timeout(&mut self, cx: &mut task::Context<'_>) -> Result<(), KeepAliveTimedOut> {
