@@ -170,7 +170,7 @@ where
                     Ok(Ok(resp)) => Ok(resp),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_canceled) => panic!("dispatch dropped without returning error"),
+                    Err(_canceled) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
                     debug!("connection was not ready");
@@ -201,7 +201,7 @@ where
                     Ok(Ok(res)) => Ok(res),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_) => panic!("dispatch dropped without returning error"),
+                    Err(_) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(req) => {
                     debug!("connection was not ready");

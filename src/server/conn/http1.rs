@@ -178,6 +178,7 @@ where
     /// # Error
     ///
     /// This errors if the underlying connection protocol is not HTTP/1.
+    #[allow(clippy::missing_panics_doc, reason="All futures share similar panic behavior when polled after completion")]
     pub fn without_shutdown(self) -> impl Future<Output = crate::Result<Parts<I, S>>> {
         let mut zelf = Some(self);
         crate::common::future::poll_fn(move |cx| {
