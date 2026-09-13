@@ -1558,14 +1558,14 @@ test! {
             body: None,
 }
 
-// FIXME: https://github.com/hyperium/hyper/issues/4195
+// https://github.com/hyperium/hyper/issues/4195
 test! {
     name: client_hop_by_hop_headers,
 
     server:
         expected: "\
             GET / HTTP/1.1\r\n\
-            connection: close\r\n\
+            connection: close, x-hop\r\n\
             x-hop: ...\r\n\
             host: {addr}\r\n\
             \r\n\
