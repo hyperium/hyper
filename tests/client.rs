@@ -1558,6 +1558,35 @@ test! {
             body: None,
 }
 
+// https://github.com/hyperium/hyper/issues/4195
+test! {
+    name: client_hop_by_hop_headers,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            connection: close, x-hop\r\n\
+            x-hop: ...\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "connection" => "close, x-hop",
+                "x-hop" => "...",
+            },
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
 mod conn {
     use std::error::Error;
     use std::io::{self, Read, Write};
