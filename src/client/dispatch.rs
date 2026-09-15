@@ -192,16 +192,18 @@ impl<T, U> Receiver<T, U> {
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn close(&mut self) {
+    pub(crate) fn close_and_recv(&mut self) -> Option<(T, Callback<T, U>)> {
         self.taker.cancel();
         self.inner.close();
-    }
-
-    #[cfg(feature = "http1")]
-    pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
-        match crate::common::task::now_or_never(self.inner.recv()) {
-            Some(Some(mut env)) => env.0.take(),
-            _ => None,
+        loop {
+            match crate::common::task::now_or_never(self.inner.recv()) {
+                Some(Some(mut env)) => return env.0.take(),
+                Some(None) => return None,
+                // A send can reserve capacity immediately before close() and
+                // publish its envelope immediately afterwards. Once closed,
+                // Pending means that such a synchronous send is still in flight.
+                None => std::hint::spin_loop(),
+            }
         }
     }
 }
@@ -394,10 +396,63 @@ mod tests {
     use std::pin::Pin;
     use std::task::{Context, Poll};
 
+    #[cfg(feature = "http1")]
+    use std::sync::atomic::{AtomicBool, Ordering};
+    #[cfg(feature = "http1")]
+    use std::sync::{mpsc as std_mpsc, Arc, Barrier};
+
     use super::{channel, Callback, Receiver};
 
     #[derive(Debug)]
     struct Custom(#[allow(dead_code)] i32);
+
+    #[cfg(feature = "http1")]
+    struct TrackDrop(Arc<AtomicBool>);
+
+    #[cfg(feature = "http1")]
+    impl Drop for TrackDrop {
+        fn drop(&mut self) {
+            self.0.store(true, Ordering::SeqCst);
+        }
+    }
+
+    #[cfg(feature = "http1")]
+    #[test]
+    fn receiver_shutdown_reclaims_concurrent_send() {
+        let barrier = Arc::new(Barrier::new(2));
+        let worker_barrier = barrier.clone();
+        let (work_tx, work_rx) = std_mpsc::channel::<(super::Sender<TrackDrop, ()>, TrackDrop)>();
+        let (done_tx, done_rx) = std_mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            while let Ok((mut tx, val)) = work_rx.recv() {
+                worker_barrier.wait();
+                drop(tx.send(val));
+                worker_barrier.wait();
+                done_tx.send(tx).unwrap();
+            }
+        });
+
+        // Tokio's unbounded channel reserves capacity before publishing the
+        // envelope. Repeat enough times to exercise shutdown in that window.
+        for _ in 0..10_000 {
+            let (tx, mut rx) = channel::<TrackDrop, ()>();
+            let dropped = Arc::new(AtomicBool::new(false));
+            work_tx.send((tx, TrackDrop(dropped.clone()))).unwrap();
+            barrier.wait();
+            drop(rx.close_and_recv());
+            drop(rx);
+            barrier.wait();
+            let tx = done_rx.recv().unwrap();
+            assert!(
+                dropped.load(Ordering::SeqCst),
+                "value remained queued after the receiver was dropped"
+            );
+            drop(tx);
+        }
+
+        drop(work_tx);
+        worker.join().unwrap();
+    }
 
     impl<T, U> Future for Receiver<T, U> {
         type Output = Option<(T, Callback<T, U>)>;
