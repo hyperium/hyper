@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789315552273,
+  "lastUpdate": 1789499738062,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13619,6 +13619,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 58265,
             "range": "± 12761.78",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "dtolnay@gmail.com",
+            "name": "David Tolnay",
+            "username": "dtolnay"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "74a39081ff1496970fb75da75c5282b23a9b69e5",
+          "message": "fix(http1): preserve hop-by-hop when setting close or keep-alive (#4196)\n\nThis adjusts https://github.com/hyperium/hyper/pull/4110 to use `append` instead of `insert` when a nonzero number of \"connection\" headers are already present, and only if none of the existing headers already include the value being added.\n\nFixes https://github.com/hyperium/hyper/issues/4195",
+          "timestamp": "2026-09-15T15:14:50-04:00",
+          "tree_id": "cd03520e1e888700cecabd8d5e32e4cc3d3a030f",
+          "url": "https://github.com/hyperium/hyper/commit/74a39081ff1496970fb75da75c5282b23a9b69e5"
+        },
+        "date": 1789499735122,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56341,
+            "range": "± 12445.20",
             "unit": "ns/iter"
           }
         ]
