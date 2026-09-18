@@ -1163,20 +1163,22 @@ impl Http1Transaction for Client {
                 extensions.insert(reason);
             }
 
-            let head = MessageHead {
+            let mut head = MessageHead {
                 version,
                 subject: status,
                 headers,
                 extensions,
             };
-            if let Some((decode, is_upgrade)) = Client::decoder(&head, ctx.req_method)? {
+            if let Some((decode, is_upgrade, must_close)) =
+                Client::decoder(&mut head, ctx.req_method)?
+            {
                 return Ok(Some(ParsedMessage {
                     head,
                     decode,
                     expect_continue: false,
                     // a client upgrade means the connection can't be used
                     // again, as it is definitely upgrading.
-                    keep_alive: keep_alive && !is_upgrade,
+                    keep_alive: keep_alive && !is_upgrade && !must_close,
                     wants_upgrade: is_upgrade,
                 }));
             }
@@ -1256,13 +1258,13 @@ impl Http1Transaction for Client {
 
 #[cfg(feature = "client")]
 impl Client {
-    /// Returns `Some(length, wants_upgrade)` if successful.
+    /// Returns `Some(length, wants_upgrade, must_close)` if successful.
     ///
     /// Returns `None` if this message head should be skipped (like a 100 status).
     fn decoder(
-        inc: &MessageHead<StatusCode>,
+        inc: &mut MessageHead<StatusCode>,
         method: &mut Option<Method>,
-    ) -> Result<Option<(DecodedLength, bool)>, Parse> {
+    ) -> Result<Option<(DecodedLength, bool, bool)>, Parse> {
         // According to https://tools.ietf.org/html/rfc7230#section-3.3.3
         // 1. HEAD responses, and Status 1xx, 204, and 304 cannot have a body.
         // 2. Status 2xx to a CONNECT cannot have a body.
@@ -1274,22 +1276,22 @@ impl Client {
 
         match inc.subject.as_u16() {
             101 => {
-                return Ok(Some((DecodedLength::ZERO, true)));
+                return Ok(Some((DecodedLength::ZERO, true, false)));
             }
             100 | 102..=199 => {
                 trace!("ignoring informational response: {}", inc.subject.as_u16());
                 return Ok(None);
             }
-            204 | 304 => return Ok(Some((DecodedLength::ZERO, false))),
+            204 | 304 => return Ok(Some((DecodedLength::ZERO, false, false))),
             _ => (),
         }
         match *method {
             Some(Method::HEAD) => {
-                return Ok(Some((DecodedLength::ZERO, false)));
+                return Ok(Some((DecodedLength::ZERO, false, false)));
             }
             Some(Method::CONNECT) => {
                 if let 200..=299 = inc.subject.as_u16() {
-                    return Ok(Some((DecodedLength::ZERO, true)));
+                    return Ok(Some((DecodedLength::ZERO, true, false)));
                 }
             }
             Some(_) => {}
@@ -1305,21 +1307,29 @@ impl Client {
             // malformed. A server should respond with 400 Bad Request.
             if inc.version == Version::HTTP_10 {
                 debug!("HTTP/1.0 cannot have Transfer-Encoding header");
-                Err(Parse::transfer_encoding_unexpected())
-            } else if headers::transfer_encoding_is_chunked(&inc.headers) {
-                Ok(Some((DecodedLength::CHUNKED, false)))
+                return Err(Parse::transfer_encoding_unexpected());
+            }
+
+            // RFC 9112 section 6.3: transfer-encoding overrides content-length,
+            // and an intermediary forwarding the message must first remove the
+            // canceled content-length. Section 6.1 additionally recommends not
+            // reusing such a connection.
+            let is_cl = inc.headers.remove(header::CONTENT_LENGTH).is_some();
+
+            if headers::transfer_encoding_is_chunked(&inc.headers) {
+                Ok(Some((DecodedLength::CHUNKED, false, is_cl)))
             } else {
                 trace!("not chunked, read till eof");
-                Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
+                Ok(Some((DecodedLength::CLOSE_DELIMITED, false, is_cl)))
             }
         } else if let Some(len) = headers::content_length_parse_all(&inc.headers) {
-            Ok(Some((DecodedLength::checked_new(len)?, false)))
+            Ok(Some((DecodedLength::checked_new(len)?, false, false)))
         } else if inc.headers.contains_key(header::CONTENT_LENGTH) {
             debug!("illegal Content-Length header");
             Err(Parse::content_length_invalid())
         } else {
             trace!("neither Transfer-Encoding nor Content-Length");
-            Ok(Some((DecodedLength::CLOSE_DELIMITED, false)))
+            Ok(Some((DecodedLength::CLOSE_DELIMITED, false, false)))
         }
     }
     fn set_length(head: &mut RequestHead, body: Option<BodyLength>) -> Encoder {
@@ -2372,18 +2382,68 @@ mod tests {
         );
 
         // transfer-encoding and content-length = chunked
-        assert_eq!(
-            parse(
-                "\
-                 HTTP/1.1 200 OK\r\n\
-                 content-length: 10\r\n\
-                 transfer-encoding: chunked\r\n\
-                 \r\n\
-                 "
-            )
-            .decode,
-            DecodedLength::CHUNKED
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: 10\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
         );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
+
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             transfer-encoding: chunked\r\n\
+             content-length: 10\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
+
+        // transfer-encoding that isn't chunked is close-delimited, and the
+        // canceled content-length must not survive either
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: 10\r\n\
+             transfer-encoding: gzip\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CLOSE_DELIMITED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
+
+        // every canceled content-length goes, not just the first
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: 10\r\n\
+             content-length: 10\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(!msg.keep_alive);
+
+        // a lone transfer-encoding is not affected
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(msg.keep_alive);
 
         // HEAD can have content-length, but not body
         assert_eq!(
