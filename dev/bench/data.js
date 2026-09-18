@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789758407414,
+  "lastUpdate": 1789758514001,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -68815,6 +68815,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5746996,
             "range": "± 37779.26",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "leo.camus23@gmail.com",
+            "name": "Leo Camus",
+            "username": "Dev-next-gen"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e89d0d93d9566210ee95aea234a00952ebc4a202",
+          "message": "fix(http2): do not reserve capacity for idle Upgraded streams (#4198)\n\nThe send task of an HTTP/2 `Upgraded` stream reserved one byte of capacity at the top of\nevery loop, before any write was queued. As with `PipeToSendStream` before #4061, an idle\ntunnel then pins the last byte of the connection-level window, and a second stream can\ndeadlock against peers that only send WINDOW_UPDATE once their window is exhausted.\n\nPull the next write from the channel first, hold it until h2 has capacity, and only then\nreserve. The next write is still not pulled before the held one is handed to h2, so the\nwriter keeps seeing backpressure. The task now always polls the channel when it holds\nnothing, which makes the separate close notification unnecessary, so remove it.\n\nRefs #4003",
+          "timestamp": "2026-09-18T15:05:44-04:00",
+          "tree_id": "4cb4681c48e8488a3b05ad0744a7264e8aa281af",
+          "url": "https://github.com/hyperium/hyper/commit/e89d0d93d9566210ee95aea234a00952ebc4a202"
+        },
+        "date": 1789758510459,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67113,
+            "range": "± 984.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 5293924,
+            "range": "± 107694.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20938,
+            "range": "± 542.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22722,
+            "range": "± 467.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30459,
+            "range": "± 741.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99237,
+            "range": "± 2239.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999926,
+            "range": "± 3044.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 81352,
+            "range": "± 4211.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 15971903,
+            "range": "± 16424064.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24281197,
+            "range": "± 16425092.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7602720,
+            "range": "± 126448.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50948460,
+            "range": "± 739951.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 52290598,
+            "range": "± 718130.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5116676,
+            "range": "± 49511.38",
             "unit": "ns/iter"
           }
         ]
