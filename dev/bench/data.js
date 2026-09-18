@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789499855034,
+  "lastUpdate": 1789758407414,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13649,6 +13649,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56341,
             "range": "± 12445.20",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "leo.camus23@gmail.com",
+            "name": "Leo Camus",
+            "username": "Dev-next-gen"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e89d0d93d9566210ee95aea234a00952ebc4a202",
+          "message": "fix(http2): do not reserve capacity for idle Upgraded streams (#4198)\n\nThe send task of an HTTP/2 `Upgraded` stream reserved one byte of capacity at the top of\nevery loop, before any write was queued. As with `PipeToSendStream` before #4061, an idle\ntunnel then pins the last byte of the connection-level window, and a second stream can\ndeadlock against peers that only send WINDOW_UPDATE once their window is exhausted.\n\nPull the next write from the channel first, hold it until h2 has capacity, and only then\nreserve. The next write is still not pulled before the held one is handed to h2, so the\nwriter keeps seeing backpressure. The task now always polls the channel when it holds\nnothing, which makes the separate close notification unnecessary, so remove it.\n\nRefs #4003",
+          "timestamp": "2026-09-18T15:05:44-04:00",
+          "tree_id": "4cb4681c48e8488a3b05ad0744a7264e8aa281af",
+          "url": "https://github.com/hyperium/hyper/commit/e89d0d93d9566210ee95aea234a00952ebc4a202"
+        },
+        "date": 1789758403835,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 41203,
+            "range": "± 14054.43",
             "unit": "ns/iter"
           }
         ]
