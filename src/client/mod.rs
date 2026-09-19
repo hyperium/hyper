@@ -2,6 +2,10 @@
 //!
 //! hyper provides HTTP over a single connection. See the [`conn`] module.
 //!
+//! Whether a connection speaks HTTP/1 or HTTP/2 is decided when that
+//! connection is established — for TLS, typically via ALPN — not by the
+//! [`Version`] on each [`Request`]. See [`conn`] for details.
+//!
 //! ## Examples
 //!
 //! * [`client`] - A simple CLI http client that requests the url passed in parameters and outputs the response content and details to the stdout, reading content chunk-by-chunk.
@@ -10,6 +14,8 @@
 //!
 //! [`client`]: https://github.com/hyperium/hyper/blob/master/examples/client.rs
 //! [`client_json`]: https://github.com/hyperium/hyper/blob/master/examples/client_json.rs
+//! [`Request`]: crate::Request
+//! [`Version`]: crate::Version
 
 #[cfg(test)]
 mod tests;
