@@ -1558,6 +1558,35 @@ test! {
             body: None,
 }
 
+// https://github.com/hyperium/hyper/issues/4195
+test! {
+    name: client_hop_by_hop_headers,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            connection: close, x-hop\r\n\
+            x-hop: ...\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "connection" => "close, x-hop",
+                "x-hop" => "...",
+            },
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
 mod conn {
     use std::error::Error;
     use std::io::{self, Read, Write};
@@ -3379,6 +3408,118 @@ mod conn {
         let _ = stream_a_done_tx.send(());
         drop(tx_a);
         let _ = tokio::time::timeout(Duration::from_secs(5), a_handle).await;
+    }
+
+    // https://github.com/hyperium/hyper/issues/4003, for HTTP/2 CONNECT
+    //
+    // Like `h2_idle_stream_does_not_pin_connection_window`, but the idle
+    // stream is the send side of an `Upgraded` tunnel. It must not reserve
+    // connection-level flow control capacity while it has nothing to write.
+    #[tokio::test]
+    async fn h2_idle_upgraded_does_not_pin_connection_window() {
+        // One byte short of the initial connection-level window.
+        const STREAM_A_LEN: usize = 65534;
+
+        let (client_io, server_io, _) = setup_duplex_test_server();
+        let (stream_a_full_tx, stream_a_full_rx) = oneshot::channel::<()>();
+        let (stream_a_done_tx, stream_a_done_rx) = oneshot::channel::<()>();
+        let (stream_b_got_tx, stream_b_got_rx) = oneshot::channel::<usize>();
+
+        // Raw h2 server that never calls `release_capacity`, so it never
+        // sends a connection-level WINDOW_UPDATE.
+        tokio::spawn(async move {
+            let mut h2 = h2::server::handshake(server_io).await.unwrap();
+            let mut stream_a_full_tx = Some(stream_a_full_tx);
+            let mut stream_a_done_rx = Some(stream_a_done_rx);
+            let mut stream_b_got_tx = Some(stream_b_got_tx);
+            while let Some(result) = h2.accept().await {
+                let (req, mut respond) = result.unwrap();
+                if req.method() == Method::CONNECT {
+                    let full_tx = stream_a_full_tx.take().unwrap();
+                    let done_rx = stream_a_done_rx.take().unwrap();
+                    tokio::spawn(async move {
+                        let _send = respond.send_response(Response::new(()), false).unwrap();
+                        let mut body = req.into_body();
+                        let mut received = 0usize;
+                        while received < STREAM_A_LEN {
+                            match body.data().await {
+                                Some(Ok(frame)) => received += frame.len(),
+                                _ => return,
+                            }
+                        }
+                        let _ = full_tx.send(());
+                        // Hold on to the recv stream, dropping it would release
+                        // its capacity and send a WINDOW_UPDATE.
+                        let _ = done_rx.await;
+                        drop(body);
+                    });
+                } else {
+                    let got_tx = stream_b_got_tx.take().unwrap();
+                    tokio::spawn(async move {
+                        let mut body = req.into_body();
+                        let mut received = 0usize;
+                        if let Some(Ok(frame)) = body.data().await {
+                            received += frame.len();
+                        }
+                        let _ = got_tx.send(received);
+                        let mut send = respond.send_response(Response::new(()), false).unwrap();
+                        let _ = send.send_data(Bytes::from_static(b"ok"), true);
+                    });
+                }
+            }
+        });
+
+        let io = TokioIo::new(client_io);
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake::<_, Full<Bytes>>(io)
+            .await
+            .expect("http handshake");
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        // Stream A: a tunnel that writes STREAM_A_LEN bytes and then stays
+        // open, leaving one byte of connection window.
+        let req_a = Request::connect("localhost")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let res_a = client.send_request(req_a).await.expect("send_request A");
+        assert_eq!(res_a.status(), StatusCode::OK);
+        let mut upgraded = TokioIo::new(hyper::upgrade::on(res_a).await.unwrap());
+        upgraded
+            .write_all(&vec![b'A'; STREAM_A_LEN])
+            .await
+            .expect("write to tunnel");
+
+        tokio::time::timeout(Duration::from_secs(5), stream_a_full_rx)
+            .await
+            .expect("server should receive all of stream A in time")
+            .expect("stream_a_full_rx");
+
+        // Let the tunnel's send task park waiting for more writes.
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+
+        // Stream B: one byte of body, which needs the last byte of window.
+        let req_b = Request::post("http://localhost/b")
+            .body(Full::new(Bytes::from_static(b"b")))
+            .unwrap();
+        let b_fut = client.send_request(req_b);
+
+        let received_b = tokio::time::timeout(Duration::from_secs(5), stream_b_got_rx)
+            .await
+            .expect("stream B must reach the server even while the tunnel is idle")
+            .expect("stream_b_got_rx");
+        assert_eq!(
+            received_b, 1,
+            "stream B should deliver its single body byte"
+        );
+
+        let _ = tokio::time::timeout(Duration::from_secs(5), b_fut).await;
+
+        let _ = stream_a_done_tx.send(());
+        drop(upgraded);
     }
 }
 

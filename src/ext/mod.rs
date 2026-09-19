@@ -257,41 +257,6 @@ impl OriginalHeaderOrder {
     // here.
     /// This returns an iterator that provides header names and indexes
     /// in the original order received.
-    ///
-    /// # Examples
-    /// ```no_run
-    /// use hyper::ext::OriginalHeaderOrder;
-    /// use hyper::header::{HeaderName, HeaderValue, HeaderMap};
-    ///
-    /// let mut h_order = OriginalHeaderOrder::default();
-    /// let mut h_map = Headermap::new();
-    ///
-    /// let name1 = b"Set-CookiE";
-    /// let value1 = b"a=b";
-    /// h_map.append(name1);
-    /// h_order.append(name1);
-    ///
-    /// let name2 = b"Content-Encoding";
-    /// let value2 = b"gzip";
-    /// h_map.append(name2, value2);
-    /// h_order.append(name2);
-    ///
-    /// let name3 = b"SET-COOKIE";
-    /// let value3 = b"c=d";
-    /// h_map.append(name3, value3);
-    /// h_order.append(name3)
-    ///
-    /// let mut iter = h_order.get_in_order()
-    ///
-    /// let (name, idx) = iter.next();
-    /// assert_eq!(b"a=b", h_map.get_all(name).nth(idx).unwrap());
-    ///
-    /// let (name, idx) = iter.next();
-    /// assert_eq!(b"gzip", h_map.get_all(name).nth(idx).unwrap());
-    ///
-    /// let (name, idx) = iter.next();
-    /// assert_eq!(b"c=d", h_map.get_all(name).nth(idx).unwrap());
-    /// ```
     pub(crate) fn get_in_order(&self) -> impl Iterator<Item = &(HeaderName, usize)> {
         self.entry_order.iter()
     }
