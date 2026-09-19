@@ -507,6 +507,10 @@ impl Builder {
     /// If the server sends headers exceeding this limit, the error "message head is too large"
     /// is returned.
     ///
+    /// If not configured, then the [`max_buf_size`](Builder::max_buf_size) will naturally be reached and applied.
+    ///
+    /// This value is also used as the maximum size limit for chunked trailers.
+    ///
     /// Default is `None`.
     pub fn max_header_size(&mut self, val: usize) -> &mut Self {
         self.h1_max_header_size = Some(val);

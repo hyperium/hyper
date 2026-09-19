@@ -347,7 +347,11 @@ impl Builder {
     /// If the client sends headers exceeding this limit, the server responds to the
     /// client with "431 Request Header Fields Too Large" and closes the connection.
     ///
-    /// Default is `None` (unbounded, or bounded by `max_buf_size`).
+    /// If not configured, then the [`max_buf_size`](Builder::max_buf_size) will naturally be reached and applied.
+    ///
+    /// This value is also used as the maximum size limit for chunked trailers.
+    ///
+    /// Default is `None`.
     pub fn max_header_size(&mut self, val: usize) -> &mut Self {
         self.h1_max_header_size = Some(val);
         self
