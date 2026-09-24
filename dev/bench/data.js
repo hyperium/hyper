@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1789758514001,
+  "lastUpdate": 1790283196652,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13679,6 +13679,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 41203,
             "range": "± 14054.43",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "gamer828@gmail.com",
+            "name": "Gavin D.",
+            "username": "Siech0"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "fd4ce420a781480229faa89a2fc824812c9dbcc3",
+          "message": "style(lib): address clippy panics and missing_panics_doc lints (#4191)\n\ncc #4071",
+          "timestamp": "2026-09-24T16:52:24-04:00",
+          "tree_id": "8c7c8a7a26c82af0fad03a0cd76233e9af24c72c",
+          "url": "https://github.com/hyperium/hyper/commit/fd4ce420a781480229faa89a2fc824812c9dbcc3"
+        },
+        "date": 1790283193060,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 54288,
+            "range": "± 13248.11",
             "unit": "ns/iter"
           }
         ]
