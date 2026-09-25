@@ -156,9 +156,47 @@ impl fmt::Debug for Protocol {
 /// ```
 ///
 /// [`preserve_header_case`]: /client/struct.Client.html#method.preserve_header_case
+///
+/// # Writing a message with a chosen casing
+///
+/// A client that has to write a header name the way some other program writes
+/// it, because a server compares the bytes it receives. For example, `TE`
+/// rather than the lowercased `te`, or `sec-ch-ua` lowercased right next to a
+/// title-cased `Sec-Fetch-Site`. Insert a map like that into the message's
+/// extensions, and the HTTP/1 encoder writes each spelling it finds; a name the
+/// map does not mention is written as the lowercased [`HeaderName`].
+///
+/// ```rust
+/// use http::header::{HeaderName, HeaderValue, TE};
+/// use hyper::body::Bytes;
+/// use hyper::ext::HeaderCaseMap;
+///
+/// let sec_fetch_site = HeaderName::from_static("sec-fetch-site");
+///
+/// let mut req = http::Request::new(());
+/// req.headers_mut()
+///     .insert(TE, HeaderValue::from_static("trailers"));
+/// req.headers_mut()
+///     .insert(sec_fetch_site.clone(), HeaderValue::from_static("cross-site"));
+///
+/// let mut case_map = HeaderCaseMap::default();
+/// case_map.append(TE, Bytes::from_static(b"TE"));
+/// case_map.append(sec_fetch_site, Bytes::from_static(b"Sec-Fetch-Site"));
+///
+/// req.extensions_mut().insert(case_map);
+/// ```
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 #[derive(Clone, Debug)]
-pub(crate) struct HeaderCaseMap(HeaderMap<Bytes>);
+pub struct HeaderCaseMap(HeaderMap<Bytes>);
+
+#[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
+impl Default for HeaderCaseMap {
+    /// An empty map: every header name is written as the lowercased
+    /// [`HeaderName`] it is.
+    fn default() -> Self {
+        Self(HeaderMap::default())
+    }
+}
 
 #[cfg(all(any(feature = "client", feature = "server"), feature = "http1"))]
 impl HeaderCaseMap {
@@ -179,18 +217,20 @@ impl HeaderCaseMap {
         self.0.get_all(name).into_iter()
     }
 
-    #[cfg(any(feature = "client", feature = "server"))]
-    pub(crate) fn default() -> Self {
-        Self(HeaderMap::default())
-    }
-
     #[cfg(any(test, feature = "ffi"))]
     pub(crate) fn insert(&mut self, name: HeaderName, orig: Bytes) {
         self.0.insert(name, orig);
     }
 
+    /// Records that `name` was written as `orig`, so that the encoder writes
+    /// `orig` when this map is in a message's extensions and the message goes
+    /// out as HTTP/1. `name` is the lowercased [`HeaderName`] the spelling is
+    /// looked up by; `orig` goes to the wire verbatim and must be a legal header
+    /// name equal to `name` ignoring case. Several spellings for one name are
+    /// kept in the order appended and paired with that header's values in the
+    /// same order, the lowercased name standing in for a value left over.
     #[cfg(any(feature = "client", feature = "server"))]
-    pub(crate) fn append<N>(&mut self, name: N, orig: Bytes)
+    pub fn append<N>(&mut self, name: N, orig: Bytes)
     where
         N: IntoHeaderName,
     {
@@ -259,5 +299,37 @@ impl OriginalHeaderOrder {
     /// in the original order received.
     pub(crate) fn get_in_order(&self) -> impl Iterator<Item = &(HeaderName, usize)> {
         self.entry_order.iter()
+    }
+}
+
+#[cfg(all(test, any(feature = "client", feature = "server"), feature = "http1"))]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_appended_spellings_that_differ_only_in_case_are_distinct() {
+        let mut case_map = HeaderCaseMap::default();
+
+        assert_eq!(
+            case_map
+                .get_all_internal(&HeaderName::from_static("x-bread"))
+                .count(),
+            0
+        );
+
+        case_map.append(
+            HeaderName::from_bytes(b"x-Bread").expect("valid header name"),
+            Bytes::from_static(b"x-Bread"),
+        );
+        case_map.append(
+            HeaderName::from_bytes(b"X-BREAD").expect("valid header name"),
+            Bytes::from_static(b"X-BREAD"),
+        );
+
+        let spellings: Vec<&[u8]> = case_map
+            .get_all_internal(&HeaderName::from_static("x-bread"))
+            .map(AsRef::as_ref)
+            .collect();
+        assert_eq!(spellings, [b"x-Bread".as_slice(), b"X-BREAD".as_slice()]);
     }
 }
