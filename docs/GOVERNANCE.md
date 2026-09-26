@@ -117,7 +117,7 @@ How to become:
 
 - Advisors are invited by a maintainer.
 - Sometimes they are experienced Collaborators who must step back from active
-  contributing. Sometimes they are experts placed elsehwere who are friendly to
+  contributing. Sometimes they are experts placed elsewhere who are friendly to
   the project.
 
 ### Maintainer
