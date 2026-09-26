@@ -180,6 +180,11 @@ impl Http1Transaction for Server {
             ) {
                 Ok(httparse::Status::Complete(parsed_len)) => {
                     trace!("Request.parse Complete({})", parsed_len);
+                    if let Some(max_header_size) = ctx.h1_max_header_size {
+                        if parsed_len > max_header_size {
+                            return Err(Parse::TooLarge);
+                        }
+                    }
                     len = parsed_len;
                     let uri = req.path.expect("httparse completed");
                     if uri.len() > MAX_URI_LEN {
@@ -1053,6 +1058,11 @@ impl Http1Transaction for Client {
                 ) {
                     Ok(httparse::Status::Complete(len)) => {
                         trace!("Response.parse Complete({})", len);
+                        if let Some(max_header_size) = ctx.h1_max_header_size {
+                            if len > max_header_size {
+                                return Err(Parse::TooLarge);
+                            }
+                        }
                         let status = StatusCode::from_u16(res.code.expect("httparse completed"))?;
 
                         let reason = {
@@ -1694,6 +1704,7 @@ mod tests {
                 req_method: &mut method,
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
+                h1_max_header_size: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -1722,6 +1733,7 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1746,6 +1758,7 @@ mod tests {
             req_method: &mut None,
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1767,6 +1780,7 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1790,6 +1804,7 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1817,6 +1832,7 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config,
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1841,6 +1857,7 @@ mod tests {
             req_method: &mut Some(crate::Method::GET),
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1869,6 +1886,7 @@ mod tests {
             req_method: &mut method,
             h1_parser_config,
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1896,6 +1914,7 @@ mod tests {
             req_method: &mut None,
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: false,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1916,6 +1935,7 @@ mod tests {
             req_method: &mut None,
             h1_parser_config: Default::default(),
             h1_max_headers: None,
+            h1_max_header_size: None,
             preserve_header_case: true,
             #[cfg(feature = "ffi")]
             preserve_header_order: false,
@@ -1955,6 +1975,7 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -1976,6 +1997,7 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2216,6 +2238,7 @@ mod tests {
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2237,6 +2260,7 @@ mod tests {
                     req_method: &mut Some(m),
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2258,6 +2282,7 @@ mod tests {
                     req_method: &mut Some(Method::GET),
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -2828,6 +2853,7 @@ mod tests {
                 req_method: &mut Some(Method::GET),
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
+                h1_max_header_size: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -2872,6 +2898,7 @@ mod tests {
                         req_method: &mut None,
                         h1_parser_config: Default::default(),
                         h1_max_headers: max_headers,
+                        h1_max_header_size: None,
                         preserve_header_case: false,
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
@@ -2896,6 +2923,7 @@ mod tests {
                         req_method: &mut None,
                         h1_parser_config: Default::default(),
                         h1_max_headers: max_headers,
+                        h1_max_header_size: None,
                         preserve_header_case: false,
                         #[cfg(feature = "ffi")]
                         preserve_header_order: false,
@@ -2973,6 +3001,78 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "server")]
+    fn test_h1_server_max_header_size() {
+        let _ = pretty_env_logger::try_init();
+
+        let req_str = "GET / HTTP/1.1\r\nHost: example.com\r\n\r\n";
+        assert_eq!(req_str.len(), 37);
+
+        let parse_req = |max_header_size: Option<usize>| {
+            let mut bytes = BytesMut::from(req_str);
+            Server::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut None,
+                    h1_parser_config: Default::default(),
+                    h1_max_headers: None,
+                    h1_max_header_size: max_header_size,
+                    preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
+                    h09_responses: false,
+                    #[cfg(feature = "client")]
+                    on_informational: &mut None,
+                },
+            )
+        };
+
+        // Server checks
+        parse_req(None).unwrap().unwrap();
+        parse_req(Some(37)).unwrap().unwrap();
+        parse_req(Some(50)).unwrap().unwrap();
+        assert!(matches!(parse_req(Some(36)), Err(Parse::TooLarge)));
+        assert!(matches!(parse_req(Some(10)), Err(Parse::TooLarge)));
+    }
+
+    #[test]
+    #[cfg(feature = "client")]
+    fn test_h1_client_max_header_size() {
+        let _ = pretty_env_logger::try_init();
+
+        let resp_str = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n";
+        assert_eq!(resp_str.len(), 38);
+
+        let parse_resp = |max_header_size: Option<usize>| {
+            let mut bytes = BytesMut::from(resp_str);
+            Client::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut None,
+                    h1_parser_config: Default::default(),
+                    h1_max_headers: None,
+                    h1_max_header_size: max_header_size,
+                    preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
+                    h09_responses: false,
+                    #[cfg(feature = "client")]
+                    on_informational: &mut None,
+                },
+            )
+        };
+
+        // Client checks
+        parse_resp(None).unwrap().unwrap();
+        parse_resp(Some(38)).unwrap().unwrap();
+        parse_resp(Some(50)).unwrap().unwrap();
+        assert!(matches!(parse_resp(Some(37)), Err(Parse::TooLarge)));
+        assert!(matches!(parse_resp(Some(10)), Err(Parse::TooLarge)));
+    }
+
+    #[test]
     fn test_is_complete_fast() {
         let s = b"GET / HTTP/1.1\r\na: b\r\n\r\n";
         for n in 0..s.len() {
@@ -3016,6 +3116,7 @@ mod tests {
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
                 h1_max_headers: None,
+                h1_max_header_size: None,
                 preserve_header_case: false,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: false,
@@ -3099,6 +3200,7 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
@@ -3144,6 +3246,7 @@ mod tests {
                     req_method: &mut None,
                     h1_parser_config: Default::default(),
                     h1_max_headers: None,
+                    h1_max_header_size: None,
                     preserve_header_case: false,
                     #[cfg(feature = "ffi")]
                     preserve_header_order: false,
