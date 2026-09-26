@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1790283324769,
+  "lastUpdate": 1790389597923,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13709,6 +13709,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 54288,
             "range": "± 13248.11",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "toyeshhm@gmail.com",
+            "name": "Toyeshh Medikonda",
+            "username": "toyeshhm"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "e60932da8fb37c0060ff929bfc9dc234e2e44e8b",
+          "message": "docs: fix three typos (#4204)\n\n- capi/README.md: \"staring with\" -> \"starting with\" in the build instructions\n- docs/MSRV.md: \"Minimum Support Rust Version\" -> \"Minimum Supported Rust Version\"\n- docs/GOVERNANCE.md: \"elsehwere\" -> \"elsewhere\"",
+          "timestamp": "2026-09-26T02:25:48Z",
+          "tree_id": "da1fe0198db00660f73ab30732720697ec7a418f",
+          "url": "https://github.com/hyperium/hyper/commit/e60932da8fb37c0060ff929bfc9dc234e2e44e8b"
+        },
+        "date": 1790389593532,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 34920,
+            "range": "± 4608.81",
             "unit": "ns/iter"
           }
         ]
