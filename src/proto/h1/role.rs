@@ -2615,6 +2615,46 @@ mod tests {
                 .as_ref(),
         );
     }
+
+    #[test]
+    fn test_client_request_encode_public_case_map() {
+        let sec_fetch_site = HeaderName::from_static("sec-fetch-site");
+
+        let mut head = MessageHead::default();
+        head.headers
+            .insert(&sec_fetch_site, HeaderValue::from_static("cross-site"));
+        head.headers.insert(
+            &HeaderName::from_static("te"),
+            HeaderValue::from_static("trailers"),
+        );
+
+        let mut case_map = HeaderCaseMap::default();
+        case_map.append(&sec_fetch_site, Bytes::from_static(b"Sec-Fetch-Site"));
+        case_map.append("te", Bytes::from_static(b"TE"));
+        head.extensions.insert(case_map);
+
+        let mut vec = Vec::new();
+        Client::encode(
+            Encode {
+                head: &mut head,
+                body: None,
+                #[cfg(feature = "server")]
+                keep_alive: true,
+                req_method: &mut None,
+                title_case_headers: false,
+                #[cfg(feature = "server")]
+                date_header: true,
+            },
+            &mut vec,
+        )
+        .unwrap();
+
+        assert_eq!(
+            &*vec,
+            b"GET / HTTP/1.1\r\nSec-Fetch-Site: cross-site\r\nTE: trailers\r\n\r\n".as_ref(),
+        );
+    }
+
     #[test]
     fn test_client_request_encode_orig_and_title_case() {
         use crate::proto::BodyLength;
