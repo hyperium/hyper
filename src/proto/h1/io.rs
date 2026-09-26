@@ -29,6 +29,25 @@ pub(crate) const DEFAULT_MAX_BUFFER_SIZE: usize = 8192 + 4096 * 100;
 /// forces a flush if the queue gets this big.
 const MAX_BUF_LIST_BUFFERS: usize = 16;
 
+/// `WriteStrategy::Auto` copies ("flattens") a buffer smaller than this into
+/// the headers buffer, and queues anything this size or larger for a vectored
+/// write.
+///
+/// Vectored writes avoid copying the body, but they are not free: each extra
+/// `IoSlice` costs bookkeeping in `BufList`, in `chunks_vectored`, and in the
+/// kernel's `writev` gather loop. For a small body that cost is larger than
+/// the `memcpy` it saves, and flattening also lets `poll_flush` use the
+/// specialized single-`write` path.
+///
+/// This number comes from `benches/h1_writev.rs`, which serves a single
+/// response body of a fixed size over a loopback TCP connection with
+/// `writev` forced on and forced off. On an `x86_64` Linux machine, flattening
+/// was consistently ~1-3% faster up to 20KB, the two were even from 20KB to
+/// 24KB, and queueing pulled ahead beyond that (+3% at 64KB, +13% at 256KB,
+/// +19% at 1MB). 16KB is the nearest power of two below that crossover, so it
+/// stays on the conservative side of it.
+const AUTO_FLATTEN_LIMIT: usize = 16 * 1024;
+
 pub(crate) struct Buffered<T, B> {
     flush_pipeline: bool,
     io: T,
@@ -58,7 +77,7 @@ where
 {
     pub(crate) fn new(io: T) -> Buffered<T, B> {
         let strategy = if io.is_write_vectored() {
-            WriteStrategy::Queue
+            WriteStrategy::Auto
         } else {
             WriteStrategy::Flatten
         };
@@ -274,7 +293,7 @@ where
         } else if self.write_buf.remaining() == 0 {
             Pin::new(&mut self.io).poll_flush(cx)
         } else {
-            if let WriteStrategy::Flatten = self.write_buf.strategy {
+            if self.write_buf.is_flattened() {
                 return self.poll_flush_flattened(cx);
             }
 
@@ -544,47 +563,70 @@ where
         self.strategy = strategy;
     }
 
+    /// Returns true if everything buffered so far lives in the headers
+    /// buffer, and so can be flushed with a single plain `write`.
+    fn is_flattened(&self) -> bool {
+        match self.strategy {
+            WriteStrategy::Flatten => true,
+            WriteStrategy::Auto => !self.queue.has_remaining(),
+            WriteStrategy::Queue => false,
+        }
+    }
+
+    /// Whether a buffer about to be stored should be flattened into the
+    /// headers buffer rather than queued.
+    ///
+    /// Anything already queued has to be written before `buf`, and the
+    /// headers buffer is always flushed first, so once the queue is
+    /// non-empty, queueing is the only way to keep the bytes in order.
+    fn should_flatten<BB: Buf>(&self, buf: &BB) -> bool {
+        match self.strategy {
+            WriteStrategy::Flatten => true,
+            WriteStrategy::Auto => {
+                !self.queue.has_remaining() && buf.remaining() < AUTO_FLATTEN_LIMIT
+            }
+            WriteStrategy::Queue => false,
+        }
+    }
+
     pub(super) fn buffer<BB: Buf + Into<B>>(&mut self, mut buf: BB) {
         debug_assert!(buf.has_remaining());
-        match self.strategy {
-            WriteStrategy::Flatten => {
-                let head = self.headers_mut();
+        if self.should_flatten(&buf) {
+            let head = self.headers_mut();
 
-                head.maybe_unshift(buf.remaining());
-                trace!(
-                    self.len = head.remaining(),
-                    buf.len = buf.remaining(),
-                    "buffer.flatten"
-                );
-                //perf: This is a little faster than <Vec as BufMut>>::put,
-                //but accomplishes the same result.
-                loop {
-                    let adv = {
-                        let slice = buf.chunk();
-                        if slice.is_empty() {
-                            return;
-                        }
-                        head.bytes.extend_from_slice(slice);
-                        slice.len()
-                    };
-                    buf.advance(adv);
-                }
+            head.maybe_unshift(buf.remaining());
+            trace!(
+                self.len = head.remaining(),
+                buf.len = buf.remaining(),
+                "buffer.flatten"
+            );
+            //perf: This is a little faster than <Vec as BufMut>>::put,
+            //but accomplishes the same result.
+            loop {
+                let adv = {
+                    let slice = buf.chunk();
+                    if slice.is_empty() {
+                        return;
+                    }
+                    head.bytes.extend_from_slice(slice);
+                    slice.len()
+                };
+                buf.advance(adv);
             }
-            WriteStrategy::Queue => {
-                trace!(
-                    self.len = self.remaining(),
-                    buf.len = buf.remaining(),
-                    "buffer.queue"
-                );
-                self.queue.push(buf.into());
-            }
+        } else {
+            trace!(
+                self.len = self.remaining(),
+                buf.len = buf.remaining(),
+                "buffer.queue"
+            );
+            self.queue.push(buf.into());
         }
     }
 
     fn can_buffer(&self) -> bool {
         match self.strategy {
             WriteStrategy::Flatten => self.remaining() < self.max_buf_size,
-            WriteStrategy::Queue => {
+            WriteStrategy::Auto | WriteStrategy::Queue => {
                 self.queue.bufs_cnt() < MAX_BUF_LIST_BUFFERS && self.remaining() < self.max_buf_size
             }
         }
@@ -645,6 +687,8 @@ impl<B: Buf> Buf for WriteBuf<B> {
 
 #[derive(Debug)]
 enum WriteStrategy {
+    /// Pick `Flatten` or `Queue` per buffer, based on its size.
+    Auto,
     Flatten,
     Queue,
 }
@@ -943,6 +987,86 @@ mod tests {
         buffered.flush().await.expect("flush");
 
         assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
+    }
+
+    #[test]
+    fn write_buf_auto_flattens_small_bufs() {
+        let _ = pretty_env_logger::try_init();
+
+        let b = |s: &str| Cursor::new(s.as_bytes().to_vec());
+
+        let mut write_buf = WriteBuf::<Cursor<Vec<u8>>>::new(WriteStrategy::Auto);
+
+        write_buf.buffer(b("hello "));
+        write_buf.buffer(b("world, "));
+        write_buf.buffer(b("it's hyper!"));
+
+        // all under the limit, so nothing was queued
+        assert_eq!(write_buf.queue.bufs_cnt(), 0);
+        assert!(write_buf.is_flattened());
+        assert_eq!(write_buf.chunk(), b"hello world, it's hyper!");
+    }
+
+    #[test]
+    fn write_buf_auto_queues_big_bufs() {
+        let _ = pretty_env_logger::try_init();
+
+        let mut write_buf = WriteBuf::<Cursor<Vec<u8>>>::new(WriteStrategy::Auto);
+
+        write_buf.buffer(Cursor::new(vec![b'X'; AUTO_FLATTEN_LIMIT]));
+
+        assert_eq!(write_buf.queue.bufs_cnt(), 1);
+        assert!(!write_buf.is_flattened());
+        assert_eq!(write_buf.headers.remaining(), 0);
+        assert_eq!(write_buf.remaining(), AUTO_FLATTEN_LIMIT);
+    }
+
+    #[test]
+    fn write_buf_auto_keeps_order_after_queueing() {
+        let _ = pretty_env_logger::try_init();
+
+        let b = |s: &str| Cursor::new(s.as_bytes().to_vec());
+
+        let mut write_buf = WriteBuf::<Cursor<Vec<u8>>>::new(WriteStrategy::Auto);
+
+        // headers are small, so they flatten
+        write_buf.buffer(b("hello "));
+        assert_eq!(write_buf.queue.bufs_cnt(), 0);
+
+        // this one is too big, so it queues
+        write_buf.buffer(Cursor::new(vec![b'X'; AUTO_FLATTEN_LIMIT]));
+        assert_eq!(write_buf.queue.bufs_cnt(), 1);
+
+        // a small buf after a queued one must *also* queue, or it would be
+        // written before the bytes that came first
+        write_buf.buffer(b("bye!"));
+        assert_eq!(write_buf.queue.bufs_cnt(), 2);
+        assert!(!write_buf.is_flattened());
+
+        assert_eq!(write_buf.chunk(), b"hello ");
+        write_buf.advance(6 + AUTO_FLATTEN_LIMIT);
+        assert_eq!(write_buf.chunk(), b"bye!");
+    }
+
+    #[cfg(not(miri))]
+    #[tokio::test]
+    async fn write_buf_auto_flatten_writes_once() {
+        let _ = pretty_env_logger::try_init();
+
+        // `tokio_test::io` is not vectored, so a queued flush would show up
+        // here as separate writes.
+        let mock = Mock::new().write(b"hello world, it's hyper!").build();
+
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
+        buffered.write_buf.set_strategy(WriteStrategy::Auto);
+
+        buffered.headers_buf().extend(b"hello ");
+        buffered.buffer(Cursor::new(b"world, ".to_vec()));
+        buffered.buffer(Cursor::new(b"it's ".to_vec()));
+        buffered.buffer(Cursor::new(b"hyper!".to_vec()));
+        assert_eq!(buffered.write_buf.queue.bufs_cnt(), 0);
+
+        buffered.flush().await.expect("flush");
     }
 
     // #[cfg(feature = "nightly")]

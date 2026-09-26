@@ -313,6 +313,11 @@ path = "benches/end_to_end.rs"
 required-features = ["full"]
 
 [[bench]]
+name = "h1_writev"
+path = "benches/h1_writev.rs"
+required-features = ["full"]
+
+[[bench]]
 name = "pipeline"
 path = "benches/pipeline.rs"
 required-features = ["full"]
