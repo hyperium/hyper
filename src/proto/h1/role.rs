@@ -438,6 +438,7 @@ impl Http1Transaction for Server {
                     debug!("response with HTTP2 version coerced to HTTP/1.1");
                     extend(dst, b"HTTP/1.1 ");
                 }
+                #[allow(clippy::panic)]
                 other => panic!("unexpected response version: {other:?}"),
             }
 
@@ -1231,6 +1232,7 @@ impl Http1Transaction for Client {
                 debug!("request with HTTP2 version coerced to HTTP/1.1");
                 extend(dst, b"HTTP/1.1");
             }
+            #[allow(clippy::panic)]
             other => panic!("unexpected request version: {other:?}"),
         }
         extend(dst, b"\r\n");
