@@ -352,3 +352,8 @@ required-features = ["full"]
 name = "h1_shutdown_while_buffered"
 path = "tests/h1_shutdown_while_buffered.rs"
 required-features = ["full"]
+
+[[test]]
+name = "h1_ready_in_flight"
+path = "tests/h1_ready_in_flight.rs"
+required-features = ["full"]
