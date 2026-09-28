@@ -186,7 +186,10 @@ impl Upgraded {
     pub fn reset_with_connect_error(&mut self) -> bool {
         use crate::proto::h2::upgrade::H2Upgraded;
 
-        // Deref through the `Box`, so the downcast sees the IO type inside it.
+        // Deref through the `Box` explicitly. `Box<dyn Io + Send>` is itself
+        // an `Io`, so coercing the `&mut Box<_>` to `&mut (dyn Io + Send)`, as
+        // an annotated `let` would, makes the `Box` the trait object, and the
+        // downcast would then never match.
         let io = &mut **self.io.get_mut();
         match io.__hyper_downcast_mut::<H2Upgraded>() {
             Some(h2_upgraded) => h2_upgraded.reset(h2::Reason::CONNECT_ERROR),
@@ -363,9 +366,15 @@ impl dyn Io + Send {
         if self.__hyper_is::<T>() {
             let raw: *mut (dyn Io + Send) = self;
             // Taken from `std::error::Error::downcast_mut()`.
-            // SAFETY: `self.__hyper_is::<T>()` checked that the concrete type
-            // behind this trait object is `T`, so the data pointer points to a
-            // valid `T`. The returned borrow is tied to the `&mut self` borrow.
+            // SAFETY:
+            // 1. `self.__hyper_is::<T>()` compares `TypeId`s, guaranteeing that the
+            //    concrete type behind this trait object is `T`. The check can't be
+            //    spoofed: `Io` is private to hyper and its blanket impl covers every
+            //    type it applies to, so no other impl can override `__hyper_type_id`.
+            // 2. `raw` comes from the unique `&mut self`, and `cast` only discards
+            //    the vtable, so the data pointer points to a valid, initialized `T`.
+            // 3. The returned `&mut T` reborrows `self` for its whole lifetime, so
+            //    nothing else can access the value while it is alive.
             unsafe { Some(&mut *raw.cast::<T>()) }
         } else {
             None
@@ -440,6 +449,27 @@ mod tests {
         assert!(!upgraded.reset_with_connect_error());
 
         upgraded.downcast::<Mock>().unwrap();
+    }
+
+    // Runs the `unsafe` success path of `__hyper_downcast_mut` under Miri.
+    #[cfg(feature = "http2")]
+    #[test]
+    fn upgraded_downcast_mut() {
+        type CursorIo = crate::common::io::Compat<std::io::Cursor<Vec<u8>>>;
+
+        let cursor = std::io::Cursor::new(b"tunnel".to_vec());
+        let mut upgraded = Upgraded::new(CursorIo::new(cursor), Bytes::new());
+
+        // The same explicit deref as `Upgraded::reset_with_connect_error`.
+        let io = &mut **upgraded.io.get_mut();
+        assert!(io.__hyper_downcast_mut::<Mock>().is_none());
+        let cursor_io = io
+            .__hyper_downcast_mut::<CursorIo>()
+            .expect("downcast to the IO type inside the box");
+        cursor_io.0.get_mut().extend_from_slice(b" bytes");
+
+        let parts = upgraded.downcast::<CursorIo>().unwrap();
+        assert_eq!(&parts.io.0.get_ref()[..], b"tunnel bytes");
     }
 
     // TODO: replace with tokio_test::io when it can test write_buf

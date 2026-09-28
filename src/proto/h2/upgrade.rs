@@ -64,8 +64,10 @@ pin_project! {
         #[pin]
         rx: mpsc::Receiver<Cursor<Box<[u8]>>>,
         buffered: Option<Cursor<Box<[u8]>>>,
-        // Declared before `error_tx` so it is dropped first: once a writer
-        // sees the task gone, a later reset request fails.
+        // Set to `None` in `poll` as soon as the task ends, before
+        // `error_tx` is used, so a reset requested after a writer has seen
+        // the end returns `false`. Declared before `error_tx`, so it is also
+        // dropped first if the task is dropped before it ends.
         reset_rx: Option<oneshot::Receiver<Reason>>,
         error_tx: Option<oneshot::Sender<crate::Error>>,
     }
@@ -98,8 +100,9 @@ where
                 Poll::Pending => (),
             }
 
-            // A requested reset wins over buffered or queued data, and over
-            // the `END_STREAM` that a closed channel would send.
+            // A reset requested before the task gets here wins over buffered
+            // or queued data, and over the `END_STREAM` that a closed channel
+            // would send.
             let reset = match me.reset_rx.as_mut() {
                 Some(reset_rx) => Pin::new(reset_rx).poll(cx),
                 None => Poll::Pending,
@@ -176,16 +179,17 @@ where
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        match self.as_mut().tick(cx) {
-            Poll::Ready(Ok(())) => Poll::Ready(()),
-            Poll::Ready(Err(err)) => {
-                if let Some(tx) = self.error_tx.take() {
-                    let _oh_well = tx.send(err);
-                }
-                Poll::Ready(())
+        let result = ready!(self.as_mut().tick(cx));
+        let me = self.project();
+        // Refuse later reset requests before a writer can observe the end,
+        // however long the executor keeps this finished future around.
+        *me.reset_rx = None;
+        if let Err(err) = result {
+            if let Some(tx) = me.error_tx.take() {
+                let _oh_well = tx.send(err);
             }
-            Poll::Pending => Poll::Pending,
         }
+        Poll::Ready(())
     }
 }
 
@@ -345,6 +349,13 @@ mod tests {
     /// server side as an `Upgraded`, with its send task running, and the
     /// client side's response body and request stream.
     async fn connect_stream() -> (Upgraded, h2::RecvStream, h2::SendStream<Bytes>) {
+        connect_stream_with(&h2::client::Builder::new()).await
+    }
+
+    /// Like `connect_stream`, with the client configured by `client_builder`.
+    async fn connect_stream_with(
+        client_builder: &h2::client::Builder,
+    ) -> (Upgraded, h2::RecvStream, h2::SendStream<Bytes>) {
         let (client_io, server_io) = tokio::io::duplex(64 * 1024);
 
         let server = tokio::spawn(async move {
@@ -364,7 +375,8 @@ mod tests {
             (req.into_body(), send_stream)
         });
 
-        let (client, client_conn) = h2::client::handshake(client_io)
+        let (client, client_conn) = client_builder
+            .handshake::<_, Bytes>(client_io)
             .await
             .expect("client handshake");
         tokio::spawn(async move {
@@ -456,6 +468,31 @@ mod tests {
             .await
             .expect("the stream ends with an error, not END_STREAM")
             .expect_err("RST_STREAM, not DATA");
+        assert_eq!(err.reason(), Some(Reason::CONNECT_ERROR));
+        drop(upgraded);
+    }
+
+    #[tokio::test]
+    async fn reset_while_write_waits_for_capacity_sends_rst_stream_connect_error() {
+        // A zero stream window leaves the server's send task no capacity.
+        let mut client_builder = h2::client::Builder::new();
+        client_builder.initial_window_size(0);
+        let (mut upgraded, mut client_body, _client_send) =
+            connect_stream_with(&client_builder).await;
+
+        // The data channel takes two chunks before the writer must wait. The
+        // second flush completes only once the send task has moved the first
+        // chunk into its buffer, and by then the task is parked on capacity.
+        write_all(&mut upgraded, b"first").await;
+        write_all(&mut upgraded, b"second").await;
+
+        assert!(upgraded.reset_with_connect_error());
+
+        let err = client_body
+            .data()
+            .await
+            .expect("the stream ends with an error, not END_STREAM")
+            .expect_err("RST_STREAM, not the buffered DATA");
         assert_eq!(err.reason(), Some(Reason::CONNECT_ERROR));
         drop(upgraded);
     }
