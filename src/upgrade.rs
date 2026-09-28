@@ -163,6 +163,36 @@ impl Upgraded {
             }),
         }
     }
+
+    /// Resets an HTTP/2 upgrade's stream with `RST_STREAM(CONNECT_ERROR)`.
+    ///
+    /// Dropping or shutting down an `Upgraded` that came from an HTTP/2
+    /// `CONNECT` ends its stream with a clean `END_STREAM`, which the peer
+    /// cannot tell apart from a normal close. A tunnel that fails, for example
+    /// because the proxied TCP connection was reset, should reset the stream
+    /// with `CONNECT_ERROR` instead ([RFC 9113, Section 8.5]). This queues that
+    /// reset in place of the `END_STREAM`. Data written but not yet sent may
+    /// be discarded.
+    ///
+    /// Returns `true` if the reset was requested. A send task that is
+    /// already finishing the stream with `END_STREAM` still wins, so `true`
+    /// does not guarantee a reset reaches the wire. Returns `false` and does
+    /// nothing if this is not an HTTP/2 upgrade, if a reset was already
+    /// queued, or if the stream's send side has already finished (for
+    /// example after a completed shutdown).
+    ///
+    /// [RFC 9113, Section 8.5]: https://www.rfc-editor.org/rfc/rfc9113#section-8.5
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    pub fn reset_with_connect_error(&mut self) -> bool {
+        use crate::proto::h2::upgrade::H2Upgraded;
+
+        // Deref through the `Box`, so the downcast sees the IO type inside it.
+        let io = &mut **self.io.get_mut();
+        match io.__hyper_downcast_mut::<H2Upgraded>() {
+            Some(h2_upgraded) => h2_upgraded.reset(h2::Reason::CONNECT_ERROR),
+            None => false,
+        }
+    }
 }
 
 impl Read for Upgraded {
@@ -327,6 +357,20 @@ impl dyn Io + Send {
             Err(self)
         }
     }
+
+    #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
+    fn __hyper_downcast_mut<T: Io>(&mut self) -> Option<&mut T> {
+        if self.__hyper_is::<T>() {
+            let raw: *mut (dyn Io + Send) = self;
+            // Taken from `std::error::Error::downcast_mut()`.
+            // SAFETY: `self.__hyper_is::<T>()` checked that the concrete type
+            // behind this trait object is `T`, so the data pointer points to a
+            // valid `T`. The returned borrow is tied to the `&mut self` borrow.
+            unsafe { Some(&mut *raw.cast::<T>()) }
+        } else {
+            None
+        }
+    }
 }
 
 mod sealed {
@@ -384,6 +428,16 @@ mod tests {
         let upgraded = upgraded
             .downcast::<crate::common::io::Compat<std::io::Cursor<Vec<u8>>>>()
             .unwrap_err();
+
+        upgraded.downcast::<Mock>().unwrap();
+    }
+
+    #[cfg(feature = "http2")]
+    #[test]
+    fn upgraded_reset_with_connect_error_ignores_non_h2() {
+        let mut upgraded = Upgraded::new(Mock, Bytes::new());
+
+        assert!(!upgraded.reset_with_connect_error());
 
         upgraded.downcast::<Mock>().unwrap();
     }
