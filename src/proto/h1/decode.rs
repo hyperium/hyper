@@ -635,7 +635,6 @@ impl ChunkedState {
     }
 }
 
-// TODO: disallow Transfer-Encoding, Content-Length, Trailer, etc in trailers ??
 fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Error> {
     let mut trailers = HeaderMap::new();
     let mut headers = vec![httparse::EMPTY_HEADER; count];
@@ -653,6 +652,16 @@ fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Er
                         ));
                     }
                 };
+
+                if name == http::header::CONTENT_LENGTH
+                    || name == http::header::TRANSFER_ENCODING
+                    || name == http::header::TRAILER
+                {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        format!("Forbidden trailer field: {:?}", &header),
+                    ));
+                }
 
                 let value = match HeaderValue::from_bytes(header.value) {
                     Ok(value) => value,
@@ -1162,6 +1171,15 @@ mod tests {
             .collect::<Vec<_>>();
 
         assert_eq!(values, ["first", "second"]);
+    }
+
+    #[test]
+    fn test_decode_trailers_rejects_forbidden_fields() {
+        for name in ["Content-Length", "Transfer-Encoding", "Trailer"] {
+            let mut buf = BytesMut::from(format!("{name}: value\r\n\r\n").as_bytes());
+            let err = decode_trailers(&mut buf, 1).expect_err("forbidden trailer field");
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput);
+        }
     }
 
     #[tokio::test]
