@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1790389748195,
+  "lastUpdate": 1790712393763,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13739,6 +13739,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 34920,
             "range": "± 4608.81",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "gdunlap828@gmail.com",
+            "name": "Gavin D.",
+            "username": "Siech0"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c954d80cdcb91ae8faa0aa743639a13498f74b7c",
+          "message": "style(lib): address trivial, low quantity clippy lints (#4190)",
+          "timestamp": "2026-09-29T16:05:40-04:00",
+          "tree_id": "bbaf3833df38c408785be932ecd579abcd38bc9f",
+          "url": "https://github.com/hyperium/hyper/commit/c954d80cdcb91ae8faa0aa743639a13498f74b7c"
+        },
+        "date": 1790712389800,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 57388,
+            "range": "± 11998.45",
             "unit": "ns/iter"
           }
         ]
