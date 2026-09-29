@@ -13,6 +13,7 @@ A complete list of dependencies used across these examples:
 ```toml
 [dependencies]
 hyper = { version = "1", features = ["full"] }
+hyper-util = { version = "0.1", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 pretty_env_logger = "0.5"
 http-body-util = "0.1"
@@ -22,6 +23,24 @@ serde_json = "1.0"
 form_urlencoded = "1"
 http = "1"
 futures-util = { version = "0.3", default-features = false }
+```
+
+### Using Examples in Your Own Project
+
+When copying code from these examples into your own standalone project, note that
+the examples in this repository import an internal support module (`#[path = "../benches/support/mod.rs"]`)
+to avoid a cyclical workspace dependency on `hyper-util`.
+
+In your own application, add `hyper-util` to your `Cargo.toml`:
+
+```toml
+hyper-util = { version = "0.1", features = ["tokio"] }
+```
+
+And import `TokioIo` and `TokioTimer` directly from `hyper_util::rt`:
+
+```rust
+use hyper_util::rt::{TokioIo, TokioTimer};
 ```
 
 ## Getting Started
