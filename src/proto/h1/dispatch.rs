@@ -728,8 +728,7 @@ cfg_client! {
                         }));
                         Ok(())
                     } else if !self.rx_closed {
-                        self.rx.close();
-                        if let Some((req, cb)) = self.rx.try_recv() {
+                        if let Some((req, cb)) = self.rx.close_and_recv() {
                             trace!("canceling queued request with connection error: {}", err);
                             // in this case, the message was never even started, so it's safe to tell
                             // the user that the request was completely canceled
