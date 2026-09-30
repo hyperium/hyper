@@ -107,6 +107,20 @@ where
     fn is_write_vectored(&self) -> bool {
         self.inner.is_write_vectored()
     }
+
+    fn supports_write_file(&self) -> bool {
+        self.inner.supports_write_file()
+    }
+
+    fn poll_write_file(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        file: &std::fs::File,
+        offset: u64,
+        len: usize,
+    ) -> Poll<io::Result<usize>> {
+        Pin::new(&mut self.inner).poll_write_file(cx, file, offset, len)
+    }
 }
 
 #[cfg(all(

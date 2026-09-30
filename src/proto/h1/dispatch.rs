@@ -362,7 +362,10 @@ where
                 && self.dispatch.should_poll()
             {
                 if let Some(msg) = ready!(Pin::new(&mut self.dispatch).poll_msg(cx)) {
-                    let (head, body) = msg.map_err(crate::Error::new_user_service)?;
+                    #[cfg_attr(not(feature = "server"), allow(unused_mut))]
+                    let (mut head, body) = msg.map_err(crate::Error::new_user_service)?;
+                    #[cfg(feature = "server")]
+                    let send_file = self.conn.take_send_file(&mut head);
 
                     let body_type = if body.is_end_stream() {
                         self.body_rx.set(None);
@@ -377,10 +380,22 @@ where
                         btype
                     };
                     self.conn.write_head(head, body_type);
+
+                    // The body stays the fallback until the head's framing is
+                    // known to match the file; once it does, it's never read.
+                    #[cfg(feature = "server")]
+                    if let Some(file) = send_file {
+                        if self.conn.start_send_file(file) {
+                            self.body_rx.set(None);
+                        }
+                    }
                 } else {
                     self.close();
                     return Poll::Ready(Ok(()));
                 }
+            } else if self.is_sending_file() {
+                #[cfg(feature = "server")]
+                ready!(self.conn.poll_send_file(cx)).map_err(crate::Error::new_body_write)?;
             } else if !self.conn.can_buffer_body() {
                 ready!(self.poll_flush(cx))?;
             } else {
@@ -466,6 +481,14 @@ where
         !self.is_closing && self.body_rx.is_some() && self.conn.can_write_body()
     }
 
+    /// Whether a body is being sent from a file, rather than from `body_rx`.
+    fn is_sending_file(&self) -> bool {
+        #[cfg(feature = "server")]
+        return self.conn.is_sending_file();
+        #[cfg(not(feature = "server"))]
+        return false;
+    }
+
     fn is_done(&self) -> bool {
         if self.is_closing {
             return true;
@@ -478,7 +501,9 @@ where
             true
         } else {
             let write_done = self.conn.is_write_closed()
-                || (!self.dispatch.should_poll() && self.body_rx.is_none());
+                || (!self.dispatch.should_poll()
+                    && self.body_rx.is_none()
+                    && !self.is_sending_file());
             read_done && write_done
         }
     }

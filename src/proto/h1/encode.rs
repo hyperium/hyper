@@ -113,6 +113,28 @@ impl Encoder {
         matches!(self.kind, Kind::Chunked(_))
     }
 
+    /// The bytes still owed to a body framed by `Content-Length`, or `None`
+    /// for any other framing.
+    #[cfg(feature = "server")]
+    pub(crate) fn remaining_length(&self) -> Option<u64> {
+        match self.kind {
+            Kind::Length(remaining) => Some(remaining),
+            _ => None,
+        }
+    }
+
+    /// Count `n` body bytes the IO wrote on its own, without `encode`.
+    #[cfg(feature = "server")]
+    pub(crate) fn wrote_length(&mut self, n: u64) {
+        match &mut self.kind {
+            Kind::Length(remaining) => {
+                debug_assert!(n <= *remaining, "wrote past Content-Length");
+                *remaining -= n;
+            }
+            _ => unreachable!("wrote_length on a body not framed by Content-Length"),
+        }
+    }
+
     pub(crate) fn end<B>(&self) -> Result<Option<EncodedBuf<B>>, NotEof> {
         match self.kind {
             Kind::Length(0) => Ok(None),

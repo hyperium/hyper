@@ -27,6 +27,7 @@
 //! The extensions in this module can be grouped as follows:
 //!
 //! - **HTTP/1 Reason Phrase**: [`ReasonPhrase`] — Access non-canonical reason phrases in HTTP/1 responses.
+//! - **HTTP/1 File Bodies**: [`SendFile`] — Send a response body straight from a file, with zero-copy IO where the connection supports it.
 //! - **Informational Responses**: [`on_informational`] — Register callbacks for 1xx HTTP/1 responses on the client.
 //! - **Header Case Tracking**: Internal types for tracking the original casing and order of headers as received.
 //! - **HTTP/2 Protocol Extensions**: [`Protocol`] — Access the `:protocol` pseudo-header for Extended CONNECT in HTTP/2.
@@ -53,6 +54,11 @@ use std::fmt;
 mod h1_reason_phrase;
 #[cfg(any(feature = "http1", feature = "ffi"))]
 pub use h1_reason_phrase::ReasonPhrase;
+
+#[cfg(all(feature = "http1", feature = "server"))]
+mod send_file;
+#[cfg(all(feature = "http1", feature = "server"))]
+pub use send_file::SendFile;
 
 #[cfg(all(feature = "http1", feature = "client"))]
 mod informational;

@@ -143,6 +143,49 @@ pub trait Write {
             .map_or(&[][..], |b| &**b);
         self.poll_write(cx, buf)
     }
+
+    /// Returns whether this writer has a `poll_write_file` implementation.
+    ///
+    /// hyper only calls `poll_write_file` on writers that return `true`.
+    ///
+    /// The default implementation returns `false`.
+    fn supports_write_file(&self) -> bool {
+        false
+    }
+
+    /// Attempt to write up to `len` bytes of `file`, starting at `offset`,
+    /// without passing them through a buffer in this process.
+    ///
+    /// This is the hook for a zero-copy system call such as Linux's
+    /// `sendfile(2)`: on a plain socket, the kernel can move a file's bytes
+    /// from its page cache to the socket directly. hyper's HTTP/1 server uses
+    /// it for response bodies sent with `hyper::ext::SendFile`.
+    ///
+    /// On success, returns `Poll::Ready(Ok(num_bytes_written))`, where
+    /// `num_bytes_written <= len`. A return value of `0` means that the
+    /// file ended early or the destination can no longer accept bytes.
+    /// Implementations must not move the file's cursor, since a file may be
+    /// shared by many connections at once.
+    ///
+    /// If the object is not ready for writing, the method returns
+    /// `Poll::Pending` and arranges for the current task (via `cx.waker()`) to
+    /// receive a notification when the object becomes writable or is closed.
+    ///
+    /// The default implementation returns an error of kind
+    /// [`Unsupported`](std::io::ErrorKind::Unsupported).
+    fn poll_write_file(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        file: &std::fs::File,
+        offset: u64,
+        len: usize,
+    ) -> Poll<Result<usize, std::io::Error>> {
+        let _ = (cx, file, offset, len);
+        Poll::Ready(Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "poll_write_file is not supported by this writer",
+        )))
+    }
 }
 
 /// A wrapper around a byte buffer that is incrementally filled and initialized.
@@ -485,6 +528,20 @@ macro_rules! deref_async_write {
             (**self).is_write_vectored()
         }
 
+        fn supports_write_file(&self) -> bool {
+            (**self).supports_write_file()
+        }
+
+        fn poll_write_file(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            file: &std::fs::File,
+            offset: u64,
+            len: usize,
+        ) -> Poll<std::io::Result<usize>> {
+            Pin::new(&mut **self).poll_write_file(cx, file, offset, len)
+        }
+
         fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {
             Pin::new(&mut **self).poll_flush(cx)
         }
@@ -529,6 +586,20 @@ where
 
     fn is_write_vectored(&self) -> bool {
         (**self).is_write_vectored()
+    }
+
+    fn supports_write_file(&self) -> bool {
+        (**self).supports_write_file()
+    }
+
+    fn poll_write_file(
+        self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+        file: &std::fs::File,
+        offset: u64,
+        len: usize,
+    ) -> Poll<std::io::Result<usize>> {
+        pin_as_deref_mut(self).poll_write_file(cx, file, offset, len)
     }
 
     fn poll_flush(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<std::io::Result<()>> {

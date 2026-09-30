@@ -327,6 +327,31 @@ where
         Pin::new(&mut self.io).poll_flush(cx)
     }
 
+    #[cfg(feature = "server")]
+    pub(crate) fn supports_write_file(&self) -> bool {
+        self.io.supports_write_file()
+    }
+
+    /// Write part of a file straight to the IO, after everything buffered.
+    #[cfg(feature = "server")]
+    pub(crate) fn poll_write_file(
+        &mut self,
+        cx: &mut Context<'_>,
+        file: &std::fs::File,
+        offset: u64,
+        len: usize,
+    ) -> Poll<io::Result<usize>> {
+        // The head goes out first, since the file's bytes follow it on the
+        // wire. That holds even when pipelined flushes are being deferred.
+        if self.write_buf.remaining() > 0 {
+            let flush_pipeline = std::mem::replace(&mut self.flush_pipeline, false);
+            let flushed = self.poll_flush(cx);
+            self.flush_pipeline = flush_pipeline;
+            ready!(flushed)?;
+        }
+        Pin::new(&mut self.io).poll_write_file(cx, file, offset, len)
+    }
+
     pub(crate) fn poll_shutdown(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         ready!(self.poll_flush(cx))?;
         Pin::new(&mut self.io).poll_shutdown(cx)

@@ -78,6 +78,8 @@ where
                 notify_read: false,
                 reading: Reading::Init,
                 writing: Writing::Init,
+                #[cfg(feature = "server")]
+                send_file: None,
                 upgrade: None,
                 // We assume a modern world where the remote speaks HTTP/1.1.
                 // If they tell us otherwise, we'll downgrade in `read_head`.
@@ -822,6 +824,81 @@ where
         }
     }
 
+    /// Take a response's `SendFile`, if the IO can write it.
+    #[cfg(feature = "server")]
+    pub(crate) fn take_send_file(
+        &mut self,
+        head: &mut MessageHead<T::Outgoing>,
+    ) -> Option<crate::ext::SendFile> {
+        let file = head.extensions.remove::<crate::ext::SendFile>()?;
+        if T::is_server() && self.io.supports_write_file() {
+            Some(file)
+        } else {
+            None
+        }
+    }
+
+    /// Send the body just started by `write_head` from `file`, if its framing
+    /// allows: a `Content-Length` that is exactly the file's range. Anything
+    /// else (chunked, or no body at all) leaves the body to be polled.
+    #[cfg(feature = "server")]
+    pub(crate) fn start_send_file(&mut self, file: crate::ext::SendFile) -> bool {
+        match &self.state.writing {
+            Writing::Body(encoder) if encoder.remaining_length() == Some(file.len) => {
+                self.state.send_file = Some(file);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[cfg(feature = "server")]
+    pub(crate) fn is_sending_file(&self) -> bool {
+        self.state.send_file.is_some() && matches!(self.state.writing, Writing::Body(_))
+    }
+
+    /// Write the file started by `start_send_file` until it is done or the IO
+    /// would block.
+    #[cfg(feature = "server")]
+    pub(crate) fn poll_send_file(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+        loop {
+            let (file, encoder) = if let (Some(file), Writing::Body(encoder)) =
+                (&mut self.state.send_file, &mut self.state.writing)
+            {
+                (file, encoder)
+            } else {
+                self.state.send_file = None;
+                return Poll::Ready(Ok(()));
+            };
+
+            let remaining = encoder.remaining_length().unwrap_or(0);
+            let len = usize::try_from(remaining).unwrap_or(usize::MAX);
+            let n = ready!(self
+                .io
+                .poll_write_file(cx, &file.file, file.offset, len))?;
+            if n == 0 {
+                // Either the peer stopped accepting bytes, or the file is
+                // shorter than the Content-Length already sent for it.
+                self.state.send_file = None;
+                self.state.writing = Writing::Closed;
+                return Poll::Ready(Err(io::ErrorKind::WriteZero.into()));
+            }
+            trace!("sent {} bytes from file", n);
+            file.offset += n as u64;
+            encoder.wrote_length(n as u64);
+
+            if encoder.is_eof() {
+                self.state.writing = if encoder.is_last() {
+                    Writing::Closed
+                } else {
+                    Writing::KeepAlive
+                };
+                self.state.send_file = None;
+                return Poll::Ready(Ok(()));
+            }
+        }
+    }
+
     // When we get a parse error, depending on what side we are, we might be able
     // to write a response before closing the connection.
     //
@@ -973,6 +1050,10 @@ struct State {
     reading: Reading,
     /// State of allowed writes.
     writing: Writing,
+    /// The file a `Writing::Body` is being sent from, when the IO writes
+    /// it directly rather than the body being polled.
+    #[cfg(feature = "server")]
+    send_file: Option<crate::ext::SendFile>,
     /// An expected pending HTTP upgrade.
     upgrade: Option<crate::upgrade::Pending>,
     /// Either HTTP/1.0 or 1.1 connection.
