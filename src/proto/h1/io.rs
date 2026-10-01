@@ -47,7 +47,7 @@ where
         f.debug_struct("Buffered")
             .field("read_buf", &self.read_buf)
             .field("write_buf", &self.write_buf)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
@@ -596,7 +596,7 @@ impl<B: Buf> fmt::Debug for WriteBuf<B> {
         f.debug_struct("WriteBuf")
             .field("remaining", &self.remaining())
             .field("strategy", &self.strategy)
-            .finish()
+            .finish_non_exhaustive()
     }
 }
 
