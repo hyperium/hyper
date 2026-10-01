@@ -506,7 +506,7 @@ where
     fn force_io_read(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         debug_assert!(!self.state.is_read_closed());
 
-        let result = ready!(self.io.poll_read_from_io(cx));
+        let result = ready!(self.io.poll_read_from_io_spare(cx));
         Poll::Ready(result.map_err(|e| {
             trace!(error = %e, "force_io_read; io error");
             self.state.close();
