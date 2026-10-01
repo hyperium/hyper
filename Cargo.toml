@@ -346,3 +346,12 @@ required-features = ["full"]
 name = "h1_shutdown_while_buffered"
 path = "tests/h1_shutdown_while_buffered.rs"
 required-features = ["full"]
+
+[[test]]
+name = "h1_ready_in_flight"
+path = "tests/h1_ready_in_flight.rs"
+required-features = ["full"]
+
+[patch.crates-io]
+# Temporary, until want releases Taker::unwant (seanmonstar/want#6).
+want = { git = "https://github.com/shodoco/want", branch = "taker-unwant" }
