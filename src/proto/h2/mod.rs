@@ -59,8 +59,9 @@ fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
     #[cfg(feature = "client")]
     if matches!(kind, MessageKind::Request) {
         if headers
-            .get(http::header::TE)
-            .map_or(false, |te_header| te_header != "trailers")
+            .get_all(http::header::TE)
+            .iter()
+            .any(|te_header| te_header != "trailers")
         {
             warn!("TE headers not set to \"trailers\" are illegal in HTTP/2 requests");
             headers.remove(http::header::TE);

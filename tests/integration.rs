@@ -232,6 +232,54 @@ t! {
             ;
 }
 
+#[tokio::test]
+async fn h2_strips_te_header_with_repeated_values() {
+    use http_body_util::Empty;
+    use hyper::body::Bytes;
+    use tokio::net::{TcpListener, TcpStream};
+
+    let listener = TcpListener::bind(SocketAddr::from(([127, 0, 0, 1], 0)))
+        .await
+        .unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    tokio::spawn(async move {
+        let (stream, _) = listener.accept().await.unwrap();
+        let service = hyper::service::service_fn(|req: hyper::Request<hyper::body::Incoming>| {
+            let te_count = req.headers().get_all("te").iter().count();
+            async move {
+                let mut res = hyper::Response::new(Empty::<Bytes>::new());
+                res.headers_mut().insert("x-te-count", te_count.into());
+                Ok::<_, hyper::Error>(res)
+            }
+        });
+        hyper::server::conn::http2::Builder::new(TokioExecutor)
+            .serve_connection(TokioIo::new(stream), service)
+            .await
+            .unwrap();
+    });
+
+    let stream = TcpStream::connect(addr).await.unwrap();
+    let (mut client, conn) = hyper::client::conn::http2::Builder::new(TokioExecutor)
+        .handshake(TokioIo::new(stream))
+        .await
+        .unwrap();
+    tokio::spawn(conn);
+
+    // Only the first TE value used to be checked, so the second one reached
+    // the peer and the request was rejected as malformed.
+    let req = hyper::Request::builder()
+        .uri(format!("http://{addr}/"))
+        .header("te", "trailers")
+        .header("te", "gzip")
+        .body(Empty::<Bytes>::new())
+        .unwrap();
+    let res = client.send_request(req).await.unwrap();
+
+    assert_eq!(res.status(), 200);
+    assert_eq!(res.headers()["x-te-count"], "0");
+}
+
 t! {
     get_body_chunked,
     client:
