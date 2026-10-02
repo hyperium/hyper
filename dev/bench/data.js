@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1790978677091,
+  "lastUpdate": 1790978792676,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -69505,6 +69505,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3392479,
             "range": "± 4053421.99",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "52391318+ump45nose@users.noreply.github.com",
+            "name": "ump45nose",
+            "username": "ump45nose"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "da3b1b197c954ac5454a92562fe3d729a87cba56",
+          "message": "style(lib): remove useless_borrows_in_formatting from the clippy allowlist (#4220)\n\nFix the two remaining violations in src/proto/h1/decode.rs by inlining\nthe header variable into the format string, which also satisfies the\nuninlined_format_args lint that the old &header borrow was dodging.\n\nRefs: #4071",
+          "timestamp": "2026-10-02T18:03:46-04:00",
+          "tree_id": "70f08e7bc3295d87ea17118e76b902e970caa636",
+          "url": "https://github.com/hyperium/hyper/commit/da3b1b197c954ac5454a92562fe3d729a87cba56"
+        },
+        "date": 1790978788966,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 69546,
+            "range": "± 8034.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4300866,
+            "range": "± 222268.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21152,
+            "range": "± 672.95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22848,
+            "range": "± 1762.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31205,
+            "range": "± 811.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100865,
+            "range": "± 1397.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000203,
+            "range": "± 25984.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 82236,
+            "range": "± 1772.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16126582,
+            "range": "± 16434080.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7874208,
+            "range": "± 402733.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7757494,
+            "range": "± 74304.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51451175,
+            "range": "± 759173.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50968827,
+            "range": "± 716830.73",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5296574,
+            "range": "± 63583.45",
             "unit": "ns/iter"
           }
         ]
