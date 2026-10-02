@@ -136,7 +136,6 @@ unnested_or_patterns = "allow"
 unused_async = "allow" # TODO: is it for API?
 unused_trait_names = "allow" # TODO: kinda annoying, but might be good to deny
 unwrap_in_result = "allow"
-useless_borrows_in_formatting = "allow"
 wildcard_enum_match_arm = "allow"
 definition_in_module_root = "allow"
 unnecessary_rest_pattern = "allow"
