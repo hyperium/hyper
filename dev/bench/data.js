@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1790951271635,
+  "lastUpdate": 1790978677091,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13799,6 +13799,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 66459,
             "range": "± 13053.72",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "52391318+ump45nose@users.noreply.github.com",
+            "name": "ump45nose",
+            "username": "ump45nose"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "da3b1b197c954ac5454a92562fe3d729a87cba56",
+          "message": "style(lib): remove useless_borrows_in_formatting from the clippy allowlist (#4220)\n\nFix the two remaining violations in src/proto/h1/decode.rs by inlining\nthe header variable into the format string, which also satisfies the\nuninlined_format_args lint that the old &header borrow was dodging.\n\nRefs: #4071",
+          "timestamp": "2026-10-02T18:03:46-04:00",
+          "tree_id": "70f08e7bc3295d87ea17118e76b902e970caa636",
+          "url": "https://github.com/hyperium/hyper/commit/da3b1b197c954ac5454a92562fe3d729a87cba56"
+        },
+        "date": 1790978674210,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 55100,
+            "range": "± 12813.02",
             "unit": "ns/iter"
           }
         ]
