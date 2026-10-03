@@ -123,7 +123,6 @@ float_arithmetic = "allow"
 indexing_slicing = "allow"
 let_unit_value = "allow"
 match_wild_err_arm = "allow"
-missing_fields_in_debug = "allow" # TODO: use finish_non_exhaustive
 multiple_inherent_impl = "allow"
 multiple_unsafe_ops_per_block = "allow"
 needless_pass_by_value = "allow"
