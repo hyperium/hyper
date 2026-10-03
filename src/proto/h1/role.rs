@@ -256,6 +256,7 @@ impl Http1Transaction for Server {
         };
 
         let mut headers = ctx.cached_headers.take().unwrap_or_default();
+        let mut saw_connection_close = false;
 
         headers.reserve(headers_len);
 
@@ -308,12 +309,14 @@ impl Http1Transaction for Server {
                     con_len = Some(len);
                 }
                 header::CONNECTION => {
-                    // keep_alive was previously set to default for Version
-                    if keep_alive {
-                        // HTTP/1.1
-                        keep_alive = !headers::connection_close(&value);
-                    } else {
-                        // HTTP/1.0
+                    // A message may carry more than one `Connection` line. Once
+                    // any of them asks to close, a later `keep-alive` must not
+                    // undo it.
+                    if saw_connection_close || headers::connection_close(&value) {
+                        saw_connection_close = true;
+                        keep_alive = false;
+                    } else if !keep_alive {
+                        // HTTP/1.0, which defaults to close
                         keep_alive = headers::connection_keep_alive(&value);
                     }
                 }
@@ -1102,6 +1105,7 @@ impl Http1Transaction for Client {
             let mut headers = ctx.cached_headers.take().unwrap_or_default();
 
             let mut keep_alive = version == Version::HTTP_11;
+            let mut saw_connection_close = false;
 
             let mut header_case_map = if ctx.preserve_header_case {
                 Some(HeaderCaseMap::default())
@@ -1124,12 +1128,14 @@ impl Http1Transaction for Client {
                 let value = header_value!(slice.slice(header.value.0..header.value.1));
 
                 if let header::CONNECTION = name {
-                    // keep_alive was previously set to default for Version
-                    if keep_alive {
-                        // HTTP/1.1
-                        keep_alive = !headers::connection_close(&value);
-                    } else {
-                        // HTTP/1.0
+                    // A message may carry more than one `Connection` line. Once
+                    // any of them asks to close, a later `keep-alive` must not
+                    // undo it.
+                    if saw_connection_close || headers::connection_close(&value) {
+                        saw_connection_close = true;
+                        keep_alive = false;
+                    } else if !keep_alive {
+                        // HTTP/1.0, which defaults to close
                         keep_alive = headers::connection_keep_alive(&value);
                     }
                 }
@@ -2526,6 +2532,164 @@ mod tests {
             )
             .keep_alive,
             "connection keep-alive is always keep-alive"
+        );
+    }
+
+    #[cfg(feature = "server")]
+    #[test]
+    fn test_parse_request_multiple_connection_headers() {
+        fn parse(s: &str) -> ParsedMessage<RequestLine> {
+            let mut bytes = BytesMut::from(s);
+            Server::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut None,
+                    h1_parser_config: Default::default(),
+                    h1_max_headers: None,
+                    preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
+                    h09_responses: false,
+                    #[cfg(feature = "client")]
+                    on_informational: &mut None,
+                },
+            )
+            .unwrap()
+            .unwrap()
+        }
+
+        assert!(
+            !parse(
+                "\
+                 GET / HTTP/1.1\r\n\
+                 connection: close\r\n\
+                 connection: keep-alive\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "close before keep-alive is still close"
+        );
+
+        assert!(
+            !parse(
+                "\
+                 GET / HTTP/1.1\r\n\
+                 connection: keep-alive\r\n\
+                 connection: close\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "keep-alive before close is still close"
+        );
+
+        assert!(
+            parse(
+                "\
+                 GET / HTTP/1.0\r\n\
+                 connection: keep-alive\r\n\
+                 connection: foo\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "HTTP/1.0 keep-alive is not undone by an unrelated token"
+        );
+
+        assert!(
+            !parse(
+                "\
+                 GET / HTTP/1.0\r\n\
+                 connection: keep-alive\r\n\
+                 connection: close\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "HTTP/1.0 close wins over an earlier keep-alive"
+        );
+    }
+
+    #[cfg(feature = "client")]
+    #[test]
+    fn test_parse_response_multiple_connection_headers() {
+        fn parse(s: &str) -> ParsedMessage<StatusCode> {
+            let mut bytes = BytesMut::from(s);
+            Client::parse(
+                &mut bytes,
+                ParseContext {
+                    cached_headers: &mut None,
+                    req_method: &mut Some(Method::GET),
+                    h1_parser_config: Default::default(),
+                    h1_max_headers: None,
+                    preserve_header_case: false,
+                    #[cfg(feature = "ffi")]
+                    preserve_header_order: false,
+                    h09_responses: false,
+                    #[cfg(feature = "client")]
+                    on_informational: &mut None,
+                },
+            )
+            .unwrap()
+            .unwrap()
+        }
+
+        assert!(
+            !parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 0\r\n\
+                 connection: close\r\n\
+                 connection: keep-alive\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "close before keep-alive is still close"
+        );
+
+        assert!(
+            !parse(
+                "\
+                 HTTP/1.1 200 OK\r\n\
+                 content-length: 0\r\n\
+                 connection: keep-alive\r\n\
+                 connection: close\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "keep-alive before close is still close"
+        );
+
+        assert!(
+            parse(
+                "\
+                 HTTP/1.0 200 OK\r\n\
+                 content-length: 0\r\n\
+                 connection: keep-alive\r\n\
+                 connection: foo\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "HTTP/1.0 keep-alive is not undone by an unrelated token"
+        );
+
+        assert!(
+            !parse(
+                "\
+                 HTTP/1.0 200 OK\r\n\
+                 content-length: 0\r\n\
+                 connection: keep-alive\r\n\
+                 connection: close\r\n\
+                 \r\n\
+                 "
+            )
+            .keep_alive,
+            "HTTP/1.0 close wins over an earlier keep-alive"
         );
     }
 
