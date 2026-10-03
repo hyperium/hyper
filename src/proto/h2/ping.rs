@@ -395,6 +395,8 @@ impl Bdp {
 
         // if the current `bytes` sample is at least 2/3 the previous
         // bdp, increase to double the current sample.
+        #[allow(clippy::integer_division_remainder_used)]
+        #[allow(clippy::integer_division)]
         if bytes >= self.bdp as usize * 2 / 3 {
             self.bdp =
                 WindowSize::try_from((bytes * 2).min(BDP_LIMIT as usize)).unwrap_or(BDP_LIMIT);
