@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1790978792676,
+  "lastUpdate": 1791042023496,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13829,6 +13829,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 55100,
             "range": "± 12813.02",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "4666600+badimalex@users.noreply.github.com",
+            "name": "Dmitry B.",
+            "username": "badimalex"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "0d474402c20c17939c30aaecde56d1a3e21b2b0a",
+          "message": "style(lib): mark partial Debug impls as non-exhaustive (#4218)",
+          "timestamp": "2026-10-03T23:39:34+08:00",
+          "tree_id": "3a3ca0edcf71f28ae1a7a955309adf04fd1707dd",
+          "url": "https://github.com/hyperium/hyper/commit/0d474402c20c17939c30aaecde56d1a3e21b2b0a"
+        },
+        "date": 1791042020566,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56847,
+            "range": "± 13795.50",
             "unit": "ns/iter"
           }
         ]
