@@ -1016,7 +1016,7 @@ impl fmt::Debug for State {
 
         // Purposefully leaving off other fields..
 
-        builder.finish()
+        builder.finish_non_exhaustive()
     }
 }
 
