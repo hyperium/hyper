@@ -3345,137 +3345,125 @@ mod conn {
         let _ = tokio::time::timeout(Duration::from_secs(5), a_handle).await;
     }
 
-    // A chunk must not be handed to h2 while the stream holds only a sliver
-    // of capacity. h2 cuts a DATA frame from whatever capacity a stream holds,
-    // so on a connection whose window is nearly spent a chunk would otherwise
-    // leave as a 1-byte frame followed by more slivers. h2 0.4.16+ servers
-    // charge every small non-final DATA frame to a per-connection budget and
-    // answer its exhaustion with `GOAWAY(ENHANCE_YOUR_CALM)`.
     #[tokio::test]
-    async fn h2_chunk_waits_for_useful_capacity_instead_of_sliver_frames() {
-        use std::sync::{Arc, Mutex};
-
-        // Leave exactly one byte of the 65535-byte initial connection window.
-        const STREAM_A_LEN: usize = 65534;
-        const STREAM_B_LEN: usize = 10_000;
-
+    async fn h2_body_progresses_with_peer_window_below_one_kibibyte() {
         let (client_io, server_io, _) = setup_duplex_test_server();
-        let (stream_a_full_tx, stream_a_full_rx) = oneshot::channel::<()>();
-        let (release_a_tx, release_a_rx) = oneshot::channel::<()>();
-        let (stream_b_first_tx, stream_b_first_rx) = oneshot::channel::<usize>();
-
-        let stream_a_full_tx = Arc::new(Mutex::new(Some(stream_a_full_tx)));
-        let release_a_rx = Arc::new(Mutex::new(Some(release_a_rx)));
-        let stream_b_first_tx = Arc::new(Mutex::new(Some(stream_b_first_tx)));
+        let (headers_tx, headers_rx) = oneshot::channel();
+        let (first_tx, first_rx) = oneshot::channel();
         tokio::spawn(async move {
-            let mut h2 = h2::server::handshake(server_io).await.unwrap();
-            let mut seen = 0u32;
-            while let Some(result) = h2.accept().await {
-                let (req, mut respond) = result.unwrap();
-                seen += 1;
-                let which = seen;
-                let stream_a_full_tx = stream_a_full_tx.clone();
-                let release_a_rx = release_a_rx.clone();
-                let stream_b_first_tx = stream_b_first_tx.clone();
-                tokio::spawn(async move {
-                    let mut body = req.into_body();
-                    if which == 1 {
-                        // Stream A: take the burst without releasing capacity
-                        // until the test says so, then release all of it.
-                        let mut received = 0usize;
-                        while received < STREAM_A_LEN {
-                            match body.data().await {
-                                Some(Ok(f)) => received += f.len(),
-                                _ => return,
-                            }
-                        }
-                        if let Some(tx) = stream_a_full_tx.lock().unwrap().take() {
-                            let _ = tx.send(());
-                        }
-                        let release = release_a_rx.lock().unwrap().take();
-                        if let Some(release) = release {
-                            let _ = release.await;
-                        }
-                        let _ = body.flow_control().release_capacity(received);
-                        // Hold the stream open; the test ends before it matters.
-                        std::future::pending::<()>().await;
-                    } else {
-                        // Stream B: record the size of its FIRST data frame.
-                        let first = match body.data().await {
-                            Some(Ok(f)) => {
-                                let len = f.len();
-                                let _ = body.flow_control().release_capacity(len);
-                                len
-                            }
-                            _ => 0,
-                        };
-                        if let Some(tx) = stream_b_first_tx.lock().unwrap().take() {
-                            let _ = tx.send(first);
-                        }
-                        while let Some(Ok(f)) = body.data().await {
-                            let _ = body.flow_control().release_capacity(f.len());
-                        }
-                        let mut send = respond.send_response(Response::new(()), false).unwrap();
-                        let _ = send.send_data(Bytes::from_static(b"ok"), true);
-                    }
-                });
-            }
+            let mut builder = h2::server::Builder::new();
+            builder.initial_window_size(512);
+            let mut server = builder.handshake::<_, Bytes>(server_io).await.unwrap();
+            let (request, _respond) = server.accept().await.unwrap().unwrap();
+            tokio::spawn(async move {
+                let _ = poll_fn(|cx| server.poll_closed(cx)).await;
+            });
+            headers_tx.send(()).unwrap();
+            let mut body = request.into_body();
+            let first = body.data().await.unwrap().unwrap();
+            first_tx.send(first.len()).unwrap();
         });
 
         let io = TokioIo::new(client_io);
-        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+        let (mut client, connection) = conn::http2::Builder::new(TokioExecutor)
             .handshake::<_, BoxBody<Bytes, Box<dyn Error + Send + Sync>>>(io)
             .await
             .expect("http handshake");
         tokio::spawn(async move {
-            let _ = conn.await;
+            let _ = connection.await;
         });
 
-        // Request A fills the connection window down to its last byte.
-        let (mut tx_a, rx_a) =
+        let (mut tx, rx) = mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(1);
+        let request = Request::post("http://localhost/small-window")
+            .body(BodyExt::boxed(StreamBody::new(rx)))
+            .unwrap();
+        tokio::spawn(client.send_request(request));
+        headers_rx.await.unwrap();
+
+        use futures_util::SinkExt;
+        tx.send(Ok(Frame::data(Bytes::from(vec![0; 2048]))))
+            .await
+            .unwrap();
+        let first = tokio::time::timeout(Duration::from_secs(5), first_rx)
+            .await
+            .expect("a legal 512-byte stream window must permit DATA progress")
+            .unwrap();
+        assert_eq!(first, 512);
+    }
+
+    #[tokio::test]
+    async fn h2_body_uses_the_last_byte_of_connection_capacity() {
+        const STREAM_A_LEN: usize = 65534;
+
+        let (client_io, server_io, _) = setup_duplex_test_server();
+        let (a_full_tx, a_full_rx) = oneshot::channel();
+        let (b_first_tx, b_first_rx) = oneshot::channel();
+        tokio::spawn(async move {
+            let mut server = h2::server::Builder::new()
+                .handshake::<_, Bytes>(server_io)
+                .await
+                .unwrap();
+            let (a, respond_a) = server.accept().await.unwrap().unwrap();
+            tokio::spawn(async move {
+                let _respond_a = respond_a;
+                let mut body = a.into_body();
+                let mut received = 0;
+                while received < STREAM_A_LEN {
+                    received += body.data().await.unwrap().unwrap().len();
+                }
+                a_full_tx.send(()).unwrap();
+                std::future::pending::<()>().await;
+            });
+            let (b, _respond_b) = server.accept().await.unwrap().unwrap();
+            tokio::spawn(async move {
+                let _ = poll_fn(|cx| server.poll_closed(cx)).await;
+            });
+            let mut body = b.into_body();
+            let first = body.data().await.unwrap().unwrap();
+            b_first_tx.send(first.len()).unwrap();
+        });
+
+        let io = TokioIo::new(client_io);
+        let (mut client, connection) = conn::http2::Builder::new(TokioExecutor)
+            .handshake::<_, BoxBody<Bytes, Box<dyn Error + Send + Sync>>>(io)
+            .await
+            .expect("http handshake");
+        tokio::spawn(async move {
+            let _ = connection.await;
+        });
+
+        let (mut a_tx, a_rx) =
             mpsc::channel::<Result<Frame<Bytes>, Box<dyn Error + Send + Sync>>>(4);
-        let body_a: BoxBody<Bytes, Box<dyn Error + Send + Sync>> =
-            BodyExt::boxed(StreamBody::new(rx_a));
-        let req_a = Request::post("http://localhost/a").body(body_a).unwrap();
         let mut client_a = client.clone();
-        let _a_handle = tokio::spawn(async move { client_a.send_request(req_a).await });
+        tokio::spawn(async move {
+            let request = Request::post("http://localhost/a")
+                .body(BodyExt::boxed(StreamBody::new(a_rx)))
+                .unwrap();
+            let _ = client_a.send_request(request).await;
+        });
         use futures_util::SinkExt;
         let mut remaining = STREAM_A_LEN;
-        while remaining > 0 {
-            let take = remaining.min(16_384);
-            tx_a.send(Ok(Frame::data(Bytes::from(vec![b'A'; take]))))
+        while remaining != 0 {
+            let len = remaining.min(16_384);
+            a_tx.send(Ok(Frame::data(Bytes::from(vec![0; len]))))
                 .await
-                .expect("stream A channel send");
-            remaining -= take;
+                .unwrap();
+            remaining -= len;
         }
-        tokio::time::timeout(Duration::from_secs(5), stream_a_full_rx)
+        a_full_rx.await.unwrap();
+
+        let request = Request::post("http://localhost/b")
+            .body(BodyExt::boxed(
+                Full::new(Bytes::from(vec![0; 10_000]))
+                    .map_err(|never: std::convert::Infallible| match never {}),
+            ))
+            .unwrap();
+        tokio::spawn(client.send_request(request));
+        let first = tokio::time::timeout(Duration::from_secs(5), b_first_rx)
             .await
-            .expect("server should receive full stream A body in time")
-            .expect("stream_a_full_rx");
-
-        // Request B: a 10 KB chunk while only one byte of window is left.
-        let body_b: BoxBody<Bytes, Box<dyn Error + Send + Sync>> = BodyExt::boxed(
-            http_body_util::Full::new(Bytes::from(vec![b'B'; STREAM_B_LEN]))
-                .map_err(|never: std::convert::Infallible| match never {}),
-        );
-        let req_b = Request::post("http://localhost/b").body(body_b).unwrap();
-        let b_fut = tokio::spawn(client.send_request(req_b));
-
-        // Let stream B's pipe poll its chunk against the one-byte window, then
-        // free the window by releasing stream A's capacity.
-        tokio::time::sleep(Duration::from_millis(50)).await;
-        let _ = release_a_tx.send(());
-
-        let first_b = tokio::time::timeout(Duration::from_secs(5), stream_b_first_rx)
-            .await
-            .expect("stream B must reach the server once the window is released")
-            .expect("stream_b_first_rx");
-        assert!(
-            first_b >= 1024,
-            "stream B's first DATA frame was {first_b} bytes: the chunk was cut from a sliver of capacity"
-        );
-        let _ = tokio::time::timeout(Duration::from_secs(5), b_fut).await;
-        drop(tx_a);
+            .expect("the final connection byte must be usable without a WINDOW_UPDATE")
+            .unwrap();
+        assert_eq!(first, 1);
     }
 
     // https://github.com/hyperium/hyper/issues/4003, for HTTP/2 CONNECT

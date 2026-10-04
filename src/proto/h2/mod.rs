@@ -113,27 +113,6 @@ struct Peeked<D> {
     is_eos: bool,
 }
 
-/// Smallest amount of assigned stream capacity worth handing a chunk to h2
-/// with.
-///
-/// h2 cuts a DATA frame from whatever capacity a stream holds when the frame
-/// is written. With only the minimal claim assigned, a chunk sent on a
-/// connection whose window is nearly spent leaves as a run of tiny frames
-/// (silly-window syndrome): a 1-byte frame, then more slivers as capacity
-/// trickles in. Each costs a full frame header, and h2 0.4.16+ servers charge
-/// every non-final DATA frame under 256 bytes to a small per-connection budget
-/// and answer its exhaustion with `GOAWAY(ENHANCE_YOUR_CALM)`, failing every
-/// stream on the connection.
-///
-/// Waiting for this much keeps the claim small (the reasoning above still
-/// holds) while ruling out sliver frames. 1 KiB is far below any stream window
-/// a real peer advertises, so it cannot hold a chunk back indefinitely.
-const MIN_DATA_FRAME_CAPACITY: usize = 1024;
-
-fn min_data_frame_capacity(len: usize) -> usize {
-    len.min(MIN_DATA_FRAME_CAPACITY)
-}
-
 impl<S> PipeToSendStream<S>
 where
     S: Body,
@@ -178,13 +157,11 @@ where
             // If a previously-polled chunk is still waiting for stream-level
             // send capacity, drive that to completion before touching the
             // body again.
-            if let Some(peeked) = me.buffered_data.as_ref() {
-                // Wait for enough capacity to cut a useful first frame, not
-                // just any capacity: see `MIN_DATA_FRAME_CAPACITY`.
-                let needed = min_data_frame_capacity(peeked.data.remaining());
-                while me.body_tx.capacity() < needed {
+            if me.buffered_data.is_some() {
+                while me.body_tx.capacity() == 0 {
                     match ready!(me.body_tx.poll_capacity(cx)) {
-                        Some(Ok(_)) => {}
+                        Some(Ok(0)) => {}
+                        Some(Ok(_)) => break,
                         Some(Err(e)) => return Poll::Ready(Err(crate::Error::new_body_write(e))),
                         None => {
                             // None means the stream is no longer in a
@@ -253,7 +230,7 @@ where
                         // chunk in `self` so it survives the upcoming
                         // `poll_capacity` wait even if it returns
                         // `Poll::Pending`.
-                        me.body_tx.reserve_capacity(min_data_frame_capacity(len));
+                        me.body_tx.reserve_capacity(1);
                         *me.buffered_data = Some(Peeked {
                             data: chunk,
                             is_eos,
