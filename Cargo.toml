@@ -123,7 +123,6 @@ float_arithmetic = "allow"
 indexing_slicing = "allow"
 let_unit_value = "allow"
 match_wild_err_arm = "allow"
-missing_fields_in_debug = "allow" # TODO: use finish_non_exhaustive
 multiple_inherent_impl = "allow"
 multiple_unsafe_ops_per_block = "allow"
 needless_pass_by_value = "allow"
@@ -136,8 +135,11 @@ unnested_or_patterns = "allow"
 unused_async = "allow" # TODO: is it for API?
 unused_trait_names = "allow" # TODO: kinda annoying, but might be good to deny
 unwrap_in_result = "allow"
-useless_borrows_in_formatting = "allow"
 wildcard_enum_match_arm = "allow"
+definition_in_module_root = "allow"
+unnecessary_rest_pattern = "allow"
+rest_pattern_accessible_field = "allow"
+needless_bool = "allow"
 
 # explicitly allowed
 absolute_paths = "allow" # sometimes its cleaner
