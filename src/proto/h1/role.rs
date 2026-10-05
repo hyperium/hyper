@@ -1422,6 +1422,9 @@ impl Client {
                         Method::GET | Method::HEAD | Method::CONNECT => Some(Encoder::length(0)),
                         _ => {
                             te.insert(HeaderValue::from_static("chunked"));
+                            // A valid Content-Length would have taken precedence above.
+                            // Remove any invalid values now that we're using chunked.
+                            should_remove_con_len = true;
                             Some(Encoder::chunked())
                         }
                     }
@@ -2794,6 +2797,58 @@ mod tests {
                         "content-length: {values:?}, transfer-encoding: {transfer_encoding}"
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn test_client_request_encode_automatic_transfer_encoding_removes_content_length() {
+        use crate::proto::BodyLength;
+        use http::header::HeaderValue;
+
+        for values in [
+            vec![],
+            vec![""],
+            vec!["abc"],
+            vec!["+10"],
+            vec!["18446744073709551616"],
+            vec!["10", "11"],
+            vec!["10, 11"],
+            vec!["10", "abc"],
+            vec!["10"],
+        ] {
+            let mut head = RequestHead::default();
+            head.subject.0 = Method::POST;
+            for value in &values {
+                head.headers
+                    .append("content-length", HeaderValue::from_static(value));
+            }
+
+            let mut vec = Vec::new();
+            let encoder = Client::encode(
+                Encode {
+                    head: &mut head,
+                    body: Some(BodyLength::Unknown),
+                    #[cfg(feature = "server")]
+                    keep_alive: true,
+                    req_method: &mut None,
+                    title_case_headers: false,
+                    #[cfg(feature = "server")]
+                    date_header: true,
+                },
+                &mut vec,
+            )
+            .unwrap();
+
+            if values == ["10"] {
+                assert_eq!(encoder, Encoder::length(10));
+                assert_eq!(vec, b"POST / HTTP/1.1\r\ncontent-length: 10\r\n\r\n");
+            } else {
+                assert!(encoder.is_chunked());
+                assert_eq!(
+                    vec, b"POST / HTTP/1.1\r\ntransfer-encoding: chunked\r\n\r\n",
+                    "content-length: {values:?}"
+                );
             }
         }
     }
