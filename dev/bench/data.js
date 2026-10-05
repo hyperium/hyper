@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791206244393,
+  "lastUpdate": 1791215298978,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13889,6 +13889,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 31416,
             "range": "± 3927.92",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "adityadahale96@gmail.com",
+            "name": "Dahale Aditya Dnyaneshwar",
+            "username": "Aditya-9-6"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "d1cd14eff392be63a2318d690cc9380723ec61a1",
+          "message": "feat(http1): add max_header_size limit for server and client (#4183)\n\nAdds max_header_size(val: usize) on both server and client HTTP/1 builders.\nThis allows configuring an explicit byte limit for request/response headers\n(including the start line and chunked trailers).\n\nWhen the limit is exceeded:\n- On server: responds with 431 Request Header Fields Too Large and closes the connection.\n- On client: returns a Parse::TooLarge error (is_parse_too_large).\n- On chunked decoder: replaces existing TODO in proto/h1/conn.rs with the configured h1_max_header_size.\n\nCloses #3832.",
+          "timestamp": "2026-10-05T11:47:22-04:00",
+          "tree_id": "46dc4a5e40c842f31982e594ef60072383fa0866",
+          "url": "https://github.com/hyperium/hyper/commit/d1cd14eff392be63a2318d690cc9380723ec61a1"
+        },
+        "date": 1791215295430,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56563,
+            "range": "± 12786.73",
             "unit": "ns/iter"
           }
         ]
