@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791215298978,
+  "lastUpdate": 1791215368509,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -13919,6 +13919,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 56563,
             "range": "± 12786.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jeremy@shoemoney.com",
+            "name": "Jeremy Schoemaker",
+            "username": "shoemoney"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5dadff76d1cb5d21046218df3568569fbba8ed21",
+          "message": "fix(http1): let a Connection close token win over a later keep-alive (#4201)\n\nWhen parsing a message with more than one `Connection` header line, the\nper-line logic keyed the branch off the current value of `keep_alive`, so\na line that set `keep_alive` to false made the next line take the HTTP/1.0\narm and set it back to true. `Connection: close` followed by\n`Connection: keep-alive` therefore parsed as keep-alive, while the reverse\norder parsed correctly.\n\nTrack whether any `Connection` line carried a `close` token and let that\nwin for the rest of the loop, in both `Server::parse` and `Client::parse`.\nHTTP/1.0 messages that opt in with `Connection: keep-alive` are unchanged.",
+          "timestamp": "2026-10-05T11:48:45-04:00",
+          "tree_id": "762c0955b5ec4781a0b5e8d8e1e7fac67301d870",
+          "url": "https://github.com/hyperium/hyper/commit/5dadff76d1cb5d21046218df3568569fbba8ed21"
+        },
+        "date": 1791215365040,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 32278,
+            "range": "± 3410.36",
             "unit": "ns/iter"
           }
         ]
