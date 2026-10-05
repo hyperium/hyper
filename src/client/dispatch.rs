@@ -198,6 +198,15 @@ impl<T, U> Receiver<T, U> {
     }
 
     #[cfg(feature = "http1")]
+    pub(crate) fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        self.close();
+        // A send that started before close may still be publishing its envelope.
+        // Keep the receiver alive until all such envelopes have been canceled.
+        while futures_core::ready!(self.inner.poll_recv(cx)).is_some() {}
+        Poll::Ready(())
+    }
+
+    #[cfg(feature = "http1")]
     pub(crate) fn try_recv(&mut self) -> Option<(T, Callback<T, U>)> {
         match crate::common::task::now_or_never(self.inner.recv()) {
             Some(Some(mut env)) => env.0.take(),
