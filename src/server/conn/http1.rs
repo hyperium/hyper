@@ -77,6 +77,7 @@ pub struct Builder {
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     h1_max_headers: Option<usize>,
+    h1_max_header_size: Option<usize>,
     h1_header_read_timeout: Dur,
     h1_writev: Option<bool>,
     max_buf_size: Option<usize>,
@@ -248,6 +249,7 @@ impl Builder {
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,
+            h1_max_header_size: None,
             h1_header_read_timeout: Dur::Default(Some(Duration::from_secs(30))),
             h1_writev: None,
             max_buf_size: None,
@@ -338,6 +340,21 @@ impl Builder {
     /// Default is 100.
     pub fn max_headers(&mut self, val: usize) -> &mut Self {
         self.h1_max_headers = Some(val);
+        self
+    }
+
+    /// Set the maximum size of request headers (including the start line) in bytes.
+    ///
+    /// If the client sends headers exceeding this limit, the server responds to the
+    /// client with "431 Request Header Fields Too Large" and closes the connection.
+    ///
+    /// If not configured, then the [`max_buf_size`](Builder::max_buf_size) will naturally be reached and applied.
+    ///
+    /// This value is also used as the maximum size limit for chunked trailers.
+    ///
+    /// Default is `None`.
+    pub fn max_header_size(&mut self, val: usize) -> &mut Self {
+        self.h1_max_header_size = Some(val);
         self
     }
 
@@ -475,6 +492,9 @@ impl Builder {
         }
         if let Some(max_headers) = self.h1_max_headers {
             conn.set_http1_max_headers(max_headers);
+        }
+        if let Some(max_header_size) = self.h1_max_header_size {
+            conn.set_http1_max_header_size(max_header_size);
         }
         if let Some(dur) = self
             .timer
