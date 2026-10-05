@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791215423993,
+  "lastUpdate": 1791215508033,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -70057,6 +70057,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 6097873,
             "range": "± 8233914.75",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "jeremy@shoemoney.com",
+            "name": "Jeremy Schoemaker",
+            "username": "shoemoney"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5dadff76d1cb5d21046218df3568569fbba8ed21",
+          "message": "fix(http1): let a Connection close token win over a later keep-alive (#4201)\n\nWhen parsing a message with more than one `Connection` header line, the\nper-line logic keyed the branch off the current value of `keep_alive`, so\na line that set `keep_alive` to false made the next line take the HTTP/1.0\narm and set it back to true. `Connection: close` followed by\n`Connection: keep-alive` therefore parsed as keep-alive, while the reverse\norder parsed correctly.\n\nTrack whether any `Connection` line carried a `close` token and let that\nwin for the rest of the loop, in both `Server::parse` and `Client::parse`.\nHTTP/1.0 messages that opt in with `Connection: keep-alive` are unchanged.",
+          "timestamp": "2026-10-05T11:48:45-04:00",
+          "tree_id": "762c0955b5ec4781a0b5e8d8e1e7fac67301d870",
+          "url": "https://github.com/hyperium/hyper/commit/5dadff76d1cb5d21046218df3568569fbba8ed21"
+        },
+        "date": 1791215504248,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67210,
+            "range": "± 1376.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4649557,
+            "range": "± 249403.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21071,
+            "range": "± 601.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22552,
+            "range": "± 744.20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31722,
+            "range": "± 563.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99987,
+            "range": "± 930.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000216,
+            "range": "± 7808.71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 81541,
+            "range": "± 1400.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 15970711,
+            "range": "± 16370254.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7871758,
+            "range": "± 148671.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7612528,
+            "range": "± 112123.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 92407444,
+            "range": "± 1013235.11",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 50659608,
+            "range": "± 1103245.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5164007,
+            "range": "± 61496.90",
             "unit": "ns/iter"
           }
         ]
