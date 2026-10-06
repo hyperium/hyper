@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791240218182,
+  "lastUpdate": 1791287814278,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14009,6 +14009,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 35897,
             "range": "± 4501.92",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shodoco@gmail.com",
+            "name": "shodoco",
+            "username": "shodoco"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c44f1cc51c2bc45b502031a646d3d54315bd7a16",
+          "message": "fix(http1): withdraw a stale want when the client dispatcher takes a request (#4208)\n\nThe Receiver signals want when its queue reports Pending, and\nSendRequest::is_ready reports that want. A want signaled after finding the\nqueue empty can land after the Sender's give() for the request that follows,\nand tokio's coop budget can make the queue report Pending with a request\nalready queued. Either way the request is taken with want set, and the\nconnection reports ready until the response completes. hyper-util's legacy\npool returns connections on is_ready, so it hands a busy connection to the\nnext request, which then waits behind the whole response.\n\nWithdraw the want with want::Taker::unwant when a request is taken. Want is\nsignaled again once the dispatcher is idle.\n\nRequires want with Taker::unwant (seanmonstar/want#6).",
+          "timestamp": "2026-10-06T07:56:04-04:00",
+          "tree_id": "34ce81a09db8eddf0d1b073064518b1ecf2a3eb6",
+          "url": "https://github.com/hyperium/hyper/commit/c44f1cc51c2bc45b502031a646d3d54315bd7a16"
+        },
+        "date": 1791287811418,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 60034,
+            "range": "± 13477.24",
             "unit": "ns/iter"
           }
         ]
