@@ -182,6 +182,12 @@ impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
         match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
+                // A want signaled after finding the queue empty can land after
+                // the Sender's `give()` for the message taken here, as can one
+                // signaled on a coop-budget Pending with a message queued.
+                // Withdraw it, or the Sender reports this connection as ready
+                // while it is still serving this message.
+                self.taker.unwant();
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
             Poll::Pending => {
