@@ -39,7 +39,7 @@ itoa = { version = "1", optional = true }
 pin-project-lite = { version = "0.2.4", optional = true }
 smallvec = { version = "1.12", features = ["const_generics", "const_new"], optional = true }
 tracing = { version = "0.1", default-features = false, features = ["std"], optional = true }
-want = { version = "0.3", optional = true }
+want = { version = "0.3.2", optional = true }
 
 [dev-dependencies]
 form_urlencoded = "1"
@@ -346,4 +346,9 @@ required-features = ["full"]
 [[test]]
 name = "h1_shutdown_while_buffered"
 path = "tests/h1_shutdown_while_buffered.rs"
+required-features = ["full"]
+
+[[test]]
+name = "h1_ready_in_flight"
+path = "tests/h1_ready_in_flight.rs"
 required-features = ["full"]
