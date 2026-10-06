@@ -1,3 +1,22 @@
+## v1.12.0 (2026-10-06)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * withdraw a stale want when the client dispatcher takes a request (#4208) ([c44f1cc5](https://github.com/hyperium/hyper/commit/c44f1cc51c2bc45b502031a646d3d54315bd7a16))
+  * remove content-length if transfer-encoding is auto-added (#4224) ([69396fdd](https://github.com/hyperium/hyper/commit/69396fdd960629d69b09cc6c9b367ef8650c001d))
+  * always remove content-length if transfer-encoding is sent (#4223) ([a5d7fd78](https://github.com/hyperium/hyper/commit/a5d7fd7861598c0b8c857cb75240a75bcfbd96a3))
+  * let a Connection close token win over a later keep-alive (#4201) ([5dadff76](https://github.com/hyperium/hyper/commit/5dadff76d1cb5d21046218df3568569fbba8ed21))
+  * preserve hop-by-hop when setting close or keep-alive (#4196) ([74a39081](https://github.com/hyperium/hyper/commit/74a39081ff1496970fb75da75c5282b23a9b69e5))
+* **http2:** do not reserve capacity for idle Upgraded streams (#4198) ([e89d0d93](https://github.com/hyperium/hyper/commit/e89d0d93d9566210ee95aea234a00952ebc4a202))
+
+
+#### Features
+
+* **http1:** add max_header_size limit for server and client (#4183) ([d1cd14ef](https://github.com/hyperium/hyper/commit/d1cd14eff392be63a2318d690cc9380723ec61a1), closes [#3832](https://github.com/hyperium/hyper/issues/3832))
+
+
 ### v1.11.1 (2026-08-27)
 
 
