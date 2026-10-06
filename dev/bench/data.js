@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791287814278,
+  "lastUpdate": 1791287941968,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -70471,6 +70471,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3366723,
             "range": "± 248461.79",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shodoco@gmail.com",
+            "name": "shodoco",
+            "username": "shodoco"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c44f1cc51c2bc45b502031a646d3d54315bd7a16",
+          "message": "fix(http1): withdraw a stale want when the client dispatcher takes a request (#4208)\n\nThe Receiver signals want when its queue reports Pending, and\nSendRequest::is_ready reports that want. A want signaled after finding the\nqueue empty can land after the Sender's give() for the request that follows,\nand tokio's coop budget can make the queue report Pending with a request\nalready queued. Either way the request is taken with want set, and the\nconnection reports ready until the response completes. hyper-util's legacy\npool returns connections on is_ready, so it hands a busy connection to the\nnext request, which then waits behind the whole response.\n\nWithdraw the want with want::Taker::unwant when a request is taken. Want is\nsignaled again once the dispatcher is idle.\n\nRequires want with Taker::unwant (seanmonstar/want#6).",
+          "timestamp": "2026-10-06T07:56:04-04:00",
+          "tree_id": "34ce81a09db8eddf0d1b073064518b1ecf2a3eb6",
+          "url": "https://github.com/hyperium/hyper/commit/c44f1cc51c2bc45b502031a646d3d54315bd7a16"
+        },
+        "date": 1791287938903,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 38022,
+            "range": "± 3675.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 2503550,
+            "range": "± 307835.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 14655,
+            "range": "± 108.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 15239,
+            "range": "± 205.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 17722,
+            "range": "± 105.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 54326,
+            "range": "± 597.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999996,
+            "range": "± 32942.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 48484,
+            "range": "± 712.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 13324030,
+            "range": "± 16442066.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 5023590,
+            "range": "± 5632195.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4876329,
+            "range": "± 125627.01",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 75598874,
+            "range": "± 1401909.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 32854230,
+            "range": "± 1384727.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3354818,
+            "range": "± 73055.70",
             "unit": "ns/iter"
           }
         ]
