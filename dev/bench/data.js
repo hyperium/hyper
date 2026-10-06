@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791287941968,
+  "lastUpdate": 1791290875609,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14039,6 +14039,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 60034,
             "range": "± 13477.24",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "gngppz@gmail.com",
+            "name": "0x676e67",
+            "username": "0x676e67"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "254bf1271bf4385edd743316ca7c508b3c77d6cb",
+          "message": "perf(body): skip waking a closed peer when a channel end drops (#4225)",
+          "timestamp": "2026-10-06T08:47:01-04:00",
+          "tree_id": "2a916236d7a8c5e775961988e8a4926063cfaa6d",
+          "url": "https://github.com/hyperium/hyper/commit/254bf1271bf4385edd743316ca7c508b3c77d6cb"
+        },
+        "date": 1791290871350,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 56378,
+            "range": "± 10750.15",
             "unit": "ns/iter"
           }
         ]
