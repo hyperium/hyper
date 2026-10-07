@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791385094762,
+  "lastUpdate": 1791385254983,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -70885,6 +70885,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3859161,
             "range": "± 4223220.79",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f1b0876495cb042d228e8db00740056152ac131c",
+          "message": "docs(contrib): minor improvements to HIP-0001 (#4227)\n\n- Make sure the bare links render as clickable.\n- Add a note to refrain from using AI/LLMs when writing a HIP.",
+          "timestamp": "2026-10-07T10:57:19-04:00",
+          "tree_id": "8b02597b0a82d51e267f674bd4fd99cfcd3b6836",
+          "url": "https://github.com/hyperium/hyper/commit/f1b0876495cb042d228e8db00740056152ac131c"
+        },
+        "date": 1791385251795,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67709,
+            "range": "± 1504.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4347097,
+            "range": "± 210654.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20299,
+            "range": "± 457.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 21966,
+            "range": "± 499.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 29438,
+            "range": "± 1143.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100024,
+            "range": "± 2998.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000096,
+            "range": "± 30974.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 79665,
+            "range": "± 965.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 31997516,
+            "range": "± 16478223.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 24027123,
+            "range": "± 16335100.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7619861,
+            "range": "± 140941.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 92587705,
+            "range": "± 1006564.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 53091580,
+            "range": "± 888140.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5174671,
+            "range": "± 117768.46",
             "unit": "ns/iter"
           }
         ]
