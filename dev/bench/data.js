@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791302389749,
+  "lastUpdate": 1791385094762,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14099,6 +14099,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 48591,
             "range": "± 26270.89",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "f1b0876495cb042d228e8db00740056152ac131c",
+          "message": "docs(contrib): minor improvements to HIP-0001 (#4227)\n\n- Make sure the bare links render as clickable.\n- Add a note to refrain from using AI/LLMs when writing a HIP.",
+          "timestamp": "2026-10-07T10:57:19-04:00",
+          "tree_id": "8b02597b0a82d51e267f674bd4fd99cfcd3b6836",
+          "url": "https://github.com/hyperium/hyper/commit/f1b0876495cb042d228e8db00740056152ac131c"
+        },
+        "date": 1791385091309,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 41517,
+            "range": "± 8717.90",
             "unit": "ns/iter"
           }
         ]
