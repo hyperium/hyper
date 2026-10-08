@@ -25,6 +25,7 @@ pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
     body_tx: SenderDropGuard,
     body_rx: Pin<Box<Option<Bs>>>,
     is_closing: bool,
+    error: Option<crate::Error>,
 }
 
 pub(crate) trait Dispatch {
@@ -38,6 +39,13 @@ pub(crate) trait Dispatch {
     ) -> Poll<Option<Result<(Self::PollItem, Self::PollBody), Self::PollError>>>;
     fn recv_msg(&mut self, msg: crate::Result<(Self::RecvItem, IncomingBody)>)
         -> crate::Result<()>;
+    fn poll_recv_error(
+        &mut self,
+        _cx: &mut Context<'_>,
+        error: &mut Option<crate::Error>,
+    ) -> Poll<crate::Result<()>> {
+        Poll::Ready(self.recv_msg(Err(error.take().expect("pending connection error"))))
+    }
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
 }
@@ -84,6 +92,7 @@ where
             body_tx: SenderDropGuard::none(),
             body_rx: Box::pin(None),
             is_closing: false,
+            error: None,
         }
     }
 
@@ -125,19 +134,21 @@ where
         cx: &mut Context<'_>,
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
-        Poll::Ready(ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
+        if self.error.is_none() {
+            match ready!(self.poll_inner(cx, should_shutdown)) {
+                Ok(dispatched) => return Poll::Ready(Ok(dispatched)),
+                Err(error) => self.error = Some(error),
+            }
             // Be sure to alert a streaming body of the failure with a
             // more specific error than the drop guard would provide.
             if let Some(mut body) = self.body_tx.take() {
                 body.send_error(crate::Error::new_body("connection error"));
             }
-            // An error means we're shutting down either way.
-            // We just try to give the error to the user,
-            // and close the connection with an Ok. If we
-            // cannot give it to the user, then return the Err.
-            self.dispatch.recv_msg(Err(e))?;
-            Ok(Dispatched::Shutdown)
-        }))
+        }
+        // Keep the error while the client drains an in-flight send. Pending may
+        // also mean that Tokio needs this task to yield its cooperative budget.
+        ready!(self.dispatch.poll_recv_error(cx, &mut self.error))?;
+        Poll::Ready(Ok(Dispatched::Shutdown))
     }
 
     fn poll_inner(
@@ -333,12 +344,7 @@ where
             }
             Some(Err(err)) => {
                 debug!("read_head error: {}", err);
-                self.dispatch.recv_msg(Err(err))?;
-                // if here, the dispatcher gave the user the error
-                // somewhere else. we still need to shutdown, but
-                // not as a second error.
-                self.close();
-                Poll::Ready(Ok(()))
+                Poll::Ready(Err(err))
             }
             None => {
                 // read eof, the write side will have been closed too unless
@@ -727,24 +733,34 @@ cfg_client! {
                             message: None,
                         }));
                         Ok(())
-                    } else if !self.rx_closed {
-                        if let Some((req, cb)) = self.rx.close_and_recv() {
-                            trace!("canceling queued request with connection error: {}", err);
-                            // in this case, the message was never even started, so it's safe to tell
-                            // the user that the request was completely canceled
-                            cb.send(Err(TrySendError {
-                                error: crate::Error::new_canceled().with(err),
-                                message: Some(req),
-                            }));
-                            Ok(())
-                        } else {
-                            Err(err)
-                        }
                     } else {
                         Err(err)
                     }
                 }
             }
+        }
+
+        fn poll_recv_error(
+            &mut self,
+            cx: &mut Context<'_>,
+            error: &mut Option<crate::Error>,
+        ) -> Poll<crate::Result<()>> {
+            if self.callback.is_none() && !self.rx_closed {
+                let queued = ready!(self.rx.poll_close_and_recv(cx));
+                self.rx_closed = true;
+                if let Some((req, cb)) = queued {
+                    let err = error.take().expect("pending connection error");
+                    trace!("canceling queued request with connection error: {}", err);
+                    // The request was never started, so it can be returned to
+                    // the caller along with the original connection error.
+                    cb.send(Err(TrySendError {
+                        error: crate::Error::new_canceled().with(err),
+                        message: Some(req),
+                    }));
+                    return Poll::Ready(Ok(()));
+                }
+            }
+            Poll::Ready(self.recv_msg(Err(error.take().expect("pending connection error"))))
         }
 
         fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>> {
@@ -806,6 +822,43 @@ mod tests {
                 _ => panic!("expected Canceled, got {:?}", err),
             }
         });
+    }
+
+    #[tokio::test]
+    async fn client_shutdown_preserves_error_across_budget_yield() {
+        use futures_util::{future::poll_fn, FutureExt};
+
+        tokio::spawn(async {
+            let io = tokio_test::io::Builder::new().build();
+            let (mut tx, rx) = crate::client::dispatch::channel();
+            let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(Compat::new(io));
+            let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+            // Start at error delivery so mock IO does not consume the exhausted
+            // budget before the dispatch receiver is polled.
+            dispatcher.error = Some(crate::Error::new_unexpected_message());
+            let response = tx
+                .try_send(crate::Request::new(IncomingBody::empty()))
+                .unwrap();
+
+            let (budget_tx, mut budget_rx) = tokio::sync::mpsc::unbounded_channel();
+            for _ in 0..1024 {
+                budget_tx.send(()).unwrap();
+            }
+            while budget_rx.recv().now_or_never().is_some() {}
+            assert!(budget_rx.try_recv().is_ok());
+
+            assert!(poll_fn(|cx| Pin::new(&mut dispatcher).poll(cx))
+                .now_or_never()
+                .is_none());
+            assert!(dispatcher.error.is_some());
+
+            dispatcher.await.unwrap();
+            let err = response.await.unwrap().expect_err("request must be canceled");
+            assert!(err.error.is_canceled());
+            assert!(err.message.is_some());
+        })
+        .await
+        .unwrap();
     }
 
     #[cfg(not(miri))]

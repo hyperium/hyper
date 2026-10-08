@@ -192,19 +192,18 @@ impl<T, U> Receiver<T, U> {
     }
 
     #[cfg(feature = "http1")]
-    pub(crate) fn close_and_recv(&mut self) -> Option<(T, Callback<T, U>)> {
+    pub(crate) fn poll_close_and_recv(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<Option<(T, Callback<T, U>)>> {
         self.taker.cancel();
         self.inner.close();
-        loop {
-            match self.inner.try_recv() {
-                Ok(mut env) => return env.0.take(),
-                Err(mpsc::error::TryRecvError::Disconnected) => return None,
-                // A send can reserve capacity immediately before close() and
-                // publish its envelope immediately afterwards. Once closed,
-                // Empty means that such a synchronous send is still in flight.
-                Err(mpsc::error::TryRecvError::Empty) => std::hint::spin_loop(),
-            }
-        }
+        // A send may have reserved capacity before close() without publishing
+        // its envelope yet. Let it wake this task rather than spinning, including
+        // when Tokio's cooperative task budget is exhausted.
+        self.inner.poll_recv(cx).map(|item| {
+            item.map(|mut env| env.0.take().expect("envelope not dropped"))
+        })
     }
 }
 
@@ -418,7 +417,7 @@ mod tests {
 
     #[cfg(feature = "http1")]
     #[tokio::test]
-    async fn receiver_shutdown_ignores_exhausted_task_budget() {
+    async fn receiver_shutdown_yields_when_task_budget_is_exhausted() {
         use futures_util::FutureExt;
 
         tokio::spawn(async {
@@ -434,10 +433,14 @@ mod tests {
             while budget_rx.recv().now_or_never().is_some() {}
             assert!(budget_rx.try_recv().is_ok());
 
-            let (value, callback) = rx.close_and_recv().expect("queued request");
+            let (value, callback) = futures_util::future::poll_fn(|cx| rx.poll_close_and_recv(cx))
+                .await
+                .expect("queued request");
             assert_eq!(value, 43);
             drop(callback);
-            assert!(rx.close_and_recv().is_none());
+            assert!(futures_util::future::poll_fn(|cx| rx.poll_close_and_recv(cx))
+                .await
+                .is_none());
         })
         .await
         .unwrap();
@@ -446,6 +449,9 @@ mod tests {
     #[cfg(feature = "http1")]
     #[test]
     fn receiver_shutdown_reclaims_concurrent_send() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
         let barrier = Arc::new(Barrier::new(2));
         let worker_barrier = barrier.clone();
         let (work_tx, work_rx) = std_mpsc::channel::<(super::Sender<TrackDrop, ()>, TrackDrop)>();
@@ -466,7 +472,9 @@ mod tests {
             let dropped = Arc::new(AtomicBool::new(false));
             work_tx.send((tx, TrackDrop(dropped.clone()))).unwrap();
             barrier.wait();
-            drop(rx.close_and_recv());
+            drop(rt.block_on(futures_util::future::poll_fn(|cx| {
+                rx.poll_close_and_recv(cx)
+            })));
             drop(rx);
             barrier.wait();
             let tx = done_rx.recv().unwrap();
