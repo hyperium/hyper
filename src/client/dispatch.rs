@@ -196,13 +196,13 @@ impl<T, U> Receiver<T, U> {
         self.taker.cancel();
         self.inner.close();
         loop {
-            match crate::common::task::now_or_never(self.inner.recv()) {
-                Some(Some(mut env)) => return env.0.take(),
-                Some(None) => return None,
+            match self.inner.try_recv() {
+                Ok(mut env) => return env.0.take(),
+                Err(mpsc::error::TryRecvError::Disconnected) => return None,
                 // A send can reserve capacity immediately before close() and
                 // publish its envelope immediately afterwards. Once closed,
-                // Pending means that such a synchronous send is still in flight.
-                None => std::hint::spin_loop(),
+                // Empty means that such a synchronous send is still in flight.
+                Err(mpsc::error::TryRecvError::Empty) => std::hint::spin_loop(),
             }
         }
     }
@@ -414,6 +414,33 @@ mod tests {
         fn drop(&mut self) {
             self.0.store(true, Ordering::SeqCst);
         }
+    }
+
+    #[cfg(feature = "http1")]
+    #[tokio::test]
+    async fn receiver_shutdown_ignores_exhausted_task_budget() {
+        use futures_util::FutureExt;
+
+        tokio::spawn(async {
+            let (mut tx, mut rx) = channel::<i32, ()>();
+            let _promise = tx.try_send(43).unwrap();
+
+            // Exhaust this task's budget without yielding, leaving a queued
+            // message to distinguish budget exhaustion from an empty channel.
+            let (budget_tx, mut budget_rx) = tokio::sync::mpsc::unbounded_channel();
+            for _ in 0..1024 {
+                budget_tx.send(()).unwrap();
+            }
+            while budget_rx.recv().now_or_never().is_some() {}
+            assert!(budget_rx.try_recv().is_ok());
+
+            let (value, callback) = rx.close_and_recv().expect("queued request");
+            assert_eq!(value, 43);
+            drop(callback);
+            assert!(rx.close_and_recv().is_none());
+        })
+        .await
+        .unwrap();
     }
 
     #[cfg(feature = "http1")]
