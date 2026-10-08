@@ -201,9 +201,9 @@ impl<T, U> Receiver<T, U> {
         // A send may have reserved capacity before close() without publishing
         // its envelope yet. Let it wake this task rather than spinning, including
         // when Tokio's cooperative task budget is exhausted.
-        self.inner.poll_recv(cx).map(|item| {
-            item.map(|mut env| env.0.take().expect("envelope not dropped"))
-        })
+        self.inner
+            .poll_recv(cx)
+            .map(|item| item.map(|mut env| env.0.take().expect("envelope not dropped")))
     }
 }
 
@@ -438,9 +438,11 @@ mod tests {
                 .expect("queued request");
             assert_eq!(value, 43);
             drop(callback);
-            assert!(futures_util::future::poll_fn(|cx| rx.poll_close_and_recv(cx))
-                .await
-                .is_none());
+            assert!(
+                futures_util::future::poll_fn(|cx| rx.poll_close_and_recv(cx))
+                    .await
+                    .is_none()
+            );
         })
         .await
         .unwrap();

@@ -853,7 +853,10 @@ mod tests {
             assert!(dispatcher.error.is_some());
 
             dispatcher.await.unwrap();
-            let err = response.await.unwrap().expect_err("request must be canceled");
+            let err = response
+                .await
+                .unwrap()
+                .expect_err("request must be canceled");
             assert!(err.error.is_canceled());
             assert!(err.message.is_some());
         })
