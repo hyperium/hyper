@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791579697973,
+  "lastUpdate": 1791582952872,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14159,6 +14159,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 46114,
             "range": "± 5899.42",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2b454af2127561a447214a11ac3a498ee868062c",
+          "message": "chore(ci): check that PR descriptions assert that the words are human (#4229)\n\nThis should be able to run automatically even without our approving of new\ncontributors PRs, so they will hopefully be alerted before we have to read\nsome generated PR description that is overly long.\n\nOrganization members are skipped, since there is already trust established.",
+          "timestamp": "2026-10-09T17:55:03-04:00",
+          "tree_id": "2e7a9f127b014708932222594776dd19eb7e49e0",
+          "url": "https://github.com/hyperium/hyper/commit/2b454af2127561a447214a11ac3a498ee868062c"
+        },
+        "date": 1791582949711,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 65009,
+            "range": "± 13401.00",
             "unit": "ns/iter"
           }
         ]
