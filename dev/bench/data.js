@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791385254983,
+  "lastUpdate": 1791579565204,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14129,6 +14129,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 41517,
             "range": "± 8717.90",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Kayano04@outlook.jp",
+            "name": "赤坂理子",
+            "username": "akasakariko"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "97fff93e53f9e6a993f2d6a25d50883b7b8752a7",
+          "message": "fix(http1): drain in-flight requests before dispatcher shutdown (#4222)\n\nKeep the closed dispatch receiver alive until all in-progress sends have published and canceled their callbacks\n\nPreserve the connection result across drain polls and keep upgrade handoffs unchanged\n\nCloses #4202",
+          "timestamp": "2026-10-09T16:58:30-04:00",
+          "tree_id": "3baa703469665c1befd31ac9b55fce3d6fe8304d",
+          "url": "https://github.com/hyperium/hyper/commit/97fff93e53f9e6a993f2d6a25d50883b7b8752a7"
+        },
+        "date": 1791579561782,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 46114,
+            "range": "± 5899.42",
             "unit": "ns/iter"
           }
         ]
