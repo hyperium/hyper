@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791582952872,
+  "lastUpdate": 1791583058789,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71161,6 +71161,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5264476,
             "range": "± 36925.64",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "2b454af2127561a447214a11ac3a498ee868062c",
+          "message": "chore(ci): check that PR descriptions assert that the words are human (#4229)\n\nThis should be able to run automatically even without our approving of new\ncontributors PRs, so they will hopefully be alerted before we have to read\nsome generated PR description that is overly long.\n\nOrganization members are skipped, since there is already trust established.",
+          "timestamp": "2026-10-09T17:55:03-04:00",
+          "tree_id": "2e7a9f127b014708932222594776dd19eb7e49e0",
+          "url": "https://github.com/hyperium/hyper/commit/2b454af2127561a447214a11ac3a498ee868062c"
+        },
+        "date": 1791583054973,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67919,
+            "range": "± 709.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4143581,
+            "range": "± 122535.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21213,
+            "range": "± 666.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22865,
+            "range": "± 364.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31365,
+            "range": "± 1773.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 104005,
+            "range": "± 2624.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000127,
+            "range": "± 8884.87",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 81270,
+            "range": "± 1189.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16149282,
+            "range": "± 16438192.06",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7841602,
+            "range": "± 141958.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7693709,
+            "range": "± 99262.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 51849966,
+            "range": "± 850016.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 53711004,
+            "range": "± 611396.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5473715,
+            "range": "± 85492.36",
             "unit": "ns/iter"
           }
         ]
