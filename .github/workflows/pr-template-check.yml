@@ -1,0 +1,11 @@
+name: PR Template Verification
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, synchronize]
+
+permissions: {}
+
+jobs:
+  verify-template:
+    uses: hyperium/.github/.github/workflows/pr-template-check.yml@master
