@@ -25,6 +25,7 @@ pub(crate) struct Dispatcher<D, Bs: Body, I, T> {
     body_tx: SenderDropGuard,
     body_rx: Pin<Box<Option<Bs>>>,
     is_closing: bool,
+    pending_result: Option<crate::Result<Dispatched>>,
 }
 
 pub(crate) trait Dispatch {
@@ -40,6 +41,9 @@ pub(crate) trait Dispatch {
         -> crate::Result<()>;
     fn poll_ready(&mut self, cx: &mut Context<'_>) -> Poll<Result<(), ()>>;
     fn should_poll(&self) -> bool;
+    fn poll_close(&mut self, _cx: &mut Context<'_>) -> Poll<()> {
+        Poll::Ready(())
+    }
 }
 
 cfg_server! {
@@ -84,6 +88,7 @@ where
             body_tx: SenderDropGuard::none(),
             body_rx: Box::pin(None),
             is_closing: false,
+            pending_result: None,
         }
     }
 
@@ -125,19 +130,33 @@ where
         cx: &mut Context<'_>,
         should_shutdown: bool,
     ) -> Poll<crate::Result<Dispatched>> {
-        Poll::Ready(ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
-            // Be sure to alert a streaming body of the failure with a
-            // more specific error than the drop guard would provide.
-            if let Some(mut body) = self.body_tx.take() {
-                body.send_error(crate::Error::new_body("connection error"));
+        if self.pending_result.is_none() {
+            let result = ready!(self.poll_inner(cx, should_shutdown)).or_else(|e| {
+                // Be sure to alert a streaming body of the failure with a
+                // more specific error than the drop guard would provide.
+                if let Some(mut body) = self.body_tx.take() {
+                    body.send_error(crate::Error::new_body("connection error"));
+                }
+                // An error means we're shutting down either way.
+                // We just try to give the error to the user,
+                // and close the connection with an Ok. If we
+                // cannot give it to the user, then return the Err.
+                self.dispatch.recv_msg(Err(e))?;
+                Ok(Dispatched::Shutdown)
+            });
+            // An upgrade hands off the connection rather than shutting it down.
+            // Preserve the sender's readiness until the dispatcher is dropped.
+            if matches!(result, Ok(Dispatched::Upgrade(_))) {
+                return Poll::Ready(result);
             }
-            // An error means we're shutting down either way.
-            // We just try to give the error to the user,
-            // and close the connection with an Ok. If we
-            // cannot give it to the user, then return the Err.
-            self.dispatch.recv_msg(Err(e))?;
-            Ok(Dispatched::Shutdown)
-        }))
+            self.pending_result = Some(result);
+        }
+
+        // Closing a channel does not prevent an already-started send from
+        // publishing later. Drain it before completing so a caller holding
+        // the sender while awaiting its response cannot strand a callback.
+        ready!(self.dispatch.poll_close(cx));
+        Poll::Ready(self.pending_result.take().expect("closing result missing"))
     }
 
     fn poll_inner(
@@ -764,6 +783,10 @@ cfg_client! {
         fn should_poll(&self) -> bool {
             self.callback.is_none()
         }
+
+        fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+            self.rx.poll_close(cx)
+        }
     }
 }
 
@@ -773,6 +796,147 @@ mod tests {
     use crate::common::io::Compat;
     use crate::proto::h1::ClientTransaction;
     use std::time::Duration;
+
+    #[cfg(not(miri))]
+    #[tokio::test]
+    async fn client_close_drains_pending_requests_on_reset() {
+        client_close_drains_pending_requests(true, true).await;
+    }
+
+    #[cfg(not(miri))]
+    #[tokio::test]
+    async fn client_close_drains_pending_requests_on_eof() {
+        client_close_drains_pending_requests(false, true).await;
+    }
+
+    #[cfg(not(miri))]
+    #[tokio::test]
+    async fn client_close_drains_pending_requests_without_shutdown() {
+        client_close_drains_pending_requests(false, false).await;
+    }
+
+    #[cfg(not(miri))]
+    async fn client_close_drains_pending_requests(reset: bool, should_shutdown: bool) {
+        use std::{cell::Cell, io, rc::Rc};
+
+        #[derive(Clone, Copy)]
+        enum ReadState {
+            Pending,
+            Response,
+            Close,
+            Done,
+        }
+
+        // Unlike Tokio IO, this reader does not consume cooperative budget, so
+        // the close is observed while the dispatch channel is forced to yield.
+        struct ClosingReader {
+            state: Rc<Cell<ReadState>>,
+            reset: bool,
+        }
+
+        impl tokio::io::AsyncRead for ClosingReader {
+            fn poll_read(
+                self: Pin<&mut Self>,
+                _cx: &mut Context<'_>,
+                buf: &mut tokio::io::ReadBuf<'_>,
+            ) -> Poll<io::Result<()>> {
+                match self.state.get() {
+                    ReadState::Pending => Poll::Pending,
+                    ReadState::Response => {
+                        buf.put_slice(b"HTTP/1.1 200 OK\r\ncontent-length: 0\r\n\r\n");
+                        self.state.set(ReadState::Pending);
+                        Poll::Ready(Ok(()))
+                    }
+                    ReadState::Close => {
+                        self.state.set(ReadState::Done);
+                        if self.reset {
+                            Poll::Ready(Err(io::Error::new(
+                                io::ErrorKind::ConnectionReset,
+                                "reset",
+                            )))
+                        } else {
+                            Poll::Ready(Ok(()))
+                        }
+                    }
+                    ReadState::Done => panic!("closed IO must not be polled again"),
+                }
+            }
+        }
+
+        let state = Rc::new(Cell::new(ReadState::Pending));
+        let io = Compat::new(tokio::io::join(
+            ClosingReader {
+                state: state.clone(),
+                reset,
+            },
+            Vec::<u8>::new(),
+        ));
+        let (mut tx, rx) = crate::client::dispatch::channel();
+        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(io);
+        let mut dispatcher = Dispatcher::new(Client::new(rx), conn);
+
+        // Complete an exchange to put the connection into idle keep-alive.
+        let mut first = tokio_test::task::spawn(
+            tx.try_send(crate::Request::new(IncomingBody::empty()))
+                .unwrap(),
+        );
+        tokio_test::task::spawn(()).enter(|cx, _| {
+            assert!(Pin::new(&mut dispatcher).poll(cx).is_pending());
+            state.set(ReadState::Response);
+            assert!(Pin::new(&mut dispatcher).poll(cx).is_pending());
+        });
+        tokio_test::assert_ready_ok!(first.poll()).unwrap();
+        assert!(tx.is_ready());
+        state.set(ReadState::Close);
+        let req = crate::Request::builder()
+            .uri("/not-sent")
+            .body(IncomingBody::empty())
+            .unwrap();
+        let promise = tx.try_send(req).unwrap();
+        let mut dispatcher = tokio_test::task::spawn(futures_util::future::poll_fn(|cx| {
+            dispatcher.poll_catch(cx, should_shutdown)
+        }));
+
+        // Exhaust Tokio's cooperative budget so even a closed channel returns
+        // Pending when polled. This deterministically exercises the same drain
+        // path as a send that has reserved a slot but not yet published it.
+        let (budget_tx, mut budget_rx) = tokio::sync::mpsc::unbounded_channel();
+        loop {
+            budget_tx.send(()).unwrap();
+            if task::now_or_never(budget_rx.recv()).is_none() {
+                break;
+            }
+        }
+
+        assert!(
+            dispatcher.poll().is_pending(),
+            "must finish draining before exiting"
+        );
+        assert!(tx.is_closed(), "must reject new requests while draining");
+
+        // The dispatcher must retain its original result while the drain is
+        // pending, rather than polling the closed connection again.
+        tokio::task::yield_now().await;
+        assert!(dispatcher.is_woken());
+        let result = tokio_test::assert_ready!(dispatcher.poll());
+        if reset {
+            let err = result.err().expect("connection reset error");
+            assert_eq!(
+                err.find_source::<std::io::Error>().unwrap().kind(),
+                std::io::ErrorKind::ConnectionReset,
+            );
+        } else {
+            assert!(matches!(result, Ok(Dispatched::Shutdown)));
+        }
+
+        // Keep both the sender and dispatcher alive: cancellation must not
+        // depend on either one's destructor running.
+        let mut promise = tokio_test::task::spawn(promise);
+        let mut err = tokio_test::assert_ready_ok!(promise.poll()).unwrap_err();
+        assert!(err.error().is_canceled());
+        assert_eq!(err.take_message().unwrap().uri(), "/not-sent");
+        assert!(tx.is_closed());
+    }
 
     #[test]
     fn client_read_bytes_before_writing_request() {
