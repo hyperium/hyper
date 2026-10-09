@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791579565204,
+  "lastUpdate": 1791579697973,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71023,6 +71023,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5174671,
             "range": "± 117768.46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Kayano04@outlook.jp",
+            "name": "赤坂理子",
+            "username": "akasakariko"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "97fff93e53f9e6a993f2d6a25d50883b7b8752a7",
+          "message": "fix(http1): drain in-flight requests before dispatcher shutdown (#4222)\n\nKeep the closed dispatch receiver alive until all in-progress sends have published and canceled their callbacks\n\nPreserve the connection result across drain polls and keep upgrade handoffs unchanged\n\nCloses #4202",
+          "timestamp": "2026-10-09T16:58:30-04:00",
+          "tree_id": "3baa703469665c1befd31ac9b55fce3d6fe8304d",
+          "url": "https://github.com/hyperium/hyper/commit/97fff93e53f9e6a993f2d6a25d50883b7b8752a7"
+        },
+        "date": 1791579693428,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 67946,
+            "range": "± 1135.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4149729,
+            "range": "± 37003.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21251,
+            "range": "± 342.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22863,
+            "range": "± 604.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 31227,
+            "range": "± 20093.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100211,
+            "range": "± 2704.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000284,
+            "range": "± 34971.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 79805,
+            "range": "± 2231.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 16138036,
+            "range": "± 16462306.57",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 7865619,
+            "range": "± 32901538.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7944021,
+            "range": "± 290338.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 53057320,
+            "range": "± 1003140.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 52251816,
+            "range": "± 626761.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5264476,
+            "range": "± 36925.64",
             "unit": "ns/iter"
           }
         ]
