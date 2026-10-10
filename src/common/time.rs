@@ -41,7 +41,10 @@ impl Time {
         }
     }
 
-    #[cfg(all(feature = "server", feature = "http1"))]
+    #[cfg(any(
+        all(any(feature = "client", feature = "server"), feature = "http2"),
+        all(feature = "server", feature = "http1"),
+    ))]
     pub(crate) fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn Sleep>> {
         match &self {
             #[allow(clippy::panic)]
