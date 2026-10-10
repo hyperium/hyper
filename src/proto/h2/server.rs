@@ -185,7 +185,10 @@ where
     pub(crate) fn graceful_shutdown(&mut self) {
         trace!("graceful_shutdown");
         match &mut self.state {
-            State::Handshaking { .. } => {
+            State::Handshaking {
+                ping_config: _,
+                hs: _,
+            } => {
                 self.close_pending = true;
             }
             State::Serving(srv) => {

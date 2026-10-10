@@ -137,7 +137,6 @@ unwrap_in_result = "allow"
 wildcard_enum_match_arm = "allow"
 definition_in_module_root = "allow"
 unnecessary_rest_pattern = "allow"
-rest_pattern_accessible_field = "allow"
 needless_bool = "allow"
 
 # explicitly allowed
@@ -191,6 +190,7 @@ too_many_lines = "allow" # reconsider someday?
 type_complexity = "allow" # not helpful
 used_underscore_items = "allow"
 unnecessary_safety_comment = "allow" # more safety comments are a good thing
+unneeded_field_pattern = "allow" # exhaustive matching is helpful
 unseparated_literal_suffix = "allow" # i don't like 0_u8 (do i?)
 
 [package.metadata.docs.rs]
