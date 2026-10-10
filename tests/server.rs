@@ -1068,6 +1068,132 @@ async fn expect_continue_waits_for_body_poll() {
     child.join().expect("client thread");
 }
 
+async fn h2_expect_continue_server<S>(svc: S) -> SendRequest<Bytes>
+where
+    S: hyper::service::HttpService<IncomingBody, ResBody = Empty<Bytes>> + Send + 'static,
+    S::Future: Send + 'static,
+    S::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    let (listener, addr) = setup_tcp_listener();
+    tokio::spawn(async move {
+        let (socket, _) = listener.accept().await.unwrap();
+        let _ = http2::Builder::new(TokioExecutor)
+            .serve_connection(TokioIo::new(socket), svc)
+            .await;
+    });
+
+    let conn = connect_async(addr).await;
+    let (h2, connection) = h2::client::handshake(conn).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    h2.ready().await.unwrap()
+}
+
+fn h2_send_expect_request(
+    h2: &mut SendRequest<Bytes>,
+    end_of_stream: bool,
+) -> (h2::client::ResponseFuture, SendStream<Bytes>) {
+    let mut req = Request::post("http://localhost/foo").header("expect", "100-continue");
+    if !end_of_stream {
+        req = req.header("content-length", "5");
+    }
+    h2.send_request(req.body(()).unwrap(), end_of_stream)
+        .unwrap()
+}
+
+async fn h2_assert_no_informational(response: &mut h2::client::ResponseFuture) {
+    let info = future::poll_fn(|cx| response.poll_informational(cx)).await;
+    assert!(
+        info.is_none(),
+        "unexpected informational response: {:?}",
+        info
+    );
+}
+
+#[tokio::test]
+async fn h2_expect_continue_sends_100_when_body_polled() {
+    let svc = service_fn(|req: Request<IncomingBody>| async move {
+        let body = req.into_body().collect().await?.to_bytes();
+        assert_eq!(&body[..], b"hello");
+        Ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new()))
+    });
+    let mut h2 = h2_expect_continue_server(svc).await;
+
+    let (mut response, mut body) = h2_send_expect_request(&mut h2, false);
+    // The client withholds the body until the server asks for it.
+    let info = tokio::time::timeout(
+        Duration::from_secs(1),
+        future::poll_fn(|cx| response.poll_informational(cx)),
+    )
+    .await
+    .expect("100 Continue before the timeout")
+    .expect("an informational response")
+    .expect("informational response ok");
+    assert_eq!(info.status(), StatusCode::CONTINUE);
+    body.send_data(Bytes::from_static(b"hello"), true).unwrap();
+    assert_eq!(response.await.unwrap().status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn h2_expect_continue_waits_for_body_poll() {
+    let svc = service_fn(|req: Request<IncomingBody>| async move {
+        assert_eq!(req.headers()["expect"], "100-continue");
+        // The body is never polled.
+        drop(req);
+        // Not responding right away gives the server a chance to send a 100 Continue.
+        tokio::task::yield_now().await;
+        Ok::<_, hyper::Error>(
+            Response::builder()
+                .status(StatusCode::EXPECTATION_FAILED)
+                .body(Empty::<Bytes>::new())
+                .unwrap(),
+        )
+    });
+    let mut h2 = h2_expect_continue_server(svc).await;
+
+    let (mut response, _body) = h2_send_expect_request(&mut h2, false);
+    h2_assert_no_informational(&mut response).await;
+    assert_eq!(
+        response.await.unwrap().status(),
+        StatusCode::EXPECTATION_FAILED
+    );
+}
+
+#[tokio::test]
+async fn h2_expect_continue_but_no_body_is_ignored() {
+    let svc = service_fn(|req: Request<IncomingBody>| async move {
+        let body = req.into_body().collect().await?.to_bytes();
+        assert!(body.is_empty());
+        // Not responding right away gives the server a chance to send a 100 Continue.
+        tokio::task::yield_now().await;
+        Ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new()))
+    });
+    let mut h2 = h2_expect_continue_server(svc).await;
+
+    let (mut response, _body) = h2_send_expect_request(&mut h2, true);
+    h2_assert_no_informational(&mut response).await;
+    assert_eq!(response.await.unwrap().status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn h2_expect_continue_but_body_already_sent_is_ignored() {
+    let svc = service_fn(|req: Request<IncomingBody>| async move {
+        let body = req.into_body().collect().await?.to_bytes();
+        assert_eq!(&body[..], b"hello");
+        // Not responding right away gives the server a chance to send a 100 Continue.
+        tokio::task::yield_now().await;
+        Ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new()))
+    });
+    let mut h2 = h2_expect_continue_server(svc).await;
+
+    let (mut response, mut body) = h2_send_expect_request(&mut h2, false);
+    // The client doesn't wait for the server to ask for the body.
+    body.send_data(Bytes::from_static(b"hello"), true).unwrap();
+    h2_assert_no_informational(&mut response).await;
+    assert_eq!(response.await.unwrap().status(), StatusCode::OK);
+}
+
 #[test]
 fn pipeline_disabled() {
     let server = serve();
