@@ -19,7 +19,8 @@ compile_error!(
 /// This helps avoid expressions that conditionally compile to either `()` or
 /// `tracing::span::Entered` depending on which feature flags are enabled.
 //
-//  This guard only exists when the tracing flag is not active.
+//  This ZST (zero sized type) marker only exists when the tracing flag is not
+//  active.
 #[cfg(not(feature = "tracing"))]
 //  This module allows `unused_macros`. Similarly, we allow dead code in case
 //  none of the macros exported by this module are used elsewhere.
