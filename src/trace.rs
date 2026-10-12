@@ -10,6 +10,26 @@ compile_error!(
 "
 );
 
+/// A type representing a RAII guard from a disabled tracing span.
+///
+/// When the `tracing` feature flag is not active we do not enter tracing
+/// spans. This type does nothing when dropped, and does not guard any
+/// resources.
+///
+/// This helps avoid expressions that conditionally compile to either `()` or
+/// `tracing::span::Entered` depending on which feature flags are enabled.
+//
+//  This guard only exists when the tracing flag is not active.
+#[cfg(not(feature = "tracing"))]
+//  This module allows `unused_macros`. Similarly, we allow dead code in case
+//  none of the macros exported by this module are used elsewhere.
+#[allow(dead_code)]
+//  This type is marked as a `#[must_use]` type not for its own semantic
+//  constraints, but to enforce consistency with code paths associated with
+//  the `tracing` feature flag.
+#[must_use = "once a span has been entered, it should be exited"]
+pub(crate) struct Disabled;
+
 macro_rules! debug {
     ($($arg:tt)+) => {
         #[cfg(feature = "tracing")]
@@ -26,6 +46,10 @@ macro_rules! debug_span {
             {
                 let _span = tracing::debug_span!($($arg)+);
                 _span.entered()
+            }
+            #[cfg(not(feature = "tracing"))]
+            {
+                crate::trace::Disabled
             }
         }
     }
@@ -48,6 +72,10 @@ macro_rules! error_span {
                 let _span = tracing::error_span!($($arg)+);
                 _span.entered()
             }
+            #[cfg(not(feature = "tracing"))]
+            {
+                crate::trace::Disabled
+            }
         }
     }
 }
@@ -69,6 +97,10 @@ macro_rules! info_span {
                 let _span = tracing::info_span!($($arg)+);
                 _span.entered()
             }
+            #[cfg(not(feature = "tracing"))]
+            {
+                crate::trace::Disabled
+            }
         }
     }
 }
@@ -89,6 +121,10 @@ macro_rules! trace_span {
             {
                 let _span = tracing::trace_span!($($arg)+);
                 _span.entered()
+            }
+            #[cfg(not(feature = "tracing"))]
+            {
+                crate::trace::Disabled
             }
         }
     }
@@ -122,6 +158,10 @@ macro_rules! warn_span {
             {
                 let _span = tracing::warn_span!($($arg)+);
                 _span.entered()
+            }
+            #[cfg(not(feature = "tracing"))]
+            {
+                crate::trace::Disabled
             }
         }
     }
