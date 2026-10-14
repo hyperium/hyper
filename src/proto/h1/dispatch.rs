@@ -169,6 +169,7 @@ where
         ready!(self.poll_loop(cx))?;
 
         if self.is_done() {
+            ready!(self.poll_flush(cx))?;
             if let Some(pending) = self.conn.pending_upgrade() {
                 self.conn.take_error()?;
                 return Poll::Ready(Ok(Dispatched::Upgrade(pending)));
