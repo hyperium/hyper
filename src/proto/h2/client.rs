@@ -70,6 +70,8 @@ pub(crate) struct Config {
     pub(crate) max_header_list_size: u32,
     pub(crate) keep_alive_interval: Option<Duration>,
     pub(crate) keep_alive_timeout: Duration,
+    pub(crate) keep_alive_reuse_timeout: Option<Duration>,
+    pub(crate) keep_alive_observer: Option<std::sync::Arc<dyn ping::KeepAliveObserver>>,
     pub(crate) keep_alive_while_idle: bool,
     pub(crate) max_concurrent_reset_streams: Option<usize>,
     pub(crate) max_send_buffer_size: usize,
@@ -91,6 +93,8 @@ impl Default for Config {
             max_header_list_size: DEFAULT_MAX_HEADER_LIST_SIZE,
             keep_alive_interval: None,
             keep_alive_timeout: Duration::from_secs(20),
+            keep_alive_reuse_timeout: None,
+            keep_alive_observer: None,
             keep_alive_while_idle: false,
             max_concurrent_reset_streams: None,
             max_send_buffer_size: DEFAULT_MAX_SEND_BUF_SIZE,
@@ -143,6 +147,8 @@ fn new_ping_config(config: &Config) -> ping::Config {
         },
         keep_alive_interval: config.keep_alive_interval,
         keep_alive_timeout: config.keep_alive_timeout,
+        keep_alive_reuse_timeout: config.keep_alive_reuse_timeout,
+        keep_alive_observer: config.keep_alive_observer.clone(),
         keep_alive_while_idle: config.keep_alive_while_idle,
     }
 }
