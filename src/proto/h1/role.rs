@@ -1877,6 +1877,58 @@ mod tests {
         Client::parse(&mut raw, ctx).unwrap_err();
     }
 
+    const RESPONSE_WITH_SPACE_BEFORE_FIRST_HEADER_NAME: &str =
+        "HTTP/1.1 200 OK\r\n Space-Before-Header: hello there\r\n\r\n";
+
+    #[test]
+    fn test_parse_allow_response_with_space_before_first_header_name() {
+        use httparse::ParserConfig;
+
+        let _ = pretty_env_logger::try_init();
+        let mut raw = BytesMut::from(RESPONSE_WITH_SPACE_BEFORE_FIRST_HEADER_NAME);
+        let mut h1_parser_config = ParserConfig::default();
+        h1_parser_config.allow_space_before_first_header_name(true);
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut Some(crate::Method::GET),
+            h1_parser_config,
+            h1_max_headers: None,
+            h1_max_header_size: None,
+            preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
+            h09_responses: false,
+            #[cfg(feature = "client")]
+            on_informational: &mut None,
+        };
+        let msg = Client::parse(&mut raw, ctx).unwrap().unwrap();
+        assert_eq!(raw.len(), 0);
+        assert_eq!(msg.head.subject, crate::StatusCode::OK);
+        assert_eq!(msg.head.version, crate::Version::HTTP_11);
+        assert_eq!(msg.head.headers.len(), 1);
+        assert_eq!(msg.head.headers["Space-Before-Header"], "hello there");
+    }
+
+    #[test]
+    fn test_parse_reject_response_with_space_before_first_header_name() {
+        let _ = pretty_env_logger::try_init();
+        let mut raw = BytesMut::from(RESPONSE_WITH_SPACE_BEFORE_FIRST_HEADER_NAME);
+        let ctx = ParseContext {
+            cached_headers: &mut None,
+            req_method: &mut Some(crate::Method::GET),
+            h1_parser_config: Default::default(),
+            h1_max_headers: None,
+            h1_max_header_size: None,
+            preserve_header_case: false,
+            #[cfg(feature = "ffi")]
+            preserve_header_order: false,
+            h09_responses: false,
+            #[cfg(feature = "client")]
+            on_informational: &mut None,
+        };
+        Client::parse(&mut raw, ctx).unwrap_err();
+    }
+
     const REQUEST_WITH_MULTIPLE_SPACES_IN_REQUEST_LINE: &str =
         "GET  /echo  HTTP/1.1\r\nHost: hyper.rs\r\n\r\n";
 
