@@ -1349,7 +1349,8 @@ impl Client {
         };
 
         // HTTP/1.0 doesn't know about chunked
-        let can_chunked = head.version == Version::HTTP_11;
+        // HTTP/2 requests are serialized as HTTP/1.1.
+        let can_chunked = matches!(head.version, Version::HTTP_11 | Version::HTTP_2);
         let headers = &mut head.headers;
 
         // If the user already set specific headers, we should respect them, regardless
