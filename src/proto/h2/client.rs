@@ -413,6 +413,7 @@ where
     B: Body,
 {
     is_connect: bool,
+    is_head: bool,
     eos: bool,
     fut: ResponseFuture,
     body_tx: SendStream<SendBuf<B::Data>>,
@@ -567,6 +568,7 @@ where
             send_when: SendWhen {
                 when: ResponseFutMap {
                     fut: f.fut,
+                    is_head: f.is_head,
                     ping: Some(ping),
                     send_stream: Some(send_stream),
                     exec: self.executor.clone(),
@@ -586,6 +588,7 @@ pin_project! {
     {
         #[pin]
         fut: ResponseFuture,
+        is_head: bool,
         ping: Option<Recorder>,
         #[pin]
         send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
@@ -623,7 +626,12 @@ where
                 // record that we got the response headers
                 ping.record_non_data();
 
-                let content_length = headers::content_length_parse_all(res.headers());
+                let content_length = if *this.is_head {
+                    // HEAD Content-Length describes the corresponding GET response body.
+                    Some(0)
+                } else {
+                    headers::content_length_parse_all(res.headers())
+                };
                 if let (Some(mut send_stream), StatusCode::OK) = (send_stream, res.status()) {
                     if content_length.map_or(false, |len| len != 0) {
                         warn!("h2 connect response with non-zero body not supported");
@@ -714,6 +722,7 @@ where
                     }
 
                     let is_connect = req.method() == Method::CONNECT;
+                    let is_head = req.method() == Method::HEAD;
                     let eos = body.is_end_stream();
 
                     if is_connect
@@ -746,6 +755,7 @@ where
 
                     let f = FutCtx {
                         is_connect,
+                        is_head,
                         eos,
                         fut,
                         body_tx,
