@@ -2048,6 +2048,75 @@ async fn h2_connect() {
 }
 
 #[tokio::test]
+async fn h2_connect_with_content_length_only_resets_stream() {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let (client_io, server_io) = tokio::io::duplex(4096);
+        let (started_tx, started_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        let pending = Mutex::new(Some((started_tx, release_rx)));
+
+        let svc = service_fn(move |req: Request<IncomingBody>| {
+            assert_eq!(req.method(), Method::GET);
+            let pending = if req.uri().path() == "/pending" {
+                pending.lock().unwrap().take()
+            } else {
+                None
+            };
+            async move {
+                if let Some((started_tx, release_rx)) = pending {
+                    started_tx.send(()).unwrap();
+                    release_rx.await.unwrap();
+                }
+                Ok::<_, hyper::Error>(Response::new(Full::new(Bytes::from_static(b"hello"))))
+            }
+        });
+        let server = tokio::spawn(
+            http2::Builder::new(TokioExecutor).serve_connection(TokioIo::new(server_io), svc),
+        );
+
+        let (mut client, connection) = h2::client::handshake(client_io).await.unwrap();
+        let connection = tokio::spawn(connection);
+
+        let request = Request::get("https://localhost/pending").body(()).unwrap();
+        let (pending_response, _) = client.send_request(request, true).unwrap();
+        started_rx.await.unwrap();
+
+        let request = Request::connect("localhost:443")
+            .header("content-length", "1")
+            .body(())
+            .unwrap();
+        let (response, request_body) = client.send_request(request, false).unwrap();
+        let err = response.await.expect_err("CONNECT should be reset");
+        assert_eq!(err.reason(), Some(h2::Reason::INTERNAL_ERROR));
+        drop(request_body);
+
+        release_tx.send(()).unwrap();
+        let response = pending_response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut body = response.into_body();
+        assert_eq!(body.data().await.unwrap().unwrap(), "hello");
+        assert!(body.data().await.is_none());
+        drop(body);
+
+        let mut client = client.ready().await.unwrap();
+        let request = Request::get("https://localhost/after").body(()).unwrap();
+        let (response, _) = client.send_request(request, true).unwrap();
+        let response = response.await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let mut body = response.into_body();
+        assert_eq!(body.data().await.unwrap().unwrap(), "hello");
+        assert!(body.data().await.is_none());
+        drop(body);
+
+        drop(client);
+        connection.await.unwrap().unwrap();
+        server.await.unwrap().unwrap();
+    })
+    .await
+    .expect("connection should remain usable after resetting CONNECT");
+}
+
+#[tokio::test]
 async fn h2_connect_multiplex() {
     use futures_util::stream::FuturesUnordered;
     use futures_util::StreamExt;

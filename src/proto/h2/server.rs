@@ -286,7 +286,7 @@ where
                             if content_length.map_or(false, |len| len != 0) {
                                 warn!("h2 connect request with non-zero body not supported");
                                 respond.send_reset(h2::Reason::INTERNAL_ERROR);
-                                return Poll::Ready(Ok(()));
+                                continue;
                             }
                             let (pending, upgrade) = crate::upgrade::pending();
                             debug_assert!(parts.extensions.get::<OnUpgrade>().is_none());
