@@ -2786,6 +2786,93 @@ async fn max_buf_size_split_header_boundary() {
 
 #[cfg(feature = "http1")]
 #[tokio::test]
+async fn max_header_size_exceeded() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX_HEADER: usize = 512;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ")
+            .expect("write 1");
+        tcp.write_all(&[b'a'; 1000]).expect("write 2");
+        tcp.write_all(b"\r\n\r\n").expect("write 3");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 431 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_header_size(MAX_HEADER)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("should TooLarge error");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn max_header_size_accepted() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX_HEADER: usize = 512;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+            .expect("write");
+        let mut buf = String::new();
+        tcp.read_to_string(&mut buf).expect("read");
+
+        let expected = "HTTP/1.1 200 ";
+        assert_eq!(&buf[..expected.len()], expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_header_size(MAX_HEADER)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect("should succeed");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
+async fn max_header_size_with_large_max_buf_size() {
+    let (listener, addr) = setup_tcp_listener();
+
+    const MAX_HEADER: usize = 512;
+    const MAX_BUF: usize = 64 * 1024;
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        tcp.write_all(b"GET / HTTP/1.1\r\nHost: x\r\nX-Long: ")
+            .expect("write 1");
+        tcp.write_all(&[b'a'; 1000]).expect("write 2");
+        tcp.write_all(b"\r\n\r\n").expect("write 3");
+        let mut buf = [0; 256];
+        tcp.read(&mut buf).expect("read 1");
+
+        let expected = "HTTP/1.1 431 ";
+        assert_eq!(s(&buf[..expected.len()]), expected);
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .max_buf_size(MAX_BUF)
+        .max_header_size(MAX_HEADER)
+        .serve_connection(socket, HelloWorld)
+        .await
+        .expect_err("should TooLarge error even with large max_buf_size");
+}
+
+#[cfg(feature = "http1")]
+#[tokio::test]
 async fn graceful_shutdown_before_first_request_no_block() {
     let (listener, addr) = setup_tcp_listener();
 
@@ -3336,6 +3423,79 @@ fn http1_trailer_fields_not_allowed() {
 }
 
 #[test]
+fn http1_trailer_fields_allowed_with_comma_separated_te() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "chunky-trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: gzip, Trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
+fn http1_trailer_fields_allowed_with_multiple_te_headers() {
+    let body = futures_util::stream::once(async move { Ok("hello".into()) });
+    let mut headers = HeaderMap::new();
+    headers.insert("chunky-trailer", "header data".parse().unwrap());
+
+    let server = serve();
+    server
+        .reply()
+        .header("transfer-encoding", "chunked")
+        .header("trailer", "chunky-trailer")
+        .body_stream_with_trailers(body, headers);
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: keep-alive\r\n\
+        TE: gzip\r\n\
+        TE: trailers\r\n\
+        \r\n\
+    ",
+    )
+    .expect("writing");
+
+    let chunky_trailer_chunk = b"\r\nchunky-trailer: header data\r\n\r\n";
+    let res = read_until(&mut req, |buf| buf.ends_with(chunky_trailer_chunk)).expect("reading");
+    let sres = s(&res);
+
+    let date_fragment = "GMT\r\n\r\n";
+    let pos = sres.find(date_fragment).expect("find GMT");
+    let body = &sres[pos + date_fragment.len()..];
+
+    let expected_body = "5\r\nhello\r\n0\r\nchunky-trailer: header data\r\n\r\n";
+    assert_eq!(body, expected_body);
+}
+
+#[test]
 fn http1_trailer_recv_fields() {
     let server = serve();
     let mut req = connect(server.addr());
@@ -3469,8 +3629,8 @@ impl Serve {
 type BoxError = Box<dyn std::error::Error + Send + Sync>;
 type BoxFuture = Pin<Box<dyn Future<Output = Result<Response<ReplyBody>, BoxError>> + Send>>;
 
-struct ReplyBuilder<'a> {
-    tx: &'a Mutex<spmc::Sender<Reply>>,
+struct ReplyBuilder<'mtx> {
+    tx: &'mtx Mutex<spmc::Sender<Reply>>,
 }
 
 impl ReplyBuilder<'_> {

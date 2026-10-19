@@ -97,6 +97,11 @@ where
 
     /// Prevent shutdown of the underlying IO object at the end of service the request,
     /// instead run `into_parts`. This is a convenience wrapper over `poll_without_shutdown`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection encounters an error while being polled to completion.
+    #[allow(clippy::missing_panics_doc)]
     pub async fn without_shutdown(self) -> crate::Result<Parts<T>> {
         let mut conn = Some(self);
         crate::common::future::poll_fn(move |cx| -> Poll<crate::Result<Parts<T>>> {
@@ -127,6 +132,7 @@ pub struct Builder {
     h1_title_case_headers: bool,
     h1_preserve_header_case: bool,
     h1_max_headers: Option<usize>,
+    h1_max_header_size: Option<usize>,
     #[cfg(feature = "ffi")]
     h1_preserve_header_order: bool,
     h1_read_buf_exact_size: Option<usize>,
@@ -137,6 +143,10 @@ pub struct Builder {
 ///
 /// This is a shortcut for `Builder::new().handshake(io)`.
 /// See [`client::conn`](crate::client::conn) for more.
+///
+/// # Errors
+///
+/// Returns an error if the HTTP/1 connection handshake fails.
 pub async fn handshake<T, B>(io: T) -> crate::Result<(SendRequest<B>, Connection<T, B>)>
 where
     T: Read + Write + Unpin,
@@ -158,6 +168,8 @@ impl<B> SendRequest<B> {
     }
 
     /// Waits until the dispatcher is ready.
+    ///
+    /// # Errors
     ///
     /// If the associated connection is closed, this returns an Error.
     pub async fn ready(&mut self) -> crate::Result<()> {
@@ -210,6 +222,11 @@ where
     /// hyper closes the underlying connection when a request future is
     /// dropped before completion. Any subsequent calls on the same
     /// [`SendRequest`] will return a `canceled` error.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection is not ready or if an error occurs while
+    /// processing the request.
     pub fn send_request(
         &mut self,
         req: Request<B>,
@@ -222,7 +239,7 @@ where
                     Ok(Ok(resp)) => Ok(resp),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_canceled) => panic!("dispatch dropped without returning error"),
+                    Err(_canceled) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
                     debug!("connection was not ready");
@@ -236,10 +253,11 @@ where
     ///
     /// Returns a future that if successful, yields the `Response`.
     ///
-    /// # Error
+    /// # Errors
     ///
     /// If there was an error before trying to serialize the request to the
     /// connection, the message will be returned as part of this error.
+    #[allow(clippy::result_large_err)]
     pub fn try_send_request(
         &mut self,
         req: Request<B>,
@@ -251,7 +269,7 @@ where
                     Ok(Ok(res)) => Ok(res),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_) => panic!("dispatch dropped without returning error"),
+                    Err(_) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(req) => {
                     debug!("connection was not ready");
@@ -336,6 +354,7 @@ impl Builder {
             h1_title_case_headers: false,
             h1_preserve_header_case: false,
             h1_max_headers: None,
+            h1_max_header_size: None,
             #[cfg(feature = "ffi")]
             h1_preserve_header_order: false,
             h1_max_buf_size: None,
@@ -484,6 +503,21 @@ impl Builder {
         self
     }
 
+    /// Set the maximum size of response headers (including the status line) in bytes.
+    ///
+    /// If the server sends headers exceeding this limit, the error "message head is too large"
+    /// is returned.
+    ///
+    /// If not configured, then the [`max_buf_size`](Builder::max_buf_size) will naturally be reached and applied.
+    ///
+    /// This value is also used as the maximum size limit for chunked trailers.
+    ///
+    /// Default is `None`.
+    pub fn max_header_size(&mut self, val: usize) -> &mut Self {
+        self.h1_max_header_size = Some(val);
+        self
+    }
+
     /// Set whether to support preserving original header order.
     ///
     /// Currently, this will record the order in which headers are received, and store this
@@ -533,6 +567,10 @@ impl Builder {
     ///
     /// Note, if [`Connection`] is not `await`-ed, [`SendRequest`] will
     /// do nothing.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the HTTP/1connection handshake fails.
     pub fn handshake<T, B>(
         &self,
         io: T,
@@ -566,6 +604,9 @@ impl Builder {
             }
             if let Some(max_headers) = opts.h1_max_headers {
                 conn.set_http1_max_headers(max_headers);
+            }
+            if let Some(max_header_size) = opts.h1_max_header_size {
+                conn.set_http1_max_header_size(max_header_size);
             }
             #[cfg(feature = "ffi")]
             if opts.h1_preserve_header_order {

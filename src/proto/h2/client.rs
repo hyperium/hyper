@@ -772,7 +772,6 @@ where
                         }
                     }
                     self.poll_pipe(f, cx);
-                    continue;
                 }
 
                 Poll::Ready(None) => {

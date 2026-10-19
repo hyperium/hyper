@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::rt::{Read, Write};
 use bytes::{Buf, Bytes};
 use futures_core::ready;
-use http::header::{HeaderValue, CONNECTION, TE};
+use http::header::{Entry, HeaderValue, CONNECTION};
 use http::{HeaderMap, Method, Version};
 use http_body::Frame;
 use httparse::ParserConfig;
@@ -58,6 +58,7 @@ where
                 method: None,
                 h1_parser_config: ParserConfig::default(),
                 h1_max_headers: None,
+                h1_max_header_size: None,
                 #[cfg(feature = "server")]
                 h1_header_read_timeout: None,
                 #[cfg(feature = "server")]
@@ -139,6 +140,10 @@ where
 
     pub(crate) fn set_http1_max_headers(&mut self, val: usize) {
         self.state.h1_max_headers = Some(val);
+    }
+
+    pub(crate) fn set_http1_max_header_size(&mut self, val: usize) {
+        self.state.h1_max_header_size = Some(val);
     }
 
     #[cfg(feature = "server")]
@@ -241,6 +246,7 @@ where
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
                 h1_max_headers: self.state.h1_max_headers,
+                h1_max_header_size: self.state.h1_max_header_size,
                 preserve_header_case: self.state.preserve_header_case,
                 #[cfg(feature = "ffi")]
                 preserve_header_order: self.state.preserve_header_order,
@@ -309,7 +315,7 @@ where
                 self.try_keep_alive(cx);
             }
         } else if msg.expect_continue && msg.head.version.gt(&Version::HTTP_10) {
-            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            let h1_max_header_size = self.state.h1_max_header_size;
             self.state.reading = Reading::Continue(Decoder::new(
                 msg.decode,
                 self.state.h1_max_headers,
@@ -317,7 +323,7 @@ where
             ));
             wants = wants.add(Wants::EXPECT);
         } else {
-            let h1_max_header_size = None; // TODO: remove this when we land h1_max_header_size support
+            let h1_max_header_size = self.state.h1_max_header_size;
             self.state.reading = Reading::Body(Decoder::new(
                 msg.decode,
                 self.state.h1_max_headers,
@@ -325,11 +331,7 @@ where
             ));
         }
 
-        self.state.allow_trailer_fields = msg
-            .head
-            .headers
-            .get(TE)
-            .map_or(false, |te_header| te_header == "trailers");
+        self.state.allow_trailer_fields = headers::te_is_trailers(&msg.head.headers);
 
         Poll::Ready(Some(Ok((msg.head, msg.decode, wants))))
     }
@@ -668,10 +670,11 @@ where
 
     // Fix keep-alive when Connection: keep-alive header is not present
     fn fix_keep_alive(&mut self, head: &mut MessageHead<T::Outgoing>) {
-        let outgoing_is_keep_alive = head
-            .headers
-            .get(CONNECTION)
-            .map_or(false, headers::connection_keep_alive);
+        let connection_entry = head.headers.entry(CONNECTION);
+        let outgoing_is_keep_alive = match &connection_entry {
+            Entry::Occupied(entry) => entry.iter().any(headers::connection_keep_alive),
+            Entry::Vacant(_) => false,
+        };
 
         if !outgoing_is_keep_alive {
             match head.version {
@@ -680,12 +683,14 @@ where
                 Version::HTTP_10 => self.state.disable_keep_alive(),
                 // If response is version 1.1 and keep-alive is wanted, add
                 // Connection: keep-alive header when not present
-                Version::HTTP_11 => {
-                    if self.state.wants_keep_alive() {
-                        head.headers
-                            .insert(CONNECTION, HeaderValue::from_static("keep-alive"));
+                Version::HTTP_11 if self.state.wants_keep_alive() => match connection_entry {
+                    Entry::Occupied(mut entry) => {
+                        entry.append(HeaderValue::from_static("keep-alive"));
                     }
-                }
+                    Entry::Vacant(entry) => {
+                        entry.insert(HeaderValue::from_static("keep-alive"));
+                    }
+                },
                 _ => (),
             }
         }
@@ -704,8 +709,16 @@ where
             }
             Version::HTTP_11 => {
                 if let KA::Disabled = self.state.keep_alive.status() {
-                    head.headers
-                        .insert(CONNECTION, HeaderValue::from_static("close"));
+                    match head.headers.entry(CONNECTION) {
+                        Entry::Occupied(mut entry) => {
+                            if !entry.iter().any(headers::connection_close) {
+                                entry.append(HeaderValue::from_static("close"));
+                            }
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(HeaderValue::from_static("close"));
+                        }
+                    }
                 }
             }
             _ => (),
@@ -939,6 +952,7 @@ struct State {
     method: Option<Method>,
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
+    h1_max_header_size: Option<usize>,
     #[cfg(feature = "server")]
     h1_header_read_timeout: Option<Duration>,
     #[cfg(feature = "server")]
@@ -1009,7 +1023,7 @@ impl fmt::Debug for State {
 
         // Purposefully leaving off other fields..
 
-        builder.finish()
+        builder.finish_non_exhaustive()
     }
 }
 

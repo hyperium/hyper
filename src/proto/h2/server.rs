@@ -267,8 +267,7 @@ where
                         let ping = self
                             .ping
                             .as_ref()
-                            .map(|ping| ping.0.clone())
-                            .unwrap_or_else(ping::disabled);
+                            .map_or_else(ping::disabled, |ping| ping.0.clone());
 
                         // Record the headers received
                         ping.record_non_data();

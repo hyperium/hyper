@@ -111,7 +111,7 @@ impl<T, U> Sender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
@@ -123,7 +123,7 @@ impl<T, U> Sender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
@@ -150,7 +150,7 @@ impl<T, U> UnboundedSender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::Retry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 
@@ -158,7 +158,7 @@ impl<T, U> UnboundedSender<T, U> {
         let (tx, rx) = oneshot::channel();
         self.inner
             .send(Envelope(Some((val, Callback::NoRetry(Some(tx))))))
-            .map(move |_| rx)
+            .map(move |()| rx)
             .map_err(|mut e| (e.0).0.take().expect("envelope not dropped").0)
     }
 }
@@ -182,6 +182,12 @@ impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
         match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
+                // A want signaled after finding the queue empty can land after
+                // the Sender's `give()` for the message taken here, as can one
+                // signaled on a coop-budget Pending with a message queued.
+                // Withdraw it, or the Sender reports this connection as ready
+                // while it is still serving this message.
+                self.taker.unwant();
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
             Poll::Pending => {
@@ -195,6 +201,15 @@ impl<T, U> Receiver<T, U> {
     pub(crate) fn close(&mut self) {
         self.taker.cancel();
         self.inner.close();
+    }
+
+    #[cfg(feature = "http1")]
+    pub(crate) fn poll_close(&mut self, cx: &mut Context<'_>) -> Poll<()> {
+        self.close();
+        // A send that started before close may still be publishing its envelope.
+        // Keep the receiver alive until all such envelopes have been canceled.
+        while futures_core::ready!(self.inner.poll_recv(cx)).is_some() {}
+        Poll::Ready(())
     }
 
     #[cfg(feature = "http1")]
@@ -408,7 +423,7 @@ mod tests {
     }
 
     /// Helper to check if the future is ready after polling once.
-    struct PollOnce<'a, F>(&'a mut F);
+    struct PollOnce<'fut, F>(&'fut mut F);
 
     impl<F, T> Future for PollOnce<'_, F>
     where

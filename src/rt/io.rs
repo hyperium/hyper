@@ -164,8 +164,8 @@ pub trait Write {
 /// It is undefined behavior to de-initialize any bytes from the uninitialized
 /// region, since it is merely unknown whether this region is uninitialized or
 /// not, and if part of it turns out to be initialized, it must stay initialized.
-pub struct ReadBuf<'a> {
-    raw: &'a mut [MaybeUninit<u8>],
+pub struct ReadBuf<'data> {
+    raw: &'data mut [MaybeUninit<u8>],
     filled: usize,
     init: usize,
 }
@@ -227,8 +227,8 @@ pub struct ReadBuf<'a> {
 /// assert_eq!(read_buf.filled(), b"hello");
 /// ```
 #[derive(Debug)]
-pub struct ReadBufCursor<'a> {
-    buf: &'a mut ReadBuf<'a>,
+pub struct ReadBufCursor<'buf> {
+    buf: &'buf mut ReadBuf<'buf>,
 }
 
 impl<'data> ReadBuf<'data> {
@@ -337,6 +337,11 @@ impl ReadBufCursor<'_> {
     /// # Safety
     ///
     /// The caller must take care that `n` more bytes have been initialized.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if advancing would cause the filled cursor to
+    /// overflow `usize`.
     #[inline]
     pub unsafe fn advance(&mut self, n: usize) {
         self.buf.filled = self.buf.filled.checked_add(n).expect("overflow");
