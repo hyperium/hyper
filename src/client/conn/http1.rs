@@ -546,7 +546,7 @@ impl Builder {
     ///
     /// Default is ~400kb.
     ///
-    /// Note that setting this option unsets the `read_exact_buf_size` option.
+    /// Note that setting this option unsets the `read_buf_exact_size` option.
     ///
     /// # Panics
     ///
