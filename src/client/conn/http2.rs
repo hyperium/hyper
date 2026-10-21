@@ -216,6 +216,26 @@ where
     pub fn is_extended_connect_protocol_enabled(&self) -> bool {
         self.inner.1.is_extended_connect_protocol_enabled()
     }
+
+    /// Returns the current maximum send stream count.
+    ///
+    /// This setting is configured in a [`SETTINGS_MAX_CONCURRENT_STREAMS` parameter][1] in a `SETTINGS` frame,
+    /// and may change throughout the connection lifetime.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1.2
+    pub fn current_max_send_streams(&self) -> usize {
+        self.inner.1.current_max_send_streams()
+    }
+
+    /// Returns the current maximum receive stream count.
+    ///
+    /// This setting is configured in a [`SETTINGS_MAX_CONCURRENT_STREAMS` parameter][1] in a `SETTINGS` frame,
+    /// and may change throughout the connection lifetime.
+    ///
+    /// [1]: https://datatracker.ietf.org/doc/html/rfc7540#section-5.1.2
+    pub fn current_max_recv_streams(&self) -> usize {
+        self.inner.1.current_max_recv_streams()
+    }
 }
 
 impl<T, B, E> fmt::Debug for Connection<T, B, E>
