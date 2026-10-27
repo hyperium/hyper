@@ -31,8 +31,8 @@ pub struct TrySendError<T> {
 pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::unbounded_channel();
     let (giver, mut taker) = want::new();
-    // Allow one request before the receiver is polled. Every request must
-    // consume a want, including this initially buffered request.
+    // Seed with one want so the first request can be sent before the
+    // receiver is polled; every request must consume a want
     taker.want();
     let tx = Sender { giver, inner: tx };
     let rx = Receiver {
@@ -48,11 +48,11 @@ pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
 /// While the inner sender is unbounded, the Giver is used to determine
 /// if the Receiver is ready for another request.
 pub(crate) struct Sender<T, U> {
-    /// The Giver tracks permission to send one request. After the first
-    /// request, the Receiver grants permission only once the previous
-    /// request and response have been fully processed.
+    // Controls whether the sender is permitted to dispatch a request
+    // Beyond the initial request, the Receiver only grants readiness once
+    // the preceding request/response cycle has fully completed
     giver: want::Giver,
-    /// Actually bounded by the Giver.
+    // Capacity is enforced via the Giver
     inner: mpsc::UnboundedSender<Envelope<T, U>>,
 }
 
@@ -158,7 +158,7 @@ impl<T, U> Clone for UnboundedSender<T, U> {
 pub(crate) struct Receiver<T, U> {
     inner: mpsc::UnboundedReceiver<Envelope<T, U>>,
     taker: want::Taker,
-    /// Whether a want has already been signaled for the next request.
+    // Tracks whether readiness (`want`) has already been granted for the next request
     wanting: bool,
 }
 
@@ -173,9 +173,9 @@ impl<T, U> Receiver<T, U> {
                 self.wanting = false;
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
-            // Do not signal want again: the sender may have consumed it and
-            // queued a request, even if the queue returns Pending because of
-            // Tokio's cooperative budget or a concurrent send.
+            // Avoid re-signaling `want` here: the sender might have already claimed it
+            // and enqueued a request, even if polling the channel returns `Pending`
+            // due to Tokio's coop budget exhaustion or a concurrent send
             Poll::Pending => Poll::Pending,
         }
     }

@@ -1,14 +1,15 @@
 // Test: an HTTP/1 client connection must not report ready while a request is
 // in flight on it.
 //
-// Signaling want whenever the dispatch queue reports `Pending` can restore
-// readiness after a request has been sent. This happens with a concurrent
-// send or when Tokio's coop budget is exhausted with a request still queued.
-// Withdrawing that want when the request is taken is too late: a sender may
-// already have observed readiness, only for its next send to be rejected.
+// Re-granting `want` on every `Pending` poll from the dispatch channel can
+// falsely mark the connection as ready while a request is already in flight
+// (eg, during a concurrent send or when Tokio's coop budget runs out with
+// a buffered request)
+// Revoking readiness when the request is dequeued is too late, as the caller
+// may have already seen `Ready` and will fail on send
 //
-// Drive the coop path deterministically and check readiness both before and
-// after the queued request is taken.
+// Deterministically trigger coop exhaustion and verify readiness state both
+// before and after dequeuing the buffered request
 
 use std::future::Future;
 use std::io;
@@ -71,8 +72,9 @@ async fn h1_connection_is_not_ready_while_a_request_is_in_flight() {
     let _response = sender.send_request(Request::new(Empty::new()));
     assert!(!sender.is_ready());
 
-    // Out of coop budget, the queue reports Pending with the request in it.
-    // This must not signal readiness again, even before the request is taken.
+    // With the coop budget exhausted, polling the queue yields `Pending` even
+    // though a request is buffered
+    // Readiness must not be re-signaled here
     poll_fn(|cx| {
         while let Poll::Ready(restore) = tokio::task::coop::poll_proceed(cx) {
             restore.made_progress();
@@ -80,7 +82,7 @@ async fn h1_connection_is_not_ready_while_a_request_is_in_flight() {
         let _ = poll_conn(&mut conn, cx);
         assert!(
             sender.poll_ready(cx).is_pending(),
-            "connection reports ready with a request still queued"
+            "dispatcher should not report ready while a request is still buffered"
         );
         assert!(!sender.is_ready());
         Poll::Ready(())
