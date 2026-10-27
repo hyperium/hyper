@@ -1,16 +1,14 @@
 // Test: an HTTP/1 client connection must not report ready while a request is
 // in flight on it.
 //
-// The dispatch `Receiver` signals want when its queue reports `Pending`, and
-// `SendRequest::is_ready` reports that want. The signal can go stale: the
-// connection task can find its queue empty and a request land before it
-// signals, or tokio's coop budget can make the queue report `Pending` with a
-// request already in it. The request is then taken with want still set, so
-// `is_ready` stays true until the response is complete. Pools that return a
-// connection on `is_ready`, such as hyper-util's legacy client, then give that
-// connection to the next request, which waits behind the whole response.
+// Signaling want whenever the dispatch queue reports `Pending` can restore
+// readiness after a request has been sent. This happens with a concurrent
+// send or when Tokio's coop budget is exhausted with a request still queued.
+// Withdrawing that want when the request is taken is too late: a sender may
+// already have observed readiness, only for its next send to be rejected.
 //
-// The coop path is deterministic, so the test drives that one.
+// Drive the coop path deterministically and check readiness both before and
+// after the queued request is taken.
 
 use std::future::Future;
 use std::io;
@@ -73,14 +71,19 @@ async fn h1_connection_is_not_ready_while_a_request_is_in_flight() {
     let _response = sender.send_request(Request::new(Empty::new()));
     assert!(!sender.is_ready());
 
-    // Out of coop budget, the queue reports Pending with the request in it, so
-    // the connection signals ready again. A connection task preempted between
-    // finding its queue empty and signaling leaves the same stale signal.
+    // Out of coop budget, the queue reports Pending with the request in it.
+    // This must not signal readiness again, even before the request is taken.
     poll_fn(|cx| {
         while let Poll::Ready(restore) = tokio::task::coop::poll_proceed(cx) {
             restore.made_progress();
         }
-        poll_conn(&mut conn, cx)
+        let _ = poll_conn(&mut conn, cx);
+        assert!(
+            sender.poll_ready(cx).is_pending(),
+            "connection reports ready with a request still queued"
+        );
+        assert!(!sender.is_ready());
+        Poll::Ready(())
     })
     .await;
     tokio::task::yield_now().await;
