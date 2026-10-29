@@ -127,7 +127,6 @@ needless_pass_by_value = "allow"
 pattern_type_mismatch = "allow"
 redundant_else = "allow"
 struct_excessive_bools = "allow" # TODO: bogus lint?
-trivially_copy_pass_by_ref = "allow"
 unnested_or_patterns = "allow"
 unused_async = "allow" # TODO: is it for API?
 unused_trait_names = "allow" # TODO: kinda annoying, but might be good to deny
