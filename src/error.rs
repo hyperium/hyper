@@ -354,7 +354,7 @@ impl Error {
         // Find an h2::Reason somewhere in the cause stack, if it exists,
         // otherwise assume an INTERNAL_ERROR.
         self.find_source::<h2::Error>()
-            .and_then(|h2_err| h2_err.reason())
+            .and_then(h2::Error::reason)
             .unwrap_or(h2::Reason::INTERNAL_ERROR)
     }
 

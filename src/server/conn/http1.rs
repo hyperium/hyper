@@ -555,7 +555,7 @@ where
     /// Return the inner IO object, and additional information provided the connection
     /// has not yet been upgraded.
     pub fn into_parts(self) -> Option<Parts<I, S>> {
-        self.inner.map(|conn| conn.into_parts())
+        self.inner.map(Connection::into_parts)
     }
 }
 

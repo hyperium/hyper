@@ -125,7 +125,6 @@ multiple_inherent_impl = "allow"
 multiple_unsafe_ops_per_block = "allow"
 needless_pass_by_value = "allow"
 pattern_type_mismatch = "allow"
-redundant_closure_for_method_calls = "allow"
 redundant_else = "allow"
 struct_excessive_bools = "allow" # TODO: bogus lint?
 trivially_copy_pass_by_ref = "allow"
