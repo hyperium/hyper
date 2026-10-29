@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793303363906,
+  "lastUpdate": 1793303418407,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71437,6 +71437,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3318380,
             "range": "± 60650.36",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "16024985+trivikr@users.noreply.github.com",
+            "name": "Trivikram Kamat",
+            "username": "trivikr"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a8ab2c7fa4583a37e39ed89db6b22bcb30107d40",
+          "message": "style(lib): enforce clippy::redundant_closure_for_method_calls (#4251)\n\nSee https://github.com/hyperium/hyper/issues/4071.\n\nClippy lint documentation is at https://clippy.rust-lang.org/master/index.html#redundant_closure_for_method_calls.\n\nThe rule checks for closures which only invoke a method on the closure\nargument and can be replaced by referencing the method directly. Only\nthree closures matched this rule, which called a single method without\narguments. They were replaced by referencing the method directly.",
+          "timestamp": "2026-10-29T15:48:27-04:00",
+          "tree_id": "32594d451c4e462f47ea77dcfd2a09415ebaa2ef",
+          "url": "https://github.com/hyperium/hyper/commit/a8ab2c7fa4583a37e39ed89db6b22bcb30107d40"
+        },
+        "date": 1793303415710,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 50201,
+            "range": "± 4584.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3552029,
+            "range": "± 458341.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 17306,
+            "range": "± 442.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 17974,
+            "range": "± 199.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 21977,
+            "range": "± 409.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 70400,
+            "range": "± 3524.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000990,
+            "range": "± 21000.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 61633,
+            "range": "± 977.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 30648025,
+            "range": "± 8227644.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 6171131,
+            "range": "± 18572668.31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 5943037,
+            "range": "± 100189.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 43251887,
+            "range": "± 1041742.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 43548481,
+            "range": "± 1096616.36",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4501498,
+            "range": "± 114390.88",
             "unit": "ns/iter"
           }
         ]
