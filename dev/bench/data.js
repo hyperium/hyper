@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1791913866277,
+  "lastUpdate": 1793303363906,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14219,6 +14219,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 55762,
             "range": "± 12648.17",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "16024985+trivikr@users.noreply.github.com",
+            "name": "Trivikram Kamat",
+            "username": "trivikr"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a8ab2c7fa4583a37e39ed89db6b22bcb30107d40",
+          "message": "style(lib): enforce clippy::redundant_closure_for_method_calls (#4251)\n\nSee https://github.com/hyperium/hyper/issues/4071.\n\nClippy lint documentation is at https://clippy.rust-lang.org/master/index.html#redundant_closure_for_method_calls.\n\nThe rule checks for closures which only invoke a method on the closure\nargument and can be replaced by referencing the method directly. Only\nthree closures matched this rule, which called a single method without\narguments. They were replaced by referencing the method directly.",
+          "timestamp": "2026-10-29T15:48:27-04:00",
+          "tree_id": "32594d451c4e462f47ea77dcfd2a09415ebaa2ef",
+          "url": "https://github.com/hyperium/hyper/commit/a8ab2c7fa4583a37e39ed89db6b22bcb30107d40"
+        },
+        "date": 1793303360068,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43409,
+            "range": "± 5386.04",
             "unit": "ns/iter"
           }
         ]
