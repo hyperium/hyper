@@ -5,10 +5,11 @@ use std::task::{Context, Poll};
 use std::time::Duration;
 
 use bytes::Bytes;
+use futures_channel::oneshot;
 use futures_core::ready;
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
-use http::{Method, Request};
+use http::{Method, Request, StatusCode};
 use pin_project_lite::pin_project;
 
 use super::{ping, PipeToSendStream, SendBuf};
@@ -274,14 +275,17 @@ where
 
                         let is_connect = req.method() == Method::CONNECT;
                         let (mut parts, stream) = req.into_parts();
+                        let mut expect_continue = None;
                         let (mut req, connect_parts) = if !is_connect {
-                            (
-                                Request::from_parts(
-                                    parts,
-                                    IncomingBody::h2(stream, content_length.into(), ping),
-                                ),
-                                None,
-                            )
+                            let wants_continue = headers::expect_last_continue(&parts.headers)
+                                && !stream.is_end_stream();
+                            let mut body = IncomingBody::h2(stream, content_length.into(), ping);
+                            if wants_continue {
+                                let (tx, rx) = oneshot::channel();
+                                body = body.with_expect_continue(tx);
+                                expect_continue = Some(rx);
+                            }
+                            (Request::from_parts(parts, body), None)
                         } else {
                             if content_length.map_or(false, |len| len != 0) {
                                 warn!("h2 connect request with non-zero body not supported");
@@ -308,6 +312,7 @@ where
                         let fut = H2Stream::new(
                             service.call(req),
                             connect_parts,
+                            expect_continue,
                             respond,
                             self.date_header,
                             exec.clone(),
@@ -382,6 +387,7 @@ pin_project! {
             #[pin]
             fut: F,
             connect_parts: Option<ConnectParts>,
+            expect_continue: Option<oneshot::Receiver<()>>,
         },
         Body {
             #[pin]
@@ -403,13 +409,18 @@ where
     fn new(
         fut: F,
         connect_parts: Option<ConnectParts>,
+        expect_continue: Option<oneshot::Receiver<()>>,
         respond: SendResponse<SendBuf<B::Data>>,
         date_header: bool,
         exec: E,
     ) -> H2Stream<F, B, E> {
         H2Stream {
             reply: respond,
-            state: H2StreamState::Service { fut, connect_parts },
+            state: H2StreamState::Service {
+                fut,
+                connect_parts,
+                expect_continue,
+            },
             date_header,
             exec,
         }
@@ -445,6 +456,7 @@ where
                 H2StreamStateProj::Service {
                     fut: h,
                     connect_parts,
+                    expect_continue,
                 } => {
                     let res = match h.poll(cx) {
                         Poll::Ready(Ok(r)) => r,
@@ -456,6 +468,25 @@ where
                             {
                                 debug!("stream received RST_STREAM: {:?}", reason);
                                 return Poll::Ready(Err(crate::Error::new_h2(reason.into())));
+                            }
+                            // The service is waiting on an `Expect: 100-continue` body
+                            // before responding: tell the client to send it.
+                            let wanted = expect_continue.as_mut().map(|rx| Pin::new(rx).poll(cx));
+                            match wanted {
+                                Some(Poll::Ready(Ok(()))) => {
+                                    *expect_continue = None;
+                                    let mut cont = ::http::Response::new(());
+                                    *cont.status_mut() = StatusCode::CONTINUE;
+                                    if let Err(_e) = me.reply.send_informational(cont) {
+                                        debug!("send 100-continue error: {}", _e);
+                                    }
+                                }
+                                Some(Poll::Ready(Err(_))) => {
+                                    // The body was dropped, or didn't have to wait.
+                                    // Stop polling the receiver.
+                                    *expect_continue = None;
+                                }
+                                Some(Poll::Pending) | None => {}
                             }
                             return Poll::Pending;
                         }
