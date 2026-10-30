@@ -96,6 +96,7 @@ capi = []
 tracing = ["dep:tracing"]
 
 # internal features used in CI
+__deny_warnings = []
 nightly = []
 
 [lints.rust.unexpected_cfgs]
