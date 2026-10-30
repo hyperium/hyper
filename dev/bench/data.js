@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793303418407,
+  "lastUpdate": 1793385130341,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14249,6 +14249,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43409,
             "range": "± 5386.04",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "16024985+trivikr@users.noreply.github.com",
+            "name": "Trivikram Kamat",
+            "username": "trivikr"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8abd0b4873f5a5fc3a9d16e72c0fda90dc70dd66",
+          "message": "style(lib): enforce clippy::trivially_copy_pass_by_ref (#4252)\n\nSee https://github.com/hyperium/hyper/issues/4071.\n\nLint doc: https://clippy.rust-lang.org/master/index.html#trivially_copy_pass_by_ref\n\nThe rule checks for functions taking arguments by reference, where the\nargument type is Copy and small enough to be more efficient to always\npass by value.\n\nOnly four functions were flagged by this rule, where `&self` was changed\nto `self`.",
+          "timestamp": "2026-10-30T14:31:18-04:00",
+          "tree_id": "88e140c2bd294530bfce367756f06d06ff95f806",
+          "url": "https://github.com/hyperium/hyper/commit/8abd0b4873f5a5fc3a9d16e72c0fda90dc70dd66"
+        },
+        "date": 1793385126607,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 45684,
+            "range": "± 8825.75",
             "unit": "ns/iter"
           }
         ]
