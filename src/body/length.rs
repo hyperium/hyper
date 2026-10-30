@@ -81,7 +81,7 @@ impl DecodedLength {
     ///
     /// It would return false if "chunked" or otherwise size-unknown.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
-    pub(crate) fn is_exact(&self) -> bool {
+    pub(crate) fn is_exact(self) -> bool {
         self.0 <= MAX_LEN
     }
 }

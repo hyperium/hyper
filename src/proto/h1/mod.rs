@@ -108,7 +108,7 @@ impl Wants {
         Wants(self.0 | other.0)
     }
 
-    fn contains(&self, other: Wants) -> bool {
+    fn contains(self, other: Wants) -> bool {
         (self.0 & other.0) == other.0
     }
 }

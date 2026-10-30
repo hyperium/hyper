@@ -1068,8 +1068,8 @@ impl KA {
         *self = KA::Disabled;
     }
 
-    fn status(&self) -> KA {
-        *self
+    fn status(self) -> KA {
+        self
     }
 }
 

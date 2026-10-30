@@ -301,7 +301,7 @@ impl ChunkedState {
         ChunkedState::Start
     }
     fn step<R: MemRead>(
-        &self,
+        self,
         cx: &mut Context<'_>,
         body: &mut R,
         StepArgs {
@@ -318,7 +318,7 @@ impl ChunkedState {
             Body, BodyCr, BodyLf, End, EndCr, EndLf, Extension, Size, SizeLf, SizeLws, Start,
             Trailer, TrailerLf,
         };
-        match *self {
+        match self {
             Start => ChunkedState::read_start(cx, body, chunk_size),
             Size => ChunkedState::read_size(cx, body, chunk_size),
             SizeLws => ChunkedState::read_size_lws(cx, body),
