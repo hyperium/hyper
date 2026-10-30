@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793385130341,
+  "lastUpdate": 1793385186619,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71575,6 +71575,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4501498,
             "range": "± 114390.88",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "16024985+trivikr@users.noreply.github.com",
+            "name": "Trivikram Kamat",
+            "username": "trivikr"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "8abd0b4873f5a5fc3a9d16e72c0fda90dc70dd66",
+          "message": "style(lib): enforce clippy::trivially_copy_pass_by_ref (#4252)\n\nSee https://github.com/hyperium/hyper/issues/4071.\n\nLint doc: https://clippy.rust-lang.org/master/index.html#trivially_copy_pass_by_ref\n\nThe rule checks for functions taking arguments by reference, where the\nargument type is Copy and small enough to be more efficient to always\npass by value.\n\nOnly four functions were flagged by this rule, where `&self` was changed\nto `self`.",
+          "timestamp": "2026-10-30T14:31:18-04:00",
+          "tree_id": "88e140c2bd294530bfce367756f06d06ff95f806",
+          "url": "https://github.com/hyperium/hyper/commit/8abd0b4873f5a5fc3a9d16e72c0fda90dc70dd66"
+        },
+        "date": 1793385182300,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 36665,
+            "range": "± 698.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4352444,
+            "range": "± 481609.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 11764,
+            "range": "± 201.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 12591,
+            "range": "± 268.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 18260,
+            "range": "± 328.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 52264,
+            "range": "± 1982.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41001809,
+            "range": "± 70447.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 63503,
+            "range": "± 1413.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 21171752,
+            "range": "± 8597336.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 4616400,
+            "range": "± 40799913.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4396210,
+            "range": "± 77089.31",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 36676773,
+            "range": "± 878270.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 34475395,
+            "range": "± 389311.30",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3497933,
+            "range": "± 54411.79",
             "unit": "ns/iter"
           }
         ]
