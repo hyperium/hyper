@@ -1819,18 +1819,23 @@ async fn upgrades_new() {
             b"\
             GET / HTTP/1.1\r\n\
             Upgrade: foobar\r\n\
-            Connection: upgrade\r\n\
+            Connection: close, Upgrade\r\n\
             \r\n\
             eagerly optimistic\
         ",
         )
         .expect("write 1");
         let mut buf = [0; 256];
-        tcp.read(&mut buf).expect("read 1");
+        let response = read_until(&mut tcp, |buf| buf.ends_with(b"\r\n\r\n")).expect("read 1");
 
-        let response = s(&buf);
+        let response = s(&response);
         assert!(response.starts_with("HTTP/1.1 101 Switching Protocols\r\n"));
         assert!(!has_header(response, "content-length"));
+        assert!(
+            response.contains("\r\nconnection: upgrade\r\n"),
+            "{response}"
+        );
+        assert!(!response.contains("close"), "{response}");
         let _ = read_101_tx.send(());
 
         let n = tcp.read(&mut buf).expect("read 2");
@@ -1846,6 +1851,7 @@ async fn upgrades_new() {
             Response::builder()
                 .status(101)
                 .header("upgrade", "foobar")
+                .header("connection", "upgrade")
                 .body(Empty::<Bytes>::new())
                 .unwrap(),
         )

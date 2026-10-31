@@ -37,6 +37,10 @@ pub(crate) trait Http1Transaction {
 
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>>;
 
+    fn is_switching_protocols(_head: &MessageHead<Self::Outgoing>) -> bool {
+        false
+    }
+
     fn is_client() -> bool {
         !Self::is_server()
     }

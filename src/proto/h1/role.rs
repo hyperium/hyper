@@ -510,6 +510,10 @@ impl Http1Transaction for Server {
         Some(msg)
     }
 
+    fn is_switching_protocols(head: &MessageHead<Self::Outgoing>) -> bool {
+        head.subject == StatusCode::SWITCHING_PROTOCOLS
+    }
+
     fn is_server() -> bool {
         true
     }
