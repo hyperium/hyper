@@ -2588,6 +2588,80 @@ async fn h2_connect_reset_during_backpressure() {
     client_handle.await.unwrap();
 }
 
+/// Drive a CONNECT upgrade, have the peer reset it, and report what a read of
+/// the upgraded stream saw.
+///
+/// `CANCEL` for both cases on purpose: it is not `NO_ERROR`, so the flag is the
+/// only thing that differs between the two tests below.
+async fn upgraded_read_after_reset(upgrade_reset_is_error: bool) -> io::Result<usize> {
+    let (listener, addr) = setup_tcp_listener();
+    let conn = connect_async(addr).await;
+
+    let (h2, connection) = h2::client::Builder::new()
+        .handshake::<_, Bytes>(conn)
+        .await
+        .unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let mut h2 = h2.ready().await.unwrap();
+
+    let client = tokio::spawn(async move {
+        let request = Request::connect("localhost").body(()).unwrap();
+        let (response, mut send_stream) = h2.send_request(request, false).unwrap();
+        assert_eq!(response.await.unwrap().status(), StatusCode::OK);
+        send_stream.send_reset(h2::Reason::CANCEL);
+    });
+
+    let (read_tx, read_rx) = oneshot::channel();
+    let read_tx = Arc::new(Mutex::new(Some(read_tx)));
+    let svc = service_fn(move |req: Request<IncomingBody>| {
+        let on_upgrade = hyper::upgrade::on(req);
+        let read_tx = read_tx.clone();
+
+        tokio::spawn(async move {
+            let mut upgraded = TokioIo::new(on_upgrade.await.expect("on_upgrade"));
+            let mut buf = [0u8; 1];
+            let read = upgraded.read(&mut buf).await;
+            if let Some(tx) = read_tx.lock().unwrap().take() {
+                let _ = tx.send(read);
+            }
+        });
+
+        future::ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new()))
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let mut builder = http2::Builder::new(TokioExecutor);
+    builder.upgrade_reset_is_error(upgrade_reset_is_error);
+    tokio::spawn(async move {
+        let _ = builder.serve_connection(socket, svc).await;
+    });
+
+    let read = read_rx.await.expect("the upgraded read to report");
+    client.await.unwrap();
+    read
+}
+
+#[tokio::test]
+async fn h2_upgraded_reset_reads_as_end_of_stream_by_default() {
+    let read = upgraded_read_after_reset(false)
+        .await
+        .expect("a reset reads as an end of stream by default");
+
+    assert_eq!(read, 0, "RFC 8441 relies on a CANCEL reading as a close");
+}
+
+#[tokio::test]
+async fn h2_upgraded_reset_is_an_error_once_enabled() {
+    let error = upgraded_read_after_reset(true)
+        .await
+        .expect_err("a reset is an error once enabled");
+
+    assert_eq!(error.kind(), io::ErrorKind::ConnectionReset);
+}
+
 #[tokio::test]
 async fn h2_connect_backpressure_bidirectional() {
     let (listener, addr) = setup_tcp_listener();

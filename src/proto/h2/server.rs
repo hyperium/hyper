@@ -47,6 +47,7 @@ pub(crate) struct Config {
     pub(crate) initial_stream_window_size: u32,
     pub(crate) max_frame_size: u32,
     pub(crate) enable_connect_protocol: bool,
+    pub(crate) upgrade_reset_is_error: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
     pub(crate) max_pending_accept_reset_streams: Option<usize>,
     pub(crate) max_local_error_reset_streams: Option<usize>,
@@ -66,6 +67,7 @@ impl Default for Config {
             initial_stream_window_size: DEFAULT_STREAM_WINDOW,
             max_frame_size: DEFAULT_MAX_FRAME_SIZE,
             enable_connect_protocol: false,
+            upgrade_reset_is_error: false,
             max_concurrent_streams: Some(200),
             max_pending_accept_reset_streams: None,
             max_local_error_reset_streams: Some(DEFAULT_MAX_LOCAL_ERROR_RESET_STREAMS),
@@ -90,6 +92,7 @@ pin_project! {
         service: S,
         state: State<T, B>,
         date_header: bool,
+        upgrade_reset_is_error: bool,
         close_pending: bool
     }
 }
@@ -115,6 +118,9 @@ where
     conn: Connection<Compat<T>, SendBuf<B::Data>>,
     closing: Option<crate::Error>,
     date_header: bool,
+    /// Carried as far as the upgraded stream, where it decides whether a
+    /// reset reads as an error or as an end of stream.
+    upgrade_reset_is_error: bool,
 }
 
 impl<T, S, B, E> Server<T, S, B, E>
@@ -178,6 +184,7 @@ where
             },
             service,
             date_header: config.date_header,
+            upgrade_reset_is_error: config.upgrade_reset_is_error,
             close_pending: false,
         }
     }
@@ -224,6 +231,7 @@ where
                         conn,
                         closing: None,
                         date_header: me.date_header,
+                        upgrade_reset_is_error: me.upgrade_reset_is_error,
                     })
                 }
                 State::Serving(srv) => {
@@ -297,6 +305,7 @@ where
                                     pending,
                                     ping,
                                     recv_stream: stream,
+                                    upgrade_reset_is_error: self.upgrade_reset_is_error,
                                 }),
                             )
                         };
@@ -394,6 +403,7 @@ struct ConnectParts {
     pending: Pending,
     ping: Recorder,
     recv_stream: RecvStream,
+    upgrade_reset_is_error: bool,
 }
 
 impl<F, B, E> H2Stream<F, B, E>
@@ -502,6 +512,7 @@ where
                                 send_stream,
                                 connect_parts.recv_stream,
                                 connect_parts.ping,
+                                connect_parts.upgrade_reset_is_error,
                             );
                             connect_parts
                                 .pending
