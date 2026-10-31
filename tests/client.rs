@@ -2545,6 +2545,88 @@ mod conn {
             .expect_err("client should be closed");
     }
 
+    #[tokio::test]
+    async fn http2_pending_open_request_canceled_on_conn_close() {
+        // Cancel pending-open requests so they don't get DispatchGone when the connection closes
+        use futures_util::{future, StreamExt};
+
+        let (listener, addr) = setup_tk_test_server().await;
+
+        let (got_req_tx, mut got_req_rx) = mpsc::unbounded::<()>();
+        let (shdn_tx, shdn_rx) = oneshot::channel::<()>();
+        let release = Arc::new(tokio::sync::Notify::new());
+        let release2 = release.clone();
+
+        tokio::task::spawn(async move {
+            use hyper::server::conn::http2;
+            use hyper::service::service_fn;
+
+            let (stream, _) = listener.accept().await.unwrap();
+            let stream = TokioIo::new(stream);
+
+            let service = service_fn(move |_: Request<hyper::body::Incoming>| {
+                let got_req_tx = got_req_tx.clone();
+                let release = release2.clone();
+                async move {
+                    got_req_tx.unbounded_send(()).unwrap();
+                    release.notified().await;
+                    Ok::<_, hyper::Error>(Response::new(Empty::<Bytes>::new()))
+                }
+            });
+
+            let mut conn = http2::Builder::new(TokioExecutor)
+                .max_concurrent_streams(1)
+                .serve_connection(stream, service);
+
+            tokio::select! {
+                res = &mut conn => {
+                    panic!("server conn ended before shutdown: {:?}", res);
+                }
+                _ = shdn_rx => {
+                    Pin::new(&mut conn).graceful_shutdown();
+                    conn.await.unwrap();
+                }
+            }
+        });
+
+        let io = tcp_connect(&addr).await.expect("tcp connect");
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake(io)
+            .await
+            .expect("http handshake");
+
+        tokio::task::spawn(async move {
+            conn.await.expect("client conn");
+        });
+
+        let req = || {
+            Request::builder()
+                .uri(format!("http://{}/", addr))
+                .body(Empty::<Bytes>::new())
+                .expect("request builder")
+        };
+
+        let res1 = client.send_request(req());
+        let res1 = tokio::task::spawn(res1);
+        got_req_rx.next().await.expect("server got req1");
+
+        // Wait for SETTINGS, so req2 parks as pending open
+        TokioTimer.sleep(Duration::from_millis(50)).await;
+        future::poll_fn(|ctx| client.poll_ready(ctx))
+            .await
+            .expect("client poll ready");
+        let res2 = tokio::task::spawn(client.send_request(req()));
+        TokioTimer.sleep(Duration::from_millis(50)).await;
+
+        shdn_tx.send(()).unwrap();
+        release.notify_one();
+
+        res1.await.unwrap().expect("req1 completes");
+
+        let err = res2.await.unwrap().expect_err("req2 must fail");
+        assert!(err.is_canceled(), "req2 should be canceled, got {:?}", err);
+    }
+
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn http2_connect_detect_close() {
         // Regression test for failure to fully close connections when using HTTP2 CONNECT
