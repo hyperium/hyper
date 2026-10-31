@@ -260,6 +260,22 @@ impl<E> Builder<E> {
         self
     }
 
+    /// Reports a reset of an upgraded HTTP/2 stream as an error rather than as
+    /// an end of stream.
+    ///
+    /// An upgraded stream is a CONNECT stream, and by default a reset carrying
+    /// `NO_ERROR` or `CANCEL` reads as a clean end of stream, which is what
+    /// RFC 8441 relies on. With this set, every reset but `NO_ERROR` reads as
+    /// [`ConnectionReset`](std::io::ErrorKind::ConnectionReset), so a protocol
+    /// whose session is the CONNECT stream itself can tell an abandoned session
+    /// from a peer that finished.
+    ///
+    /// Default is `false`.
+    pub fn upgrade_reset_is_error(&mut self, enabled: bool) -> &mut Self {
+        self.h2_builder.upgrade_reset_is_error = enabled;
+        self
+    }
+
     /// Sets the header table size.
     ///
     /// This setting informs the peer of the maximum size of the header compression
