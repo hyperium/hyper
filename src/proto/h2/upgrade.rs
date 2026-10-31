@@ -17,6 +17,7 @@ pub(super) fn pair<B>(
     send_stream: SendStream<SendBuf<B>>,
     recv_stream: RecvStream,
     ping: Recorder,
+    upgrade_reset_is_error: bool,
 ) -> (H2Upgraded, UpgradedSendStreamTask<B>) {
     let (tx, rx) = mpsc::channel(1);
     let (error_tx, error_rx) = oneshot::channel();
@@ -27,6 +28,7 @@ pub(super) fn pair<B>(
             recv_stream,
             ping,
             buf: Bytes::new(),
+            upgrade_reset_is_error,
         },
         UpgradedSendStreamTask {
             h2_tx: send_stream,
@@ -42,6 +44,9 @@ pub(super) struct H2Upgraded {
     send_stream: UpgradedSendStreamBridge,
     recv_stream: RecvStream,
     buf: Bytes,
+    /// Whether a `RST_STREAM` other than `NO_ERROR` reads as an error rather
+    /// than as an end of stream.
+    upgrade_reset_is_error: bool,
 }
 
 struct UpgradedSendStreamBridge {
@@ -168,6 +173,7 @@ impl Read for H2Upgraded {
         cx: &mut Context<'_>,
         mut read_buf: ReadBufCursor<'_>,
     ) -> Poll<Result<(), std::io::Error>> {
+        let upgrade_reset_is_error = self.upgrade_reset_is_error;
         if self.buf.is_empty() {
             self.buf = loop {
                 match ready!(self.recv_stream.poll_data(cx)) {
@@ -179,7 +185,14 @@ impl Read for H2Upgraded {
                     }
                     Some(Err(e)) => {
                         return Poll::Ready(match e.reason() {
-                            Some(Reason::NO_ERROR) | Some(Reason::CANCEL) => Ok(()),
+                            // NO_ERROR is the peer saying it finished, so it
+                            // reads as an end of stream either way.
+                            Some(Reason::NO_ERROR) => Ok(()),
+                            Some(_) if upgrade_reset_is_error => Err(std::io::Error::new(
+                                std::io::ErrorKind::ConnectionReset,
+                                e,
+                            )),
+                            Some(Reason::CANCEL) => Ok(()),
                             Some(Reason::STREAM_CLOSED) => {
                                 Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, e))
                             }
