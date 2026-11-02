@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793637497133,
+  "lastUpdate": 1793637561142,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71713,6 +71713,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3497933,
             "range": "± 54411.79",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "16024985+trivikr@users.noreply.github.com",
+            "name": "Trivikram Kamat",
+            "username": "trivikr"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cf563e8a97cc389fd8800a9f178e847dc3203d1f",
+          "message": "style(lib): enforce clippy::unnested_or_patterns (#4256)\n\nsee https://github.com/hyperium/hyper/issues/4071.\n\nLint doc: https://clippy.rust-lang.org/master/index.html#unnested_or_patterns\n\nThe rule rewrites patterns in disjunctive normal form (DNF) into\nconjunctive normal form (CNF). Four patterns were flagged by this\nrule, which were replaced with equivalent nested ones.",
+          "timestamp": "2026-11-02T11:37:23-05:00",
+          "tree_id": "9067ae80f344898487390b863a6411323bf4613f",
+          "url": "https://github.com/hyperium/hyper/commit/cf563e8a97cc389fd8800a9f178e847dc3203d1f"
+        },
+        "date": 1793637556411,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 36960,
+            "range": "± 712.98",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3948421,
+            "range": "± 218494.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 11785,
+            "range": "± 263.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 12811,
+            "range": "± 270.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 18650,
+            "range": "± 701.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 52704,
+            "range": "± 1380.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000441,
+            "range": "± 56668.42",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 62718,
+            "range": "± 1197.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 21059142,
+            "range": "± 8364046.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 29883472,
+            "range": "± 16173437.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4332204,
+            "range": "± 57686.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 35706871,
+            "range": "± 644682.66",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 34385148,
+            "range": "± 528916.95",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3677599,
+            "range": "± 8210124.06",
             "unit": "ns/iter"
           }
         ]
