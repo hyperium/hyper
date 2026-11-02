@@ -241,7 +241,7 @@ where
 
         let msg = match self.io.parse::<T>(
             cx,
-            ParseContext {
+            &mut ParseContext {
                 cached_headers: &mut self.state.cached_headers,
                 req_method: &mut self.state.method,
                 h1_parser_config: self.state.h1_parser_config.clone(),
