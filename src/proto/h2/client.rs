@@ -177,7 +177,7 @@ where
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
-        let (recorder, ponger) = ping::channel(pp, ping_config, timer);
+        let (recorder, ponger) = ping::channel(pp, &ping_config, timer);
 
         let conn: Conn<_, B> = Conn::new(ponger, conn);
         (Either::left(conn), recorder)
@@ -706,7 +706,10 @@ where
                     }
                     let (head, body) = req.into_parts();
                     let mut req = ::http::Request::from_parts(head, ());
-                    super::strip_connection_headers(req.headers_mut(), super::MessageKind::Request);
+                    super::strip_connection_headers(
+                        req.headers_mut(),
+                        &super::MessageKind::Request,
+                    );
                     if let Some(len) = body.size_hint().exact() {
                         if len != 0 || headers::method_has_defined_payload_semantics(req.method()) {
                             headers::set_content_length_if_missing(req.headers_mut(), len);

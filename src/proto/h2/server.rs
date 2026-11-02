@@ -215,7 +215,7 @@ where
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
-                        Some(ping::channel(pp, ping_config.clone(), me.timer.clone()))
+                        Some(ping::channel(pp, ping_config, me.timer.clone()))
                     } else {
                         None
                     };
@@ -471,7 +471,7 @@ where
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(
                         res.headers_mut(),
-                        super::MessageKind::Response,
+                        &super::MessageKind::Response,
                     );
 
                     // set Date header if it isn't already set if instructed

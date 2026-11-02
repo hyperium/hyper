@@ -174,7 +174,7 @@ where
     pub(super) fn parse<S>(
         &mut self,
         cx: &mut Context<'_>,
-        parse_ctx: ParseContext<'_>,
+        parse_ctx: &mut ParseContext<'_>,
     ) -> Poll<crate::Result<ParsedMessage<S::Incoming>>>
     where
         S: Http1Transaction,
@@ -699,7 +699,7 @@ mod tests {
         // We expect a `parse` to be not ready, and so can't await it directly.
         // Rather, this `poll_fn` will wrap the `Poll` result.
         futures_util::future::poll_fn(|cx| {
-            let parse_ctx = ParseContext {
+            let mut parse_ctx = ParseContext {
                 cached_headers: &mut None,
                 req_method: &mut None,
                 h1_parser_config: Default::default(),
@@ -713,7 +713,7 @@ mod tests {
                 on_informational: &mut None,
             };
             assert!(buffered
-                .parse::<ClientTransaction>(cx, parse_ctx)
+                .parse::<ClientTransaction>(cx, &mut parse_ctx)
                 .is_pending());
             Poll::Ready(())
         })

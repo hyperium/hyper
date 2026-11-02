@@ -123,7 +123,6 @@ indexing_slicing = "allow"
 match_wild_err_arm = "allow"
 multiple_inherent_impl = "allow"
 multiple_unsafe_ops_per_block = "allow"
-needless_pass_by_value = "allow"
 pattern_type_mismatch = "allow"
 redundant_else = "allow"
 struct_excessive_bools = "allow" # TODO: bogus lint?

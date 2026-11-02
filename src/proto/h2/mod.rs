@@ -47,7 +47,7 @@ enum MessageKind {
     Response,
 }
 
-fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
+fn strip_connection_headers(headers: &mut HeaderMap, kind: &MessageKind) {
     for header in &CONNECTION_HEADERS {
         if headers.remove(header).is_some() {
             warn!("Connection header illegal in HTTP/2: {}", header.as_str());
