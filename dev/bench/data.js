@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793385186619,
+  "lastUpdate": 1793637497133,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14279,6 +14279,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 45684,
             "range": "± 8825.75",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "16024985+trivikr@users.noreply.github.com",
+            "name": "Trivikram Kamat",
+            "username": "trivikr"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "cf563e8a97cc389fd8800a9f178e847dc3203d1f",
+          "message": "style(lib): enforce clippy::unnested_or_patterns (#4256)\n\nsee https://github.com/hyperium/hyper/issues/4071.\n\nLint doc: https://clippy.rust-lang.org/master/index.html#unnested_or_patterns\n\nThe rule rewrites patterns in disjunctive normal form (DNF) into\nconjunctive normal form (CNF). Four patterns were flagged by this\nrule, which were replaced with equivalent nested ones.",
+          "timestamp": "2026-11-02T11:37:23-05:00",
+          "tree_id": "9067ae80f344898487390b863a6411323bf4613f",
+          "url": "https://github.com/hyperium/hyper/commit/cf563e8a97cc389fd8800a9f178e847dc3203d1f"
+        },
+        "date": 1793637492580,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 36357,
+            "range": "± 5148.42",
             "unit": "ns/iter"
           }
         ]
