@@ -164,6 +164,8 @@ where
             bdp_initial_window: bdp,
             keep_alive_interval: config.keep_alive_interval,
             keep_alive_timeout: config.keep_alive_timeout,
+            keep_alive_reuse_timeout: None,
+            keep_alive_observer: None,
             // If keep-alive is enabled for servers, always enabled while
             // idle, so it can more aggressively close dead connections.
             keep_alive_while_idle: true,
