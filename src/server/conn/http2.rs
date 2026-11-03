@@ -120,6 +120,11 @@ impl<E> Builder<E> {
         }
     }
 
+    /// Returns the executor this builder was created with.
+    pub fn executor(&self) -> &E {
+        &self.exec
+    }
+
     /// Configures the maximum number of pending reset streams allowed before a GOAWAY will be sent.
     ///
     /// This will default to the default value set by the [`h2` crate](https://crates.io/crates/h2).
