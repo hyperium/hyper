@@ -493,10 +493,9 @@ impl Http1Transaction for Server {
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
         use crate::error::Kind;
         let status = match *err.kind() {
-            Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header(_))
-            | Kind::Parse(Parse::Uri)
-            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
+            Kind::Parse(Parse::Method | Parse::Header(_) | Parse::Uri | Parse::Version) => {
+                StatusCode::BAD_REQUEST
+            }
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,
             _ => return None,
