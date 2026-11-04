@@ -229,6 +229,21 @@ where
     }
 
     pub(crate) fn poll_read_from_io(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
+        self.poll_read_from_io_inner(cx, ReadSize::Next)
+    }
+
+    pub(crate) fn poll_read_from_io_spare(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<io::Result<usize>> {
+        self.poll_read_from_io_inner(cx, ReadSize::Spare)
+    }
+
+    fn poll_read_from_io_inner(
+        &mut self,
+        cx: &mut Context<'_>,
+        size: ReadSize,
+    ) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
         // Get the next amount to allocate, but make sure we don't go over
         // the max read buf size configured.
@@ -238,7 +253,8 @@ where
                 .max()
                 .saturating_sub(self.read_buf.len()),
         );
-        if self.read_buf_remaining_mut() < next {
+        let remaining = self.read_buf_remaining_mut();
+        if remaining < next && (matches!(size, ReadSize::Next) || remaining == 0) {
             self.read_buf.reserve(next);
         }
 
@@ -367,6 +383,12 @@ where
             Poll::Ready(Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
     }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum ReadSize {
+    Next,
+    Spare,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -723,6 +745,45 @@ mod tests {
             buffered.read_buf,
             b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]
         );
+    }
+
+    #[cfg(all(feature = "server", not(miri)))]
+    #[tokio::test]
+    async fn spare_read_does_not_reallocate_a_shared_buffer() {
+        use crate::proto::h1::ServerTransaction;
+
+        let mock = Mock::new()
+            .read(b"GET / HTTP/1.1\r\nHost: example.com\r\n\r\n")
+            .wait(Duration::from_secs(1))
+            .build();
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
+
+        let msg = futures_util::future::poll_fn(|cx| {
+            let parse_ctx = ParseContext {
+                cached_headers: &mut None,
+                req_method: &mut None,
+                h1_parser_config: Default::default(),
+                h1_max_headers: None,
+                preserve_header_case: false,
+                #[cfg(feature = "ffi")]
+                preserve_header_order: false,
+                h09_responses: false,
+                #[cfg(feature = "client")]
+                on_informational: &mut None,
+            };
+            buffered.parse::<ServerTransaction>(cx, parse_ctx)
+        })
+        .await
+        .expect("parse");
+
+        let before = buffered.read_buf.as_ptr();
+        futures_util::future::poll_fn(|cx| {
+            assert!(buffered.poll_read_from_io_spare(cx).is_pending());
+            Poll::Ready(())
+        })
+        .await;
+        assert_eq!(buffered.read_buf.as_ptr(), before);
+        drop(msg);
     }
 
     #[test]
