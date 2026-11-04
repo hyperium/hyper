@@ -22,6 +22,7 @@ serde_json = "1.0"
 form_urlencoded = "1"
 http = "1"
 futures-util = { version = "0.3", default-features = false }
+tower = { version = "0.5", features = ["limit", "timeout", "util"] }
 ```
 
 ## Getting Started
@@ -57,6 +58,8 @@ futures-util = { version = "0.3", default-features = false }
 * [`single_threaded`](single_threaded.rs) - A server only running on 1 thread, so it can make use of `!Send` app state (like an `Rc` counter).
 
 * [`state`](state.rs) - A webserver showing basic state sharing among requests. A counter is shared, incremented for every request, and every response is sent the last count.
+
+* [`tower_layers`](tower_layers.rs) - A server whose handler is wrapped in a stack of `tower` layers, with the small adapter needed to hand a `tower::Service` to `serve_connection`.
 
 * [`upgrades`](upgrades.rs) - A server and client demonstrating how to do HTTP upgrades (such as WebSockets).
 
