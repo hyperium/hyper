@@ -135,7 +135,12 @@ impl Decoder {
             Length(0)
                 | Chunked {
                     state: ChunkedState::End,
-                    ..
+                    chunk_len: _,
+                    extensions_cnt: _,
+                    trailers_buf: _,
+                    trailers_cnt: _,
+                    h1_max_headers: _,
+                    h1_max_header_size: _,
                 }
                 | Eof(true)
         )
