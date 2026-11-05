@@ -76,6 +76,7 @@ pub(crate) struct Config {
     pub(crate) max_pending_accept_reset_streams: Option<usize>,
     pub(crate) max_local_error_reset_streams: Option<usize>,
     pub(crate) header_table_size: Option<u32>,
+    pub(crate) upgrade_reset_is_error: bool,
     pub(crate) max_concurrent_streams: Option<u32>,
     pub(crate) reset_stream_duration: Option<Duration>,
 }
@@ -97,6 +98,7 @@ impl Default for Config {
             max_pending_accept_reset_streams: None,
             max_local_error_reset_streams: Some(1024),
             header_table_size: None,
+            upgrade_reset_is_error: false,
             max_concurrent_streams: None,
             reset_stream_duration: None,
         }
@@ -201,6 +203,7 @@ where
         h2_tx,
         req_rx,
         fut_ctx: None,
+        upgrade_reset_is_error: config.upgrade_reset_is_error,
         marker: PhantomData,
     })
 }
@@ -434,6 +437,9 @@ where
     h2_tx: SendRequest<SendBuf<B::Data>>,
     req_rx: ClientRx<B>,
     fut_ctx: Option<FutCtx<B>>,
+    /// Carried as far as the upgraded stream, where it decides whether a
+    /// reset reads as an error or as an end of stream.
+    upgrade_reset_is_error: bool,
     marker: PhantomData<T>,
 }
 
@@ -571,6 +577,7 @@ where
                     send_stream: Some(send_stream),
                     exec: self.executor.clone(),
                     cancel_tx: Some(cancel_tx),
+                    upgrade_reset_is_error: self.upgrade_reset_is_error,
                 },
                 call_back: Some(f.cb),
             },
@@ -591,6 +598,7 @@ pin_project! {
         send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
         exec: E,
         cancel_tx: Option<oneshot::Sender<()>>,
+        upgrade_reset_is_error: bool,
     }
 }
 
@@ -639,7 +647,7 @@ where
 
                     let (pending, on_upgrade) = crate::upgrade::pending();
 
-                    let (h2_up, up_task) = super::upgrade::pair(send_stream, recv_stream, ping);
+                    let (h2_up, up_task) = super::upgrade::pair(send_stream, recv_stream, ping, *this.upgrade_reset_is_error);
                     self.exec.execute_upgrade(up_task);
                     let upgraded = Upgraded::new(h2_up, Bytes::new());
 
