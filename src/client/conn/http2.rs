@@ -170,7 +170,7 @@ where
                     Ok(Ok(resp)) => Ok(resp),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_canceled) => panic!("dispatch dropped without returning error"),
+                    Err(_canceled) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(_req) => {
                     debug!("connection was not ready");
@@ -189,6 +189,7 @@ where
     ///
     /// If there was an error before trying to serialize the request to the
     /// connection, the message will be returned as part of this error.
+    #[allow(clippy::result_large_err)]
     pub fn try_send_request(
         &mut self,
         req: Request<B>,
@@ -200,7 +201,7 @@ where
                     Ok(Ok(res)) => Ok(res),
                     Ok(Err(err)) => Err(err),
                     // this is definite bug if it happens, but it shouldn't happen!
-                    Err(_) => panic!("dispatch dropped without returning error"),
+                    Err(_) => unreachable!("dispatch dropped without returning error"),
                 },
                 Err(req) => {
                     debug!("connection was not ready");
