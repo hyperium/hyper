@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794256164104,
+  "lastUpdate": 1794256252939,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71989,6 +71989,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3352474,
             "range": "± 153936.13",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "robertream@gmail.com",
+            "name": "Robert Ream",
+            "username": "robertream"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b638fc0de351987f3eaffa2bdabd393c8679a9e8",
+          "message": "feat(http2): add an executor getter for server and client (#4250)\n\n`Builder::new(exec)` is the only constructor on either HTTP/2 builder and the\nexecutor cannot be read back, so a caller that needs it for work alongside a\nconnection keeps a second copy with nothing relating the two.\n\n`impl<E> Builder<E>` is unconstrained, so the accessor needs no bound, and\nreturning `&E` leaves cloning to the caller.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-11-09T15:28:32-05:00",
+          "tree_id": "ae901243bbe058ffd2ea7e5d993aa73d675f18fb",
+          "url": "https://github.com/hyperium/hyper/commit/b638fc0de351987f3eaffa2bdabd393c8679a9e8"
+        },
+        "date": 1794256248198,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 68144,
+            "range": "± 1159.58",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4347399,
+            "range": "± 360750.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20960,
+            "range": "± 481.14",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22318,
+            "range": "± 584.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30642,
+            "range": "± 821.34",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 98878,
+            "range": "± 1451.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999021,
+            "range": "± 30950.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 80967,
+            "range": "± 2609.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 31830407,
+            "range": "± 8637244.02",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 33798707,
+            "range": "± 8363142.22",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7400486,
+            "range": "± 72974.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50282894,
+            "range": "± 1173263.91",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51387241,
+            "range": "± 1228665.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5279204,
+            "range": "± 110438.46",
             "unit": "ns/iter"
           }
         ]
