@@ -395,6 +395,12 @@ impl Http1Transaction for Server {
             msg.req_method
         );
 
+        // A 205 response cannot contain content (RFC 9110 Section 15.3.6),
+        // so drop the body and let the framing code send a zero length.
+        if msg.head.subject == StatusCode::RESET_CONTENT {
+            msg.body = None;
+        }
+
         let mut wrote_len = false;
 
         // hyper currently doesn't support returning 1xx status codes as a Response
@@ -531,7 +537,10 @@ impl Server {
         {
             false
         } else {
-            !matches!(status, StatusCode::NO_CONTENT | StatusCode::NOT_MODIFIED)
+            !matches!(
+                status,
+                StatusCode::NO_CONTENT | StatusCode::RESET_CONTENT | StatusCode::NOT_MODIFIED
+            )
         }
     }
 

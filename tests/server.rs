@@ -385,6 +385,89 @@ mod response_body_lengths {
         assert_eq!(res.headers().get("content-length"), None);
         assert_eq!(res.body().size_hint().exact(), Some(0));
     }
+
+    #[tokio::test]
+    async fn http2_skips_body_for_204_responses() {
+        let server = serve_opts().http2().serve();
+        let addr_str = format!("http://{}", server.addr());
+        server
+            .reply()
+            .status(hyper::StatusCode::NO_CONTENT)
+            .body("Hello, World!");
+
+        let client = TestClient::new().http2_only();
+        let uri = addr_str
+            .parse::<hyper::Uri>()
+            .expect("server addr should parse");
+
+        let res = client.get(uri).await.unwrap();
+        assert_eq!(res.status(), hyper::StatusCode::NO_CONTENT);
+        assert_eq!(res.headers().get("content-length"), None);
+        assert!(res
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn http2_skips_body_for_205_responses() {
+        let server = serve_opts().http2().serve();
+        let addr_str = format!("http://{}", server.addr());
+        server
+            .reply()
+            .status(hyper::StatusCode::RESET_CONTENT)
+            .body("Hello, World!");
+
+        let client = TestClient::new().http2_only();
+        let uri = addr_str
+            .parse::<hyper::Uri>()
+            .expect("server addr should parse");
+
+        let res = client.get(uri).await.unwrap();
+        assert_eq!(res.status(), hyper::StatusCode::RESET_CONTENT);
+        assert_eq!(res.headers().get("content-length"), None);
+        assert!(res
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn http2_skips_body_for_head_responses() {
+        let server = serve_opts().http2().serve();
+        let addr_str = format!("http://{}", server.addr());
+        server.reply().body("Hello, World!");
+
+        let client = TestClient::new().http2_only();
+        let uri = addr_str
+            .parse::<hyper::Uri>()
+            .expect("server addr should parse");
+
+        let res = client
+            .request(
+                Request::builder()
+                    .uri(uri)
+                    .method(Method::HEAD)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(res.headers().get("content-length").unwrap(), "13");
+        assert!(res
+            .into_body()
+            .collect()
+            .await
+            .unwrap()
+            .to_bytes()
+            .is_empty());
+    }
 }
 
 #[test]
@@ -3061,6 +3144,36 @@ fn skips_content_length_and_body_for_304_responses() {
     assert!(!response.contains("content-length:"));
     let mut lines = response.lines();
     assert_eq!(lines.next(), Some("HTTP/1.1 304 Not Modified"));
+
+    let mut lines = lines.skip_while(|line| !line.is_empty());
+    assert_eq!(lines.next(), Some(""));
+    assert_eq!(lines.next(), None);
+}
+
+#[test]
+fn skips_body_for_205_responses() {
+    let server = serve();
+    server
+        .reply()
+        .status(hyper::StatusCode::RESET_CONTENT)
+        .body("foo");
+    let mut req = connect(server.addr());
+    req.write_all(
+        b"\
+        GET / HTTP/1.1\r\n\
+        Host: example.domain\r\n\
+        Connection: close\r\n\
+        \r\n\
+    ",
+    )
+    .unwrap();
+
+    let mut response = String::new();
+    req.read_to_string(&mut response).unwrap();
+    assert!(response.starts_with("HTTP/1.1 205 Reset Content\r\n"));
+    assert!(response.contains("content-length: 0\r\n"));
+    let mut lines = response.lines();
+    lines.next();
 
     let mut lines = lines.skip_while(|line| !line.is_empty());
     assert_eq!(lines.next(), Some(""));
