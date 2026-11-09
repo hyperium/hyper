@@ -181,14 +181,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: check --feature-powerset
-        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --skip ffi,tracing
-        env:
-          RUSTFLAGS: "-D dead_code -D unused_imports"
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --features __deny_warnings --skip ffi,tracing
 
       - name: check --feature-powerset with tracing feature
-        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --features tracing --skip ffi
+        run: cargo hack --no-dev-deps check --feature-powerset --depth 2 --features tracing,__deny_warnings --skip ffi
         env:
-          RUSTFLAGS: "--cfg hyper_unstable_tracing -D dead_code -D unused_imports"
+          RUSTFLAGS: "--cfg hyper_unstable_tracing"
 
   ffi:
     name: Test C API (FFI)
