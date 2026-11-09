@@ -471,7 +471,7 @@ where
                     let mut res = ::http::Response::from_parts(head, ());
                     super::strip_connection_headers(
                         res.headers_mut(),
-                        &super::MessageKind::Response,
+                        super::MessageKind::Response,
                     );
 
                     // set Date header if it isn't already set if instructed
