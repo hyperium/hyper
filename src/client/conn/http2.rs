@@ -314,6 +314,11 @@ where
         }
     }
 
+    /// Returns the executor this builder was created with.
+    pub fn executor(&self) -> &Ex {
+        &self.exec
+    }
+
     /// Provide a timer to execute background HTTP2 tasks.
     pub fn timer<M>(&mut self, timer: M) -> &mut Builder<Ex>
     where
