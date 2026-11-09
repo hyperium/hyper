@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794237198177,
+  "lastUpdate": 1794237236952,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -71851,6 +71851,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 3677599,
             "range": "± 8210124.06",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c5e100ca0d5497a021894215bad9222099c32203",
+          "message": "chore(ci): deny warnings in 'features' step (#4253)\n\nfixes https://github.com/hyperium/hyper/issues/4232.\n\nin #4231, we found that we don't deny warnings when running cargo hack,\nbecause of the predicate that conditionally gates a crate-level\n`#![deny(warnings)]` attribute in `lib.rs`:\n\n```rust\n // src/lib.rs\n #![cfg_attr(all(test, feature = \"full\"), deny(unreachable_pub))]\n #![cfg_attr(all(test, feature = \"full\"), deny(warnings))]\n #![cfg_attr(all(test, feature = \"nightly\"), feature(test))]\n```\n\nwhile this prevents warnings from existing when running `cargo test\n--features full`, it does not affect other builds. so, this would not be\nactive in the commands run by the `features` step in CI, which runs the\nfollowing two `cargo-hack` commands:\n\n```sh\nRUSTFLAGS=\"-D dead_code -D unused_imports\" \\\n  cargo hack --no-dev-deps check \\\n  --feature-powerset --depth 2 --skip ffi,tracing\n\nRUSTFLAGS=\"--cfg hyper_unstable_tracing -D dead_code -D unused_imports\" \\\n  cargo hack --no-dev-deps check \\\n  --feature-powerset --depth 2 --features tracing --skip ffi\n```\n\nthis commit introduces a new feature, intended for internal use in CI,\ncalled `__deny_warnings`. this provides another mechanism to deny\nwarnings when building hyper.\n\n`cargo hack` invocations run in CI are updated to enable this flag.\nbecause `-D dead_code -D unused_imports` are now redundant, the\n`RUSTFLAGS` values passed to these steps are also accordingly\nsimplified.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-11-09T10:12:25-05:00",
+          "tree_id": "2958c2bde183a6762a95b8eee7a98e01cdcbdd8b",
+          "url": "https://github.com/hyperium/hyper/commit/c5e100ca0d5497a021894215bad9222099c32203"
+        },
+        "date": 1794237234240,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 39783,
+            "range": "± 2652.40",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 2523666,
+            "range": "± 128838.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 14364,
+            "range": "± 129.37",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 15027,
+            "range": "± 309.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 17367,
+            "range": "± 161.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 52345,
+            "range": "± 1087.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40998373,
+            "range": "± 38886.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 47553,
+            "range": "± 1606.33",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 25755820,
+            "range": "± 8752514.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 4907222,
+            "range": "± 22355657.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 4714475,
+            "range": "± 272946.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 32074491,
+            "range": "± 3411439.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 33055142,
+            "range": "± 2104740.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 3352474,
+            "range": "± 153936.13",
             "unit": "ns/iter"
           }
         ]
