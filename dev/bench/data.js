@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1793637561142,
+  "lastUpdate": 1794237198177,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14309,6 +14309,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 36357,
             "range": "± 5148.42",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "c5e100ca0d5497a021894215bad9222099c32203",
+          "message": "chore(ci): deny warnings in 'features' step (#4253)\n\nfixes https://github.com/hyperium/hyper/issues/4232.\n\nin #4231, we found that we don't deny warnings when running cargo hack,\nbecause of the predicate that conditionally gates a crate-level\n`#![deny(warnings)]` attribute in `lib.rs`:\n\n```rust\n // src/lib.rs\n #![cfg_attr(all(test, feature = \"full\"), deny(unreachable_pub))]\n #![cfg_attr(all(test, feature = \"full\"), deny(warnings))]\n #![cfg_attr(all(test, feature = \"nightly\"), feature(test))]\n```\n\nwhile this prevents warnings from existing when running `cargo test\n--features full`, it does not affect other builds. so, this would not be\nactive in the commands run by the `features` step in CI, which runs the\nfollowing two `cargo-hack` commands:\n\n```sh\nRUSTFLAGS=\"-D dead_code -D unused_imports\" \\\n  cargo hack --no-dev-deps check \\\n  --feature-powerset --depth 2 --skip ffi,tracing\n\nRUSTFLAGS=\"--cfg hyper_unstable_tracing -D dead_code -D unused_imports\" \\\n  cargo hack --no-dev-deps check \\\n  --feature-powerset --depth 2 --features tracing --skip ffi\n```\n\nthis commit introduces a new feature, intended for internal use in CI,\ncalled `__deny_warnings`. this provides another mechanism to deny\nwarnings when building hyper.\n\n`cargo hack` invocations run in CI are updated to enable this flag.\nbecause `-D dead_code -D unused_imports` are now redundant, the\n`RUSTFLAGS` values passed to these steps are also accordingly\nsimplified.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-11-09T10:12:25-05:00",
+          "tree_id": "2958c2bde183a6762a95b8eee7a98e01cdcbdd8b",
+          "url": "https://github.com/hyperium/hyper/commit/c5e100ca0d5497a021894215bad9222099c32203"
+        },
+        "date": 1794237194155,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 41490,
+            "range": "± 8617.28",
             "unit": "ns/iter"
           }
         ]
