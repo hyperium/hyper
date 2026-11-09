@@ -68,7 +68,7 @@ impl DecodedLength {
     ))]
     pub(crate) fn sub_if(&mut self, amt: u64) {
         match self {
-            &mut DecodedLength::CHUNKED | &mut DecodedLength::CLOSE_DELIMITED => (),
+            &mut (DecodedLength::CHUNKED | DecodedLength::CLOSE_DELIMITED) => (),
             DecodedLength(known) => {
                 *known -= amt;
             }
@@ -81,7 +81,7 @@ impl DecodedLength {
     ///
     /// It would return false if "chunked" or otherwise size-unknown.
     #[cfg(all(any(feature = "client", feature = "server"), feature = "http2"))]
-    pub(crate) fn is_exact(&self) -> bool {
+    pub(crate) fn is_exact(self) -> bool {
         self.0 <= MAX_LEN
     }
 }
