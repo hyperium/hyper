@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794237236952,
+  "lastUpdate": 1794256164104,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14339,6 +14339,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 41490,
             "range": "± 8617.28",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "robertream@gmail.com",
+            "name": "Robert Ream",
+            "username": "robertream"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b638fc0de351987f3eaffa2bdabd393c8679a9e8",
+          "message": "feat(http2): add an executor getter for server and client (#4250)\n\n`Builder::new(exec)` is the only constructor on either HTTP/2 builder and the\nexecutor cannot be read back, so a caller that needs it for work alongside a\nconnection keeps a second copy with nothing relating the two.\n\n`impl<E> Builder<E>` is unconstrained, so the accessor needs no bound, and\nreturning `&E` leaves cloning to the caller.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-11-09T15:28:32-05:00",
+          "tree_id": "ae901243bbe058ffd2ea7e5d993aa73d675f18fb",
+          "url": "https://github.com/hyperium/hyper/commit/b638fc0de351987f3eaffa2bdabd393c8679a9e8"
+        },
+        "date": 1794256160664,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 42994,
+            "range": "± 9203.86",
             "unit": "ns/iter"
           }
         ]
