@@ -468,6 +468,43 @@ mod response_body_lengths {
             .to_bytes()
             .is_empty());
     }
+
+    #[tokio::test]
+    async fn http2_skips_content_length_for_head_204_and_205_responses() {
+        for status in [
+            hyper::StatusCode::NO_CONTENT,
+            hyper::StatusCode::RESET_CONTENT,
+        ] {
+            let server = serve_opts().http2().serve();
+            let addr_str = format!("http://{}", server.addr());
+            server.reply().status(status).body("Hello, World!");
+
+            let client = TestClient::new().http2_only();
+            let uri = addr_str
+                .parse::<hyper::Uri>()
+                .expect("server addr should parse");
+
+            let res = client
+                .request(
+                    Request::builder()
+                        .uri(uri)
+                        .method(Method::HEAD)
+                        .body(Empty::<Bytes>::new())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(res.status(), status);
+            assert_eq!(res.headers().get("content-length"), None);
+            assert!(res
+                .into_body()
+                .collect()
+                .await
+                .unwrap()
+                .to_bytes()
+                .is_empty());
+        }
+    }
 }
 
 #[test]

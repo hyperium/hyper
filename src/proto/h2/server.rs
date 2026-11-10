@@ -516,33 +516,32 @@ where
                         }
                     }
 
-                    // Responses to HEAD requests, as well as 204, 205, and 304
-                    // responses, never contain content (RFC 9110 Section 6.4.1
-                    // and Section 15.3.6).
+                    // Status restrictions take precedence over HEAD: 204, 205,
+                    // and 304 responses never contain content (RFC 9110 Section
+                    // 6.4.1 and Section 15.3.6).
                     let status = res.status();
-                    if *me.is_head
-                        || matches!(
-                            status,
-                            StatusCode::NO_CONTENT
-                                | StatusCode::RESET_CONTENT
-                                | StatusCode::NOT_MODIFIED
-                        )
-                    {
-                        if *me.is_head {
-                            // A HEAD response may include the Content-Length
-                            // that a GET response would have sent.
-                            if !body.is_end_stream() {
-                                if let Some(len) = body.size_hint().exact() {
-                                    headers::set_content_length_if_missing(res.headers_mut(), len);
-                                }
-                            }
-                        } else if matches!(
-                            status,
-                            StatusCode::NO_CONTENT | StatusCode::RESET_CONTENT
-                        ) {
+                    if matches!(
+                        status,
+                        StatusCode::NO_CONTENT
+                            | StatusCode::RESET_CONTENT
+                            | StatusCode::NOT_MODIFIED
+                    ) {
+                        if matches!(status, StatusCode::NO_CONTENT | StatusCode::RESET_CONTENT) {
                             // 204 cannot include Content-Length (RFC 9113
                             // Section 8.1) and a 205 response has no content.
                             res.headers_mut().remove(::http::header::CONTENT_LENGTH);
+                        }
+                        reply!(me, res, true);
+                        return Poll::Ready(Ok(()));
+                    }
+
+                    if *me.is_head {
+                        // A HEAD response may include the Content-Length
+                        // that a GET response would have sent.
+                        if !body.is_end_stream() {
+                            if let Some(len) = body.size_hint().exact() {
+                                headers::set_content_length_if_missing(res.headers_mut(), len);
+                            }
                         }
                         reply!(me, res, true);
                         return Poll::Ready(Ok(()));
