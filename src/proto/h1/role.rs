@@ -1161,6 +1161,13 @@ impl Http1Transaction for Client {
                 headers.append(name, value);
             }
 
+            // https://tools.ietf.org/html/rfc7230#section-3.3.3
+            // Transfer-Encoding overrides Content-Length; drop the latter so
+            // the exposed headers match the server-side decoder.
+            if headers.contains_key(header::TRANSFER_ENCODING) {
+                headers.remove(header::CONTENT_LENGTH);
+            }
+
             let mut extensions = http::Extensions::default();
 
             if let Some(header_case_map) = header_case_map {
@@ -2406,19 +2413,30 @@ mod tests {
             DecodedLength::CLOSE_DELIMITED
         );
 
-        // transfer-encoding and content-length = chunked
-        assert_eq!(
-            parse(
-                "\
-                 HTTP/1.1 200 OK\r\n\
-                 content-length: 10\r\n\
-                 transfer-encoding: chunked\r\n\
-                 \r\n\
-                 "
-            )
-            .decode,
-            DecodedLength::CHUNKED
+        // transfer-encoding and content-length = chunked; Content-Length is dropped
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: 100000\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
         );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(msg.head.headers.contains_key(header::TRANSFER_ENCODING));
+
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             transfer-encoding: chunked\r\n\
+             content-length: 100000\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(msg.head.headers.contains_key(header::TRANSFER_ENCODING));
 
         // HEAD can have content-length, but not body
         assert_eq!(
