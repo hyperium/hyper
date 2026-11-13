@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794585847681,
+  "lastUpdate": 1794595928195,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14399,6 +14399,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43112,
             "range": "± 6686.30",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shuvro.nsu.cse@gmail.com",
+            "name": "Shuvro Roy",
+            "username": "shuvroroy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "88520c3eaea391f8ba49591a84f8439998b76191",
+          "message": "fix(http2): keep connection open after rejecting CONNECT (#4235)\n\nContinue accepting streams after resetting a CONNECT request with a\nnonzero Content-Length. Returning from the server loop closes the entire\nHTTP/2 connection and interrupts unrelated requests.\n\nAdd a regression test that keeps a GET in flight during the reset and\nthen sends another GET over the same connection.",
+          "timestamp": "2026-11-13T13:51:19-05:00",
+          "tree_id": "dd22a1256a11782390f8129846483af5b78acd18",
+          "url": "https://github.com/hyperium/hyper/commit/88520c3eaea391f8ba49591a84f8439998b76191"
+        },
+        "date": 1794595925212,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44684,
+            "range": "± 9153.46",
             "unit": "ns/iter"
           }
         ]
