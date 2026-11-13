@@ -680,6 +680,13 @@ where
             match ready!(self.h2_tx.poll_ready(cx)) {
                 Ok(()) => (),
                 Err(err) => {
+                    // Don't drop a pending-open request's callback or it fails with DispatchGone
+                    if let Some(f) = self.fut_ctx.take() {
+                        f.cb.send(Err(TrySendError {
+                            error: crate::Error::new_canceled().with("connection closed"),
+                            message: None,
+                        }));
+                    }
                     self.ping.ensure_not_timed_out()?;
                     return if err.reason() == Some(::h2::Reason::NO_ERROR) {
                         trace!("connection gracefully shutdown");
