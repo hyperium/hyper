@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794595975846,
+  "lastUpdate": 1794595997472,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -72295,6 +72295,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5299156,
             "range": "± 161161.66",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shuvro.nsu.cse@gmail.com",
+            "name": "Shuvro Roy",
+            "username": "shuvroroy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "88520c3eaea391f8ba49591a84f8439998b76191",
+          "message": "fix(http2): keep connection open after rejecting CONNECT (#4235)\n\nContinue accepting streams after resetting a CONNECT request with a\nnonzero Content-Length. Returning from the server loop closes the entire\nHTTP/2 connection and interrupts unrelated requests.\n\nAdd a regression test that keeps a GET in flight during the reset and\nthen sends another GET over the same connection.",
+          "timestamp": "2026-11-13T13:51:19-05:00",
+          "tree_id": "dd22a1256a11782390f8129846483af5b78acd18",
+          "url": "https://github.com/hyperium/hyper/commit/88520c3eaea391f8ba49591a84f8439998b76191"
+        },
+        "date": 1794595994502,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 48588,
+            "range": "± 706.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3342234,
+            "range": "± 285196.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 17728,
+            "range": "± 225.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 18567,
+            "range": "± 388.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 22020,
+            "range": "± 317.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 73735,
+            "range": "± 3992.63",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999989,
+            "range": "± 26278.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 58956,
+            "range": "± 961.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 30659306,
+            "range": "± 8273723.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 39796809,
+            "range": "± 29336525.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 6181178,
+            "range": "± 177445.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 42599764,
+            "range": "± 768913.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 44060720,
+            "range": "± 738243.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4488897,
+            "range": "± 90713.19",
             "unit": "ns/iter"
           }
         ]
