@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794256252939,
+  "lastUpdate": 1794585771283,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14369,6 +14369,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 42994,
             "range": "± 9203.86",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "5299031+kevin9327@users.noreply.github.com",
+            "name": "kevin",
+            "username": "kevin9327"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "378f8479b8b703d098b46de1cec9ea648f12ea69",
+          "message": "fix(http1): drop Content-Length when a response also has Transfer-Encoding (#4264)\n\nThe HTTP/1 server decoder already removes Content-Length when\nTransfer-Encoding is present. The client decoder preferred\nTransfer-Encoding for the body length, but still exposed both headers.\n\nRFC 7230 §3.3.3 says Transfer-Encoding overrides Content-Length. Remove\nthe Content-Length header from parsed responses so callers cannot treat\nit as authoritative.\n\nCloses #4263",
+          "timestamp": "2026-11-13T11:01:56-05:00",
+          "tree_id": "cdb47a2b7493838629bafb840eb69602f3a0a3c7",
+          "url": "https://github.com/hyperium/hyper/commit/378f8479b8b703d098b46de1cec9ea648f12ea69"
+        },
+        "date": 1794585767836,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43112,
+            "range": "± 6686.30",
             "unit": "ns/iter"
           }
         ]
