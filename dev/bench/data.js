@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794585771283,
+  "lastUpdate": 1794585847681,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -72127,6 +72127,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5279204,
             "range": "± 110438.46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "5299031+kevin9327@users.noreply.github.com",
+            "name": "kevin",
+            "username": "kevin9327"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "378f8479b8b703d098b46de1cec9ea648f12ea69",
+          "message": "fix(http1): drop Content-Length when a response also has Transfer-Encoding (#4264)\n\nThe HTTP/1 server decoder already removes Content-Length when\nTransfer-Encoding is present. The client decoder preferred\nTransfer-Encoding for the body length, but still exposed both headers.\n\nRFC 7230 §3.3.3 says Transfer-Encoding overrides Content-Length. Remove\nthe Content-Length header from parsed responses so callers cannot treat\nit as authoritative.\n\nCloses #4263",
+          "timestamp": "2026-11-13T11:01:56-05:00",
+          "tree_id": "cdb47a2b7493838629bafb840eb69602f3a0a3c7",
+          "url": "https://github.com/hyperium/hyper/commit/378f8479b8b703d098b46de1cec9ea648f12ea69"
+        },
+        "date": 1794585841958,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 90364,
+            "range": "± 1819.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4060717,
+            "range": "± 185509.52",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21255,
+            "range": "± 459.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22993,
+            "range": "± 2494.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30866,
+            "range": "± 681.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100272,
+            "range": "± 2577.88",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000453,
+            "range": "± 123471.15",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 79234,
+            "range": "± 1939.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 31821693,
+            "range": "± 8479840.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 33600419,
+            "range": "± 8377528.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7377778,
+            "range": "± 174321.59",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49200101,
+            "range": "± 678583.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51603009,
+            "range": "± 2471009.79",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5299156,
+            "range": "± 161161.66",
             "unit": "ns/iter"
           }
         ]
