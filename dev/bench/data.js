@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794595928195,
+  "lastUpdate": 1794595975846,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14429,6 +14429,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44684,
             "range": "± 9153.46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b1e7eabff4683a4fa6a9f97479736a325437bae6",
+          "message": "chore(github): add human authorship checkbox to issue templates (#4267)",
+          "timestamp": "2026-11-13T13:51:49-05:00",
+          "tree_id": "6c3f01e991c34143d137a7c038cfae87cc96663a",
+          "url": "https://github.com/hyperium/hyper/commit/b1e7eabff4683a4fa6a9f97479736a325437bae6"
+        },
+        "date": 1794595973078,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 34961,
+            "range": "± 25858.03",
             "unit": "ns/iter"
           }
         ]
