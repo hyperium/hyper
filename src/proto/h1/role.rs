@@ -476,7 +476,7 @@ impl Http1Transaction for Server {
         };
         let encoder = if let Some(orig_headers) = orig_headers {
             Self::encode_headers_with_original_case(
-                msg,
+                &mut msg,
                 dst,
                 is_last,
                 orig_len,
@@ -484,7 +484,7 @@ impl Http1Transaction for Server {
                 orig_headers,
             )?
         } else {
-            Self::encode_headers_with_lower_case(msg, dst, is_last, orig_len, wrote_len)?
+            Self::encode_headers_with_lower_case(&mut msg, dst, is_last, orig_len, wrote_len)?
         };
 
         ret.map(|()| encoder)
@@ -548,7 +548,7 @@ impl Server {
     }
 
     fn encode_headers_with_lower_case(
-        msg: Encode<'_, StatusCode>,
+        msg: &mut Encode<'_, StatusCode>,
         dst: &mut Vec<u8>,
         is_last: bool,
         orig_len: usize,
@@ -589,7 +589,7 @@ impl Server {
     #[cold]
     #[inline(never)]
     fn encode_headers_with_original_case(
-        msg: Encode<'_, StatusCode>,
+        msg: &mut Encode<'_, StatusCode>,
         dst: &mut Vec<u8>,
         is_last: bool,
         orig_len: usize,
@@ -659,7 +659,7 @@ impl Server {
 
     #[inline]
     fn encode_headers<W>(
-        msg: Encode<'_, StatusCode>,
+        msg: &mut Encode<'_, StatusCode>,
         dst: &mut Vec<u8>,
         mut is_last: bool,
         orig_len: usize,

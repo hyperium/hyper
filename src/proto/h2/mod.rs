@@ -40,6 +40,7 @@ static CONNECTION_HEADERS: [HeaderName; 4] = [
     UPGRADE,
 ];
 
+#[derive(Clone, Copy)]
 enum MessageKind {
     #[cfg(feature = "client")]
     Request,
