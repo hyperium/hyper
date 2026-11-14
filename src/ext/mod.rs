@@ -223,14 +223,19 @@ impl OriginalHeaderOrder {
     }
 
     pub(crate) fn insert(&mut self, name: HeaderName) {
-        if !self.num_entries.contains_key(&name) {
-            let idx = 0;
-            self.num_entries.insert(name.clone(), 1);
-            self.entry_order.push((name, idx));
+        self.num_entries.insert(name.clone(), 1);
+
+        if let Some(first_position) = self
+            .entry_order
+            .iter()
+            .position(|(entry_name, _)| entry_name == &name)
+        {
+            self.entry_order
+                .retain(|(entry_name, _)| entry_name != &name);
+            self.entry_order.insert(first_position, (name, 0));
+        } else {
+            self.entry_order.push((name, 0));
         }
-        // Replacing an already existing element does not
-        // change ordering, so we only care if its the first
-        // header name encountered
     }
 
     pub(crate) fn append<N>(&mut self, name: N)
