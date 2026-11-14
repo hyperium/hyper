@@ -433,7 +433,7 @@ where
                                     trace!("discarding empty chunk");
                                     self.conn.end_body()?;
                                 } else {
-                                    self.conn.write_body_and_end(chunk);
+                                    self.conn.write_body_and_end(chunk)?;
                                 }
                             } else {
                                 if chunk.remaining() == 0 {
@@ -1003,6 +1003,41 @@ mod tests {
         drop(res);
 
         assert!(!tx.is_ready());
+    }
+
+    #[tokio::test]
+    async fn client_body_shorter_than_content_length_errors() {
+        let _ = pretty_env_logger::try_init();
+
+        let (io, _handle) = tokio_test::io::Builder::new()
+            .write(b"POST / HTTP/1.1\r\ncontent-length: 10\r\n\r\nhello")
+            .wait(std::time::Duration::from_secs(2))
+            .build_with_handle();
+
+        let (mut tx, rx) = crate::client::dispatch::channel();
+        let conn = Conn::<_, bytes::Bytes, ClientTransaction>::new(Compat::new(io));
+        let dispatcher = Dispatcher::new(Client::new(rx), conn);
+        let _dispatcher = tokio::spawn(async move { dispatcher.await });
+
+        // The body ends with its only chunk, so it takes the write_body_and_end path.
+        let body = {
+            let (mut tx, body) = IncomingBody::new_channel(DecodedLength::new(5), false);
+            tx.try_send_data("hello".into()).unwrap();
+            body
+        };
+
+        let req = crate::Request::builder()
+            .method("POST")
+            .header("content-length", "10")
+            .body(body)
+            .unwrap();
+
+        let err = tokio::time::timeout(Duration::from_secs(1), tx.try_send(req).unwrap())
+            .await
+            .expect("request should not hang")
+            .expect("callback dropped")
+            .expect_err("short body should error");
+        assert!(err.error().is_body_write_aborted(), "{:?}", err.error());
     }
 
     #[cfg(not(miri))]

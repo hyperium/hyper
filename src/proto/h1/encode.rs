@@ -221,7 +221,11 @@ impl Encoder {
         }
     }
 
-    pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>) -> bool
+    pub(super) fn encode_and_end<B>(
+        &self,
+        msg: B,
+        dst: &mut WriteBuf<EncodedBuf<B>>,
+    ) -> Result<bool, NotEof>
     where
         B: Buf,
     {
@@ -235,7 +239,7 @@ impl Encoder {
                     .chain(msg)
                     .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
                 dst.buffer(buf);
-                !self.is_last
+                Ok(!self.is_last)
             }
             Kind::Length(remaining) => {
                 use std::cmp::Ordering;
@@ -244,16 +248,16 @@ impl Encoder {
                 match (len as u64).cmp(&remaining) {
                     Ordering::Equal => {
                         dst.buffer(msg);
-                        !self.is_last
+                        Ok(!self.is_last)
                     }
                     #[allow(clippy::cast_possible_truncation)]
                     Ordering::Greater => {
                         dst.buffer(msg.take(remaining as usize));
-                        !self.is_last
+                        Ok(!self.is_last)
                     }
                     Ordering::Less => {
                         dst.buffer(msg);
-                        false
+                        Err(NotEof(remaining - len as u64))
                     }
                 }
             }
@@ -261,7 +265,7 @@ impl Encoder {
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
                 dst.buffer(msg);
-                false
+                Ok(false)
             }
         }
     }
