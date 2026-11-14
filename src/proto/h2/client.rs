@@ -681,7 +681,27 @@ where
                 Ok(()) => (),
                 Err(err) => {
                     self.ping.ensure_not_timed_out()?;
-                    return if err.reason() == Some(::h2::Reason::NO_ERROR) {
+                    let graceful = err.reason() == Some(::h2::Reason::NO_ERROR);
+                    // A request may be parked in fut_ctx waiting for its
+                    // stream to open. Fail it here with the connection
+                    // error instead of letting it fall through to
+                    // Callback::drop, which reports a misleading
+                    // DispatchGone user error.
+                    if let Some(f) = self.fut_ctx.take() {
+                        let cb_err = if graceful {
+                            crate::Error::new_canceled().with("connection closed")
+                        } else {
+                            match err.reason() {
+                                Some(reason) => crate::Error::new_h2(reason.into()),
+                                None => crate::Error::new_canceled().with("connection closed"),
+                            }
+                        };
+                        f.cb.send(Err(TrySendError {
+                            error: cb_err,
+                            message: None,
+                        }));
+                    }
+                    return if graceful {
                         trace!("connection gracefully shutdown");
                         Poll::Ready(Ok(Dispatched::Shutdown))
                     } else {
