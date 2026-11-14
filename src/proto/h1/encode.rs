@@ -347,14 +347,20 @@ struct ChunkSize {
 }
 
 impl ChunkSize {
+    #[allow(clippy::cast_possible_truncation)]
     fn new(len: usize) -> ChunkSize {
-        use std::fmt::Write;
         let mut size = ChunkSize {
             bytes: [0; CHUNK_SIZE_MAX_BYTES + 2],
             pos: 0,
             len: 0,
         };
-        write!(&mut size, "{len:X}\r\n").expect("CHUNK_SIZE_MAX_BYTES should fit any usize");
+        // avoid going through fmt for every chunk
+        let digits = ((usize::BITS - len.leading_zeros() + 3) >> 2).max(1) as usize;
+        for i in 0..digits {
+            size.bytes[digits - 1 - i] = b"0123456789ABCDEF"[(len >> (i * 4)) & 0xF];
+        }
+        size.bytes[digits..digits + 2].copy_from_slice(b"\r\n");
+        size.len = (digits + 2) as u8;
         size
     }
 }
@@ -384,19 +390,6 @@ impl fmt::Debug for ChunkSize {
             .field("bytes", &&self.bytes[..self.len.into()])
             .field("pos", &self.pos)
             .finish()
-    }
-}
-
-impl fmt::Write for ChunkSize {
-    #[allow(clippy::cast_possible_truncation)]
-    fn write_str(&mut self, num: &str) -> fmt::Result {
-        use std::io::Write;
-        (&mut self.bytes[self.len.into()..])
-            .write_all(num.as_bytes())
-            .expect("&mut [u8].write() cannot error");
-        debug_assert!(u8::try_from(num.len()).is_ok());
-        self.len += num.len() as u8; // safe because bytes is never bigger than 255
-        Ok(())
     }
 }
 
@@ -699,5 +692,46 @@ mod tests {
         let mut dst = Vec::new();
         dst.put(buf);
         assert_eq!(dst, b"0\r\nchunky-trailer: trailer value\r\n\r\n");
+    }
+
+    #[cfg(feature = "nightly")]
+    #[bench]
+    fn bench_encode_chunked(b: &mut ::test::Bencher) {
+        use bytes::{Buf, Bytes};
+        let chunk = Bytes::from_static(&[b'x'; 300]);
+        let sizes = ::test::black_box([1usize, 15, 200, 300]);
+        b.iter(|| {
+            let mut enc = Encoder::chunked();
+            let mut total = 0;
+            for i in 0..100 {
+                let buf = enc.encode(chunk.slice(..sizes[i % 4]));
+                total += buf.remaining();
+                ::test::black_box(&buf);
+            }
+            total
+        })
+    }
+
+    #[test]
+    fn chunk_size_matches_fmt() {
+        use super::ChunkSize;
+        use bytes::Buf;
+        for n in [
+            0usize,
+            1,
+            9,
+            10,
+            15,
+            16,
+            255,
+            256,
+            4095,
+            65535,
+            1 << 20,
+            usize::MAX,
+        ] {
+            let s = ChunkSize::new(n);
+            assert_eq!(s.chunk(), format!("{n:X}\r\n").as_bytes(), "{n}");
+        }
     }
 }
