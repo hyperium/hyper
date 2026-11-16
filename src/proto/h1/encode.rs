@@ -142,13 +142,18 @@ impl Encoder {
             }
             Kind::Length(remaining) => {
                 trace!("sized write, len = {}", len);
-                if len as u64 > *remaining {
-                    let limit = *remaining as usize;
-                    *remaining = 0;
-                    BufKind::Limited(msg.take(limit))
-                } else {
-                    *remaining -= len as u64;
-                    BufKind::Exact(msg)
+                match usize::try_from(*remaining) {
+                    // Holding more than is owed, so write only what is left.
+                    Ok(limit) if limit < len => {
+                        *remaining = 0;
+                        BufKind::Limited(msg.take(limit))
+                    }
+                    // Ok(_) => Owed at least what we hold, write all of it.
+                    // Err(_) => Owed more than `usize` can represent, write all of it.
+                    Ok(_) | Err(_) => {
+                        *remaining -= len as u64;
+                        BufKind::Exact(msg)
+                    }
                 }
             }
             #[cfg(feature = "server")]
@@ -216,7 +221,11 @@ impl Encoder {
         }
     }
 
-    pub(super) fn encode_and_end<B>(&self, msg: B, dst: &mut WriteBuf<EncodedBuf<B>>) -> bool
+    pub(super) fn encode_and_end<B>(
+        &self,
+        msg: B,
+        dst: &mut WriteBuf<EncodedBuf<B>>,
+    ) -> Result<bool, NotEof>
     where
         B: Buf,
     {
@@ -230,7 +239,7 @@ impl Encoder {
                     .chain(msg)
                     .chain(b"\r\n0\r\n\r\n" as &'static [u8]);
                 dst.buffer(buf);
-                !self.is_last
+                Ok(!self.is_last)
             }
             Kind::Length(remaining) => {
                 use std::cmp::Ordering;
@@ -239,15 +248,16 @@ impl Encoder {
                 match (len as u64).cmp(&remaining) {
                     Ordering::Equal => {
                         dst.buffer(msg);
-                        !self.is_last
+                        Ok(!self.is_last)
                     }
+                    #[allow(clippy::cast_possible_truncation)]
                     Ordering::Greater => {
                         dst.buffer(msg.take(remaining as usize));
-                        !self.is_last
+                        Ok(!self.is_last)
                     }
                     Ordering::Less => {
                         dst.buffer(msg);
-                        false
+                        Err(NotEof(remaining - len as u64))
                     }
                 }
             }
@@ -255,7 +265,7 @@ impl Encoder {
             Kind::CloseDelimited => {
                 trace!("close delimited write {}B", len);
                 dst.buffer(msg);
-                false
+                Ok(false)
             }
         }
     }
@@ -328,11 +338,7 @@ where
     }
 }
 
-#[cfg(target_pointer_width = "32")]
-const USIZE_BYTES: usize = 4;
-
-#[cfg(target_pointer_width = "64")]
-const USIZE_BYTES: usize = 8;
+const USIZE_BYTES: usize = std::mem::size_of::<usize>();
 
 // each byte will become 2 hex
 const CHUNK_SIZE_MAX_BYTES: usize = USIZE_BYTES * 2;
@@ -369,6 +375,7 @@ impl Buf for ChunkSize {
     }
 
     #[inline]
+    #[allow(clippy::cast_possible_truncation)]
     fn advance(&mut self, cnt: usize) {
         assert!(cnt <= self.remaining());
         self.pos += cnt as u8; // just asserted cnt fits in u8
@@ -385,12 +392,14 @@ impl fmt::Debug for ChunkSize {
 }
 
 impl fmt::Write for ChunkSize {
+    #[allow(clippy::cast_possible_truncation)]
     fn write_str(&mut self, num: &str) -> fmt::Result {
         use std::io::Write;
         (&mut self.bytes[self.len.into()..])
             .write_all(num.as_bytes())
             .expect("&mut [u8].write() cannot error");
-        self.len += num.len() as u8; // safe because bytes is never bigger than 256
+        debug_assert!(u8::try_from(num.len()).is_ok());
+        self.len += num.len() as u8; // safe because bytes is never bigger than 255
         Ok(())
     }
 }

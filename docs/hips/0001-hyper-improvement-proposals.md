@@ -2,7 +2,7 @@
 
 - Authors: seanmonstar
 - Created: 2026-09-01
-- PR: https://github.com/hyperium/hyper/pull/4131
+- PR: [#4131](https://github.com/hyperium/hyper/pull/4131)
 
 ## Summary
 
@@ -65,6 +65,10 @@ But in general, HIPs should provide the following information:
 - Appendices
     - FAQ
 
+#### Do not use AI to write
+
+AI (LLMs) have their benefits, but since a major reason for writing this is the thinking process, do not use AI to write the actual English in a HIP.
+
 #### What not to include
 
 - Minor details that do not need to be discussed to accept the proposal.
@@ -122,9 +126,9 @@ Significant changes can be added to a `## History` section of the document, inse
 
 ## References
 
-- https://rust-lang.github.io/rfcs/0002-rfc-process.html
-- https://rfd.shared.oxide.computer/rfd/0001
-- https://peps.python.org/pep-0001/
-- https://docs.jj-vcs.dev/latest/design_docs/
-- https://blog.ceejbot.com/posts/design-docs/
-- https://adr.github.io/
+- <https://rust-lang.github.io/rfcs/0002-rfc-process.html>
+- <https://rfd.shared.oxide.computer/rfd/0001>
+- <https://peps.python.org/pep-0001/>
+- <https://docs.jj-vcs.dev/latest/design_docs/>
+- <https://blog.ceejbot.com/posts/design-docs/>
+- <https://adr.github.io/>

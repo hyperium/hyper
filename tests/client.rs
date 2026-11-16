@@ -2277,6 +2277,71 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn client_max_header_size_exceeded() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            let mut buf = [0; 1024];
+            sock.read(&mut buf).unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nX-Long: ").unwrap();
+            sock.write_all(&[b'a'; 1000]).unwrap();
+            sock.write_all(b"\r\n\r\n").unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .max_header_size(512)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let err = client.send_request(req).await.unwrap_err();
+        assert!(err.is_parse_too_large());
+    }
+
+    #[tokio::test]
+    async fn client_max_header_size_accepted() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            let mut buf = [0; 1024];
+            sock.read(&mut buf).unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .max_header_size(512)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn client_on_informational_ext() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
@@ -2904,6 +2969,68 @@ mod conn {
         upgraded.write_all(b"Baguette!").await.unwrap();
 
         upgraded.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn h2_pending_open_fails_with_connection_error_on_close() {
+        // A request parked waiting for a stream slot (the server only
+        // allows one concurrent stream and the first is still open) must
+        // fail with a connection error when the peer goes away, not with
+        // a misleading DispatchGone user error.
+        let (client_io, server_io, _) = setup_duplex_test_server();
+
+        tokio::spawn(async move {
+            let sock = server_io;
+            let mut h2 = h2::server::Builder::new()
+                .max_concurrent_streams(1)
+                .handshake::<_, bytes::Bytes>(sock)
+                .await
+                .unwrap();
+
+            // Accept the first request and hold its stream open, so the
+            // second request parks waiting for a stream slot.
+            let (_req, respond) = h2.accept().await.unwrap().unwrap();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Close the connection while the second request is parked.
+            drop(respond);
+            drop(h2);
+        });
+
+        let io = TokioIo::new(client_io);
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let mut client2 = client.clone();
+        let req1 = Request::builder()
+            .uri("http://localhost/")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res1 = tokio::spawn(async move { client.send_request(req1).await });
+        let req2 = Request::builder()
+            .uri("http://localhost/")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res2 = tokio::spawn(async move { client2.send_request(req2).await });
+
+        // The first request stays open on the server, the second parks.
+        // Both fail once the connection closes; the parked one must not
+        // come back as a user (DispatchGone) error.
+        let err = res2.await.unwrap().expect_err("parked request must fail");
+        assert!(
+            !err.is_user(),
+            "parked request failed with a user error instead of a connection error: {err:?}"
+        );
+        assert!(
+            err.is_canceled(),
+            "parked request should fail as canceled when the connection closes: {err:?}"
+        );
+        let _ = res1.await;
     }
 
     #[tokio::test]
