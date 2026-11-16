@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794837050749,
+  "lastUpdate": 1794845673341,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14489,6 +14489,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44465,
             "range": "± 8693.37",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "patrick@immometrica.com",
+            "name": "Patrick Hintermayer",
+            "username": "patrick-immometrica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "00a85adb71e8429a615d0f98ca7620aafc2f0baf",
+          "message": "perf(http1): read chunk framing bytes without split_to (#4272)\n\nThe chunked decoder read every size, CRLF and trailer byte through\nread_mem(1), paying a split_to().freeze() per byte. Add read_byte to\nMemRead and use it in the byte! macro. About 3x faster decoding for\nsmall chunks.",
+          "timestamp": "2026-11-16T11:13:43-05:00",
+          "tree_id": "e52aa3a301d45688575f045e93ec9d95035cbff4",
+          "url": "https://github.com/hyperium/hyper/commit/00a85adb71e8429a615d0f98ca7620aafc2f0baf"
+        },
+        "date": 1794845670305,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43435,
+            "range": "± 9487.52",
             "unit": "ns/iter"
           }
         ]
