@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794849366168,
+  "lastUpdate": 1794868177887,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14549,6 +14549,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43981,
             "range": "± 8693.39",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stfuazzo@gmail.com",
+            "name": "Azhar",
+            "username": "bunnysayzz"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dea9acb5344e0e34bb9196f5493464db68edd24a",
+          "message": "fix(client): fail parked h2 request with connection error on close (#4275)\n\nWhen the h2 connection drops while a request is still waiting for a\nstream slot, the parked callback was left to drop, and the caller got\na misleading DispatchGone user error. Fail it with the connection\nerror instead: canceled on a clean GOAWAY, the h2 reason otherwise.\n\nAdds a regression test with a server that only allows one concurrent\nstream and closes while the second request is parked.\n\nFixes #4269",
+          "timestamp": "2026-11-16T17:28:44-05:00",
+          "tree_id": "49eaadea98e6752a05904ad4bd131eba28cd02a2",
+          "url": "https://github.com/hyperium/hyper/commit/dea9acb5344e0e34bb9196f5493464db68edd24a"
+        },
+        "date": 1794868174592,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 35174,
+            "range": "± 3959.78",
             "unit": "ns/iter"
           }
         ]
