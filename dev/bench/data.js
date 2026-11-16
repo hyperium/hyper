@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794845744230,
+  "lastUpdate": 1794849281209,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14519,6 +14519,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 43435,
             "range": "± 9487.52",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "patrick@immometrica.com",
+            "name": "Patrick Hintermayer",
+            "username": "patrick-immometrica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "750620646ba0777daa45be3d82bd1704dcf470b8",
+          "message": "fix(http1): error when final body chunk is shorter than content-length (#4270)\n\nA body whose only frame ends the stream goes through write_body_and_end,\nwhich ignored a short write and just closed the writer. The client then\nwaited forever for a response. Return the same BodyWriteAborted error\nthat end_body already returns for streamed bodies.",
+          "timestamp": "2026-11-16T12:13:47-05:00",
+          "tree_id": "c7dcb2020a9a9232f0397ac246486909455b029d",
+          "url": "https://github.com/hyperium/hyper/commit/750620646ba0777daa45be3d82bd1704dcf470b8"
+        },
+        "date": 1794849277067,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 43981,
+            "range": "± 8693.39",
             "unit": "ns/iter"
           }
         ]
