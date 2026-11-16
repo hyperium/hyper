@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794596037229,
+  "lastUpdate": 1794836969093,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14459,6 +14459,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 34961,
             "range": "± 25858.03",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "patrick@immometrica.com",
+            "name": "Patrick Hintermayer",
+            "username": "patrick-immometrica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a44e32a7f85a1f98e34307ae17985c0bc1349a03",
+          "message": "fix(http2): strip all headers named in every Connection header (#4271)\n\nHeaderMap::remove returns only the first value, so headers listed in a\nsecond Connection line were still sent over HTTP/2.",
+          "timestamp": "2026-11-16T08:48:34-05:00",
+          "tree_id": "6c15763dfd0065d0788196fc029fc1364a178b51",
+          "url": "https://github.com/hyperium/hyper/commit/a44e32a7f85a1f98e34307ae17985c0bc1349a03"
+        },
+        "date": 1794836965809,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44465,
+            "range": "± 8693.37",
             "unit": "ns/iter"
           }
         ]
