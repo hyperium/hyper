@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794849281209,
+  "lastUpdate": 1794849366168,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -72817,6 +72817,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4553672,
             "range": "± 147177.68",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "patrick@immometrica.com",
+            "name": "Patrick Hintermayer",
+            "username": "patrick-immometrica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "750620646ba0777daa45be3d82bd1704dcf470b8",
+          "message": "fix(http1): error when final body chunk is shorter than content-length (#4270)\n\nA body whose only frame ends the stream goes through write_body_and_end,\nwhich ignored a short write and just closed the writer. The client then\nwaited forever for a response. Return the same BodyWriteAborted error\nthat end_body already returns for streamed bodies.",
+          "timestamp": "2026-11-16T12:13:47-05:00",
+          "tree_id": "c7dcb2020a9a9232f0397ac246486909455b029d",
+          "url": "https://github.com/hyperium/hyper/commit/750620646ba0777daa45be3d82bd1704dcf470b8"
+        },
+        "date": 1794849362341,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 91797,
+            "range": "± 1367.96",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4243040,
+            "range": "± 365108.05",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21397,
+            "range": "± 644.56",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23299,
+            "range": "± 482.38",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30764,
+            "range": "± 654.97",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 100487,
+            "range": "± 2464.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40998678,
+            "range": "± 35535.43",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 79116,
+            "range": "± 2299.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 31834046,
+            "range": "± 8522875.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 29915121,
+            "range": "± 26013838.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7508874,
+            "range": "± 141676.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49443977,
+            "range": "± 345676.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 52479157,
+            "range": "± 2001096.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5368396,
+            "range": "± 88808.41",
             "unit": "ns/iter"
           }
         ]
