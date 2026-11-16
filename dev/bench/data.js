@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794845673341,
+  "lastUpdate": 1794845744230,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -72679,6 +72679,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5314310,
             "range": "± 93305.39",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "patrick@immometrica.com",
+            "name": "Patrick Hintermayer",
+            "username": "patrick-immometrica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "00a85adb71e8429a615d0f98ca7620aafc2f0baf",
+          "message": "perf(http1): read chunk framing bytes without split_to (#4272)\n\nThe chunked decoder read every size, CRLF and trailer byte through\nread_mem(1), paying a split_to().freeze() per byte. Add read_byte to\nMemRead and use it in the byte! macro. About 3x faster decoding for\nsmall chunks.",
+          "timestamp": "2026-11-16T11:13:43-05:00",
+          "tree_id": "e52aa3a301d45688575f045e93ec9d95035cbff4",
+          "url": "https://github.com/hyperium/hyper/commit/00a85adb71e8429a615d0f98ca7620aafc2f0baf"
+        },
+        "date": 1794845741494,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 53710,
+            "range": "± 1154.74",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3283026,
+            "range": "± 146568.08",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 17850,
+            "range": "± 234.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 18599,
+            "range": "± 454.72",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 22265,
+            "range": "± 391.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 71483,
+            "range": "± 1207.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999429,
+            "range": "± 15354.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 60579,
+            "range": "± 649.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 30649006,
+            "range": "± 8265418.26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 6412274,
+            "range": "± 21749904.13",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 6091550,
+            "range": "± 128163.64",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 84995716,
+            "range": "± 41888817.00",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 44093296,
+            "range": "± 931824.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4553672,
+            "range": "± 147177.68",
             "unit": "ns/iter"
           }
         ]
