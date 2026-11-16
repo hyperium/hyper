@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794836969093,
+  "lastUpdate": 1794837050749,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -72541,6 +72541,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4600235,
             "range": "± 247179.33",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "patrick@immometrica.com",
+            "name": "Patrick Hintermayer",
+            "username": "patrick-immometrica"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a44e32a7f85a1f98e34307ae17985c0bc1349a03",
+          "message": "fix(http2): strip all headers named in every Connection header (#4271)\n\nHeaderMap::remove returns only the first value, so headers listed in a\nsecond Connection line were still sent over HTTP/2.",
+          "timestamp": "2026-11-16T08:48:34-05:00",
+          "tree_id": "6c15763dfd0065d0788196fc029fc1364a178b51",
+          "url": "https://github.com/hyperium/hyper/commit/a44e32a7f85a1f98e34307ae17985c0bc1349a03"
+        },
+        "date": 1794837047383,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 93424,
+            "range": "± 5481.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4289866,
+            "range": "± 471568.61",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21709,
+            "range": "± 538.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23515,
+            "range": "± 553.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30972,
+            "range": "± 825.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 104786,
+            "range": "± 7492.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41001740,
+            "range": "± 123382.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 79786,
+            "range": "± 1552.01",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24400968,
+            "range": "± 8487512.68",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 34000075,
+            "range": "± 8182954.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7482461,
+            "range": "± 235230.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 50207038,
+            "range": "± 631720.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 51710843,
+            "range": "± 1313341.90",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5314310,
+            "range": "± 93305.39",
             "unit": "ns/iter"
           }
         ]
