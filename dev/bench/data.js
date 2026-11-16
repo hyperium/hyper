@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794868177887,
+  "lastUpdate": 1794868220379,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -72955,6 +72955,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5368396,
             "range": "± 88808.41",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "stfuazzo@gmail.com",
+            "name": "Azhar",
+            "username": "bunnysayzz"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "dea9acb5344e0e34bb9196f5493464db68edd24a",
+          "message": "fix(client): fail parked h2 request with connection error on close (#4275)\n\nWhen the h2 connection drops while a request is still waiting for a\nstream slot, the parked callback was left to drop, and the caller got\na misleading DispatchGone user error. Fail it with the connection\nerror instead: canceled on a clean GOAWAY, the h2 reason otherwise.\n\nAdds a regression test with a server that only allows one concurrent\nstream and closes while the second request is parked.\n\nFixes #4269",
+          "timestamp": "2026-11-16T17:28:44-05:00",
+          "tree_id": "49eaadea98e6752a05904ad4bd131eba28cd02a2",
+          "url": "https://github.com/hyperium/hyper/commit/dea9acb5344e0e34bb9196f5493464db68edd24a"
+        },
+        "date": 1794868217557,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 24579,
+            "range": "± 789.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 2983769,
+            "range": "± 301806.47",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 7755,
+            "range": "± 1271.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 7715,
+            "range": "± 475.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 10814,
+            "range": "± 131.81",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 35105,
+            "range": "± 7454.20",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41002790,
+            "range": "± 120635.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 44428,
+            "range": "± 1484.04",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 3039456,
+            "range": "± 237832.50",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 2985065,
+            "range": "± 420943.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 2886799,
+            "range": "± 131358.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 31733879,
+            "range": "± 41772027.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 22410614,
+            "range": "± 1298215.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 2332356,
+            "range": "± 344372.83",
             "unit": "ns/iter"
           }
         ]
