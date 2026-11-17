@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794921950998,
+  "lastUpdate": 1794922026763,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -73093,6 +73093,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 2332356,
             "range": "± 344372.83",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Kayano04@outlook.jp",
+            "name": "Asuka",
+            "username": "akasakariko"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ac3f9501de373388fb9914e285134cfec2283bd8",
+          "message": "fix(http1): avoid adding connection-close to 101 responses (#4248)\n\nDo not append Connection: close to an HTTP/1.1 101 response when HTTP keep-alive is disabled\nThe connection is handed off to the upgraded protocol rather than closed\n\nExtend the existing upgrade test to cover a request with Connection: close, Upgrade\nVerify the response headers while retaining the buffered-byte and upgraded-I/O checks\n\nFixes #4244",
+          "timestamp": "2026-11-17T08:25:00-05:00",
+          "tree_id": "874c441710f14ce0ff26d890a127ccecff42b3ed",
+          "url": "https://github.com/hyperium/hyper/commit/ac3f9501de373388fb9914e285134cfec2283bd8"
+        },
+        "date": 1794922024058,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 48100,
+            "range": "± 977.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3347770,
+            "range": "± 307994.82",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 17756,
+            "range": "± 308.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 18408,
+            "range": "± 353.92",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 22018,
+            "range": "± 330.39",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 71020,
+            "range": "± 3223.69",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41001251,
+            "range": "± 207966.29",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 59918,
+            "range": "± 826.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 26728022,
+            "range": "± 8234003.25",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 38995781,
+            "range": "± 40690206.71",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 6200323,
+            "range": "± 125808.84",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 85001398,
+            "range": "± 611324.46",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 44190785,
+            "range": "± 3709030.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4514947,
+            "range": "± 232656.56",
             "unit": "ns/iter"
           }
         ]
