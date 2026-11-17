@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794925074964,
+  "lastUpdate": 1794946880237,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14699,6 +14699,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 42735,
             "range": "± 9793.50",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shuvro.nsu.cse@gmail.com",
+            "name": "Shuvro Roy",
+            "username": "shuvroroy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4e1c0fbb9db68936c952c481321d96f536568283",
+          "message": "fix(http2): report zero body size hint for HEAD responses (#4237)\n\nCarry the request method through response mapping and use an exact body\nlength of zero for HEAD responses. Their Content-Length describes the\ncorresponding GET representation, not the bytes in the response body.\n\nPreserve the response header and receive stream so delayed completion and\ntrailers remain observable. Cover immediate completion, empty DATA,\ntrailers, missing Content-Length, and a GET response as a control.",
+          "timestamp": "2026-11-17T15:20:37-05:00",
+          "tree_id": "d617490caaa41121c29aab96cfc76b7cebdf7c6d",
+          "url": "https://github.com/hyperium/hyper/commit/4e1c0fbb9db68936c952c481321d96f536568283"
+        },
+        "date": 1794946877508,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 29667,
+            "range": "± 3885.07",
             "unit": "ns/iter"
           }
         ]
