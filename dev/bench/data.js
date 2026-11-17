@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794868220379,
+  "lastUpdate": 1794921950998,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14579,6 +14579,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 35174,
             "range": "± 3959.78",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Kayano04@outlook.jp",
+            "name": "Asuka",
+            "username": "akasakariko"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "ac3f9501de373388fb9914e285134cfec2283bd8",
+          "message": "fix(http1): avoid adding connection-close to 101 responses (#4248)\n\nDo not append Connection: close to an HTTP/1.1 101 response when HTTP keep-alive is disabled\nThe connection is handed off to the upgraded protocol rather than closed\n\nExtend the existing upgrade test to cover a request with Connection: close, Upgrade\nVerify the response headers while retaining the buffered-byte and upgraded-I/O checks\n\nFixes #4244",
+          "timestamp": "2026-11-17T08:25:00-05:00",
+          "tree_id": "874c441710f14ce0ff26d890a127ccecff42b3ed",
+          "url": "https://github.com/hyperium/hyper/commit/ac3f9501de373388fb9914e285134cfec2283bd8"
+        },
+        "date": 1794921946698,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 19173,
+            "range": "± 26198.06",
             "unit": "ns/iter"
           }
         ]
