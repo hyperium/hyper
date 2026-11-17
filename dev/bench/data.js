@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794946880237,
+  "lastUpdate": 1794946969211,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -73537,6 +73537,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 2406532,
             "range": "± 55300.46",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shuvro.nsu.cse@gmail.com",
+            "name": "Shuvro Roy",
+            "username": "shuvroroy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "4e1c0fbb9db68936c952c481321d96f536568283",
+          "message": "fix(http2): report zero body size hint for HEAD responses (#4237)\n\nCarry the request method through response mapping and use an exact body\nlength of zero for HEAD responses. Their Content-Length describes the\ncorresponding GET representation, not the bytes in the response body.\n\nPreserve the response header and receive stream so delayed completion and\ntrailers remain observable. Cover immediate completion, empty DATA,\ntrailers, missing Content-Length, and a GET response as a control.",
+          "timestamp": "2026-11-17T15:20:37-05:00",
+          "tree_id": "d617490caaa41121c29aab96cfc76b7cebdf7c6d",
+          "url": "https://github.com/hyperium/hyper/commit/4e1c0fbb9db68936c952c481321d96f536568283"
+        },
+        "date": 1794946965815,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 91853,
+            "range": "± 5617.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4270440,
+            "range": "± 204759.83",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 20806,
+            "range": "± 431.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 22623,
+            "range": "± 414.16",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 32179,
+            "range": "± 12104.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 101861,
+            "range": "± 5416.32",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999133,
+            "range": "± 27868.17",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 80063,
+            "range": "± 2506.76",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 31982008,
+            "range": "± 8573458.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 33979893,
+            "range": "± 8132959.60",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7463125,
+            "range": "± 215043.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 49983596,
+            "range": "± 1441124.28",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 52496657,
+            "range": "± 794521.51",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5356214,
+            "range": "± 84399.97",
             "unit": "ns/iter"
           }
         ]
