@@ -2465,6 +2465,70 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn http2_shutdown_drains_queued_request_before_resolving() {
+        use std::future::Future;
+
+        #[derive(Clone)]
+        struct CaptureExecutor(std::sync::mpsc::Sender<Pin<Box<dyn Future<Output = ()> + Send>>>);
+
+        impl<F> hyper::rt::Executor<F> for CaptureExecutor
+        where
+            F: Future<Output = ()> + Send + 'static,
+        {
+            fn execute(&self, future: F) {
+                self.0.send(Box::pin(future)).unwrap();
+            }
+        }
+
+        let (io, peer) = tokio::io::duplex(4096);
+        let (tasks_tx, tasks_rx) = std::sync::mpsc::channel();
+        let (mut client, mut conn) = conn::http2::Builder::new(CaptureExecutor(tasks_tx))
+            .handshake::<_, Empty<Bytes>>(TokioIo::new(io))
+            .await
+            .unwrap();
+
+        drop(peer);
+        // Finish the transport task without polling the request dispatcher.
+        let connection_task = tasks_rx.try_recv().unwrap();
+        tokio::time::timeout(Duration::from_secs(5), connection_task)
+            .await
+            .expect("transport task should finish");
+
+        let response = client.try_send_request(Request::new(Empty::<Bytes>::new()));
+
+        let first_poll = future::poll_fn(|cx| {
+            // Force the dispatch receiver to yield even though a request is queued.
+            loop {
+                let budget = tokio::task::consume_budget();
+                tokio::pin!(budget);
+                if budget.poll(cx).is_pending() {
+                    break;
+                }
+            }
+            Poll::Ready(Pin::new(&mut conn).poll(cx))
+        })
+        .await;
+        assert!(
+            first_poll.is_pending(),
+            "shutdown must wait for dispatch to drain"
+        );
+
+        let _ = tokio::time::timeout(Duration::from_secs(5), &mut conn)
+            .await
+            .expect("connection should finish draining");
+        let err = tokio::time::timeout(Duration::from_secs(5), response)
+            .await
+            .expect("queued request should be canceled while connection is retained")
+            .expect_err("request should fail");
+        assert!(err.error().is_canceled());
+        assert!(
+            err.message().is_some(),
+            "unsent request should be recoverable"
+        );
+        drop(conn);
+    }
+
+    #[tokio::test]
     async fn http2_detect_conn_eof() {
         use futures_util::future;
 
