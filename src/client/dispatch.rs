@@ -30,14 +30,16 @@ pub struct TrySendError<T> {
 
 pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
     let (tx, rx) = mpsc::unbounded_channel();
-    let (giver, taker) = want::new();
-    let tx = Sender {
-        #[cfg(feature = "http1")]
-        buffered_once: false,
-        giver,
-        inner: tx,
+    let (giver, mut taker) = want::new();
+    // Seed with one want so the first request can be sent before the
+    // receiver is polled; every request must consume a want
+    taker.want();
+    let tx = Sender { giver, inner: tx };
+    let rx = Receiver {
+        inner: rx,
+        taker,
+        wanting: true,
     };
-    let rx = Receiver { inner: rx, taker };
     (tx, rx)
 }
 
@@ -46,17 +48,11 @@ pub(crate) fn channel<T, U>() -> (Sender<T, U>, Receiver<T, U>) {
 /// While the inner sender is unbounded, the Giver is used to determine
 /// if the Receiver is ready for another request.
 pub(crate) struct Sender<T, U> {
-    /// One message is always allowed, even if the Receiver hasn't asked
-    /// for it yet. This boolean keeps track of whether we've sent one
-    /// without notice.
-    #[cfg(feature = "http1")]
-    buffered_once: bool,
-    /// The Giver helps watch that the Receiver side has been polled
-    /// when the queue is empty. This helps us know when a request and
-    /// response have been fully processed, and a connection is ready
-    /// for more.
+    // Controls whether the sender is permitted to dispatch a request
+    // Beyond the initial request, the Receiver only grants readiness once
+    // the preceding request/response cycle has fully completed
     giver: want::Giver,
-    /// Actually bounded by the Giver, plus `buffered_once`.
+    // Capacity is enforced via the Giver
     inner: mpsc::UnboundedSender<Envelope<T, U>>,
 }
 
@@ -90,22 +86,8 @@ impl<T, U> Sender<T, U> {
     }
 
     #[cfg(feature = "http1")]
-    fn can_send(&mut self) -> bool {
-        if self.giver.give() || !self.buffered_once {
-            // If the receiver is ready *now*, then of course we can send.
-            //
-            // If the receiver isn't ready yet, but we don't have anything
-            // in the channel yet, then allow one message.
-            self.buffered_once = true;
-            true
-        } else {
-            false
-        }
-    }
-
-    #[cfg(feature = "http1")]
     pub(crate) fn try_send(&mut self, val: T) -> Result<RetryPromise<T, U>, T> {
-        if !self.can_send() {
+        if !self.giver.give() {
             return Err(val);
         }
         let (tx, rx) = oneshot::channel();
@@ -117,7 +99,7 @@ impl<T, U> Sender<T, U> {
 
     #[cfg(feature = "http1")]
     pub(crate) fn send(&mut self, val: T) -> Result<Promise<U>, T> {
-        if !self.can_send() {
+        if !self.giver.give() {
             return Err(val);
         }
         let (tx, rx) = oneshot::channel();
@@ -176,24 +158,25 @@ impl<T, U> Clone for UnboundedSender<T, U> {
 pub(crate) struct Receiver<T, U> {
     inner: mpsc::UnboundedReceiver<Envelope<T, U>>,
     taker: want::Taker,
+    // Tracks whether readiness (`want`) has already been granted for the next request
+    wanting: bool,
 }
 
 impl<T, U> Receiver<T, U> {
     pub(crate) fn poll_recv(&mut self, cx: &mut Context<'_>) -> Poll<Option<(T, Callback<T, U>)>> {
+        if !self.wanting {
+            self.taker.want();
+            self.wanting = true;
+        }
         match self.inner.poll_recv(cx) {
             Poll::Ready(item) => {
-                // A want signaled after finding the queue empty can land after
-                // the Sender's `give()` for the message taken here, as can one
-                // signaled on a coop-budget Pending with a message queued.
-                // Withdraw it, or the Sender reports this connection as ready
-                // while it is still serving this message.
-                self.taker.unwant();
+                self.wanting = false;
                 Poll::Ready(item.map(|mut env| env.0.take().expect("envelope not dropped")))
             }
-            Poll::Pending => {
-                self.taker.want();
-                Poll::Pending
-            }
+            // Avoid re-signaling `want` here: the sender might have already claimed it
+            // and enqueued a request, even if polling the channel returns `Pending`
+            // due to Tokio's coop budget exhaustion or a concurrent send
+            Poll::Pending => Poll::Pending,
         }
     }
 
