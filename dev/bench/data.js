@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794922864958,
+  "lastUpdate": 1794924002062,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14639,6 +14639,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 41726,
             "range": "± 8169.74",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "46031485+mingley@users.noreply.github.com",
+            "name": "mingley",
+            "username": "mingley"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "5634b91d607ba1b781699765b22f16fd6ec1c8b7",
+          "message": "fix(http2): prevent requests from hanging during concurrent connection shutdown race (#4242)",
+          "timestamp": "2026-11-17T08:59:12-05:00",
+          "tree_id": "209b1470ceed312aff3e9fe341c710e59edc5c4d",
+          "url": "https://github.com/hyperium/hyper/commit/5634b91d607ba1b781699765b22f16fd6ec1c8b7"
+        },
+        "date": 1794923998320,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 32629,
+            "range": "± 17099.73",
             "unit": "ns/iter"
           }
         ]
