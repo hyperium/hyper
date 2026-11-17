@@ -37,6 +37,10 @@ pub(crate) trait Http1Transaction {
 
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>>;
 
+    fn is_switching_protocols(_head: &MessageHead<Self::Outgoing>) -> bool {
+        false
+    }
+
     fn is_client() -> bool {
         !Self::is_server()
     }
@@ -73,6 +77,7 @@ pub(crate) struct ParseContext<'ctx> {
     req_method: &'ctx mut Option<Method>,
     h1_parser_config: ParserConfig,
     h1_max_headers: Option<usize>,
+    h1_max_header_size: Option<usize>,
     preserve_header_case: bool,
     #[cfg(feature = "ffi")]
     preserve_header_order: bool,
@@ -107,7 +112,7 @@ impl Wants {
         Wants(self.0 | other.0)
     }
 
-    fn contains(&self, other: Wants) -> bool {
+    fn contains(self, other: Wants) -> bool {
         (self.0 & other.0) == other.0
     }
 }
