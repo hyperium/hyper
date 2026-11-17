@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794922026763,
+  "lastUpdate": 1794922864958,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14609,6 +14609,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 19173,
             "range": "± 26198.06",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "Kayano04@outlook.jp",
+            "name": "Asuka",
+            "username": "akasakariko"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "47c725c459ede66e68ad705f7da9a901abbbdc17",
+          "message": "fix(http1): prevent `SendRequest` from reporting ready while a request is pending (#4247)\n\nRepresent the initial buffer slot with a want and signal each subsequent want only once per receive cycle\n\nDo not restore readiness on Pending or withdraw a grant when dequeuing a request\nExtend the existing regression to check readiness while the request is still queued\n\nFixes #4246",
+          "timestamp": "2026-11-17T08:40:11-05:00",
+          "tree_id": "143cd226f4d0f23d153ed28ec5be56c4b33b283a",
+          "url": "https://github.com/hyperium/hyper/commit/47c725c459ede66e68ad705f7da9a901abbbdc17"
+        },
+        "date": 1794922861801,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 41726,
+            "range": "± 8169.74",
             "unit": "ns/iter"
           }
         ]
