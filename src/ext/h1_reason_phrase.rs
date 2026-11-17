@@ -40,8 +40,12 @@ impl ReasonPhrase {
     }
 
     /// Converts a static byte slice to a reason phrase.
+    ///
+    /// # Panics
+    ///
+    /// This method will panic if 'reason' contains an invalid byte. In a const context,
+    /// this is a compile-time error instead.
     pub const fn from_static(reason: &'static [u8]) -> Self {
-        // TODO: this can be made const once MSRV is >= 1.57.0
         assert!(
             find_invalid_byte(reason).is_none(),
             "invalid byte in static reason phrase"

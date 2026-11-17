@@ -46,10 +46,6 @@ impl<T> Rewind<T> {
     pub(crate) fn into_inner(self) -> (T, Bytes) {
         (self.inner, self.pre.unwrap_or_default())
     }
-
-    // pub(crate) fn get_mut(&mut self) -> &mut T {
-    //     &mut self.inner
-    // }
 }
 
 impl<T> Read for Rewind<T>

@@ -1558,6 +1558,35 @@ test! {
             body: None,
 }
 
+// https://github.com/hyperium/hyper/issues/4195
+test! {
+    name: client_hop_by_hop_headers,
+
+    server:
+        expected: "\
+            GET / HTTP/1.1\r\n\
+            connection: close, x-hop\r\n\
+            x-hop: ...\r\n\
+            host: {addr}\r\n\
+            \r\n\
+            ",
+        reply: REPLY_OK,
+
+    client:
+        request: {
+            method: GET,
+            url: "http://{addr}/",
+            headers: {
+                "connection" => "close, x-hop",
+                "x-hop" => "...",
+            },
+        },
+        response:
+            status: OK,
+            headers: {},
+            body: None,
+}
+
 mod conn {
     use std::error::Error;
     use std::io::{self, Read, Write};
@@ -2248,6 +2277,71 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn client_max_header_size_exceeded() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            let mut buf = [0; 1024];
+            sock.read(&mut buf).unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nX-Long: ").unwrap();
+            sock.write_all(&[b'a'; 1000]).unwrap();
+            sock.write_all(b"\r\n\r\n").unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .max_header_size(512)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let err = client.send_request(req).await.unwrap_err();
+        assert!(err.is_parse_too_large());
+    }
+
+    #[tokio::test]
+    async fn client_max_header_size_accepted() {
+        let (server, addr) = setup_std_test_server();
+
+        thread::spawn(move || {
+            let mut sock = server.accept().unwrap().0;
+            let mut buf = [0; 1024];
+            sock.read(&mut buf).unwrap();
+            sock.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 0\r\n\r\n")
+                .unwrap();
+        });
+
+        let tcp = tcp_connect(&addr).await.unwrap();
+
+        let (mut client, conn) = conn::http1::Builder::new()
+            .max_header_size(512)
+            .handshake(tcp)
+            .await
+            .unwrap();
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let req = Request::builder()
+            .uri("/a")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res = client.send_request(req).await.expect("send_request");
+        assert_eq!(res.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
     async fn client_on_informational_ext() {
         use std::sync::atomic::{AtomicUsize, Ordering};
         use std::sync::Arc;
@@ -2368,6 +2462,70 @@ mod conn {
         })
         .await
         .unwrap();
+    }
+
+    #[tokio::test]
+    async fn http2_shutdown_drains_queued_request_before_resolving() {
+        use std::future::Future;
+
+        #[derive(Clone)]
+        struct CaptureExecutor(std::sync::mpsc::Sender<Pin<Box<dyn Future<Output = ()> + Send>>>);
+
+        impl<F> hyper::rt::Executor<F> for CaptureExecutor
+        where
+            F: Future<Output = ()> + Send + 'static,
+        {
+            fn execute(&self, future: F) {
+                self.0.send(Box::pin(future)).unwrap();
+            }
+        }
+
+        let (io, peer) = tokio::io::duplex(4096);
+        let (tasks_tx, tasks_rx) = std::sync::mpsc::channel();
+        let (mut client, mut conn) = conn::http2::Builder::new(CaptureExecutor(tasks_tx))
+            .handshake::<_, Empty<Bytes>>(TokioIo::new(io))
+            .await
+            .unwrap();
+
+        drop(peer);
+        // Finish the transport task without polling the request dispatcher.
+        let connection_task = tasks_rx.try_recv().unwrap();
+        tokio::time::timeout(Duration::from_secs(5), connection_task)
+            .await
+            .expect("transport task should finish");
+
+        let response = client.try_send_request(Request::new(Empty::<Bytes>::new()));
+
+        let first_poll = future::poll_fn(|cx| {
+            // Force the dispatch receiver to yield even though a request is queued.
+            loop {
+                let budget = tokio::task::consume_budget();
+                tokio::pin!(budget);
+                if budget.poll(cx).is_pending() {
+                    break;
+                }
+            }
+            Poll::Ready(Pin::new(&mut conn).poll(cx))
+        })
+        .await;
+        assert!(
+            first_poll.is_pending(),
+            "shutdown must wait for dispatch to drain"
+        );
+
+        let _ = tokio::time::timeout(Duration::from_secs(5), &mut conn)
+            .await
+            .expect("connection should finish draining");
+        let err = tokio::time::timeout(Duration::from_secs(5), response)
+            .await
+            .expect("queued request should be canceled while connection is retained")
+            .expect_err("request should fail");
+        assert!(err.error().is_canceled());
+        assert!(
+            err.message().is_some(),
+            "unsent request should be recoverable"
+        );
+        drop(conn);
     }
 
     #[tokio::test]
@@ -2878,6 +3036,68 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn h2_pending_open_fails_with_connection_error_on_close() {
+        // A request parked waiting for a stream slot (the server only
+        // allows one concurrent stream and the first is still open) must
+        // fail with a connection error when the peer goes away, not with
+        // a misleading DispatchGone user error.
+        let (client_io, server_io, _) = setup_duplex_test_server();
+
+        tokio::spawn(async move {
+            let sock = server_io;
+            let mut h2 = h2::server::Builder::new()
+                .max_concurrent_streams(1)
+                .handshake::<_, bytes::Bytes>(sock)
+                .await
+                .unwrap();
+
+            // Accept the first request and hold its stream open, so the
+            // second request parks waiting for a stream slot.
+            let (_req, respond) = h2.accept().await.unwrap().unwrap();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Close the connection while the second request is parked.
+            drop(respond);
+            drop(h2);
+        });
+
+        let io = TokioIo::new(client_io);
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let mut client2 = client.clone();
+        let req1 = Request::builder()
+            .uri("http://localhost/")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res1 = tokio::spawn(async move { client.send_request(req1).await });
+        let req2 = Request::builder()
+            .uri("http://localhost/")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res2 = tokio::spawn(async move { client2.send_request(req2).await });
+
+        // The first request stays open on the server, the second parks.
+        // Both fail once the connection closes; the parked one must not
+        // come back as a user (DispatchGone) error.
+        let err = res2.await.unwrap().expect_err("parked request must fail");
+        assert!(
+            !err.is_user(),
+            "parked request failed with a user error instead of a connection error: {err:?}"
+        );
+        assert!(
+            err.is_canceled(),
+            "parked request should fail as canceled when the connection closes: {err:?}"
+        );
+        let _ = res1.await;
+    }
+
+    #[tokio::test]
     async fn h2_connect_rejected() {
         let (client_io, server_io, _) = setup_duplex_test_server();
         let (done_tx, done_rx) = oneshot::channel();
@@ -3314,6 +3534,118 @@ mod conn {
         let _ = stream_a_done_tx.send(());
         drop(tx_a);
         let _ = tokio::time::timeout(Duration::from_secs(5), a_handle).await;
+    }
+
+    // https://github.com/hyperium/hyper/issues/4003, for HTTP/2 CONNECT
+    //
+    // Like `h2_idle_stream_does_not_pin_connection_window`, but the idle
+    // stream is the send side of an `Upgraded` tunnel. It must not reserve
+    // connection-level flow control capacity while it has nothing to write.
+    #[tokio::test]
+    async fn h2_idle_upgraded_does_not_pin_connection_window() {
+        // One byte short of the initial connection-level window.
+        const STREAM_A_LEN: usize = 65534;
+
+        let (client_io, server_io, _) = setup_duplex_test_server();
+        let (stream_a_full_tx, stream_a_full_rx) = oneshot::channel::<()>();
+        let (stream_a_done_tx, stream_a_done_rx) = oneshot::channel::<()>();
+        let (stream_b_got_tx, stream_b_got_rx) = oneshot::channel::<usize>();
+
+        // Raw h2 server that never calls `release_capacity`, so it never
+        // sends a connection-level WINDOW_UPDATE.
+        tokio::spawn(async move {
+            let mut h2 = h2::server::handshake(server_io).await.unwrap();
+            let mut stream_a_full_tx = Some(stream_a_full_tx);
+            let mut stream_a_done_rx = Some(stream_a_done_rx);
+            let mut stream_b_got_tx = Some(stream_b_got_tx);
+            while let Some(result) = h2.accept().await {
+                let (req, mut respond) = result.unwrap();
+                if req.method() == Method::CONNECT {
+                    let full_tx = stream_a_full_tx.take().unwrap();
+                    let done_rx = stream_a_done_rx.take().unwrap();
+                    tokio::spawn(async move {
+                        let _send = respond.send_response(Response::new(()), false).unwrap();
+                        let mut body = req.into_body();
+                        let mut received = 0usize;
+                        while received < STREAM_A_LEN {
+                            match body.data().await {
+                                Some(Ok(frame)) => received += frame.len(),
+                                _ => return,
+                            }
+                        }
+                        let _ = full_tx.send(());
+                        // Hold on to the recv stream, dropping it would release
+                        // its capacity and send a WINDOW_UPDATE.
+                        let _ = done_rx.await;
+                        drop(body);
+                    });
+                } else {
+                    let got_tx = stream_b_got_tx.take().unwrap();
+                    tokio::spawn(async move {
+                        let mut body = req.into_body();
+                        let mut received = 0usize;
+                        if let Some(Ok(frame)) = body.data().await {
+                            received += frame.len();
+                        }
+                        let _ = got_tx.send(received);
+                        let mut send = respond.send_response(Response::new(()), false).unwrap();
+                        let _ = send.send_data(Bytes::from_static(b"ok"), true);
+                    });
+                }
+            }
+        });
+
+        let io = TokioIo::new(client_io);
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake::<_, Full<Bytes>>(io)
+            .await
+            .expect("http handshake");
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        // Stream A: a tunnel that writes STREAM_A_LEN bytes and then stays
+        // open, leaving one byte of connection window.
+        let req_a = Request::connect("localhost")
+            .body(Full::new(Bytes::new()))
+            .unwrap();
+        let res_a = client.send_request(req_a).await.expect("send_request A");
+        assert_eq!(res_a.status(), StatusCode::OK);
+        let mut upgraded = TokioIo::new(hyper::upgrade::on(res_a).await.unwrap());
+        upgraded
+            .write_all(&vec![b'A'; STREAM_A_LEN])
+            .await
+            .expect("write to tunnel");
+
+        tokio::time::timeout(Duration::from_secs(5), stream_a_full_rx)
+            .await
+            .expect("server should receive all of stream A in time")
+            .expect("stream_a_full_rx");
+
+        // Let the tunnel's send task park waiting for more writes.
+        for _ in 0..16 {
+            tokio::task::yield_now().await;
+        }
+
+        // Stream B: one byte of body, which needs the last byte of window.
+        let req_b = Request::post("http://localhost/b")
+            .body(Full::new(Bytes::from_static(b"b")))
+            .unwrap();
+        let b_fut = client.send_request(req_b);
+
+        let received_b = tokio::time::timeout(Duration::from_secs(5), stream_b_got_rx)
+            .await
+            .expect("stream B must reach the server even while the tunnel is idle")
+            .expect("stream_b_got_rx");
+        assert_eq!(
+            received_b, 1,
+            "stream B should deliver its single body byte"
+        );
+
+        let _ = tokio::time::timeout(Duration::from_secs(5), b_fut).await;
+
+        let _ = stream_a_done_tx.send(());
+        drop(upgraded);
     }
 }
 

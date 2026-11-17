@@ -1,8 +1,10 @@
 #![deny(missing_docs)]
 #![deny(missing_debug_implementations)]
 #![cfg_attr(test, deny(rust_2018_idioms))]
-#![cfg_attr(all(test, feature = "full"), deny(unreachable_pub))]
-#![cfg_attr(all(test, feature = "full"), deny(warnings))]
+#![cfg_attr(
+    any(all(test, feature = "full"), feature = "__deny_warnings"),
+    deny(warnings, unreachable_pub)
+)]
 #![cfg_attr(all(test, feature = "nightly"), feature(test))]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
@@ -33,10 +35,23 @@
 //! # Cancel safety
 //!
 //! Futures returned by hyper are cancel safe: dropping a future before it
-//! completes is the supported way to cancel the operation. See the
-//! documentation on individual futures — for example `SendRequest::send_request`
-//! in `client::conn::http1` and `client::conn::http2` — for the protocol-
-//! specific behavior on cancellation.
+//! completes is the supported way to cancel the operation. The protocol in
+//! use changes what that cancellation actually does on the wire:
+//!
+//! - **HTTP/1** has no in-protocol way to abort a single request without
+//!   affecting the shared connection, so dropping an in-flight request future
+//!   closes the underlying TCP connection. Any subsequent call on the same
+//!   `SendRequest` returns a `canceled` error; the connection cannot be
+//!   reused.
+//! - **HTTP/2** resets the single stream with `RST_STREAM` (`CANCEL` error
+//!   code) and notifies the peer immediately rather than continuing to
+//!   deliver a response body that would be discarded. The shared connection
+//!   stays usable for other in-flight and future requests.
+//!
+//! See the documentation on individual futures — for example
+//! `SendRequest::send_request` in `client::conn::http1` and the equivalent
+//! in `client::conn::http2` — for the protocol-specific behavior on
+//! cancellation.
 //!
 //! # Optional Features
 //!

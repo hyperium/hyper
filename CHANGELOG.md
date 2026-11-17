@@ -1,3 +1,34 @@
+## v1.12.0 (2026-10-06)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * withdraw a stale want when the client dispatcher takes a request (#4208) ([c44f1cc5](https://github.com/hyperium/hyper/commit/c44f1cc51c2bc45b502031a646d3d54315bd7a16))
+  * remove content-length if transfer-encoding is auto-added (#4224) ([69396fdd](https://github.com/hyperium/hyper/commit/69396fdd960629d69b09cc6c9b367ef8650c001d))
+  * always remove content-length if transfer-encoding is sent (#4223) ([a5d7fd78](https://github.com/hyperium/hyper/commit/a5d7fd7861598c0b8c857cb75240a75bcfbd96a3))
+  * let a Connection close token win over a later keep-alive (#4201) ([5dadff76](https://github.com/hyperium/hyper/commit/5dadff76d1cb5d21046218df3568569fbba8ed21))
+  * preserve hop-by-hop when setting close or keep-alive (#4196) ([74a39081](https://github.com/hyperium/hyper/commit/74a39081ff1496970fb75da75c5282b23a9b69e5))
+* **http2:** do not reserve capacity for idle Upgraded streams (#4198) ([e89d0d93](https://github.com/hyperium/hyper/commit/e89d0d93d9566210ee95aea234a00952ebc4a202))
+
+
+#### Features
+
+* **http1:** add max_header_size limit for server and client (#4183) ([d1cd14ef](https://github.com/hyperium/hyper/commit/d1cd14eff392be63a2318d690cc9380723ec61a1), closes [#3832](https://github.com/hyperium/hyper/issues/3832))
+
+
+### v1.11.1 (2026-08-27)
+
+
+#### Bug Fixes
+
+* **http1:**
+  * detect TE: trailers caselessly and with other values (#4152) ([72fcf545](https://github.com/hyperium/hyper/commit/72fcf545c9b4a261f31d89bafd3019a2d4e9e1d7))
+  * recognize `\n\r\n` as a head terminator in the partial-read fast path (#4147) ([3534d75c](https://github.com/hyperium/hyper/commit/3534d75c898da17b023e6bff9b4cf71afed123ad), closes [#4145](https://github.com/hyperium/hyper/issues/4145))
+  * flush bytes buffered by the write re-check before yielding (#4143) ([f660f5bf](https://github.com/hyperium/hyper/commit/f660f5bf6eed3fe793f899507ff5bb9e266d4b0d))
+  * evict pooled conn on request-side Connection: close (#4110) ([da19be08](https://github.com/hyperium/hyper/commit/da19be08f34d3da01c4c0f9cfe2837e7d377f73d))
+
+
 ## v1.11.0 (2026-07-20)
 
 

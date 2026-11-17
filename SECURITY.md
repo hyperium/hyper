@@ -1,6 +1,6 @@
 # Security Policy
 
-hyper (and related projects in hyperium) take security seriously, and greatly appreciate responsibile disclosure.
+hyper (and related projects in hyperium) take security seriously, and greatly appreciate responsible disclosure.
 
 ## Report a security issue
 

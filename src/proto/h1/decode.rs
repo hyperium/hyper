@@ -251,9 +251,8 @@ impl fmt::Debug for Decoder {
 
 macro_rules! byte (
     ($rdr:ident, $cx:expr) => ({
-        let buf = ready!($rdr.read_mem($cx, 1))?;
-        if !buf.is_empty() {
-            buf[0]
+        if let Some(b) = ready!($rdr.read_byte($cx))? {
+            b
         } else {
             return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof,
                                       "unexpected EOF during chunk size line")));
@@ -286,12 +285,12 @@ macro_rules! put_u8 {
     };
 }
 
-struct StepArgs<'a> {
-    chunk_size: &'a mut u64,
-    chunk_buf: &'a mut Option<Bytes>,
-    extensions_cnt: &'a mut u64,
-    trailers_buf: &'a mut Option<BytesMut>,
-    trailers_cnt: &'a mut usize,
+struct StepArgs<'args> {
+    chunk_size: &'args mut u64,
+    chunk_buf: &'args mut Option<Bytes>,
+    extensions_cnt: &'args mut u64,
+    trailers_buf: &'args mut Option<BytesMut>,
+    trailers_cnt: &'args mut usize,
     max_headers_cnt: usize,
     max_headers_bytes: usize,
 }
@@ -301,7 +300,7 @@ impl ChunkedState {
         ChunkedState::Start
     }
     fn step<R: MemRead>(
-        &self,
+        self,
         cx: &mut Context<'_>,
         body: &mut R,
         StepArgs {
@@ -314,8 +313,11 @@ impl ChunkedState {
             max_headers_bytes,
         }: StepArgs<'_>,
     ) -> Poll<Result<ChunkedState, io::Error>> {
-        use self::ChunkedState::*;
-        match *self {
+        use self::ChunkedState::{
+            Body, BodyCr, BodyLf, End, EndCr, EndLf, Extension, Size, SizeLf, SizeLws, Start,
+            Trailer, TrailerLf,
+        };
+        match self {
             Start => ChunkedState::read_start(cx, body, chunk_size),
             Size => ChunkedState::read_size(cx, body, chunk_size),
             SizeLws => ChunkedState::read_size_lws(cx, body),
@@ -649,7 +651,7 @@ fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Er
                     Err(_) => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            format!("Invalid header name: {:?}", &header),
+                            format!("Invalid header name: {header:?}"),
                         ));
                     }
                 };
@@ -659,7 +661,7 @@ fn decode_trailers(buf: &mut BytesMut, count: usize) -> Result<HeaderMap, io::Er
                     Err(_) => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            format!("Invalid header value: {:?}", &header),
+                            format!("Invalid header value: {header:?}"),
                         ));
                     }
                 };
@@ -716,6 +718,60 @@ mod tests {
             ready!(Pin::new(self).poll_read(cx, buf.unfilled())?);
             Poll::Ready(Ok(Bytes::copy_from_slice(buf.filled())))
         }
+    }
+
+    impl MemRead for BytesMut {
+        fn read_mem(&mut self, _: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
+            let n = std::cmp::min(len, self.len());
+            Poll::Ready(Ok(self.split_to(n).freeze()))
+        }
+        fn read_byte(&mut self, _: &mut Context<'_>) -> Poll<io::Result<Option<u8>>> {
+            if self.is_empty() {
+                return Poll::Ready(Ok(None));
+            }
+            let b = self[0];
+            bytes::Buf::advance(self, 1);
+            Poll::Ready(Ok(Some(b)))
+        }
+    }
+
+    #[cfg(all(feature = "nightly", not(miri)))]
+    fn bench_chunked_body(b: &mut test::Bencher, n_chunks: usize, chunk: usize) {
+        let rt = new_runtime();
+        let mut vec = Vec::new();
+        for _ in 0..n_chunks {
+            vec.extend(format!("{:x}\r\n", chunk).as_bytes());
+            vec.extend(std::iter::repeat(b'a').take(chunk));
+            vec.extend(b"\r\n");
+        }
+        vec.extend(b"0\r\n\r\n");
+        b.bytes = (n_chunks * chunk) as u64;
+        b.iter(|| {
+            let mut raw = BytesMut::from(&vec[..]);
+            let mut decoder = Decoder::chunked(None, None);
+            rt.block_on(async {
+                let mut total = 0;
+                loop {
+                    let d = decoder
+                        .decode_fut(&mut raw)
+                        .await
+                        .unwrap()
+                        .into_data()
+                        .unwrap();
+                    if d.is_empty() {
+                        break;
+                    }
+                    total += d.len();
+                }
+                assert_eq!(total, n_chunks * chunk);
+            });
+        });
+    }
+
+    #[cfg(all(feature = "nightly", not(miri)))]
+    #[bench]
+    fn bench_decode_chunked_small_chunks(b: &mut test::Bencher) {
+        bench_chunked_body(b, 100, 16)
     }
 
     impl MemRead for Bytes {

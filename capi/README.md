@@ -10,7 +10,7 @@ Because of that, it's only accessible if `--cfg hyper_unstable_ffi` is passed to
 
 ## Building
 
-The C API is part of the Rust library, but isn't compiled by default. Using `cargo`, staring with `1.64.0`, it can be compiled with the following command:
+The C API is part of the Rust library, but isn't compiled by default. Using `cargo`, starting with `1.64.0`, it can be compiled with the following command:
 
 ```
 RUSTFLAGS="--cfg hyper_unstable_ffi" cargo rustc --features client,http1,http2,ffi --crate-type cdylib
