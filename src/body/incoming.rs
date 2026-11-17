@@ -235,9 +235,17 @@ impl Body for Incoming {
         match &self.kind {
             Kind::Empty => true,
             #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-            Kind::Chan { content_length, .. } => *content_length == DecodedLength::ZERO,
+            Kind::Chan {
+                content_length,
+                rx: _,
+            } => *content_length == DecodedLength::ZERO,
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
-            Kind::H2 { recv: h2, .. } => h2.is_end_stream(),
+            Kind::H2 {
+                recv: h2,
+                content_length: _,
+                data_done: _,
+                ping: _,
+            } => h2.is_end_stream(),
             #[cfg(feature = "ffi")]
             Kind::Ffi(..) => false,
         }
@@ -259,9 +267,17 @@ impl Body for Incoming {
         match self.kind {
             Kind::Empty => SizeHint::with_exact(0),
             #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
-            Kind::Chan { content_length, .. } => opt_len(content_length),
+            Kind::Chan {
+                content_length,
+                rx: _,
+            } => opt_len(content_length),
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
-            Kind::H2 { content_length, .. } => opt_len(content_length),
+            Kind::H2 {
+                content_length,
+                data_done: _,
+                ping: _,
+                recv: _,
+            } => opt_len(content_length),
             #[cfg(feature = "ffi")]
             Kind::Ffi(..) => SizeHint::default(),
         }

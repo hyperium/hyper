@@ -404,6 +404,7 @@ impl ReadStrategy {
         }
     }
 
+    #[allow(clippy::rest_pattern_accessible_field/*reason: this is an accessor*/)]
     fn next(&self) -> usize {
         match *self {
             ReadStrategy::Adaptive { next, .. } => next,
@@ -412,6 +413,7 @@ impl ReadStrategy {
         }
     }
 
+    #[allow(clippy::rest_pattern_accessible_field/*reason: this is an accessor*/)]
     fn max(&self) -> usize {
         match *self {
             ReadStrategy::Adaptive { max, .. } => max,
