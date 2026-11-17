@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794948202502,
+  "lastUpdate": 1794948268526,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -73675,6 +73675,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5356214,
             "range": "± 84399.97",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shuvro.nsu.cse@gmail.com",
+            "name": "Shuvro Roy",
+            "username": "shuvroroy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "21da6a59db9a90631302e7b173c106b723b9065f",
+          "message": "fix(http1): preserve streaming bodies when coercing HTTP/2 requests (#4236)\n\nAllow chunked framing for HTTP/2 requests serialized as HTTP/1.1.\nPreviously, unknown-length bodies without Content-Length used a\nzero-length encoder and were silently discarded.\n\nAdd an integration regression that verifies the HTTP/1.1 version,\nchunked framing, complete payload, and body termination.",
+          "timestamp": "2026-11-17T15:42:39-05:00",
+          "tree_id": "48be39f3727d714893d5dd2f2c28eec052975001",
+          "url": "https://github.com/hyperium/hyper/commit/21da6a59db9a90631302e7b173c106b723b9065f"
+        },
+        "date": 1794948265458,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 50023,
+            "range": "± 4659.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 3509809,
+            "range": "± 253291.49",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 17263,
+            "range": "± 319.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 18140,
+            "range": "± 224.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 21487,
+            "range": "± 368.89",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 71109,
+            "range": "± 1588.62",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41000337,
+            "range": "± 19537.12",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 59738,
+            "range": "± 1018.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 30632814,
+            "range": "± 8257334.19",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 6409222,
+            "range": "± 18523925.10",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 6152776,
+            "range": "± 102465.24",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 43563015,
+            "range": "± 1099765.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 43907550,
+            "range": "± 640298.41",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 4461026,
+            "range": "± 66696.94",
             "unit": "ns/iter"
           }
         ]
