@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794924049416,
+  "lastUpdate": 1794925041331,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14669,6 +14669,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 32629,
             "range": "± 17099.73",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "6b7673f9f04f8938fef1158cf87d78c6bfeabafe",
+          "message": "test(http2): test for http2 connection shutdown race of pending reqs (#4276)",
+          "timestamp": "2026-11-17T09:16:22-05:00",
+          "tree_id": "953c47ce61869e28b66cb1708976e32087556e6d",
+          "url": "https://github.com/hyperium/hyper/commit/6b7673f9f04f8938fef1158cf87d78c6bfeabafe"
+        },
+        "date": 1794925037589,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 42735,
+            "range": "± 9793.50",
             "unit": "ns/iter"
           }
         ]
