@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794946969211,
+  "lastUpdate": 1794948202502,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14729,6 +14729,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 29667,
             "range": "± 3885.07",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "shuvro.nsu.cse@gmail.com",
+            "name": "Shuvro Roy",
+            "username": "shuvroroy"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "21da6a59db9a90631302e7b173c106b723b9065f",
+          "message": "fix(http1): preserve streaming bodies when coercing HTTP/2 requests (#4236)\n\nAllow chunked framing for HTTP/2 requests serialized as HTTP/1.1.\nPreviously, unknown-length bodies without Content-Length used a\nzero-length encoder and were silently discarded.\n\nAdd an integration regression that verifies the HTTP/1.1 version,\nchunked framing, complete payload, and body termination.",
+          "timestamp": "2026-11-17T15:42:39-05:00",
+          "tree_id": "48be39f3727d714893d5dd2f2c28eec052975001",
+          "url": "https://github.com/hyperium/hyper/commit/21da6a59db9a90631302e7b173c106b723b9065f"
+        },
+        "date": 1794948198700,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 29654,
+            "range": "± 3869.63",
             "unit": "ns/iter"
           }
         ]
