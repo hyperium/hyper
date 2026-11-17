@@ -2509,6 +2509,70 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn http2_shutdown_drains_queued_request_before_resolving() {
+        use std::future::Future;
+
+        #[derive(Clone)]
+        struct CaptureExecutor(std::sync::mpsc::Sender<Pin<Box<dyn Future<Output = ()> + Send>>>);
+
+        impl<F> hyper::rt::Executor<F> for CaptureExecutor
+        where
+            F: Future<Output = ()> + Send + 'static,
+        {
+            fn execute(&self, future: F) {
+                self.0.send(Box::pin(future)).unwrap();
+            }
+        }
+
+        let (io, peer) = tokio::io::duplex(4096);
+        let (tasks_tx, tasks_rx) = std::sync::mpsc::channel();
+        let (mut client, mut conn) = conn::http2::Builder::new(CaptureExecutor(tasks_tx))
+            .handshake::<_, Empty<Bytes>>(TokioIo::new(io))
+            .await
+            .unwrap();
+
+        drop(peer);
+        // Finish the transport task without polling the request dispatcher.
+        let connection_task = tasks_rx.try_recv().unwrap();
+        tokio::time::timeout(Duration::from_secs(5), connection_task)
+            .await
+            .expect("transport task should finish");
+
+        let response = client.try_send_request(Request::new(Empty::<Bytes>::new()));
+
+        let first_poll = future::poll_fn(|cx| {
+            // Force the dispatch receiver to yield even though a request is queued.
+            loop {
+                let budget = tokio::task::consume_budget();
+                tokio::pin!(budget);
+                if budget.poll(cx).is_pending() {
+                    break;
+                }
+            }
+            Poll::Ready(Pin::new(&mut conn).poll(cx))
+        })
+        .await;
+        assert!(
+            first_poll.is_pending(),
+            "shutdown must wait for dispatch to drain"
+        );
+
+        let _ = tokio::time::timeout(Duration::from_secs(5), &mut conn)
+            .await
+            .expect("connection should finish draining");
+        let err = tokio::time::timeout(Duration::from_secs(5), response)
+            .await
+            .expect("queued request should be canceled while connection is retained")
+            .expect_err("request should fail");
+        assert!(err.error().is_canceled());
+        assert!(
+            err.message().is_some(),
+            "unsent request should be recoverable"
+        );
+        drop(conn);
+    }
+
+    #[tokio::test]
     async fn http2_detect_conn_eof() {
         use futures_util::future;
 
@@ -2961,6 +3025,98 @@ mod conn {
     }
 
     #[tokio::test]
+    async fn http2_head_response_size_hint() {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            for (method, end_stream, trailers, content_length) in [
+                (Method::HEAD, true, false, Some("5")),
+                (Method::HEAD, false, false, Some("5")),
+                (Method::HEAD, false, true, Some("5")),
+                (Method::HEAD, false, false, None),
+                (Method::GET, false, false, Some("5")),
+            ] {
+                let (client_io, server_io) = tokio::io::duplex(4096);
+                let (finish_tx, finish_rx) = oneshot::channel();
+                let expected_body = if method == Method::HEAD {
+                    Bytes::new()
+                } else {
+                    Bytes::from_static(b"hello")
+                };
+                let response_body = expected_body.clone();
+                let expected_method = method.clone();
+                let server = tokio::spawn(async move {
+                    let mut h2 = h2::server::handshake(server_io).await.unwrap();
+                    let (req, mut respond) = h2.accept().await.unwrap().unwrap();
+                    assert_eq!(req.method(), expected_method);
+                    drop(req);
+
+                    let mut response = Response::builder();
+                    if let Some(value) = content_length {
+                        response = response.header("content-length", value);
+                    }
+                    let mut stream = respond
+                        .send_response(response.body(()).unwrap(), end_stream)
+                        .unwrap();
+                    let finish = async move {
+                        finish_rx.await.unwrap();
+                        if !end_stream {
+                            if trailers {
+                                let mut headers = hyper::HeaderMap::new();
+                                headers.insert("x-finished", "yes".parse().unwrap());
+                                stream.send_trailers(headers).unwrap();
+                            } else {
+                                stream.send_data(response_body, true).unwrap();
+                            }
+                        }
+                    };
+                    let ((), result) = future::join(finish, poll_fn(|cx| h2.poll_closed(cx))).await;
+                    result.unwrap();
+                });
+
+                let (mut client, connection) = conn::http2::Builder::new(TokioExecutor)
+                    .handshake(TokioIo::new(client_io))
+                    .await
+                    .unwrap();
+                let connection = tokio::spawn(connection);
+                let request = Request::builder()
+                    .method(method)
+                    .uri("https://localhost/")
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                let response = client.send_request(request).await.unwrap();
+                assert_eq!(response.status(), StatusCode::OK);
+                assert_eq!(
+                    response
+                        .headers()
+                        .get("content-length")
+                        .map(|v| v.to_str().unwrap()),
+                    content_length,
+                );
+                let mut body = response.into_body();
+                assert_eq!(body.size_hint().exact(), Some(expected_body.len() as u64));
+                assert_eq!(body.is_end_stream(), end_stream);
+
+                finish_tx.send(()).unwrap();
+                let collected = (&mut body).collect().await.unwrap();
+                if trailers {
+                    assert_eq!(collected.trailers().unwrap()["x-finished"], "yes");
+                } else {
+                    assert!(collected.trailers().is_none());
+                }
+                assert_eq!(collected.to_bytes(), expected_body);
+                assert_eq!(body.size_hint().exact(), Some(0));
+                assert!(body.is_end_stream());
+                drop(body);
+
+                drop(client);
+                connection.await.unwrap().unwrap();
+                server.await.unwrap();
+            }
+        })
+        .await
+        .expect("response bodies should complete");
+    }
+
+    #[tokio::test]
     async fn h2_connect() {
         let (client_io, server_io, _) = setup_duplex_test_server();
 
@@ -3013,6 +3169,68 @@ mod conn {
         upgraded.write_all(b"Baguette!").await.unwrap();
 
         upgraded.shutdown().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn h2_pending_open_fails_with_connection_error_on_close() {
+        // A request parked waiting for a stream slot (the server only
+        // allows one concurrent stream and the first is still open) must
+        // fail with a connection error when the peer goes away, not with
+        // a misleading DispatchGone user error.
+        let (client_io, server_io, _) = setup_duplex_test_server();
+
+        tokio::spawn(async move {
+            let sock = server_io;
+            let mut h2 = h2::server::Builder::new()
+                .max_concurrent_streams(1)
+                .handshake::<_, bytes::Bytes>(sock)
+                .await
+                .unwrap();
+
+            // Accept the first request and hold its stream open, so the
+            // second request parks waiting for a stream slot.
+            let (_req, respond) = h2.accept().await.unwrap().unwrap();
+            tokio::time::sleep(Duration::from_millis(200)).await;
+            // Close the connection while the second request is parked.
+            drop(respond);
+            drop(h2);
+        });
+
+        let io = TokioIo::new(client_io);
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake(io)
+            .await
+            .expect("http handshake");
+
+        tokio::spawn(async move {
+            let _ = conn.await;
+        });
+
+        let mut client2 = client.clone();
+        let req1 = Request::builder()
+            .uri("http://localhost/")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res1 = tokio::spawn(async move { client.send_request(req1).await });
+        let req2 = Request::builder()
+            .uri("http://localhost/")
+            .body(Empty::<Bytes>::new())
+            .unwrap();
+        let res2 = tokio::spawn(async move { client2.send_request(req2).await });
+
+        // The first request stays open on the server, the second parks.
+        // Both fail once the connection closes; the parked one must not
+        // come back as a user (DispatchGone) error.
+        let err = res2.await.unwrap().expect_err("parked request must fail");
+        assert!(
+            !err.is_user(),
+            "parked request failed with a user error instead of a connection error: {err:?}"
+        );
+        assert!(
+            err.is_canceled(),
+            "parked request should fail as canceled when the connection closes: {err:?}"
+        );
+        let _ = res1.await;
     }
 
     #[tokio::test]

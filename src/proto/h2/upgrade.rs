@@ -179,7 +179,7 @@ impl Read for H2Upgraded {
                     }
                     Some(Err(e)) => {
                         return Poll::Ready(match e.reason() {
-                            Some(Reason::NO_ERROR) | Some(Reason::CANCEL) => Ok(()),
+                            Some(Reason::NO_ERROR | Reason::CANCEL) => Ok(()),
                             Some(Reason::STREAM_CLOSED) => {
                                 Err(std::io::Error::new(std::io::ErrorKind::BrokenPipe, e))
                             }

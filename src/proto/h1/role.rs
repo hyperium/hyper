@@ -493,10 +493,9 @@ impl Http1Transaction for Server {
     fn on_error(err: &crate::Error) -> Option<MessageHead<Self::Outgoing>> {
         use crate::error::Kind;
         let status = match *err.kind() {
-            Kind::Parse(Parse::Method)
-            | Kind::Parse(Parse::Header(_))
-            | Kind::Parse(Parse::Uri)
-            | Kind::Parse(Parse::Version) => StatusCode::BAD_REQUEST,
+            Kind::Parse(Parse::Method | Parse::Header(_) | Parse::Uri | Parse::Version) => {
+                StatusCode::BAD_REQUEST
+            }
             Kind::Parse(Parse::TooLarge) => StatusCode::REQUEST_HEADER_FIELDS_TOO_LARGE,
             Kind::Parse(Parse::UriTooLong) => StatusCode::URI_TOO_LONG,
             _ => return None,
@@ -508,6 +507,10 @@ impl Http1Transaction for Server {
             ..Default::default()
         };
         Some(msg)
+    }
+
+    fn is_switching_protocols(head: &MessageHead<Self::Outgoing>) -> bool {
+        head.subject == StatusCode::SWITCHING_PROTOCOLS
     }
 
     fn is_server() -> bool {
@@ -1160,6 +1163,13 @@ impl Http1Transaction for Client {
                 }
 
                 headers.append(name, value);
+            }
+
+            // https://tools.ietf.org/html/rfc7230#section-3.3.3
+            // Transfer-Encoding overrides Content-Length; drop the latter so
+            // the exposed headers match the server-side decoder.
+            if headers.contains_key(header::TRANSFER_ENCODING) {
+                headers.remove(header::CONTENT_LENGTH);
             }
 
             let mut extensions = http::Extensions::default();
@@ -2408,19 +2418,30 @@ mod tests {
             DecodedLength::CLOSE_DELIMITED
         );
 
-        // transfer-encoding and content-length = chunked
-        assert_eq!(
-            parse(
-                "\
-                 HTTP/1.1 200 OK\r\n\
-                 content-length: 10\r\n\
-                 transfer-encoding: chunked\r\n\
-                 \r\n\
-                 "
-            )
-            .decode,
-            DecodedLength::CHUNKED
+        // transfer-encoding and content-length = chunked; Content-Length is dropped
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             content-length: 100000\r\n\
+             transfer-encoding: chunked\r\n\
+             \r\n\
+             ",
         );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(msg.head.headers.contains_key(header::TRANSFER_ENCODING));
+
+        let msg = parse(
+            "\
+             HTTP/1.1 200 OK\r\n\
+             transfer-encoding: chunked\r\n\
+             content-length: 100000\r\n\
+             \r\n\
+             ",
+        );
+        assert_eq!(msg.decode, DecodedLength::CHUNKED);
+        assert!(!msg.head.headers.contains_key(header::CONTENT_LENGTH));
+        assert!(msg.head.headers.contains_key(header::TRANSFER_ENCODING));
 
         // HEAD can have content-length, but not body
         assert_eq!(
