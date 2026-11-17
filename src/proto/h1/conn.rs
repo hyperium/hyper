@@ -707,7 +707,9 @@ where
                 // to do only speak HTTP/1.0 as well.
                 head.version = Version::HTTP_10;
             }
-            Version::HTTP_11 => {
+            // A 101 hands off the connection to another protocol, so disabled
+            // HTTP keep-alive must not add a close option to the upgrade response
+            Version::HTTP_11 if !T::is_switching_protocols(head) => {
                 if let KA::Disabled = self.state.keep_alive.status() {
                     match head.headers.entry(CONNECTION) {
                         Entry::Occupied(mut entry) => {
