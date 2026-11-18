@@ -8,7 +8,7 @@ use bytes::Bytes;
 use futures_core::ready;
 use h2::server::{Connection, Handshake, SendResponse};
 use h2::{Reason, RecvStream};
-use http::{Method, Request};
+use http::{Method, Request, StatusCode};
 use pin_project_lite::pin_project;
 
 use super::{ping, PipeToSendStream, SendBuf};
@@ -273,6 +273,7 @@ where
                         ping.record_non_data();
 
                         let is_connect = req.method() == Method::CONNECT;
+                        let is_head = req.method() == Method::HEAD;
                         let (mut parts, stream) = req.into_parts();
                         let (mut req, connect_parts) = if !is_connect {
                             (
@@ -309,6 +310,7 @@ where
                             service.call(req),
                             connect_parts,
                             respond,
+                            is_head,
                             self.date_header,
                             exec.clone(),
                         );
@@ -367,6 +369,7 @@ pin_project! {
         reply: SendResponse<SendBuf<B::Data>>,
         #[pin]
         state: H2StreamState<F, B>,
+        is_head: bool,
         date_header: bool,
         exec: E,
     }
@@ -404,12 +407,14 @@ where
         fut: F,
         connect_parts: Option<ConnectParts>,
         respond: SendResponse<SendBuf<B::Data>>,
+        is_head: bool,
         date_header: bool,
         exec: E,
     ) -> H2Stream<F, B, E> {
         H2Stream {
             reply: respond,
             state: H2StreamState::Service { fut, connect_parts },
+            is_head,
             date_header,
             exec,
         }
@@ -509,6 +514,37 @@ where
                             self.exec.execute_upgrade(up_task);
                             return Poll::Ready(Ok(()));
                         }
+                    }
+
+                    // Status restrictions take precedence over HEAD: 204, 205,
+                    // and 304 responses never contain content (RFC 9110 Section
+                    // 6.4.1 and Section 15.3.6).
+                    let status = res.status();
+                    if matches!(
+                        status,
+                        StatusCode::NO_CONTENT
+                            | StatusCode::RESET_CONTENT
+                            | StatusCode::NOT_MODIFIED
+                    ) {
+                        if matches!(status, StatusCode::NO_CONTENT | StatusCode::RESET_CONTENT) {
+                            // 204 cannot include Content-Length (RFC 9113
+                            // Section 8.1) and a 205 response has no content.
+                            res.headers_mut().remove(::http::header::CONTENT_LENGTH);
+                        }
+                        reply!(me, res, true);
+                        return Poll::Ready(Ok(()));
+                    }
+
+                    if *me.is_head {
+                        // A HEAD response may include the Content-Length
+                        // that a GET response would have sent.
+                        if !body.is_end_stream() {
+                            if let Some(len) = body.size_hint().exact() {
+                                headers::set_content_length_if_missing(res.headers_mut(), len);
+                            }
+                        }
+                        reply!(me, res, true);
+                        return Poll::Ready(Ok(()));
                     }
 
                     if !body.is_end_stream() {
