@@ -228,6 +228,19 @@ where
         }
     }
 
+    // Body reads can grow the adaptive buffer to hundreds of KiB. While
+    // waiting to write a response, the next server read only probes for EOF
+    // or the start of a pipelined request.
+    pub(crate) fn reset_server_read_buffer(&mut self) {
+        if self.read_buf.is_empty()
+            && (self.read_buf_strategy.next() > INIT_BUFFER_SIZE
+                || self.read_buf.capacity() > INIT_BUFFER_SIZE)
+        {
+            self.read_buf = BytesMut::new();
+            self.read_buf_strategy = ReadStrategy::with_max(self.read_buf_strategy.max());
+        }
+    }
+
     pub(crate) fn poll_read_from_io(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<usize>> {
         self.read_blocked = false;
         // Get the next amount to allocate, but make sure we don't go over
@@ -738,6 +751,26 @@ mod tests {
             buffered.read_buf,
             b"HTTP/1.1 200 OK\r\nServer: hyper\r\n"[..]
         );
+    }
+
+    #[test]
+    fn server_idle_probe_releases_empty_body_buffer_and_preserves_pipelined_bytes() {
+        let mock = Mock::new().build();
+        let mut buffered = Buffered::<_, Cursor<Vec<u8>>>::new(Compat::new(mock));
+        let max = 16 * INIT_BUFFER_SIZE;
+        buffered.set_max_buf_size(max);
+        buffered.read_buf.reserve(max);
+        buffered.read_buf_strategy.record(INIT_BUFFER_SIZE);
+        buffered.read_buf.extend_from_slice(b"GET /next");
+
+        buffered.reset_server_read_buffer();
+        assert_eq!(&buffered.read_buf[..], b"GET /next");
+        buffered.read_buf.clear();
+
+        buffered.reset_server_read_buffer();
+        assert_eq!(buffered.read_buf.capacity(), 0);
+        assert_eq!(buffered.read_buf_strategy.next(), INIT_BUFFER_SIZE);
+        assert_eq!(buffered.read_buf_strategy.max(), max);
     }
 
     #[test]

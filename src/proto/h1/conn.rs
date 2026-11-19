@@ -494,6 +494,10 @@ where
         debug_assert!(!self.can_read_head() && !self.can_read_body() && !self.is_read_closed());
         debug_assert!(self.is_mid_message());
 
+        if !T::is_client() {
+            self.io.reset_server_read_buffer();
+        }
+
         if self.state.allow_half_close || !self.io.read_buf().is_empty() {
             return Poll::Pending;
         }
