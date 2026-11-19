@@ -234,6 +234,17 @@ t! {
 
 #[tokio::test]
 async fn h2_strips_te_header_with_repeated_values() {
+    // Only the first TE value used to be checked, so the second one reached
+    // the peer and the request was rejected as malformed.
+    assert_eq!(h2_received_te_count(&["trailers", "gzip"]).await, "0");
+}
+
+#[tokio::test]
+async fn h2_keeps_te_header_with_repeated_trailers() {
+    assert_eq!(h2_received_te_count(&["trailers", "trailers"]).await, "2");
+}
+
+async fn h2_received_te_count(te_values: &[&'static str]) -> String {
     use http_body_util::Empty;
     use hyper::body::Bytes;
     use tokio::net::{TcpListener, TcpStream};
@@ -266,18 +277,17 @@ async fn h2_strips_te_header_with_repeated_values() {
         .unwrap();
     tokio::spawn(conn);
 
-    // Only the first TE value used to be checked, so the second one reached
-    // the peer and the request was rejected as malformed.
-    let req = hyper::Request::builder()
-        .uri(format!("http://{addr}/"))
-        .header("te", "trailers")
-        .header("te", "gzip")
-        .body(Empty::<Bytes>::new())
+    let mut req = hyper::Request::builder().uri(format!("http://{addr}/"));
+    for value in te_values {
+        req = req.header("te", *value);
+    }
+    let res = client
+        .send_request(req.body(Empty::<Bytes>::new()).unwrap())
+        .await
         .unwrap();
-    let res = client.send_request(req).await.unwrap();
 
     assert_eq!(res.status(), 200);
-    assert_eq!(res.headers()["x-te-count"], "0");
+    res.headers()["x-te-count"].to_str().unwrap().to_owned()
 }
 
 t! {
