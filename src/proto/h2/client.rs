@@ -177,7 +177,7 @@ where
 
     let (conn, ping) = if ping_config.is_enabled() {
         let pp = conn.ping_pong().expect("conn.ping_pong");
-        let (recorder, ponger) = ping::channel(pp, ping_config, timer);
+        let (recorder, ponger) = ping::channel(pp, &ping_config, timer);
 
         let conn: Conn<_, B> = Conn::new(ponger, conn);
         (Either::left(conn), recorder)

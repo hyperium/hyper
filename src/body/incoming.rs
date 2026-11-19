@@ -393,18 +393,18 @@ mod tests {
     #[cfg(all(feature = "http1", any(feature = "client", feature = "server")))]
     #[test]
     fn size_hint() {
-        fn eq(body: Incoming, b: SizeHint, note: &str) {
+        fn eq(body: &Incoming, b: SizeHint, note: &str) {
             let a = body.size_hint();
             assert_eq!(a.lower(), b.lower(), "lower for {:?}", note);
             assert_eq!(a.upper(), b.upper(), "upper for {:?}", note);
         }
 
-        eq(Incoming::empty(), SizeHint::with_exact(0), "empty");
+        eq(&Incoming::empty(), SizeHint::with_exact(0), "empty");
 
-        eq(Incoming::channel().1, SizeHint::new(), "channel");
+        eq(&Incoming::channel().1, SizeHint::new(), "channel");
 
         eq(
-            Incoming::new_channel(DecodedLength::new(4), /*wanter =*/ false).1,
+            &Incoming::new_channel(DecodedLength::new(4), /*wanter =*/ false).1,
             SizeHint::with_exact(4),
             "channel with length",
         );

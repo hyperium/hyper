@@ -215,7 +215,7 @@ where
                     let mut conn = ready!(Pin::new(hs).poll(cx).map_err(crate::Error::new_h2))?;
                     let ping = if ping_config.is_enabled() {
                         let pp = conn.ping_pong().expect("conn.ping_pong");
-                        Some(ping::channel(pp, ping_config.clone(), me.timer.clone()))
+                        Some(ping::channel(pp, ping_config, me.timer.clone()))
                     } else {
                         None
                     };
