@@ -704,4 +704,65 @@ mod tests {
             HYPER_ITER_CONTINUE
         }
     }
+    #[cfg(all(feature = "http1", feature = "ffi"))]
+    #[test]
+    fn test_headers_set_replaces_multi_value_header_in_original_order() {
+        let mut headers = hyper_headers::default();
+
+        add_header(&mut headers, b"Set-CookiE", b"a=b");
+        add_header(&mut headers, b"Content-Encoding", b"gzip");
+        add_header(&mut headers, b"SET-COOKIE", b"c=d");
+        add_header(&mut headers, b"X-After", b"present");
+
+        let name = b"Set-Cookie";
+        let value = b"replacement";
+        assert!(matches!(
+            hyper_headers_set(
+                &mut headers,
+                name.as_ptr(),
+                name.len(),
+                value.as_ptr(),
+                value.len(),
+            ),
+            hyper_code::HYPERE_OK
+        ));
+
+        let mut output = Vec::<u8>::new();
+        hyper_headers_foreach(&headers, concat, &mut output as *mut _ as *mut c_void);
+
+        assert_eq!(
+            output,
+            b"Set-Cookie: replacement\r\nContent-Encoding: gzip\r\nX-After: present\r\n"
+        );
+    }
+
+    fn add_header(headers: &mut hyper_headers, name: &[u8], value: &[u8]) {
+        assert!(matches!(
+            hyper_headers_add(
+                headers,
+                name.as_ptr(),
+                name.len(),
+                value.as_ptr(),
+                value.len(),
+            ),
+            hyper_code::HYPERE_OK
+        ));
+    }
+
+    extern "C" fn concat(
+        output: *mut c_void,
+        name: *const u8,
+        name_len: usize,
+        value: *const u8,
+        value_len: usize,
+    ) -> c_int {
+        unsafe {
+            let output = &mut *(output as *mut Vec<u8>);
+            output.extend(std::slice::from_raw_parts(name, name_len));
+            output.extend(b": ");
+            output.extend(std::slice::from_raw_parts(value, value_len));
+            output.extend(b"\r\n");
+        }
+        HYPER_ITER_CONTINUE
+    }
 }
