@@ -220,13 +220,8 @@ where
                             continue;
                         }
 
-                        // The final chunk is already in hand and nothing will be
-                        // polled after it, so waiting for capacity adds no
-                        // backpressure. Queue it right away: h2 buffers it and
-                        // sends it as flow control allows. For a freshly opened
-                        // stream the capacity is only assigned once the
-                        // connection task has flushed HEADERS, so waiting here
-                        // forces HEADERS and DATA into separate socket writes.
+                        // Last chunk: send it now together with the headers,
+                        // instead of waiting and doing a second write.
                         if is_eos {
                             let buf = SendBuf::Buf(chunk);
                             me.body_tx
