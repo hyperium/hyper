@@ -220,6 +220,21 @@ where
                             continue;
                         }
 
+                        // The final chunk is already in hand and nothing will be
+                        // polled after it, so waiting for capacity adds no
+                        // backpressure. Queue it right away: h2 buffers it and
+                        // sends it as flow control allows. For a freshly opened
+                        // stream the capacity is only assigned once the
+                        // connection task has flushed HEADERS, so waiting here
+                        // forces HEADERS and DATA into separate socket writes.
+                        if is_eos {
+                            let buf = SendBuf::Buf(chunk);
+                            me.body_tx
+                                .send_data(buf, true)
+                                .map_err(crate::Error::new_body_write)?;
+                            return Poll::Ready(Ok(()));
+                        }
+
                         // Reserve a minimal claim on the connection-level
                         // flow-control window rather than the whole chunk. The
                         // chunk is already in hand, so this still cannot pin
