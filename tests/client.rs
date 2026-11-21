@@ -3783,6 +3783,151 @@ mod conn {
         let _ = stream_a_done_tx.send(());
         drop(upgraded);
     }
+
+    /// Records the bytes of every successful write to the wrapped stream.
+    struct WriteTrace {
+        inner: DuplexStream,
+        writes: Arc<std::sync::Mutex<Vec<Vec<u8>>>>,
+    }
+
+    impl tokio::io::AsyncRead for WriteTrace {
+        fn poll_read(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &mut tokio::io::ReadBuf<'_>,
+        ) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_read(cx, buf)
+        }
+    }
+
+    impl tokio::io::AsyncWrite for WriteTrace {
+        fn poll_write(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            buf: &[u8],
+        ) -> Poll<io::Result<usize>> {
+            let res = Pin::new(&mut self.inner).poll_write(cx, buf);
+            if let Poll::Ready(Ok(n)) = &res {
+                self.writes.lock().unwrap().push(buf[..*n].to_vec());
+            }
+            res
+        }
+
+        fn poll_write_vectored(
+            mut self: Pin<&mut Self>,
+            cx: &mut Context<'_>,
+            bufs: &[io::IoSlice<'_>],
+        ) -> Poll<io::Result<usize>> {
+            let res = Pin::new(&mut self.inner).poll_write_vectored(cx, bufs);
+            if let Poll::Ready(Ok(mut n)) = res {
+                let mut written = Vec::new();
+                for b in bufs {
+                    let take = n.min(b.len());
+                    written.extend_from_slice(&b[..take]);
+                    n -= take;
+                }
+                self.writes.lock().unwrap().push(written);
+            }
+            res
+        }
+
+        fn is_write_vectored(&self) -> bool {
+            self.inner.is_write_vectored()
+        }
+
+        fn poll_flush(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_flush(cx)
+        }
+
+        fn poll_shutdown(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
+            Pin::new(&mut self.inner).poll_shutdown(cx)
+        }
+    }
+
+    /// The (type, flags) of each HTTP/2 frame found in one write, in order.
+    fn frames_in(mut buf: &[u8]) -> Vec<(u8, u8)> {
+        let mut frames = Vec::new();
+        while buf.len() >= 9 {
+            let len = u32::from_be_bytes([0, buf[0], buf[1], buf[2]]) as usize;
+            frames.push((buf[3], buf[4]));
+            buf = &buf[(9 + len).min(buf.len())..];
+        }
+        frames
+    }
+
+    #[tokio::test]
+    async fn h2_ready_body_headers_and_data_share_one_write() {
+        const DATA: u8 = 0x0;
+        const HEADERS: u8 = 0x1;
+        const END_STREAM: u8 = 0x1;
+
+        let (client_io, server_io, _) = setup_duplex_test_server();
+        let writes = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let client_io = WriteTrace {
+            inner: client_io,
+            writes: writes.clone(),
+        };
+
+        // Answers every request once its body has been read.
+        tokio::spawn(async move {
+            let mut h2 = h2::server::handshake(server_io).await.unwrap();
+            while let Some(res) = h2.accept().await {
+                let (req, mut respond) = res.unwrap();
+                tokio::spawn(async move {
+                    let mut body = req.into_body();
+                    while let Some(data) = body.data().await {
+                        let data = data.unwrap();
+                        let _ = body.flow_control().release_capacity(data.len());
+                    }
+                    respond
+                        .send_response(Response::new(()), true)
+                        .expect("send_response");
+                });
+            }
+        });
+
+        let (mut client, conn) = conn::http2::Builder::new(TokioExecutor)
+            .handshake(TokioIo::new(client_io))
+            .await
+            .expect("http handshake");
+        tokio::spawn(async move {
+            conn.await.expect("client conn shouldn't error");
+        });
+
+        let post = || {
+            Request::post("http://localhost/")
+                .body(Full::new(Bytes::from_static(b"hello")))
+                .unwrap()
+        };
+
+        // Warm up the connection so the handshake is out of the way.
+        let res = client.send_request(post()).await.expect("warm up");
+        assert_eq!(res.status(), StatusCode::OK);
+        writes.lock().unwrap().clear();
+
+        let res = client.send_request(post()).await.expect("send_request");
+        assert_eq!(res.status(), StatusCode::OK);
+
+        let request_writes: Vec<Vec<(u8, u8)>> = writes
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|write| frames_in(write))
+            .filter(|frames| frames.iter().any(|f| f.0 == HEADERS || f.0 == DATA))
+            .collect();
+
+        // HEADERS and the final DATA frame are queued together, so they must
+        // leave in a single socket write.
+        assert_eq!(
+            request_writes.len(),
+            1,
+            "expected a single write carrying the request, got: {:?}",
+            request_writes
+        );
+        let types: Vec<u8> = request_writes[0].iter().map(|f| f.0).collect();
+        assert_eq!(types, [HEADERS, DATA]);
+        assert_eq!(request_writes[0][1].1 & END_STREAM, END_STREAM);
+    }
 }
 
 trait FutureHyperExt: TryFuture {
