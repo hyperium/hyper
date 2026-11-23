@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1794948268526,
+  "lastUpdate": 1795456096989,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14759,6 +14759,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 29654,
             "range": "± 3869.63",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "32e7d3fc18682441b34964b94372da3fff91851f",
+          "message": "refactor(http1): reject bare LF in trailers (#4282)\n\nUnlike headers, HTTP/1.1 chunked decoding *only* declares CRLF as frame\ndelimiters. Thus, until now, our parser has only cared about finding CRLFs, and\nthen treating anything inside as trailers.\n\nSee https://errata.rfc-editor.org/eid7633/\n\nIf a message body sends 'trailers' with bare LFs, hyper will parse past them,\nand then eventually ignore any invalid trailers.\n\nThe change: we now look for bare LFs within the trailer section, and will return\na parse error. This is stricer than we need to be. But it appears that some\nother HTTP/1 implementations improperly treat bare LF as boundaries, and get\nconfused.\n\nThis is not a bug in hyper. But we do add this to help people using other buggy\nsoftware. (And to get the AI security scanners to stop claiming there's a big\nbug in here.)",
+          "timestamp": "2026-11-23T12:47:26-05:00",
+          "tree_id": "aef03787a98498c0ad3a28c7046972079c132235",
+          "url": "https://github.com/hyperium/hyper/commit/32e7d3fc18682441b34964b94372da3fff91851f"
+        },
+        "date": 1795456093700,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 37385,
+            "range": "± 4360.85",
             "unit": "ns/iter"
           }
         ]
