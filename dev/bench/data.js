@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795461977074,
+  "lastUpdate": 1795462704142,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14819,6 +14819,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 44271,
             "range": "± 8908.38",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "abf6cdc549e577a194a518bc7caa093e7a3633d2",
+          "message": "chore(examples): update pretty-env-logger (#4283)",
+          "timestamp": "2026-11-23T14:37:33-05:00",
+          "tree_id": "f7b26bd2708eec4506cd4a9bd2e205767f6f2cd0",
+          "url": "https://github.com/hyperium/hyper/commit/abf6cdc549e577a194a518bc7caa093e7a3633d2"
+        },
+        "date": 1795462700403,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 31044,
+            "range": "± 4046.30",
             "unit": "ns/iter"
           }
         ]
