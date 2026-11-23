@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795461901208,
+  "lastUpdate": 1795461977074,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -73951,6 +73951,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 5223552,
             "range": "± 109744.26",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b28916668d438f6600b75aed848e62ed252003e4",
+          "message": "style(body,proto): enforce clippy::rest_pattern_accessible_field (#4230)\n\nsee https://github.com/hyperium/hyper/issues/4071.\n\nsee <https://rust-lang.github.io/rust-clippy/master/index.html#rest_pattern_accessible_field>.\n\nthis lint disallows `..` patterns for accessible fields. this is helpful\nbecause it calls attention to locations that may need to be updated when\nthe contents of a structure changes.\n\nallowances are left in place for simple accessors. because the\nlint_reason feature is not supported across the range of our MSRV, we\nuse `/*reason: explanation*/` comments for now.\n\nan explicit allowance of `unneeded_field_pattern` is added, because\nthese two lints conflict: we can either expect exhaustive matching, or\nwe can expect that no fields are explicitly ignored. the former is more\nverbose, but draws attention to where logic may need to be updated as a\ntype evolves over time.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-11-23T19:24:07Z",
+          "tree_id": "64a5c5cc4891688ef3bb438f218f8b318b1f3ff8",
+          "url": "https://github.com/hyperium/hyper/commit/b28916668d438f6600b75aed848e62ed252003e4"
+        },
+        "date": 1795461974149,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 24905,
+            "range": "± 243.26",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 2992079,
+            "range": "± 211262.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 6895,
+            "range": "± 173.80",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 7665,
+            "range": "± 96.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 10727,
+            "range": "± 153.35",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 32318,
+            "range": "± 760.09",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 40999889,
+            "range": "± 132154.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 46380,
+            "range": "± 1017.18",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 3102050,
+            "range": "± 51274.67",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 39899199,
+            "range": "± 4167708.44",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 2987102,
+            "range": "± 44995.21",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 67396303,
+            "range": "± 41795142.65",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 23434568,
+            "range": "± 223316.55",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 2458870,
+            "range": "± 11295.21",
             "unit": "ns/iter"
           }
         ]
