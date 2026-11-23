@@ -546,6 +546,10 @@ impl ChunkedState {
 
         match byte {
             b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
+            b'\n' => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid trailer line ending",
+            ))),
             _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
@@ -598,6 +602,10 @@ impl ChunkedState {
                 }
                 Poll::Ready(Ok(ChunkedState::EndLf))
             }
+            b'\n' => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid trailer line ending",
+            ))),
             byte => {
                 match trailers_buf {
                     None => {
@@ -1023,6 +1031,53 @@ mod tests {
         decoder.decode_fut(&mut mock_buf).await.expect("decode");
         let e = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[tokio::test]
+    async fn test_read_chunked_trailer_with_bare_lf() {
+        for trailers in [
+            "\n",
+            "\nGET /smuggled HTTP/1.1\r\nHost: a\r\n\r\n",
+            "X\n: value\r\n\r\n",
+            "X: val\nue\r\n\r\n",
+            "X: value\n\nGET /smuggled HTTP/1.1\r\nHost: a\r\n\r\n",
+            "X: value\r\n\n",
+            "X: value\r\nY: value\n\r\n",
+        ] {
+            let body = format!("5\r\nhello\r\n0\r\n{trailers}");
+            let mut mock_buf = body.as_bytes();
+            let mut decoder = Decoder::chunked(None, None);
+            assert_eq!(
+                decoder
+                    .decode_fut(&mut mock_buf)
+                    .await
+                    .unwrap()
+                    .into_data()
+                    .unwrap(),
+                "hello"
+            );
+            let err = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput, "{trailers:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_chunked_trailers_preserves_next_request() {
+        let next_request = "GET /next HTTP/1.1\r\nHost: a\r\n\r\n";
+        let body = format!("0\r\nX: value\r\nY: value\r\n\r\n{next_request}");
+        let mut mock_buf = body.as_bytes();
+        let mut decoder = Decoder::chunked(None, None);
+        let trailers = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .unwrap()
+            .into_trailers()
+            .unwrap();
+        assert_eq!(trailers.len(), 2);
+        assert_eq!(trailers["x"], "value");
+        assert_eq!(trailers["y"], "value");
+        assert!(decoder.is_eof());
+        assert_eq!(mock_buf, next_request.as_bytes());
     }
 
     #[cfg(not(miri))]
