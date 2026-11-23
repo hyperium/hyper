@@ -67,6 +67,25 @@ pub(super) fn content_length_parse(value: &HeaderValue) -> Option<u64> {
     from_digits(value.as_bytes())
 }
 
+#[cfg(all(feature = "server", any(feature = "http1", feature = "http2")))]
+pub(super) fn expect_continue(value: &HeaderValue) -> bool {
+    // According to https://datatracker.ietf.org/doc/html/rfc2616#section-14.20
+    // Comparison of expectation values is case-insensitive for unquoted tokens
+    // (including the 100-continue token)
+    value.as_bytes().eq_ignore_ascii_case(b"100-continue")
+}
+
+// If a message has more than one `Expect` header line, the last one wins,
+// same as when parsing HTTP/1 requests.
+#[cfg(all(feature = "server", feature = "http2"))]
+pub(super) fn expect_last_continue(headers: &HeaderMap) -> bool {
+    headers
+        .get_all(http::header::EXPECT)
+        .iter()
+        .next_back()
+        .map_or(false, expect_continue)
+}
+
 #[cfg(any(feature = "client", all(feature = "server", feature = "http2")))]
 pub(super) fn content_length_parse_all(headers: &HeaderMap) -> Option<u64> {
     content_length_parse_all_values(headers.get_all(CONTENT_LENGTH).into_iter())
