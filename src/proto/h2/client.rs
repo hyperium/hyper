@@ -201,6 +201,7 @@ where
         h2_tx,
         req_rx,
         fut_ctx: None,
+        closing: None,
         marker: PhantomData,
     })
 }
@@ -413,6 +414,7 @@ where
     B: Body,
 {
     is_connect: bool,
+    is_head: bool,
     eos: bool,
     fut: ResponseFuture,
     body_tx: SendStream<SendBuf<B::Data>>,
@@ -434,6 +436,7 @@ where
     h2_tx: SendRequest<SendBuf<B::Data>>,
     req_rx: ClientRx<B>,
     fut_ctx: Option<FutCtx<B>>,
+    closing: Option<crate::Result<Dispatched>>,
     marker: PhantomData<T>,
 }
 
@@ -567,6 +570,7 @@ where
             send_when: SendWhen {
                 when: ResponseFutMap {
                     fut: f.fut,
+                    is_head: f.is_head,
                     ping: Some(ping),
                     send_stream: Some(send_stream),
                     exec: self.executor.clone(),
@@ -586,6 +590,7 @@ pin_project! {
     {
         #[pin]
         fut: ResponseFuture,
+        is_head: bool,
         ping: Option<Recorder>,
         #[pin]
         send_stream: Option<Option<SendStream<SendBuf<<B as Body>::Data>>>>,
@@ -623,7 +628,12 @@ where
                 // record that we got the response headers
                 ping.record_non_data();
 
-                let content_length = headers::content_length_parse_all(res.headers());
+                let content_length = if *this.is_head {
+                    // HEAD Content-Length describes the corresponding GET response body.
+                    Some(0)
+                } else {
+                    headers::content_length_parse_all(res.headers())
+                };
                 if let (Some(mut send_stream), StatusCode::OK) = (send_stream, res.status()) {
                     if content_length.map_or(false, |len| len != 0) {
                         warn!("h2 connect response with non-zero body not supported");
@@ -676,12 +686,50 @@ where
     type Output = crate::Result<Dispatched>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if self.closing.is_none() {
+            let res = ready!(self.poll_dispatch(cx));
+            self.closing = Some(res);
+        }
+        ready!(self.req_rx.poll_close(cx));
+        Poll::Ready(self.closing.take().expect("Future polled twice"))
+    }
+}
+
+impl<B, E, T> ClientTask<B, E, T>
+where
+    B: Body + 'static + Unpin,
+    B::Data: Send,
+    B::Error: Into<Box<dyn std::error::Error + Send + Sync>>,
+    E: Http2ClientConnExec<B, T> + Clone + Unpin,
+    T: Read + Write + Unpin,
+{
+    fn poll_dispatch(&mut self, cx: &mut Context<'_>) -> Poll<crate::Result<Dispatched>> {
         loop {
             match ready!(self.h2_tx.poll_ready(cx)) {
                 Ok(()) => (),
                 Err(err) => {
                     self.ping.ensure_not_timed_out()?;
-                    return if err.reason() == Some(::h2::Reason::NO_ERROR) {
+                    let graceful = err.reason() == Some(::h2::Reason::NO_ERROR);
+                    // A request may be parked in fut_ctx waiting for its
+                    // stream to open. Fail it here with the connection
+                    // error instead of letting it fall through to
+                    // Callback::drop, which reports a misleading
+                    // DispatchGone user error.
+                    if let Some(f) = self.fut_ctx.take() {
+                        let cb_err = if graceful {
+                            crate::Error::new_canceled().with("connection closed")
+                        } else {
+                            match err.reason() {
+                                Some(reason) => crate::Error::new_h2(reason.into()),
+                                None => crate::Error::new_canceled().with("connection closed"),
+                            }
+                        };
+                        f.cb.send(Err(TrySendError {
+                            error: cb_err,
+                            message: None,
+                        }));
+                    }
+                    return if graceful {
                         trace!("connection gracefully shutdown");
                         Poll::Ready(Ok(Dispatched::Shutdown))
                     } else {
@@ -714,6 +762,7 @@ where
                     }
 
                     let is_connect = req.method() == Method::CONNECT;
+                    let is_head = req.method() == Method::HEAD;
                     let eos = body.is_end_stream();
 
                     if is_connect
@@ -746,6 +795,7 @@ where
 
                     let f = FutCtx {
                         is_connect,
+                        is_head,
                         eos,
                         fut,
                         body_tx,

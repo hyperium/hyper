@@ -351,6 +351,11 @@ impl<T: Unpin, B> Unpin for Buffered<T, B> {}
 // TODO: This trait is old... at least rename to PollBytes or something...
 pub(crate) trait MemRead {
     fn read_mem(&mut self, cx: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>>;
+
+    /// Reads one byte, `None` on EOF.
+    fn read_byte(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<Option<u8>>> {
+        self.read_mem(cx, 1).map_ok(|b| b.first().copied())
+    }
 }
 
 impl<T, B> MemRead for Buffered<T, B>
@@ -366,6 +371,16 @@ where
             let n = ready!(self.poll_read_from_io(cx))?;
             Poll::Ready(Ok(self.read_buf.split_to(::std::cmp::min(len, n)).freeze()))
         }
+    }
+
+    // Skips the split/freeze (and its refcount traffic) of `read_mem` for chunk framing bytes.
+    fn read_byte(&mut self, cx: &mut Context<'_>) -> Poll<io::Result<Option<u8>>> {
+        if self.read_buf.is_empty() && ready!(self.poll_read_from_io(cx))? == 0 {
+            return Poll::Ready(Ok(None));
+        }
+        let b = self.read_buf[0];
+        self.read_buf.advance(1);
+        Poll::Ready(Ok(Some(b)))
     }
 }
 

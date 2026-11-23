@@ -256,9 +256,8 @@ impl fmt::Debug for Decoder {
 
 macro_rules! byte (
     ($rdr:ident, $cx:expr) => ({
-        let buf = ready!($rdr.read_mem($cx, 1))?;
-        if !buf.is_empty() {
-            buf[0]
+        if let Some(b) = ready!($rdr.read_byte($cx))? {
+            b
         } else {
             return Poll::Ready(Err(io::Error::new(io::ErrorKind::UnexpectedEof,
                                       "unexpected EOF during chunk size line")));
@@ -306,7 +305,7 @@ impl ChunkedState {
         ChunkedState::Start
     }
     fn step<R: MemRead>(
-        &self,
+        self,
         cx: &mut Context<'_>,
         body: &mut R,
         StepArgs {
@@ -323,7 +322,7 @@ impl ChunkedState {
             Body, BodyCr, BodyLf, End, EndCr, EndLf, Extension, Size, SizeLf, SizeLws, Start,
             Trailer, TrailerLf,
         };
-        match *self {
+        match self {
             Start => ChunkedState::read_start(cx, body, chunk_size),
             Size => ChunkedState::read_size(cx, body, chunk_size),
             SizeLws => ChunkedState::read_size_lws(cx, body),
@@ -552,6 +551,10 @@ impl ChunkedState {
 
         match byte {
             b'\r' => Poll::Ready(Ok(ChunkedState::TrailerLf)),
+            b'\n' => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid trailer line ending",
+            ))),
             _ => Poll::Ready(Ok(ChunkedState::Trailer)),
         }
     }
@@ -604,6 +607,10 @@ impl ChunkedState {
                 }
                 Poll::Ready(Ok(ChunkedState::EndLf))
             }
+            b'\n' => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "Invalid trailer line ending",
+            ))),
             byte => {
                 match trailers_buf {
                     None => {
@@ -724,6 +731,60 @@ mod tests {
             ready!(Pin::new(self).poll_read(cx, buf.unfilled())?);
             Poll::Ready(Ok(Bytes::copy_from_slice(buf.filled())))
         }
+    }
+
+    impl MemRead for BytesMut {
+        fn read_mem(&mut self, _: &mut Context<'_>, len: usize) -> Poll<io::Result<Bytes>> {
+            let n = std::cmp::min(len, self.len());
+            Poll::Ready(Ok(self.split_to(n).freeze()))
+        }
+        fn read_byte(&mut self, _: &mut Context<'_>) -> Poll<io::Result<Option<u8>>> {
+            if self.is_empty() {
+                return Poll::Ready(Ok(None));
+            }
+            let b = self[0];
+            bytes::Buf::advance(self, 1);
+            Poll::Ready(Ok(Some(b)))
+        }
+    }
+
+    #[cfg(all(feature = "nightly", not(miri)))]
+    fn bench_chunked_body(b: &mut test::Bencher, n_chunks: usize, chunk: usize) {
+        let rt = new_runtime();
+        let mut vec = Vec::new();
+        for _ in 0..n_chunks {
+            vec.extend(format!("{:x}\r\n", chunk).as_bytes());
+            vec.extend(std::iter::repeat(b'a').take(chunk));
+            vec.extend(b"\r\n");
+        }
+        vec.extend(b"0\r\n\r\n");
+        b.bytes = (n_chunks * chunk) as u64;
+        b.iter(|| {
+            let mut raw = BytesMut::from(&vec[..]);
+            let mut decoder = Decoder::chunked(None, None);
+            rt.block_on(async {
+                let mut total = 0;
+                loop {
+                    let d = decoder
+                        .decode_fut(&mut raw)
+                        .await
+                        .unwrap()
+                        .into_data()
+                        .unwrap();
+                    if d.is_empty() {
+                        break;
+                    }
+                    total += d.len();
+                }
+                assert_eq!(total, n_chunks * chunk);
+            });
+        });
+    }
+
+    #[cfg(all(feature = "nightly", not(miri)))]
+    #[bench]
+    fn bench_decode_chunked_small_chunks(b: &mut test::Bencher) {
+        bench_chunked_body(b, 100, 16)
     }
 
     impl MemRead for Bytes {
@@ -975,6 +1036,53 @@ mod tests {
         decoder.decode_fut(&mut mock_buf).await.expect("decode");
         let e = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
         assert_eq!(e.kind(), io::ErrorKind::InvalidInput);
+    }
+
+    #[tokio::test]
+    async fn test_read_chunked_trailer_with_bare_lf() {
+        for trailers in [
+            "\n",
+            "\nGET /smuggled HTTP/1.1\r\nHost: a\r\n\r\n",
+            "X\n: value\r\n\r\n",
+            "X: val\nue\r\n\r\n",
+            "X: value\n\nGET /smuggled HTTP/1.1\r\nHost: a\r\n\r\n",
+            "X: value\r\n\n",
+            "X: value\r\nY: value\n\r\n",
+        ] {
+            let body = format!("5\r\nhello\r\n0\r\n{trailers}");
+            let mut mock_buf = body.as_bytes();
+            let mut decoder = Decoder::chunked(None, None);
+            assert_eq!(
+                decoder
+                    .decode_fut(&mut mock_buf)
+                    .await
+                    .unwrap()
+                    .into_data()
+                    .unwrap(),
+                "hello"
+            );
+            let err = decoder.decode_fut(&mut mock_buf).await.unwrap_err();
+            assert_eq!(err.kind(), io::ErrorKind::InvalidInput, "{trailers:?}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_read_chunked_trailers_preserves_next_request() {
+        let next_request = "GET /next HTTP/1.1\r\nHost: a\r\n\r\n";
+        let body = format!("0\r\nX: value\r\nY: value\r\n\r\n{next_request}");
+        let mut mock_buf = body.as_bytes();
+        let mut decoder = Decoder::chunked(None, None);
+        let trailers = decoder
+            .decode_fut(&mut mock_buf)
+            .await
+            .unwrap()
+            .into_trailers()
+            .unwrap();
+        assert_eq!(trailers.len(), 2);
+        assert_eq!(trailers["x"], "value");
+        assert_eq!(trailers["y"], "value");
+        assert!(decoder.is_eof());
+        assert_eq!(mock_buf, next_request.as_bytes());
     }
 
     #[cfg(not(miri))]

@@ -2,6 +2,12 @@ name: "Bug report 🐛"
 description: Create a report to help us improve
 labels: ["C-bug"]
 body:
+  - type: checkboxes
+    attributes:
+      label: Human words
+      description: Communication between humans should be written by a human, not an LLM.
+      options:
+        - label: The words are written by a [human](https://seanmonstar.com/micro/20260729-i-want-your-own-words/).
   - type: input
     id: version
     attributes:

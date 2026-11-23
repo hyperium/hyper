@@ -69,7 +69,7 @@ fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
         warn!("TE headers illegal in HTTP/2 responses");
     }
 
-    if let Some(header) = headers.remove(CONNECTION) {
+    if let http::header::Entry::Occupied(entry) = headers.entry(CONNECTION) {
         warn!(
             "Connection header illegal in HTTP/2: {}",
             CONNECTION.as_str()
@@ -80,10 +80,14 @@ fn strip_connection_headers(headers: &mut HeaderMap, kind: MessageKind) {
         // Iterate these names and remove them as headers. Connection-specific headers are
         // forbidden in HTTP2, as that information has been moved into frame types of the h2
         // protocol.
-        if let Ok(header_contents) = header.to_str() {
-            for name in header_contents.split(',') {
-                let name = name.trim();
-                headers.remove(name);
+        let (_, values) = entry.remove_entry_mult();
+        let values: Vec<_> = values.collect();
+        for header in values {
+            if let Ok(header_contents) = header.to_str() {
+                for name in header_contents.split(',') {
+                    let name = name.trim();
+                    headers.remove(name);
+                }
             }
         }
     }
@@ -325,5 +329,26 @@ impl<B: Buf> Buf for SendBuf<B> {
             Self::Cursor(c) => c.chunks_vectored(dst),
             Self::None => 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn strip_connection_headers_multiple_values() {
+        let mut headers = HeaderMap::new();
+        headers.append(CONNECTION, "x-a".parse().unwrap());
+        headers.append(CONNECTION, "x-b, x-c".parse().unwrap());
+        headers.insert("x-a", "1".parse().unwrap());
+        headers.insert("x-b", "2".parse().unwrap());
+        headers.insert("x-c", "3".parse().unwrap());
+        headers.insert("x-d", "4".parse().unwrap());
+
+        strip_connection_headers(&mut headers, MessageKind::Request);
+
+        assert_eq!(headers.len(), 1);
+        assert!(headers.contains_key("x-d"));
     }
 }
