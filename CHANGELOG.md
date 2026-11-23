@@ -1,3 +1,28 @@
+## v1.13.0 (2026-11-23)
+
+
+#### Bug Fixes
+
+* **client:** fail parked h2 request with connection error on close (#4275) ([dea9acb5](https://github.com/hyperium/hyper/commit/dea9acb5344e0e34bb9196f5493464db68edd24a), closes [#4269](https://github.com/hyperium/hyper/issues/4269))
+* **http1:**
+  * preserve streaming bodies when coercing HTTP/2 requests (#4236) ([21da6a59](https://github.com/hyperium/hyper/commit/21da6a59db9a90631302e7b173c106b723b9065f))
+  * prevent `SendRequest` from reporting ready while a request is pending (#4247) ([47c725c4](https://github.com/hyperium/hyper/commit/47c725c459ede66e68ad705f7da9a901abbbdc17), closes [#4246](https://github.com/hyperium/hyper/issues/4246))
+  * avoid adding connection-close to 101 responses (#4248) ([ac3f9501](https://github.com/hyperium/hyper/commit/ac3f9501de373388fb9914e285134cfec2283bd8), closes [#4244](https://github.com/hyperium/hyper/issues/4244))
+  * error when final body chunk is shorter than content-length (#4270) ([75062064](https://github.com/hyperium/hyper/commit/750620646ba0777daa45be3d82bd1704dcf470b8))
+  * drop Content-Length when a response also has Transfer-Encoding (#4264) ([378f8479](https://github.com/hyperium/hyper/commit/378f8479b8b703d098b46de1cec9ea648f12ea69), closes [#4263](https://github.com/hyperium/hyper/issues/4263))
+  * drain in-flight requests before dispatcher shutdown (#4222) ([97fff93e](https://github.com/hyperium/hyper/commit/97fff93e53f9e6a993f2d6a25d50883b7b8752a7), closes [#4202](https://github.com/hyperium/hyper/issues/4202))
+* **http2:**
+  * report zero body size hint for HEAD responses (#4237) ([4e1c0fbb](https://github.com/hyperium/hyper/commit/4e1c0fbb9db68936c952c481321d96f536568283))
+  * prevent requests from hanging during concurrent connection shutdown race (#4242) ([5634b91d](https://github.com/hyperium/hyper/commit/5634b91d607ba1b781699765b22f16fd6ec1c8b7))
+  * strip all headers named in every Connection header (#4271) ([a44e32a7](https://github.com/hyperium/hyper/commit/a44e32a7f85a1f98e34307ae17985c0bc1349a03))
+  * keep connection open after rejecting CONNECT (#4235) ([88520c3e](https://github.com/hyperium/hyper/commit/88520c3eaea391f8ba49591a84f8439998b76191))
+
+
+#### Features
+
+* **http2:** add an executor getter for server and client (#4250) ([b638fc0d](https://github.com/hyperium/hyper/commit/b638fc0de351987f3eaffa2bdabd393c8679a9e8))
+
+
 ## v1.12.0 (2026-10-06)
 
 
