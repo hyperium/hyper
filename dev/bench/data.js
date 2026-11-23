@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795456096989,
+  "lastUpdate": 1795456197956,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -73813,6 +73813,114 @@ window.BENCHMARK_DATA = {
             "name": "http2_parallel_x10_res_1mb",
             "value": 4461026,
             "range": "± 66696.94",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "sean@seanmonstar.com",
+            "name": "Sean McArthur",
+            "username": "seanmonstar"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "32e7d3fc18682441b34964b94372da3fff91851f",
+          "message": "refactor(http1): reject bare LF in trailers (#4282)\n\nUnlike headers, HTTP/1.1 chunked decoding *only* declares CRLF as frame\ndelimiters. Thus, until now, our parser has only cared about finding CRLFs, and\nthen treating anything inside as trailers.\n\nSee https://errata.rfc-editor.org/eid7633/\n\nIf a message body sends 'trailers' with bare LFs, hyper will parse past them,\nand then eventually ignore any invalid trailers.\n\nThe change: we now look for bare LFs within the trailer section, and will return\na parse error. This is stricer than we need to be. But it appears that some\nother HTTP/1 implementations improperly treat bare LF as boundaries, and get\nconfused.\n\nThis is not a bug in hyper. But we do add this to help people using other buggy\nsoftware. (And to get the AI security scanners to stop claiming there's a big\nbug in here.)",
+          "timestamp": "2026-11-23T12:47:26-05:00",
+          "tree_id": "aef03787a98498c0ad3a28c7046972079c132235",
+          "url": "https://github.com/hyperium/hyper/commit/32e7d3fc18682441b34964b94372da3fff91851f"
+        },
+        "date": 1795456194277,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "http1_consecutive_x1_both_100kb",
+            "value": 90732,
+            "range": "± 1549.70",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_both_10mb",
+            "value": 4339782,
+            "range": "± 226272.75",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_empty",
+            "value": 21302,
+            "range": "± 602.94",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http1_consecutive_x1_req_10b",
+            "value": 23063,
+            "range": "± 794.01",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_empty",
+            "value": 30864,
+            "range": "± 686.45",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_100kb",
+            "value": 99578,
+            "range": "± 2543.78",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_consecutive_x1_req_10b",
+            "value": 41001014,
+            "range": "± 25438.07",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_empty",
+            "value": 78847,
+            "range": "± 2601.99",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks",
+            "value": 24226328,
+            "range": "± 8439534.93",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_adaptive_window",
+            "value": 33857260,
+            "range": "± 8356317.86",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10kb_100_chunks_max_window",
+            "value": 7363404,
+            "range": "± 110342.03",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_req_10mb",
+            "value": 91996566,
+            "range": "± 42659522.23",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_10mb",
+            "value": 52150834,
+            "range": "± 524453.85",
+            "unit": "ns/iter"
+          },
+          {
+            "name": "http2_parallel_x10_res_1mb",
+            "value": 5223552,
+            "range": "± 109744.26",
             "unit": "ns/iter"
           }
         ]
