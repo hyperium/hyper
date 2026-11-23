@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1795456197956,
+  "lastUpdate": 1795461901208,
   "repoUrl": "https://github.com/hyperium/hyper",
   "entries": {
     "pipeline": [
@@ -14789,6 +14789,36 @@ window.BENCHMARK_DATA = {
             "name": "hello_world_16",
             "value": 37385,
             "range": "± 4360.85",
+            "unit": "ns/iter"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "git@katelyn.world",
+            "name": "katelyn martin",
+            "username": "cratelyn"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "b28916668d438f6600b75aed848e62ed252003e4",
+          "message": "style(body,proto): enforce clippy::rest_pattern_accessible_field (#4230)\n\nsee https://github.com/hyperium/hyper/issues/4071.\n\nsee <https://rust-lang.github.io/rust-clippy/master/index.html#rest_pattern_accessible_field>.\n\nthis lint disallows `..` patterns for accessible fields. this is helpful\nbecause it calls attention to locations that may need to be updated when\nthe contents of a structure changes.\n\nallowances are left in place for simple accessors. because the\nlint_reason feature is not supported across the range of our MSRV, we\nuse `/*reason: explanation*/` comments for now.\n\nan explicit allowance of `unneeded_field_pattern` is added, because\nthese two lints conflict: we can either expect exhaustive matching, or\nwe can expect that no fields are explicitly ignored. the former is more\nverbose, but draws attention to where logic may need to be updated as a\ntype evolves over time.\n\nSigned-off-by: katelyn martin <git@katelyn.world>",
+          "timestamp": "2026-11-23T19:24:07Z",
+          "tree_id": "64a5c5cc4891688ef3bb438f218f8b318b1f3ff8",
+          "url": "https://github.com/hyperium/hyper/commit/b28916668d438f6600b75aed848e62ed252003e4"
+        },
+        "date": 1795461897814,
+        "tool": "cargo",
+        "benches": [
+          {
+            "name": "hello_world_16",
+            "value": 44271,
+            "range": "± 8908.38",
             "unit": "ns/iter"
           }
         ]
