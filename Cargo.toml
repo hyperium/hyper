@@ -46,7 +46,7 @@ form_urlencoded = "1"
 futures-channel = { version = "0.3", features = ["sink"] }
 futures-util = { version = "0.3", default-features = false, features = ["alloc", "sink"] }
 http-body-util = "0.1"
-pretty_env_logger = "0.5"
+pretty_env_logger = "0.6"
 pin-project-lite = "0.2.4"
 spmc = "0.3"
 serde = { version = "1.0", features = ["derive"] }
