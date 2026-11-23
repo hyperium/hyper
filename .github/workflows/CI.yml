@@ -125,6 +125,12 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - name: Install cargo-hack
+        uses: taiki-e/install-action@cargo-hack
+
+      - name: Remove dev dependencies
+        run: cargo hack --remove-dev-deps
+
       - name: Resolve MSRV aware dependencies
         run: cargo update
         env:
