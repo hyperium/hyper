@@ -8,6 +8,10 @@ Contributions come in all shapes and sizes. Let's take a tour of some of the dif
 
 Firstly, all interactions with the project need to abide by the code of conduct. This makes sure everyone is treated kindly.
 
+## LLM/AI Policy
+
+Take a moment to read our [AI Policy](./docs/AI_POLICY.md).
+
 ## [Issues](./docs/ISSUES.md)
 
 - **Filing an issue** is a contribution. We appreciate you letting us know about bugs you've found, and any information that you can provide that we can use to make hyper better. Without your filing it, we may not be aware of the bug.
