@@ -220,6 +220,16 @@ where
                             continue;
                         }
 
+                        // Last chunk: send it now together with the headers,
+                        // instead of waiting and doing a second write.
+                        if is_eos {
+                            let buf = SendBuf::Buf(chunk);
+                            me.body_tx
+                                .send_data(buf, true)
+                                .map_err(crate::Error::new_body_write)?;
+                            return Poll::Ready(Ok(()));
+                        }
+
                         // Reserve a minimal claim on the connection-level
                         // flow-control window rather than the whole chunk. The
                         // chunk is already in hand, so this still cannot pin
