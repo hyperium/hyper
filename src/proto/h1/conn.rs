@@ -279,7 +279,6 @@ where
         #[cfg(feature = "server")]
         {
             self.state.h1_header_read_timeout_running = false;
-            self.state.h1_header_read_timeout_fut = None;
         }
 
         // Note: don't deconstruct `msg` into local variables, it appears
