@@ -6,7 +6,7 @@ use std::io::{self, Read, Write};
 use std::net::TcpListener as StdTcpListener;
 use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 use std::task::{Context, Poll};
@@ -1695,6 +1695,77 @@ async fn header_read_timeout_as_idle_timeout() {
             }),
         );
     assert!(conn.without_shutdown().await.unwrap_err().is_timeout());
+}
+
+#[tokio::test]
+async fn header_read_timeout_reuses_timer() {
+    struct CountingTimer(Arc<AtomicUsize>);
+
+    impl Timer for CountingTimer {
+        fn sleep(&self, duration: Duration) -> Pin<Box<dyn hyper::rt::Sleep>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            TokioTimer.sleep(duration)
+        }
+
+        fn sleep_until(&self, deadline: std::time::Instant) -> Pin<Box<dyn hyper::rt::Sleep>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            TokioTimer.sleep_until(deadline)
+        }
+
+        fn reset(
+            &self,
+            sleep: &mut Pin<Box<dyn hyper::rt::Sleep>>,
+            new_deadline: std::time::Instant,
+        ) {
+            TokioTimer.reset(sleep, new_deadline)
+        }
+    }
+
+    let (listener, addr) = setup_tcp_listener();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        for _ in 0..3 {
+            tcp.write_all(
+                b"\
+                GET / HTTP/1.1\r\n\
+                \r\n\
+            ",
+            )
+            .expect("write");
+
+            let mut res = Vec::new();
+            let mut buf = [0u8; 256];
+            while !res.ends_with(b"\r\n\r\n") {
+                let n = tcp.read(&mut buf).expect("read");
+                assert_ne!(n, 0, "connection closed before the response");
+                res.extend_from_slice(&buf[..n]);
+            }
+
+            assert!(res.starts_with(b"HTTP/1.1 200 OK\r\n"));
+        }
+    });
+
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    let sleeps = Arc::new(AtomicUsize::new(0));
+    let conn = http1::Builder::new()
+        .timer(CountingTimer(sleeps.clone()))
+        .header_read_timeout(Duration::from_secs(5))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        );
+
+    conn.await.unwrap();
+    // one timer per connection - every head after the first resets it
+    assert_eq!(sleeps.load(Ordering::SeqCst), 1);
 }
 
 #[tokio::test]
