@@ -430,6 +430,22 @@ impl Builder {
         self
     }
 
+    /// Set whether HTTP/1 connections will accept spaces before the first
+    /// header name in responses.
+    ///
+    /// This is not allowed by the spec, but some servers send it anyway, and
+    /// browsers accept it for compatibility.
+    ///
+    /// Default is false.
+    pub fn allow_space_before_first_header_name_in_responses(
+        &mut self,
+        enabled: bool,
+    ) -> &mut Builder {
+        self.h1_parser_config
+            .allow_space_before_first_header_name(enabled);
+        self
+    }
+
     /// Set whether HTTP/1 connections will silently ignored malformed header lines.
     ///
     /// If this is enabled and a header line does not start with a valid header
