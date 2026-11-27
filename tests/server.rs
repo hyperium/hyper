@@ -2123,6 +2123,104 @@ async fn h2_connect_with_content_length_only_resets_stream() {
 }
 
 #[tokio::test]
+async fn h2_request_no_error_reset_is_an_incomplete_body() {
+    // A client that resets its own unfinished upload with NO_ERROR is not an
+    // early response. The server must not treat the short body as complete.
+    // https://github.com/hyperium/hyper/issues/4286
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let (result_tx, result_rx) = oneshot::channel();
+        let result_tx = Mutex::new(Some(result_tx));
+
+        let svc = service_fn(move |req: Request<IncomingBody>| {
+            let tx = result_tx.lock().unwrap().take();
+            async move {
+                let incomplete = req.into_body().collect().await.is_err();
+                if let Some(tx) = tx {
+                    let _ = tx.send(incomplete);
+                }
+                Ok::<_, hyper::Error>(Response::new(Full::new(Bytes::from_static(b"ok"))))
+            }
+        });
+        let server = tokio::spawn(
+            http2::Builder::new(TokioExecutor).serve_connection(TokioIo::new(server_io), svc),
+        );
+
+        let (mut client, connection) = h2::client::handshake(client_io).await.unwrap();
+        let connection = tokio::spawn(connection);
+
+        let request = Request::post("https://localhost/")
+            .header("content-length", "10")
+            .body(())
+            .unwrap();
+        let (_response, mut body) = client.send_request(request, false).unwrap();
+        body.send_data(Bytes::from_static(b"abc"), false).unwrap();
+        body.send_reset(h2::Reason::NO_ERROR);
+
+        let incomplete = result_rx.await.expect("server read the body");
+        assert!(
+            incomplete,
+            "RST_STREAM(NO_ERROR) left 7 bytes outstanding, collect() should fail"
+        );
+
+        drop(client);
+        drop(connection);
+        drop(server);
+    })
+    .await
+    .expect("timed out waiting for the truncated upload to fail");
+}
+
+#[tokio::test]
+async fn h2_request_full_body_still_completes() {
+    tokio::time::timeout(Duration::from_secs(5), async {
+        let (client_io, server_io) = tokio::io::duplex(64 * 1024);
+        let (result_tx, result_rx) = oneshot::channel();
+        let result_tx = Mutex::new(Some(result_tx));
+
+        let svc = service_fn(move |req: Request<IncomingBody>| {
+            let tx = result_tx.lock().unwrap().take();
+            async move {
+                let bytes = req.into_body().collect().await.map(|c| c.to_bytes());
+                if let Some(tx) = tx {
+                    let _ = tx.send(bytes);
+                }
+                Ok::<_, hyper::Error>(Response::new(Full::new(Bytes::from_static(b"ok"))))
+            }
+        });
+        let server = tokio::spawn(
+            http2::Builder::new(TokioExecutor).serve_connection(TokioIo::new(server_io), svc),
+        );
+
+        let (mut client, connection) = h2::client::handshake(client_io).await.unwrap();
+        let connection = tokio::spawn(connection);
+
+        let request = Request::post("https://localhost/")
+            .header("content-length", "10")
+            .body(())
+            .unwrap();
+        let (response, mut body) = client.send_request(request, false).unwrap();
+        body.send_data(Bytes::from_static(b"0123456789"), true)
+            .unwrap();
+        let response = response.await.expect("response");
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let bytes = result_rx
+            .await
+            .expect("server read the body")
+            .expect("body");
+        assert_eq!(&bytes[..], b"0123456789");
+
+        drop(body);
+        drop(client);
+        drop(connection);
+        drop(server);
+    })
+    .await
+    .expect("timed out waiting for a full upload");
+}
+
+#[tokio::test]
 async fn h2_connect_multiplex() {
     use futures_util::stream::FuturesUnordered;
     use futures_util::StreamExt;

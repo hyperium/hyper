@@ -660,7 +660,7 @@ where
                 } else {
                     let res = res.map(|stream| {
                         let ping = ping.for_stream(&stream);
-                        IncomingBody::h2(stream, content_length.into(), ping)
+                        IncomingBody::h2(stream, content_length.into(), ping, true)
                     });
                     Poll::Ready(Ok(res))
                 }

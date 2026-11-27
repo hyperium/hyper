@@ -51,6 +51,11 @@ enum Kind {
     H2 {
         content_length: DecodedLength,
         data_done: bool,
+        // A server may stop a client upload with RST_STREAM(NO_ERROR) after
+        // sending a complete response (RFC 9113 section 8.1). That ends a
+        // response body. The same reset on a request body is an unfinished
+        // upload, so the server must not treat it as a clean end.
+        early_rst_is_end: bool,
         ping: ping::Recorder,
         recv: h2::RecvStream,
     },
@@ -112,6 +117,7 @@ impl Incoming {
         recv: h2::RecvStream,
         mut content_length: DecodedLength,
         ping: ping::Recorder,
+        early_rst_is_end: bool,
     ) -> Self {
         // If the stream is already EOS, then the "unknown length" is clearly
         // actually ZERO.
@@ -121,6 +127,7 @@ impl Incoming {
 
         Incoming::new(Kind::H2 {
             data_done: false,
+            early_rst_is_end,
             ping,
             content_length,
             recv,
@@ -178,6 +185,7 @@ impl Body for Incoming {
             #[cfg(all(feature = "http2", any(feature = "client", feature = "server")))]
             Kind::H2 {
                 data_done,
+                early_rst_is_end,
                 ping,
                 recv: h2,
                 content_length: len,
@@ -191,14 +199,14 @@ impl Body for Incoming {
                             return Poll::Ready(Some(Ok(Frame::data(bytes))));
                         }
                         Some(Err(e)) => {
-                            if let Some(h2::Reason::NO_ERROR) = e.reason() {
-                                // As mentioned in RFC 7540 Section 8.1, a RST_STREAM with NO_ERROR
-                                // indicates an early response, and should cause the body reading
-                                // to stop, but not fail it:
+                            if *early_rst_is_end && e.reason() == Some(h2::Reason::NO_ERROR) {
+                                // RFC 9113 section 8.1: a server stops an upload with
+                                // RST_STREAM(NO_ERROR) after it has already answered.
+                                // That ends the response body. It does not mean the
+                                // response failed.
                                 return Poll::Ready(None);
-                            } else {
-                                return Poll::Ready(Some(Err(crate::Error::new_body(e))));
                             }
+                            return Poll::Ready(Some(Err(crate::Error::new_body(e))));
                         }
                         None => {
                             *data_done = true;
@@ -214,14 +222,12 @@ impl Body for Incoming {
                         Poll::Ready(Ok(t.map(Frame::trailers)).transpose())
                     }
                     Err(e) => {
-                        if let Some(h2::Reason::NO_ERROR) = e.reason() {
-                            // Same as above, a RST_STREAM with NO_ERROR indicates an early
-                            // response, and should cause reading the trailers to stop, but
-                            // not fail it:
-                            Poll::Ready(None)
-                        } else {
-                            Poll::Ready(Some(Err(crate::Error::new_h2(e))))
+                        if *early_rst_is_end && e.reason() == Some(h2::Reason::NO_ERROR) {
+                            // Same as above: an early response ends the trailers
+                            // without failing the response body.
+                            return Poll::Ready(None);
                         }
+                        Poll::Ready(Some(Err(crate::Error::new_h2(e))))
                     }
                 }
             }
@@ -244,6 +250,7 @@ impl Body for Incoming {
                 recv: h2,
                 content_length: _,
                 data_done: _,
+                early_rst_is_end: _,
                 ping: _,
             } => h2.is_end_stream(),
             #[cfg(feature = "ffi")]
@@ -275,6 +282,7 @@ impl Body for Incoming {
             Kind::H2 {
                 content_length,
                 data_done: _,
+                early_rst_is_end: _,
                 ping: _,
                 recv: _,
             } => opt_len(content_length),
