@@ -1654,6 +1654,68 @@ async fn header_read_timeout_slow_writes_multiple_requests() {
 }
 
 #[tokio::test]
+async fn header_read_timeout_reuses_timer_across_requests() {
+    use std::sync::atomic::AtomicUsize;
+    use std::time::Instant;
+
+    #[derive(Clone)]
+    struct CountingTimer(Arc<AtomicUsize>);
+
+    impl Timer for CountingTimer {
+        fn sleep(&self, duration: Duration) -> Pin<Box<dyn hyper::rt::Sleep>> {
+            TokioTimer.sleep(duration)
+        }
+
+        fn sleep_until(&self, deadline: Instant) -> Pin<Box<dyn hyper::rt::Sleep>> {
+            self.0.fetch_add(1, Ordering::SeqCst);
+            TokioTimer.sleep_until(deadline)
+        }
+
+        fn now(&self) -> Instant {
+            TokioTimer.now()
+        }
+
+        fn reset(&self, sleep: &mut Pin<Box<dyn hyper::rt::Sleep>>, new_deadline: Instant) {
+            TokioTimer.reset(sleep, new_deadline)
+        }
+    }
+
+    let (listener, addr) = setup_tcp_listener();
+
+    thread::spawn(move || {
+        let mut tcp = connect(&addr);
+        let mut buf = [0; 256];
+        for _ in 0..3 {
+            tcp.write_all(b"GET / HTTP/1.1\r\nHost: example.domain\r\n\r\n")
+                .expect("write");
+            let n = tcp.read(&mut buf).expect("read");
+            assert!(buf[..n].starts_with(b"HTTP/1.1 200 OK\r\n"));
+        }
+    });
+
+    let sleeps = Arc::new(AtomicUsize::new(0));
+    let (socket, _) = listener.accept().await.unwrap();
+    let socket = TokioIo::new(socket);
+    http1::Builder::new()
+        .timer(CountingTimer(sleeps.clone()))
+        .header_read_timeout(Duration::from_secs(5))
+        .serve_connection(
+            socket,
+            service_fn(|_| {
+                let res = Response::builder()
+                    .status(200)
+                    .body(Empty::<Bytes>::new())
+                    .unwrap();
+                future::ready(Ok::<_, hyper::Error>(res))
+            }),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(sleeps.load(Ordering::SeqCst), 1);
+}
+
+#[tokio::test]
 async fn header_read_timeout_as_idle_timeout() {
     let (listener, addr) = setup_tcp_listener();
 

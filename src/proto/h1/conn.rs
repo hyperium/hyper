@@ -276,10 +276,11 @@ where
             }
         };
 
+        // Keep the sleep around so the next request head on this connection
+        // resets it instead of allocating and registering a new timer.
         #[cfg(feature = "server")]
         {
             self.state.h1_header_read_timeout_running = false;
-            self.state.h1_header_read_timeout_fut = None;
         }
 
         // Note: don't deconstruct `msg` into local variables, it appears
